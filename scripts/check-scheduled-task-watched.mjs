@@ -358,7 +358,7 @@ export function evaluate({
 }
 
 // ── --self-test：内嵌合成数据验证判别力（铁律 38：门禁自身要负向验证）──────────
-if (process.argv.includes('--self-test')) {
+export function selfTest() {
   const base = {
     managedKeys: ['managed-ok'],
     residentKeys: ['resident-ok']
@@ -464,9 +464,9 @@ if (process.argv.includes('--self-test')) {
   }
 
   // 注释剥离必须等长保留行号（否则所有行号证据都会偏）
-  const masked = maskJavaComments('a\n// @Scheduled\nb\n/* x\ny */\nc');
-  const beforeLines = 'a\n// @Scheduled\nb\n/* x\ny */\nc'.split('\n').length;
-  if (masked.split('\n').length !== beforeLines) {
+  const sample = 'a\n// @Scheduled\nb\n/* x\ny */\nc';
+  const masked = maskJavaComments(sample);
+  if (masked.split('\n').length !== sample.split('\n').length) {
     fail('maskJavaComments 未保留行数 —— 行号证据会失真');
   }
   if (masked.includes('@Scheduled')) {
@@ -476,71 +476,83 @@ if (process.argv.includes('--self-test')) {
   console.log(
     `${TAG} self-test OK（基线绿 / 孤儿调度红 / 孤儿注册红 / 解析不出红 / 显式豁免绿 / 名单缩水红）`
   );
-  process.exit(0);
 }
 
 // ── 执行 ────────────────────────────────────────────────────────────────────
-const managedMasked = maskJavaComments(readFileSync(MANAGED, 'utf8'));
-const monitorMasked = maskJavaComments(readFileSync(MONITOR, 'utf8'));
-const registryMasked = maskJavaComments(readFileSync(REGISTRY, 'utf8'));
+export function runCli() {
+  const managedMasked = maskJavaComments(readFileSync(MANAGED, 'utf8'));
+  const monitorMasked = maskJavaComments(readFileSync(MONITOR, 'utf8'));
+  const registryMasked = maskJavaComments(readFileSync(REGISTRY, 'utf8'));
 
-const managedKeys = parseManagedKeys(managedMasked);
-const residentKeys = parseResidentKeys(monitorMasked);
-const problems = checkWatchedComposition(monitorMasked, managedKeys, residentKeys);
+  const managedKeys = parseManagedKeys(managedMasked);
+  const residentKeys = parseResidentKeys(monitorMasked);
+  const problems = checkWatchedComposition(monitorMasked, managedKeys, residentKeys);
 
-const registryEntries = [...registryMasked.matchAll(/register\(\s*"([a-z0-9-]+)"/g)].map((m) => ({
-  key: m[1],
-  file: relative(ROOT, REGISTRY).replaceAll('\\', '/'),
-  line: lineOf(registryMasked, m.index)
-}));
-if (registryEntries.length < 30) {
-  fail(
-    `ScheduledTaskRegistry 只解析出 ${registryEntries.length} 个 register(...)，预期 30+ —— 解析器已漂移`
+  const registryEntries = [...registryMasked.matchAll(/register\(\s*"([a-z0-9-]+)"/g)].map((m) => ({
+    key: m[1],
+    file: relative(ROOT, REGISTRY).replaceAll('\\', '/'),
+    line: lineOf(registryMasked, m.index)
+  }));
+  if (registryEntries.length < 30) {
+    fail(
+      `ScheduledTaskRegistry 只解析出 ${registryEntries.length} 个 register(...)，预期 30+ —— 解析器已漂移`
+    );
+  }
+
+  const scheduledEntries = [];
+  for (const file of walkJava(SRC_ROOT)) {
+    const raw = readFileSync(file, 'utf8');
+    if (!raw.includes('@Scheduled')) continue;
+    const masked = maskJavaComments(raw);
+    if (!masked.includes('@Scheduled')) continue; // 只在注释里出现过
+    const constants = parseStringConstants(masked);
+    const className = (masked.match(/\bclass\s+(\w+)/) || [
+      ,
+      file.replace(/.*[\\/]/, '').replace('.java', '')
+    ])[1];
+    for (const m of masked.matchAll(/@Scheduled\s*\(/g)) {
+      const entry = extractScheduledCall(masked, m.index, constants);
+      scheduledEntries.push({
+        ...entry,
+        file: relative(ROOT, file).replaceAll('\\', '/'),
+        className
+      });
+    }
+  }
+  if (scheduledEntries.length < 30) {
+    fail(`全仓只解析出 ${scheduledEntries.length} 个 @Scheduled 方法，预期 30+ —— 解析器已漂移`);
+  }
+
+  problems.push(
+    ...evaluate({
+      managedKeys,
+      residentKeys,
+      registryEntries,
+      scheduledEntries,
+      exemptClasses: new Set(EXEMPT_CLASSES.keys()),
+      exemptRegistryKeys: new Set(EXEMPT_REGISTRY_KEYS.keys())
+    })
+  );
+
+  if (problems.length) {
+    console.error(`${TAG} FAIL（${problems.length} 项）:`);
+    for (const p of problems) console.error(`  - ${p}`);
+    process.exit(1);
+  }
+
+  console.log(
+    `${TAG} OK：${scheduledEntries.length} 个 @Scheduled / ${registryEntries.length} 个注册任务全部在看护名单内` +
+      `（托管 ${managedKeys.length} + Spring 常驻 ${residentKeys.length}，豁免 ${EXEMPT_CLASSES.size} 类）`
   );
 }
 
-const scheduledEntries = [];
-for (const file of walkJava(SRC_ROOT)) {
-  const raw = readFileSync(file, 'utf8');
-  if (!raw.includes('@Scheduled')) continue;
-  const masked = maskJavaComments(raw);
-  if (!masked.includes('@Scheduled')) continue; // 只在注释里出现过
-  const constants = parseStringConstants(masked);
-  const className = (masked.match(/\bclass\s+(\w+)/) || [
-    ,
-    file.replace(/.*[\\/]/, '').replace('.java', '')
-  ])[1];
-  for (const m of masked.matchAll(/@Scheduled\s*\(/g)) {
-    const entry = extractScheduledCall(masked, m.index, constants);
-    scheduledEntries.push({
-      ...entry,
-      file: relative(ROOT, file).replaceAll('\\', '/'),
-      className
-    });
+// 直接执行才跑真实树；被 .test.mjs import 时只取导出函数（否则 import 就会替别人跑门禁）。
+const invokedDirectly =
+  process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (invokedDirectly) {
+  if (process.argv.includes('--self-test')) {
+    selfTest();
+  } else {
+    runCli();
   }
 }
-if (scheduledEntries.length < 30) {
-  fail(`全仓只解析出 ${scheduledEntries.length} 个 @Scheduled 方法，预期 30+ —— 解析器已漂移`);
-}
-
-problems.push(
-  ...evaluate({
-    managedKeys,
-    residentKeys,
-    registryEntries,
-    scheduledEntries,
-    exemptClasses: new Set(EXEMPT_CLASSES.keys()),
-    exemptRegistryKeys: new Set(EXEMPT_REGISTRY_KEYS.keys())
-  })
-);
-
-if (problems.length) {
-  console.error(`${TAG} FAIL（${problems.length} 项）:`);
-  for (const p of problems) console.error(`  - ${p}`);
-  process.exit(1);
-}
-
-console.log(
-  `${TAG} OK：${scheduledEntries.length} 个 @Scheduled / ${registryEntries.length} 个注册任务全部在看护名单内` +
-    `（托管 ${managedKeys.length} + Spring 常驻 ${residentKeys.length}，豁免 ${EXEMPT_CLASSES.size} 类）`
-);

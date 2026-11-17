@@ -79,7 +79,7 @@
     "check:competitor-benchmark": "node scripts/check-competitor-benchmark.mjs",
     "check:docker-tests-guarded": "node scripts/check-docker-tests-guarded.test.mjs && node scripts/check-docker-tests-guarded.mjs",
     "check:scheduled-task-trybegin": "node scripts/check-scheduled-task-trybegin.mjs",
-    "check:scheduled-task-watched": "node scripts/check-scheduled-task-watched.mjs --self-test && node scripts/check-scheduled-task-watched.mjs",
+    "check:scheduled-task-watched": "node scripts/check-scheduled-task-watched.test.mjs && node scripts/check-scheduled-task-watched.mjs --self-test && node scripts/check-scheduled-task-watched.mjs",
     "check:mp-unit-tests-wired": "node scripts/check-mp-unit-tests-wired.mjs",
     "check:compose-stop-grace": "node scripts/check-compose-stop-grace.mjs",
     "check:compose-restart": "node scripts/check-compose-restart.test.mjs && node scripts/check-compose-restart.mjs",
