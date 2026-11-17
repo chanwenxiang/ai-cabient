@@ -1750,7 +1750,57 @@
           ]
         }
       ]
-    }  ],
+    },
+    {
+      "commit": "d37a02e5",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 5,
+      "items": [
+        {
+          "id": "MA-328",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceValidationService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/DeviceValidationServiceTest.java"
+          ]
+        },
+        {
+          "id": "MA-329",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceRentalService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/DeviceRentalServiceTest.java"
+          ]
+        },
+        {
+          "id": "MA-330",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/InventoryOpsService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/InventoryOpsConcurrencyTest.java"
+          ]
+        },
+        {
+          "id": "MA-331",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceHttpCredentialService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/DeviceHttpCredentialController.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/DeviceHttpCredentialServiceTest.java"
+          ]
+        },
+        {
+          "id": "MA-332",
+          "files": [
+            "scripts/check-ops-device-scope.mjs",
+            "scripts/devops/verify-ops-device-scope-gate.mjs",
+            "scripts/ops-device-scope-baseline.json",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/OpsReplenishmentAdminService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/AdCampaignService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/OpsReplenishmentScopePushdownTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/AdCampaignServiceTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/AdCampaignConcurrencyTest.java"
+          ]
+        }
+      ]
+    }
+  ],
   "unregisteredAllowlist": [
     
     {

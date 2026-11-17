@@ -43,7 +43,7 @@
 | 族 | 名称 | P1 | 覆盖条目 | 一次修法的本质 |
 |---|---|---|---|---|
 | F1 | 可观测性自证 ✅`9f0da9c2` | 4 | J1 J2 J3 J9 J14 J15 J16 N-04 | 让「任务停跑」这件事自己暴露出来 |
-| F2 | 设备范围闸形态 | 1 | N-01 N-05 N-06 L-09 | 闸从拦截器下沉到 service 入口 |
+| F2 | 设备范围闸形态 ✅`d37a02e5` | 1 | N-01 N-05 N-06 L-09 | 闸从拦截器下沉到 service 入口 |
 | F3 | 结算/对账事务边界 | 3 | ①/BR5 BR3 J4 J8 ⑧ ⑨ | 拆成 prepare → HTTP → finalize |
 | F4 | 库存/月结账实 | 1 | BR9 BR10 BR11 BR13 BR14 BR15 BR16 BR1 BR2 月账单利润 | 判据改 SKU 级 + 加恒等式 |
 | F5 | 状态机/快照覆盖 | 0 | J5 J6 BR12 BR17 BR18 BR19 | 一切状态写入带 `WHERE status=快照态` |
@@ -288,6 +288,25 @@ Wave 4（发布前）          F7 部署可复现
 **测试**：`ScheduledTaskServiceTest` 10/0（+3）、`ProductionStartupValidatorTest` 17/0（+1 负向）、`ScheduledTaskStaleMonitorTest` 14/0、调度相关门禁 6 条全绿；`pre-push-ci-preflight` 的 audit-gates 全链仅剩 1 条真红（下述，非本族）。
 
 **遗留（不属 F1）**：`check:fix-batch-coverage` 红在另一会话的 `3229e914`（`fix(types)` 未登记）——本族的 `9f0da9c2` 已登记。另有 3 条 `*-negative` 门禁在本机**假红**（`SAFE_DELETE_BULK_CONFIRM_REQUIRED`：同 turn 累计删除 > 50），单跑均绿（铁律 #83）。
+
+### F2 设备范围闸形态 — 已落地（`d37a02e5`，2026-11-17）
+
+| 计划项 | 落法 | 与计划的差异（都是核实后改的） |
+|---|---|---|
+| 补货代开门补闸 | 补在 `DeviceValidationService#ensureRestockDoorAllowed` 的 `isOperator` 分支 | 计划写「`persistRestockOpeningSession` 内加」——那里商户补货员与运营共用一个方法，**无条件加闸会误伤商户补货员**（他们的 `userId` 走 assignee 分支，本来就由任务归属绑定到同一台柜机）。闸必须只落在收 operator 身份的那一支 |
+| 租机账单三入口 | `generateBill`/`markPaid`/`voidBill` 按 bill→deviceId 反查后过闸 | 计划只列了「Service 层按 bill→deviceId 反查」；实际还发现 `generateAll`（全量出账）直接 `selectList(null)` 遍历全平台 ⇒ 一并按 `allowedDeviceIds` 收窄（null=不限=内部任务，空集=一台不出） |
+| 报损/盘调补闸 | `writeOff`（设备侧那支）与 `stocktakeAdjust` 在**拿锁之前**过闸 | 闸的位置比计划更靠前：计划只说「方法首行加」；实测必须早于 `runWithDeviceInventoryLock`，否则越权请求会先占柜锁再被拒（阻塞正常请求 60s） |
+| 凭据 `explicitRotate` | 按计划；另修「吊销后复签 500」 | 计划只提「静默轮换」与「明文回显」。核实时发现两个附带事实：①**明文回显本来就是一次性的**（只在签发响应里回，库里只存 sha256）⇒ 这一半无需改；②`revoke` 把 hash 清空后，复签判据「有没有 hash」成立为 false ⇒ 走 insert 撞 `device_id` 主键 500。修法改为「行是否存在决定 UPDATE/INSERT」，比加 `explicitRotate` 更根本 |
+| 门禁认 body deviceId | 新增 R5，并入 R4 同一脚本 | 计划写「候选集扩为 `/api/v2/ops` 下所有写端点（415 个）」——**没有采纳**：415 个端点里绝大多数根本不带设备字段（用户/角色/配置/报表），把它们全列进基线等于把门禁变成一张 400 行的 allowlist，正是基线「棘轮只降不升」明令禁止的形态。改为按**缺陷形态**建候选集：写端点 + `@RequestBody` DTO 声明 `deviceId`/`deviceIds`（当前 14 个），并把「候选集 <8」判红作为扫描面塌陷的假绿防线 |
+| 四条越权 403 断言 | 四个入口逐个断言；每条都断言「拒绝发生在副作用之前」 | 计划只要求「403」。实测把「顺序」也钉上才有意义：读面越权只是看不见，写面若先动库再拒，403 也只是事后装饰 |
+
+**计划外发现（同一轮顺手修/登记）**：R5 首跑就暴露 **9 条**此前无人审计的 body-deviceId 写端点，其中 5 条是真越权并已补闸——补货 `upsertInventory`（台账直写）/ `planRoute`（批量建路线）/ `createTaskFromSuggestion`（跨商户派单）、广告 `createAdCampaign` / `updateAdCampaign`（把广告推到别人柜机屏上，屏对着的是那家的消费者）。另 4 条是语义例外，登记基线并写清兜底：新建柜机（deviceId 是待创建的新柜号，租户轴由 `requireMerchantAccess(merchantId)` 兜底）、演示一键跑通（mock-only + `ops:admin`＝全局）、授范围本身、组织归属（范围判据来源仍是 `ops_user_merchant`/`ops_user_device_scope`，组织树不参与）。
+
+**负向验证（铁律 #4）**：`verify-ops-device-scope-gate` 由 S1–S8 扩到 **S1–S10**——S9 注入「body 带 deviceId 且无闸」的写端点 → 必须红（修前必然绿，这正是本族要补的门禁缺陷）；S10 把报损的设备侧闸退回 → 必须红（证明修复是承重的，而不是「门禁认得注释」）。10 项全过、真实仓三文件 md5 零残留。
+
+**测试**：trade-service 全量 **3227/0**；本族新增/改——`DeviceRentalServiceTest` 39/0（+5）、`DeviceValidationServiceTest` 12/0（+1 负向）、`InventoryOpsConcurrencyTest` 5/0（+2）、`DeviceHttpCredentialServiceTest` 9/0（+3）、`OpsReplenishmentScopePushdownTest` 8/0（+3）。
+
+**遗留（不属 F2，登记待办）**：`AdCampaignService` 只挡了「投放清单里的柜机」，**读面**（活动列表/播放统计）仍全平台可见——那是 F8 文档/门禁漂移与后续 P2 越权的交界，不在本族修。
 
 ---
 
