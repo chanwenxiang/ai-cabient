@@ -35,7 +35,9 @@ class AdCampaignConcurrencyTest {
     void setUp() {
         service = new AdCampaignService(campaignRepository, itemRepository, deviceRepository,
                 assetRepository, auditService, playEventRepository, distributedLockService,
-                new AdPlayEventDeduplicator());
+                new AdPlayEventDeduplicator(),
+                // N-01 邻接：投放设备清单范围闸（void 方法，默认放行 = 范围内）
+                org.mockito.Mockito.mock(MerchantScopeService.class));
     }
 
     @Test

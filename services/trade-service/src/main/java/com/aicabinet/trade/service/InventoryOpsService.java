@@ -37,6 +37,8 @@ public class InventoryOpsService {
     private final DistributedLockService distributedLockService;
     /** V313：仓库侧报损复用它扣减库存+ 留流水（内含防负库存校验，不重复实现）。 */
     private final WarehouseService warehouseService;
+    /** N-06（2026-11-17）：报损/盘调都是**写**，deviceId 在 body ⇒ 拦截器看不见，须在服务入口过范围闸。 */
+    private final MerchantScopeService merchantScopeService;
 
     public InventoryOpsService(InventoryLotService lotService,
                                DeviceValidationService deviceValidationService,
@@ -45,7 +47,8 @@ public class InventoryOpsService {
                                InventoryWriteOffMapper writeOffRepository,
                                MerchantOpsPolicyService opsPolicyService,
                                DistributedLockService distributedLockService,
-                               WarehouseService warehouseService) {
+                               WarehouseService warehouseService,
+                               MerchantScopeService merchantScopeService) {
         this.lotService = lotService;
         this.deviceValidationService = deviceValidationService;
         this.skuCatalogRepository = skuCatalogRepository;
@@ -54,6 +57,7 @@ public class InventoryOpsService {
         this.opsPolicyService = opsPolicyService;
         this.distributedLockService = distributedLockService;
         this.warehouseService = warehouseService;
+        this.merchantScopeService = merchantScopeService;
     }
 
     /**
@@ -81,9 +85,13 @@ public class InventoryOpsService {
                     "deviceId 与 warehouseId 恰好填一个（当前 deviceId="
                             + request.deviceId() + ", warehouseId=" + request.warehouseId() + "）");
         }
-        return deviceSide
-                ? runWithDeviceInventoryLock(request.deviceId(), () -> doWriteOff(operatorId, request))
-                : doWarehouseWriteOff(operatorId, request);
+        if (deviceSide) {
+            // N-06：设备侧报损会真扣库存并留流水，必须先确认这台柜机在该运营的数据范围内。
+            // 仓库侧（warehouseId）走另一套仓储范围，不在此闸内。
+            merchantScopeService.requireDeviceAccess(operatorId, request.deviceId());
+            return runWithDeviceInventoryLock(request.deviceId(), () -> doWriteOff(operatorId, request));
+        }
+        return doWarehouseWriteOff(operatorId, request);
     }
 
     /**
@@ -222,6 +230,8 @@ public class InventoryOpsService {
 
     @Transactional
     public DeviceSkuInventory stocktakeAdjust(Long operatorId, StocktakeAdjustRequest request) {
+        // N-06：盘调直接改库存真值（绕过货道），跨范围写等于改写别人商户的账。
+        merchantScopeService.requireDeviceAccess(operatorId, request.deviceId());
         return runWithDeviceInventoryLock(request.deviceId(),
                 () -> doStocktakeAdjust(operatorId, request));
     }

@@ -1,9 +1,14 @@
 {
-  "_why": "check-ops-device-scope R4 的显式例外登记。拦截器只能看见「路径变量 deviceId」；把 deviceId 放在 @RequestParam 的运营端点必须自己过范围判据（requireDeviceFilter/requireDeviceAccess/intersectDeviceFilter/pushdownDeviceIds，≤4 跳），否则在此登记并写明理由。",
+  "_why": "check-ops-device-scope R4/R5 的显式例外登记。拦截器只能看见「路径变量 deviceId」；把 deviceId 放在 @RequestParam（R4）或 @RequestBody DTO 字段（R5）的运营端点必须自己过范围判据（requireDeviceFilter/requireDeviceAccess/intersectDeviceFilter/pushdownDeviceIds，≤4 跳），否则在此登记并写明理由。",
   "_rule": "只许登记「确实无法在方法内校验」的端点，且必须写清由谁兜底；修复后必须删除该行（门禁会对已修复条目告警，棘轮只降不升）。",
   "_seededAt": "2026-11-15",
   "_note": "2026-11-15 R23X 批 4：C43/C44 的 5 条已修（补货路线/履约任务/到期下架/领货未上柜/理货台账）⇒ 条目删除，棘轮只降不升。同日 R4 补上「隐式命名 @RequestParam」识别面，暴露 3 条经 allowedDeviceIds 交集实现的端点（判据等价，非同族缺陷）与 3 条真泄漏（inventory/资费账单/租机账单，已按 pushdownDeviceIds 修复）。",
+  "_note2": "2026-11-17 F2：R5 新增「请求体 DTO 带 deviceId/deviceIds」识别面（此前候选集只从路径与查询串建，body 形态整批恒绿）。首跑暴露 9 条：补货 3 条（upsertInventory/planRoute/createTaskFromSuggestion）与广告 2 条（createAdCampaign/updateAdCampaign）已补闸；余 4 条为「语义上不是访问设备数据」，登记如下。",
   "entries": {
+    "AdminDashboardController#createDevice": "新建柜机：body.deviceId 是**待创建**的新柜号（此刻还没有设备行，无从判设备范围）；租户轴由 OpsDeviceAdminService#createDevice 的 requireMerchantAccess(body.merchantId) 兜底 ⇒ 域受限运营只能在自己商户下建档",
+    "OpsCommercialController#runCommercialFlow": "一键跑通仅限演示编排：先 mockEnabled() 否则 403，再过 ops:admin；admin 角色即全局范围（isGlobalScope 口径），调用者本就不受数据范围约束，且写的是演示编排数据",
+    "OpsGapFeaturesController#assignDevices": "这是**授予**设备范围本身（ops:rbac:assign:device / ops:rbac:assign 双码），不是访问设备数据；范围配置权限本身就是全局级配置能力",
+    "OpsOrgController#assignOrgDevices": "组织节点—柜机归属配置（ops:org:edit 或 ops:device:edit，MA-070 口径）：写 ops_device_org 映射，不改设备/库存/资金；范围判据来源仍是 ops_user_merchant / ops_user_device_scope，组织归属不参与判据",
     "AdminDashboardController#deviceReports": "设备报表分页：OpsDeviceAdminService.deviceReports 以 allowedDevices(operatorId) 为源集合再按 deviceFilter 过滤——越权 deviceId 只会得空表，判据等价于「范围优先」（非同族缺陷）",
     "AdminDashboardController#deviceDailyRevenue": "柜机×日营收：OpsDeviceAdminService.deviceDailyRevenue 用 allowedDeviceIds + contains 过滤并按 scoped 取数（非同族缺陷，判据等价于 require）",
     "OpsGapFeaturesController#salesReports": "销售报表分页：CompetitiveGapService.salesReport 先取 allowedDeviceIds，再对请求 deviceId 做 contains 判断（越权 ⇒ 空表）并收敛为单元素集合下推（非同族缺陷；改动此方法必须保持「交集」语义）",

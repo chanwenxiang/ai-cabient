@@ -42,16 +42,22 @@ public class DeviceHttpCredentialController {
         this.auditService = auditService;
     }
 
-    /** 签发/轮换：明文 secret 仅本次响应可见。 */
+    /**
+     * 签发/轮换：明文 secret 仅本次响应可见。
+     *
+     * <p>🔴 轮换会立刻废掉现场设备正在用的 secret，而新明文只在本次响应里出现一次——
+     * 所以必须由调用方显式声明 {@code {"mode":"rotate"}}；不带这个字段撞上已有凭据一律 409
+     * （L-09：旧形态静默轮换 = 运营以为在「补发」，实际把在线柜机推进 401）。</p>
+     */
     @RequiresPermissions("ops:device:edit")
     @PostMapping
     public ApiResponse<Map<String, Object>> issue(HttpServletRequest request,
                                                   @PathVariable String deviceId,
                                                   @RequestBody(required = false) Map<String, String> body) {
         Long operatorId = operatorId(request);
-        DeviceHttpCredentialService.IssuedCredential issued =
-                credentialService.issue(deviceId, operatorId);
         boolean explicitRotate = body != null && "rotate".equalsIgnoreCase(body.get("mode"));
+        DeviceHttpCredentialService.IssuedCredential issued =
+                credentialService.issue(deviceId, operatorId, explicitRotate);
         auditService.appendLog(operatorId, "DEVICE_HTTP_CREDENTIAL_ISSUE", BIZ_DEVICE_HTTP_CREDENTIAL,
                 deviceId, explicitRotate ? "轮换" : "签发");
         // 响应体含明文 secret：走 HTTPS/内网；日志与审计均不落 secret。

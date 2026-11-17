@@ -52,6 +52,8 @@ public class AdCampaignService {
     private final AdPlayEventMapper playEventRepository;
     private final DistributedLockService distributedLockService;
     private final AdPlayEventDeduplicator playEventDeduplicator;
+    /** N-01 邻接（2026-11-17）：投放设备清单来自 body，须过数据范围。 */
+    private final MerchantScopeService merchantScopeService;
 
     public AdCampaignService(AdCampaignMapper campaignRepository,
                              AdCampaignItemMapper itemRepository,
@@ -60,7 +62,8 @@ public class AdCampaignService {
                              AdminAuditService auditService,
                              AdPlayEventMapper playEventRepository,
                              DistributedLockService distributedLockService,
-                             AdPlayEventDeduplicator playEventDeduplicator) {
+                             AdPlayEventDeduplicator playEventDeduplicator,
+                             MerchantScopeService merchantScopeService) {
         this.campaignRepository = campaignRepository;
         this.itemRepository = itemRepository;
         this.deviceRepository = deviceRepository;
@@ -69,6 +72,7 @@ public class AdCampaignService {
         this.playEventRepository = playEventRepository;
         this.distributedLockService = distributedLockService;
         this.playEventDeduplicator = playEventDeduplicator;
+        this.merchantScopeService = merchantScopeService;
     }
 
     @Transactional(readOnly = true)
@@ -165,6 +169,15 @@ public class AdCampaignService {
             }
         }
         replaceItems(campaign.getCampaignId(), request.assetIds());
+        // N-01 邻接（2026-11-17）：投放设备清单在 body 里，拦截器看不见 ⇒ 域受限运营
+        // 能把广告推到任意商户的柜机屏上（屏对着的是那家的消费者）。
+        // 越权一台即整体拒绝，不静默丢弃：悄悄裁剪会让运营以为「投放已生效」。
+        // operatorId == null 只可能来自内部任务（当前无此调用方，与 generateAll 的 null=不限同口径）。
+        if (operatorId != null && request.deviceIds() != null) {
+            for (String deviceId : request.deviceIds()) {
+                merchantScopeService.requireDeviceFilter(operatorId, deviceId);
+            }
+        }
         replaceDevices(campaign.getCampaignId(), scope, request.deviceIds());
         auditService.appendLog(operatorId, "AD_CAMPAIGN_UPSERT", AD_CAMPAIGN,
                 String.valueOf(campaign.getCampaignId()), NAME + campaign.getName());

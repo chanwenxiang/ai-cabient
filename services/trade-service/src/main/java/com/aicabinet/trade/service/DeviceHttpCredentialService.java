@@ -50,9 +50,23 @@ public class DeviceHttpCredentialService {
                                    String secretSha256, Instant issuedAt) {
     }
 
-    /** 签发/轮换：同一 deviceId 旧凭据直接被新凭据替换（旧 secret 即刻失效）。 */
+    /**
+     * 签发（首次）或轮换（显式）。
+     *
+     * <p>🔴 L-09（2026-11-17）两条语义在此收紧：</p>
+     * <ol>
+     *   <li><b>轮换必须显式</b>：旧形态对已有凭据**静默轮换**——运营点一次「签发」就把现场
+     *       设备的 secret 换掉，而装机现场拿不到新明文（明文只在签发响应里回一次），
+     *       结果是一台在线柜机在 401 里静默掉线，事后只能从「设备掉线」倒查。
+     *       现在 {@code explicitRotate=false} 撞上已生效凭据直接 409，把「你以为在补发、
+     *       其实在废掉」这个歧义挡在入口。</li>
+     *   <li><b>行已存在一律 UPDATE</b>：旧形态判据是「有没有 hash」，而 {@code revoke} 会把
+     *       hash 清成空串 ⇒「吊销后再签发」掉进 insert 分支，撞 device_id 主键直接 500。
+     *       吊销后重新签发是常规运维动作，不能 500。</li>
+     * </ol>
+     */
     @Transactional
-    public IssuedCredential issue(String deviceId, Long operatorId) {
+    public IssuedCredential issue(String deviceId, Long operatorId, boolean explicitRotate) {
         String id = requireDeviceId(deviceId);
         // MA-119：原来只验「12 位数字」不验设备存在 ⇒ 手滑一位就签出一条 ACTIVE 孤儿凭据（还把明文 secret 回显给调用方）
         requireDeviceExists(id);
@@ -61,11 +75,17 @@ public class DeviceHttpCredentialService {
         Instant now = Instant.now();
 
         DeviceHttpCredential existing = repository.findById(id).orElse(null);
-        boolean rotation = existing != null && existing.getSecretSha256() != null
+        boolean hasLiveSecret = existing != null && existing.getSecretSha256() != null
                 && !existing.getSecretSha256().isBlank();
+        if (hasLiveSecret && !explicitRotate) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "该设备已有生效凭据；轮换会立刻使现场设备鉴权失败（新明文只在本次响应可见）。"
+                            + "确需轮换请显式提交 {\"mode\":\"rotate\"}");
+        }
 
-        if (rotation) {
-            // 轮换须显式清撤销标记：updateById 忽略 null 字段（check-mybatis-null-clear 门禁）
+        if (existing != null) {
+            // 轮换/复签都走显式 SQL：既清撤销标记（updateById 忽略 null 字段，check-mybatis-null-clear 门禁），
+            // 也避免「吊销过 ⇒ 走 insert ⇒ 主键冲突」。
             repository.clearRevocationAndRotate(id, hash, operatorId, now);
         } else {
             DeviceHttpCredential cred = new DeviceHttpCredential();
@@ -76,7 +96,7 @@ public class DeviceHttpCredentialService {
             cred.setIssuedAt(now);
             repository.save(cred);
         }
-        log.info("device http credential issued deviceId={} rotated={} by={}", id, rotation, operatorId);
+        log.info("device http credential issued deviceId={} rotated={} by={}", id, hasLiveSecret, operatorId);
         return new IssuedCredential(id, secret, hash, now);
     }
 

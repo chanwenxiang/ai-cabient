@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -42,6 +44,9 @@ class DeviceValidationServiceTest {
     private JiangyiDeviceDirectory jiangyiDeviceDirectory;
     @Mock
     private com.aicabinet.trade.config.SecurityProperties securityProperties;
+    /** N-01：运营代开补货门的设备范围闸（void 方法，默认放行 = 范围内）。 */
+    @Mock
+    private MerchantScopeService merchantScopeService;
 
     private DeviceValidationService service;
 
@@ -50,7 +55,7 @@ class DeviceValidationServiceTest {
         service = new DeviceValidationService(
                 deviceInfoRepository, sessionRepository, replenishmentTaskRepository,
                 consumerPreauthService, merchantRepository,
-                jiangyiDeviceDirectory, securityProperties);
+                jiangyiDeviceDirectory, securityProperties, merchantScopeService);
     }
 
     @Test
@@ -84,6 +89,36 @@ class DeviceValidationServiceTest {
                 .thenReturn(List.of());
 
         assertSame(task, service.ensureRestockDoorAllowed("CAB-001", 1L, 100000001L));
+    }
+
+    /**
+     * N-01 反向用例：域受限运营对**范围外**柜机代开补货门必须 403。
+     *
+     * <p>这里 deviceId 来自请求 body，上层 {@code OpsDeviceScopeInterceptor} 只拦
+     * {@code {deviceId}} 路径变量 ⇒ 除了本方法没有任何地方能拦住它；所以这条用例是
+     * 「运营可跨商户物理开门」这个越权洞的唯一回归证据，删除即等于放行。
+     */
+    @Test
+    void ensureRestockDoorAllowed_operatorOutOfScopeForbidden() {
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(1L);
+        task.setDeviceId("CAB-OTHER");
+        task.setStatus("PENDING");
+        task.setAssigneeUserId(1L);
+        task.setCheckInAt(Instant.now());
+        when(replenishmentTaskRepository.findById(1L)).thenReturn(Optional.of(task));
+        doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.PERMISSION_DENIED))
+                .when(merchantScopeService).requireDeviceAccess(100000001L, "CAB-OTHER");
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.ensureRestockDoorAllowed("CAB-OTHER", 1L, 100000001L));
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        assertEquals(ApiMessages.PERMISSION_DENIED, ex.getReason());
+        // 越权必须在碰设备/会话之前落闸：否则「校验顺序」一改就变成先下发开门再拒绝
+        verify(deviceInfoRepository, never()).findById(ArgumentMatchers.anyString());
+        verify(sessionRepository, never())
+                .findByDeviceIdAndStateIn(ArgumentMatchers.anyString(), ArgumentMatchers.anyList());
     }
 
     @Test

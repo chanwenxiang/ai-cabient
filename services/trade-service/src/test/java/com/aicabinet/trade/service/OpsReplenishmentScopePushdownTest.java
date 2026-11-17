@@ -114,4 +114,56 @@ class OpsReplenishmentScopePushdownTest {
         verify(replenishmentService).listFulfillmentTasksPage(Set.of(), null, 0, 20);
         verify(replenishmentService, never()).listRoutesPage(null, 0, 20);
     }
+
+    // ── N-01 邻接（2026-11-17 F2）：三个**写**入口的请求体 deviceId 必须过范围闸 ──────
+    // 为什么读面钉下推、写面必须单独钉：读面越权只是看不见，写面越权是**改别人的账/派别人的单**。
+    // 这三个端点的 deviceId 都在 @RequestBody 里，OpsDeviceScopeInterceptor 只拦路径变量，
+    // 所以「service 入口有没有调闸」是唯一可钉的地方。
+
+    @Test
+    @DisplayName("库存台账直写：越权柜号 403，且一次写都不发生")
+    void upsertInventory_deniesOutOfScopeDeviceBeforeWrite() {
+        org.mockito.Mockito.doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.PERMISSION_DENIED))
+                .when(merchantScopeService).requireDeviceFilter(OPERATOR, "DEV-OTHER");
+        var body = new com.aicabinet.common.dto.DeviceInventoryDto(
+                "DEV-OTHER", "SKU-1", 10, 20, 3, null, 0L, null, null, null);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.upsertInventory(OPERATOR, body));
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        verifyNoInteractions(replenishmentService);
+    }
+
+    @Test
+    @DisplayName("建议建单：越权柜号 403，不生成路线也不派单")
+    void createTaskFromSuggestion_deniesOutOfScopeDevice() {
+        org.mockito.Mockito.doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.PERMISSION_DENIED))
+                .when(merchantScopeService).requireDeviceFilter(OPERATOR, "DEV-OTHER");
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.createTaskFromSuggestion(OPERATOR, "DEV-OTHER", 100000009L));
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        verifyNoInteractions(replenishmentService);
+    }
+
+    @Test
+    @DisplayName("路线规划：批量柜号逐台过闸，越权一台即整体拒绝（不静默裁剪）")
+    void planRoute_deniesWhenAnyDeviceOutOfScope() {
+        // lenient：本用例先以 DEV-OK 调用同一个桩（严格模式下会被判成「桩参数不匹配」）
+        org.mockito.Mockito.lenient()
+                .doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.PERMISSION_DENIED))
+                .when(merchantScopeService).requireDeviceFilter(OPERATOR, "DEV-OTHER");
+        var body = new com.aicabinet.common.dto.PlanRouteRequest(
+                "路线A", 100000009L, null, List.of("DEV-OK", "DEV-OTHER"), 1.0, 2.0);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.planRoute(OPERATOR, body));
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        // 范围内的那台也要被检查过（顺序：先 OK 后 OTHER），且整条路线一条都不落库
+        verify(merchantScopeService).requireDeviceFilter(OPERATOR, "DEV-OK");
+        verifyNoInteractions(replenishmentService);
+    }
 }

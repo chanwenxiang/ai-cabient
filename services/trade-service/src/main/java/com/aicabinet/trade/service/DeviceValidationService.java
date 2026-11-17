@@ -44,6 +44,7 @@ public class DeviceValidationService {
     private final MerchantMapper merchantRepository;
     private final JiangyiDeviceDirectory jiangyiDeviceDirectory;
     private final SecurityProperties securityProperties;
+    private final MerchantScopeService merchantScopeService;
 
     public DeviceValidationService(DeviceInfoMapper deviceInfoRepository,
                                    ShoppingSessionMapper sessionRepository,
@@ -51,7 +52,8 @@ public class DeviceValidationService {
                                    ConsumerPreauthService consumerPreauthService,
                                    MerchantMapper merchantRepository,
                                    JiangyiDeviceDirectory jiangyiDeviceDirectory,
-                                   SecurityProperties securityProperties) {
+                                   SecurityProperties securityProperties,
+                                   MerchantScopeService merchantScopeService) {
         this.deviceInfoRepository = deviceInfoRepository;
         this.sessionRepository = sessionRepository;
         this.replenishmentTaskRepository = replenishmentTaskRepository;
@@ -59,6 +61,7 @@ public class DeviceValidationService {
         this.merchantRepository = merchantRepository;
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
         this.securityProperties = securityProperties;
+        this.merchantScopeService = merchantScopeService;
     }
 
     public DeviceInfo requireDevice(String deviceId) {
@@ -201,9 +204,15 @@ public class DeviceValidationService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_TASK_FINISHED);
         }
         // 运营账号可代开；商户/补货员须为任务负责人（或未指定负责人）
-        if (task.getAssigneeUserId() != null
-                && !task.getAssigneeUserId().equals(operatorUserId)
-                && !OperatorAuth.isOperator(operatorUserId)) {
+        if (OperatorAuth.isOperator(operatorUserId)) {
+            // N-01（2026-11-17）：运营代开**不能只看「是不是运营」**，还要看这台柜机在不在
+            // 他的数据范围里。这里的 deviceId 来自请求 body（不是路径变量），
+            // 而上层 `OpsDeviceScopeInterceptor` 只拦 `{deviceId}` 路径变量 ⇒ 闸完全失效：
+            // 任一持 `ops:device:edit` 的域受限运营可对**任意商户**的柜机物理开门（补货开门
+            // 会真下发开门指令）。故在此补数据范围判——这是唯一收 operator 身份的位置。
+            merchantScopeService.requireDeviceAccess(operatorUserId, deviceId);
+        } else if (task.getAssigneeUserId() != null
+                && !task.getAssigneeUserId().equals(operatorUserId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.REPLENISHMENT_TASK_ASSIGNEE);
         }
         if (task.getCheckInAt() == null) {

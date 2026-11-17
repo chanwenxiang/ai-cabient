@@ -26,6 +26,7 @@ import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 设备租赁闭环（CB-034）：coopMode=RENTAL 的柜机按月出应收租金账单、押金收据化、欠租自动锁柜。
@@ -464,6 +465,9 @@ public class DeviceRentalService {
     @Transactional
     public DeviceRentalBill generateBill(Long operatorId, String deviceId, String billMonth) {
         permissionService.requirePermission(operatorId, "ops:rental:manage");
+        // N-05（2026-11-17）：出账是**写**，deviceId 来自 body ⇒ 拦截器看不见，
+        // 此前只有功能权限、没有数据范围：域受限运营可给任意商户的柜机造出租金账单。
+        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         String month = monthResolver.resolve(billMonth);
         return runWithLock(deviceId, month, () -> doGenerateOne(operatorId, deviceId, month));
     }
@@ -479,6 +483,8 @@ public class DeviceRentalService {
     public DeviceRentalBill markPaid(Long operatorId, Long billId) {
         permissionService.requirePermission(operatorId, "ops:rental:manage");
         DeviceRentalBill bill = requireBill(billId);
+        // N-05：billId 是自增主键，可枚举；改账态前必须按账单行反查设备再过范围闸。
+        merchantScopeService.requireDeviceAccess(operatorId, bill.getDeviceId());
         if (CabinetConstants.FEE_BILL_STATUS_VOID.equals(bill.getStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "已作废账单不可标记已付");
         }
@@ -498,6 +504,8 @@ public class DeviceRentalService {
     public DeviceRentalBill voidBill(Long operatorId, Long billId) {
         permissionService.requirePermission(operatorId, "ops:rental:manage");
         DeviceRentalBill bill = requireBill(billId);
+        // N-05：同上——作废是资金账态变更，必须按账单行反查设备过范围闸。
+        merchantScopeService.requireDeviceAccess(operatorId, bill.getDeviceId());
         if (CabinetConstants.FEE_BILL_STATUS_PAID.equals(bill.getStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "已付账单不可作废");
         }
@@ -548,7 +556,14 @@ public class DeviceRentalService {
 
     private List<DeviceRentalBill> generateAllInternal(Long operatorId, String month) {
         List<DeviceRentalBill> created = new ArrayList<>();
+        // N-05（2026-11-17）：全量出账必须按数据范围收窄。原来直接遍历
+        // deviceMapper.selectList(null)，域受限运营点一次「全量出账」就会给**全平台**柜机
+        // 造出租金账单（跨商户写）。null = 不限（全局账号 / 内部任务），空集 = 一台都不出。
+        Set<String> allowed = operatorId == null ? null : merchantScopeService.allowedDeviceIds(operatorId);
         for (DeviceInfo device : deviceMapper.selectList(null)) {
+            if (allowed != null && !allowed.contains(device.getDeviceId())) {
+                continue;
+            }
             long rent = device.getRentCents() == null ? 0L : device.getRentCents();
             if (!"RENTAL".equals(device.getCoopMode()) || rent <= 0) {
                 continue;

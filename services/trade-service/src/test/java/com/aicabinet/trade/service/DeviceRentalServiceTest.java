@@ -621,4 +621,89 @@ class DeviceRentalServiceTest {
 
         verify(merchantScopeService).requireDeviceAccess(9L, "CAB-001");
     }
+
+    // ── N-05（2026-11-17）：租机账单三个写入口的数据范围闸 ──────────────────────
+    // 修前形态：只校验功能权限 ops:rental:manage，不校验数据范围。deviceId 来自 body
+    // （拦截器看不见），billId 是自增主键（可枚举）⇒ 域受限运营能给任意商户柜机造账单、
+    // 也能把别家已租出的账单标成已付/作废（账态变更直接影响商户资金结论）。
+
+    @Test
+    void generateBill_outOfScopeDevice_forbiddenBeforeLock() {
+        org.mockito.Mockito.doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "无权访问该设备"))
+                .when(merchantScopeService).requireDeviceAccess(9L, "CAB-OTHER");
+
+        assertThatThrownBy(() -> service.generateBill(9L, "CAB-OTHER", "2026-10"))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+
+        // 越权必须在拿锁/落库之前落闸
+        verify(distributedLockService, never()).tryLock(anyString(), org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong());
+        verify(billMapper, never()).insert(any());
+    }
+
+    @Test
+    void markPaid_outOfScopeBill_forbiddenBeforeStateChange() {
+        DeviceRentalBill bill = new DeviceRentalBill();
+        bill.setBillId(77L);
+        bill.setDeviceId("CAB-OTHER");
+        when(billMapper.selectById(77L)).thenReturn(bill);
+        org.mockito.Mockito.doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "无权访问该设备"))
+                .when(merchantScopeService).requireDeviceAccess(9L, "CAB-OTHER");
+
+        assertThatThrownBy(() -> service.markPaid(9L, 77L))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+
+        // 账态一行都不许改
+        verify(billMapper, never()).updateById(any());
+    }
+
+    @Test
+    void voidBill_outOfScopeBill_forbiddenBeforeStateChange() {
+        DeviceRentalBill bill = new DeviceRentalBill();
+        bill.setBillId(78L);
+        bill.setDeviceId("CAB-OTHER");
+        when(billMapper.selectById(78L)).thenReturn(bill);
+        org.mockito.Mockito.doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "无权访问该设备"))
+                .when(merchantScopeService).requireDeviceAccess(9L, "CAB-OTHER");
+
+        assertThatThrownBy(() -> service.voidBill(9L, 78L))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+
+        verify(billMapper, never()).updateById(any());
+    }
+
+    /** 全量出账：域受限运营只出自己的柜机，别的柜机连计数都不该碰（跨商户造应收＝资损）。 */
+    @Test
+    void generateAll_scopedOperator_onlyBillsAllowedDevices() {
+        DeviceInfo mine = rentalDevice("CAB-001", 30_000L);
+        DeviceInfo others = rentalDevice("CAB-OTHER", 30_000L);
+        when(merchantScopeService.allowedDeviceIds(9L)).thenReturn(java.util.Set.of("CAB-001"));
+        when(deviceMapper.selectList(any())).thenReturn(List.of(mine, others));
+        when(deviceMapper.findById("CAB-001")).thenReturn(Optional.of(mine));
+
+        List<DeviceRentalBill> created = service.generateAll(9L, "2026-10");
+
+        assertThat(created).extracting(DeviceRentalBill::getDeviceId).containsExactly("CAB-001");
+        verify(billMapper, never()).countNonVoidByDeviceAndMonth(eq("CAB-OTHER"), anyString());
+        verify(billMapper, never()).insert(org.mockito.ArgumentMatchers.argThat(
+                b -> "CAB-OTHER".equals(b.getDeviceId())));
+    }
+
+    /** 内部任务（operatorId=null，日检）不受范围收窄——否则定时出账会一台都不出。 */
+    @Test
+    void generateAll_internalTask_notNarrowedByScope() {
+        DeviceInfo d1 = rentalDevice("CAB-001", 30_000L);
+        DeviceInfo d2 = rentalDevice("CAB-OTHER", 30_000L);
+        when(deviceMapper.selectList(any())).thenReturn(List.of(d1, d2));
+        when(deviceMapper.findById("CAB-001")).thenReturn(Optional.of(d1));
+        when(deviceMapper.findById("CAB-OTHER")).thenReturn(Optional.of(d2));
+
+        List<DeviceRentalBill> created = service.generateAll(null, "2026-10");
+
+        assertThat(created).hasSize(2);
+        verify(merchantScopeService, never()).allowedDeviceIds(any());
+    }
 }

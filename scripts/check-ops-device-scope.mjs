@@ -16,8 +16,12 @@
  *  R4 查询串例外：运营端点若把 deviceId 放在 `@RequestParam`（拦截器看不见），
  *     必须自身（≤2 跳）过范围判据，或在 `scripts/ops-device-scope-baseline.json` 里
  *     带原因登记（当前都是「分页筛选条件」，由 service 做交集）。
+ *  R5 请求体例外：运营**写端点**若把 deviceId 藏在 `@RequestBody` 的 DTO 字段里
+ *     （拦截器只看路径变量，永远看不见 body），同样必须 ≤4 跳内过范围判据或登记。
+ *     这是 2026-11-17 F2 的那批形态：补货代开门 / 资费 / 租机账单 / 报损 / 盘调——
+ *     R4 全绿而洞是真的，因为候选集只从路径与查询串建。
  *
- * 负向验证：`node scripts/devops/verify-ops-device-scope-gate.mjs`（S1–S6）。
+ * 负向验证：`node scripts/devops/verify-ops-device-scope-gate.mjs`（S1–S9）。
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -32,6 +36,11 @@ const SKIP_SANITY = process.env.GATE_SKIP_SANITY === '1';
 const TAG = '[check-ops-device-scope]';
 const BASELINE_PATH = join('scripts', 'ops-device-scope-baseline.json');
 const TRADE_SRC = join(ROOT, 'services', 'trade-service', 'src', 'main', 'java');
+// R5 需要解析 @RequestBody 的 DTO 类型；这些 DTO 大量在 common-core（跨模块），
+// 只索引 trade-service 会让 body 形态静默落空（WriteOffRequest/StocktakeAdjustRequest 都在那边）。
+const EXTRA_SRC = [join(ROOT, 'services', 'common', 'common-core', 'src', 'main', 'java')].filter(
+  (d) => existsSync(d)
+);
 const API_DIR = join(TRADE_SRC, 'com', 'aicabinet', 'trade', 'api');
 const INTERCEPTOR = join(
   TRADE_SRC,
@@ -133,7 +142,7 @@ function bodyOf(src, openIdx) {
 }
 
 // ── 全仓 Java 索引（类名 → 源码 / 字段表），供 2 跳解析 ──
-const javaFiles = walk(TRADE_SRC);
+const javaFiles = [TRADE_SRC, ...EXTRA_SRC].flatMap((d) => walk(d));
 const byClass = new Map();
 const srcOf = new Map();
 for (const f of javaFiles) {
@@ -407,6 +416,99 @@ if (queryParamOffenders.length) {
   );
 }
 
+// ────────── R5 请求体 deviceId 例外 ──────────
+/**
+ * DTO 是否声明了设备字段。三种写法都要认：
+ *   - record 组件：`record XxxRequest(String deviceId, ...)` → `String deviceId,`
+ *   - 普通字段：  `private String deviceId;`
+ *   - 批量形态：  `List<String> deviceIds`
+ *
+ * 🔴 只认 `deviceId` 会漏掉 `deviceIds`（批量下架/批量改价这类写端点），
+ * 而批量写一旦无闸，影响面比单台更大。
+ */
+const DEVICE_ID_DECL = [
+  /\bString\s+deviceId\s*[,;)]/,
+  /\bString\s+deviceIds\s*[,;)]/,
+  /\bList\s*<\s*String\s*>\s+deviceIds\s*[,;)]/
+];
+
+function declaresDeviceIdField(typeName) {
+  const f = byClass.get(typeName);
+  if (!f) return false;
+  const src = srcOf.get(f) || maskComments(readFileSync(f, 'utf8'));
+  return DEVICE_ID_DECL.some((re) => re.test(src));
+}
+
+/**
+ * 形参表里是否有「deviceId 走请求体 DTO」的 @RequestBody。
+ * 返回 DTO 类型名（无则 null），用于错误信息点名。
+ */
+function bodyDeviceIdType(params) {
+  // 注意结尾：形参表切片**不含**最后的 `)`，所以「最后一个形参」只有行尾锚点可依。
+  // 只写 `[,)]` 会把「body 是最后一个形参」的全部端点漏掉（首版实测候选集 = 0）。
+  // 类型允许全限定名（`@RequestBody com.x.WriteOffRequest body` 是本仓常见写法），
+  // 判断字段时只取最后一段——否则全限定名会被当成「未知类型」而静默跳过。
+  const m = params.match(
+    /@RequestBody(?:\([^)]*\))?\s+([A-Za-z_][A-Za-z0-9_.]*(?:\s*<[^>]*>)?)\s+[a-z][A-Za-z0-9_]*\s*(?:,|$)/
+  );
+  if (!m) return null;
+  const type = m[1]
+    .replace(/<[\s\S]*$/, '')
+    .trim()
+    .split('.')
+    .pop();
+  return declaresDeviceIdField(type) ? type : null;
+}
+
+const bodyOffenders = [];
+let bodyCandidates = 0;
+for (const { cls, src } of opsControllers) {
+  const ANNO = /@(?:Post|Put|Patch|Delete)Mapping\b/g;
+  let m;
+  while ((m = ANNO.exec(src))) {
+    let annoEnd = m.index + m[0].length - 1;
+    if (src[annoEnd] === '(') {
+      let d = 0;
+      for (let i = annoEnd; i < src.length; i++) {
+        if (src[i] === '(') d++;
+        else if (src[i] === ')') {
+          d--;
+          if (!d) {
+            annoEnd = i;
+            break;
+          }
+        }
+      }
+    }
+    const h = handlerParamsAt(src, annoEnd);
+    if (!h) continue;
+    const dtoType = bodyDeviceIdType(h.params);
+    if (!dtoType) continue;
+    // 路径变量 deviceId 已被拦截器覆盖（且更早失败），此处不重复判
+    if (/@PathVariable\s*\(\s*(?:name\s*=\s*)?"deviceId"/.test(h.params)) continue;
+    bodyCandidates++;
+    if (enforcedWithin(cls, h.name)) continue;
+    if (baseline.has(`${cls}#${h.name}`)) continue;
+    bodyOffenders.push(`${cls}#${h.name}（body ${dtoType} 含 deviceId/deviceIds）`);
+  }
+}
+// 假绿防线：正则一旦跟不上新写法，候选集会塌成 0 而门禁恒绿（R3 同款思路）。
+// 阈值取 8（当前实测 14）：留出正常重构余地，但「识别面塌掉」一定拦得住。
+if (!SKIP_SANITY && bodyCandidates < 8) {
+  errors.push(
+    `R5 只识别到 ${bodyCandidates} 个「请求体带 deviceId」的运营写端点（<8）—— ` +
+      `扫描面塌了，门禁会假绿（先修 bodyDeviceIdType/DEVICE_ID_DECL 的识别面）`
+  );
+}
+if (bodyOffenders.length) {
+  errors.push(
+    `R5 以下运营写端点把 deviceId 放在 @RequestBody（拦截器永远看不见）且自身不过范围判据：\n    ` +
+      bodyOffenders.join('\n    ') +
+      `\n    → 在方法体（或 ≤4 跳的 service 入口）调 requireDeviceAccess/allowedDeviceIds，` +
+      `或在 ${BASELINE_PATH} 带原因登记`
+  );
+}
+
 // 基线陈旧：登记了但已修好 → 要求删除，防基线变成「永久豁免」
 for (const key of baseline.keys()) {
   const [cls, method] = key.split('#');
@@ -428,7 +530,9 @@ function loadBaseline() {
 
 // ────────── 输出 ──────────
 if (!errors.length && !warns.length) {
-  console.log(`${TAG} OK：拦截器本体/注册面/前缀口径/查询串例外四类判据全部通过`);
+  console.log(
+    `${TAG} OK：拦截器本体/注册面/前缀口径/查询串例外/请求体例外五类判据全部通过（请求体候选 ${bodyCandidates} 个）`
+  );
 }
 for (const w of warns) console.log(`${TAG} WARN ${w}`);
 if (errors.length) {

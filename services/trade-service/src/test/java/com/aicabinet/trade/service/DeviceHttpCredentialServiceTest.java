@@ -48,7 +48,7 @@ class DeviceHttpCredentialServiceTest {
         when(repository.findById("123456789012")).thenReturn(Optional.empty());
 
         DeviceHttpCredentialService.IssuedCredential issued =
-                service.issue("123456789012", 9L);
+                service.issue("123456789012", 9L, false);
 
         assertThat(issued.secret()).isNotBlank();
         assertThat(issued.secretSha256())
@@ -68,7 +68,7 @@ class DeviceHttpCredentialServiceTest {
         revoked.setRevokedAt(Instant.now());
         when(repository.findById("123456789012")).thenReturn(Optional.of(revoked));
 
-        service.issue("123456789012", 9L);
+        service.issue("123456789012", 9L, true);
 
         // updateById 忽略 null 清不掉 revoked_at/revoke_reason ⇒ 必须走显式 SQL
         verify(repository).clearRevocationAndRotate(eq("123456789012"), any(), eq(9L), any());
@@ -104,7 +104,7 @@ class DeviceHttpCredentialServiceTest {
 
     @Test
     void issue_rejectsNonTwelveDigitDeviceId() {
-        assertThatThrownBy(() -> service.issue("EDGE-XXXXXXXXXXXX", 9L))
+        assertThatThrownBy(() -> service.issue("EDGE-XXXXXXXXXXXX", 9L, false))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining(ApiMessages.INVALID_REQUEST);
     }
@@ -125,9 +125,58 @@ class DeviceHttpCredentialServiceTest {
         org.springframework.web.server.ResponseStatusException ex =
                 org.junit.jupiter.api.Assertions.assertThrows(
                         org.springframework.web.server.ResponseStatusException.class,
-                        () -> service.issue("123456789012", 1L));
+                        () -> service.issue("123456789012", 1L, false));
         assertThat(ex.getStatusCode()).isEqualTo(org.springframework.http.HttpStatus.NOT_FOUND);
         assertThat(ex.getReason()).contains("设备不存在");
         verify(repository, org.mockito.Mockito.never()).save(any());
+    }
+
+    // ── L-09（2026-11-17）：轮换必须显式 + 行已存在一律 UPDATE ────────────────────
+
+    /**
+     * 静默轮换是「运营以为在补发、实际把在线柜机推进 401」的成因：
+     * 明文只在签发响应回一次，现场拿不到新 secret ⇒ 设备静默掉线。
+     */
+    @Test
+    void issue_existingLiveSecret_withoutExplicitRotate_is409AndTouchesNothing() {
+        when(repository.findById("123456789012"))
+                .thenReturn(Optional.of(activeCredential("123456789012")));
+
+        assertThatThrownBy(() -> service.issue("123456789012", 9L, false))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(org.springframework.http.HttpStatus.CONFLICT));
+
+        verify(repository, org.mockito.Mockito.never()).clearRevocationAndRotate(any(), any(), any(), any());
+        verify(repository, org.mockito.Mockito.never()).save(any());
+    }
+
+    /**
+     * 吊销后重新签发是常规运维动作：{@code revoke} 把 hash 清成空串，旧判据据此认定
+     * 「没有凭据」而走 insert ⇒ 撞 device_id 主键 500。修法=按「行是否存在」分流。
+     */
+    @Test
+    void issue_afterRevoke_updatesExistingRowInsteadOfInserting() {
+        DeviceHttpCredential revoked = activeCredential("123456789012");
+        revoked.setStatus("REVOKED");
+        revoked.setSecretSha256("");
+        revoked.setRevokedAt(Instant.now());
+        when(repository.findById("123456789012")).thenReturn(Optional.of(revoked));
+
+        DeviceHttpCredentialService.IssuedCredential issued = service.issue("123456789012", 9L, false);
+
+        assertThat(issued.secret()).isNotBlank();
+        verify(repository).clearRevocationAndRotate(eq("123456789012"), eq(issued.secretSha256()), eq(9L), any());
+        // 主键已存在的行绝不能再 insert
+        verify(repository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void issue_brandNewDevice_stillInserts() {
+        when(repository.findById("123456789012")).thenReturn(Optional.empty());
+
+        service.issue("123456789012", 9L, false);
+
+        verify(repository).save(any());
+        verify(repository, org.mockito.Mockito.never()).clearRevocationAndRotate(any(), any(), any(), any());
     }
 }

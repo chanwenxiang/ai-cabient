@@ -28,6 +28,8 @@ class InventoryOpsConcurrencyTest {
     @Mock private DistributedLockService distributedLockService;
     /** V313 仓库侧报损依赖；设备侧用例不会调用它，但构造器需要。 */
     @Mock private WarehouseService warehouseService;
+    /** N-06：设备侧报损/盘调的设备范围闸（void 方法，默认放行 = 范围内）。 */
+    @Mock private MerchantScopeService merchantScopeService;
 
     private InventoryOpsService service;
 
@@ -35,7 +37,7 @@ class InventoryOpsConcurrencyTest {
     void setUp() {
         service = new InventoryOpsService(lotService, deviceValidationService, skuCatalogRepository,
                 inventoryRepository, writeOffRepository, opsPolicyService, distributedLockService,
-                warehouseService);
+                warehouseService, merchantScopeService);
     }
 
     @Test
@@ -48,6 +50,41 @@ class InventoryOpsConcurrencyTest {
                 () -> service.writeOff(1L, new WriteOffRequest("CAB-INV", null, "SKU1", null, 1, "EXPIRED", null, null, null, null)));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+    }
+
+    /**
+     * N-06 反向用例：域受限运营报损**范围外**柜机的库存必须 403，且不得动库存/流水。
+     *
+     * <p>deviceId 在 body 里，上层拦截器看不见；若此处不闸，任何持报损权限的运营
+     * 都能扣掉别家商户的货——账面损失不留痕（流水记的是这台柜机，不是「谁越权」）。
+     */
+    @Test
+    void writeOff_whenDeviceOutOfScope_forbiddenBeforeTouchingStock() {
+        org.mockito.Mockito.doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "无权限操作该柜机"))
+                .when(merchantScopeService).requireDeviceAccess(1L, "CAB-OUT");
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.writeOff(1L, new WriteOffRequest("CAB-OUT", null, "SKU1", null, 1, "EXPIRED", null, null, null, null)));
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        org.mockito.Mockito.verifyNoInteractions(distributedLockService);
+        org.mockito.Mockito.verifyNoInteractions(inventoryRepository);
+        org.mockito.Mockito.verifyNoInteractions(writeOffRepository);
+    }
+
+    /** N-06 反向用例：盘调范围外柜机必须 403——盘调直接覆盖库存真值，越权等于改写别家的账。 */
+    @Test
+    void stocktakeAdjust_whenDeviceOutOfScope_forbiddenBeforeTouchingStock() {
+        org.mockito.Mockito.doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "无权限操作该柜机"))
+                .when(merchantScopeService).requireDeviceAccess(1L, "CAB-OUT");
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.stocktakeAdjust(1L, new com.aicabinet.common.dto.StocktakeAdjustRequest(
+                        "CAB-OUT", "SKU-A", 5, null, null, null)));
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        org.mockito.Mockito.verifyNoInteractions(distributedLockService);
+        org.mockito.Mockito.verifyNoInteractions(inventoryRepository);
     }
 
     @Test

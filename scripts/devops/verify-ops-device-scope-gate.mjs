@@ -77,6 +77,9 @@ const copyTree = (relSrc) => {
   if (existsSync(srcRoot)) walk(srcRoot);
 };
 copyTree('services/trade-service/src/main/java');
+// R5 要解析 @RequestBody 的 DTO；WriteOffRequest/StocktakeAdjustRequest 等落在 common-core，
+// 不复制过来会让「请求体形态」在沙箱里恒无候选（S9/S10 会验出一片假绿）。
+copyTree('services/common/common-core/src/main/java');
 writeFileSync(put(REL_BASELINE), readFileSync(join(ROOT, REL_BASELINE)));
 
 const gatePath = join(ROOT, REL_GATE);
@@ -230,6 +233,68 @@ step('S8', '把已修端点的范围下推退回 null → R4 红（证明修复�
     `未命中 R4 判据（应点名 routes）：${r.out.trim()}`
   );
   return 'R4 命中（C43 回退）';
+});
+
+// ── R5（2026-11-17 F2）：请求体 deviceId 形态 ────────────────────────────────
+// 这一族此前必然假绿：候选集只从「路径变量 + @RequestParam」建，deviceId 一旦进 body
+// 就整批落在判定面之外——补货代开门跨商户物理开门、报损/盘调改别家库存都是这么漏的。
+const REL_FIXTURE_DTO =
+  'services/trade-service/src/main/java/com/aicabinet/trade/domain/FixtureDeviceBodyRequest.java';
+const REL_INV_SVC =
+  'services/trade-service/src/main/java/com/aicabinet/trade/service/InventoryOpsService.java';
+
+step('S9', '新增写端点：deviceId 在 @RequestBody DTO 且不校验 → R5 红', () => {
+  // S8 把 routes 的范围下推拆掉了；不还原的话本步红的是残留缺陷，验不到 R5。
+  writeFileSync(join(sandbox, REL_REPLENISH_SVC), readFileSync(join(ROOT, REL_REPLENISH_SVC)));
+  writeFileSync(join(sandbox, REL_CTRL), readFileSync(join(ROOT, REL_CTRL)));
+  writeFileSync(
+    put(REL_FIXTURE_DTO),
+    [
+      'package com.aicabinet.trade.domain;',
+      '',
+      '/** 夹具注入：请求体带设备字段的 DTO（R5 判定面）。 */',
+      'public record FixtureDeviceBodyRequest(String deviceId, int quantity) {}',
+      ''
+    ].join('\n')
+  );
+  replaceIn(
+    REL_CTRL,
+    '    /** 幂等 upsert 映射',
+    [
+      '    /** 夹具注入：deviceId 藏在请求体里，未过范围判据。 */',
+      '    @RequiresPermissions("ops:device:edit")',
+      '    @PostMapping("/fixture/device-body-probe")',
+      '    public ApiResponse<String> fixtureBodyProbe(',
+      '            HttpServletRequest request,',
+      '            @RequestBody com.aicabinet.trade.domain.FixtureDeviceBodyRequest body) {',
+      '        return ApiResponse.ok(String.valueOf(body.deviceId()));',
+      '    }',
+      '',
+      '    /** 幂等 upsert 映射'
+    ].join('\n')
+  );
+  const r = runGate();
+  assert(r.code === 1, `期望 exit 1，实得 ${r.code}`);
+  assert(/fixtureBodyProbe/.test(r.out), `未命中 R5 判据（输出未提夹具端点）：${r.out.trim()}`);
+  return 'R5 命中（请求体 deviceId）';
+});
+
+step('S10', '把报损的设备侧范围闸退回（N-06 回退）→ R5 红', () => {
+  writeFileSync(join(sandbox, REL_REPLENISH_SVC), readFileSync(join(ROOT, REL_REPLENISH_SVC)));
+  writeFileSync(join(sandbox, REL_CTRL), readFileSync(join(ROOT, REL_CTRL)));
+  writeFileSync(join(sandbox, REL_INV_SVC), readFileSync(join(ROOT, REL_INV_SVC)));
+  replaceIn(
+    REL_INV_SVC,
+    '            merchantScopeService.requireDeviceAccess(operatorId, request.deviceId());',
+    '            // 闸被拆（夹具注入）'
+  );
+  const r = runGate();
+  assert(r.code === 1, `期望 exit 1，实得 ${r.code}`);
+  assert(
+    /OpsReplenishmentController#writeOff/.test(r.out),
+    `未命中 R5 判据（应点名 writeOff）：${r.out.trim()}`
+  );
+  return 'R5 命中（N-06 回退）';
 });
 
 // ── 零残留 ──

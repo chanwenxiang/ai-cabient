@@ -44,6 +44,10 @@ public class OpsReplenishmentAdminService {
 
     public DeviceInventoryDto upsertInventory(Long operatorId, DeviceInventoryDto body) {
         permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
+        // N-01 邻接（2026-11-17）：deviceId 在 body ⇒ OpsDeviceScopeInterceptor 看不见；
+        // 台账直写改的是库存真值（影响短缺计算与后续出库），跨商户写等于改别人的账。
+        // requireDeviceFilter 自带「空值跳过」，把「缺 deviceId ⇒ 400」的优先级留在下游校验里。
+        merchantScopeService.requireDeviceFilter(operatorId, body.deviceId());
         return replenishmentService.upsertInventory(operatorId, body);
     }
 
@@ -73,6 +77,9 @@ public class OpsReplenishmentAdminService {
 
     public ReplenishmentRouteDto planRoute(Long operatorId, PlanRouteRequest body) {
         permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
+        // N-01 邻接（2026-11-17）：planRoute 的 deviceIds 在 body 里，且会为这些柜机建路线+任务。
+        // 越权一台即整体拒绝，**不做静默裁剪**：悄悄去掉别人的柜机会让运营以为已派单。
+        requireAllDeviceAccess(operatorId, body.deviceIds());
         return replenishmentService.planAndCreateRoute(operatorId, body);
     }
 
@@ -138,7 +145,20 @@ public class OpsReplenishmentAdminService {
     /** CB-018 ①：补货建议一键生成补货任务（写操作，与计划补货同权限码）。 */
     public ReplenishmentRouteDto createTaskFromSuggestion(Long operatorId, String deviceId, Long assigneeUserId) {
         permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
+        // N-01 邻接（2026-11-17）：deviceId 在 body ⇒ 拦截器看不见；此入口会为指定柜机
+        // 生成路线+补货任务并指派给某个人（跨商户派单＝让别人的人去开别人的柜）。
+        merchantScopeService.requireDeviceFilter(operatorId, deviceId);
         return replenishmentService.createTaskFromSuggestion(operatorId, deviceId, assigneeUserId);
+    }
+
+    /** 批量形态（route deviceIds / 组织柜机清单）：逐台过闸，越权一台即拒绝。 */
+    private void requireAllDeviceAccess(Long operatorId, java.util.Collection<String> deviceIds) {
+        if (deviceIds == null) {
+            return;
+        }
+        for (String deviceId : deviceIds) {
+            merchantScopeService.requireDeviceFilter(operatorId, deviceId);
+        }
     }
 
     public List<ReplenishmentTaskDto> myReplenishmentTasks(Long userId) {
