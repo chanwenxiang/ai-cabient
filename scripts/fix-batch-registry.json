@@ -1799,6 +1799,24 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "14af61dd",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-333",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/OrderPaymentService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/UnpaidOrderService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/PaymentOperationMapper.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SysDictBootstrap.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/OrderPaymentChargeInvariantTest.java",
+            "scripts/check-charge-trace-after-commit.mjs"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [

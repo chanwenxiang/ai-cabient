@@ -44,7 +44,7 @@
 |---|---|---|---|---|
 | F1 | 可观测性自证 ✅`9f0da9c2` | 4 | J1 J2 J3 J9 J14 J15 J16 N-04 | 让「任务停跑」这件事自己暴露出来 |
 | F2 | 设备范围闸形态 ✅`d37a02e5` | 1 | N-01 N-05 N-06 L-09 | 闸从拦截器下沉到 service 入口 |
-| F3 | 结算/对账事务边界 | 3 | ①/BR5 BR3 J4 J8 ⑧ ⑨ | 拆成 prepare → HTTP → finalize |
+| F3 | 结算/对账事务边界 ⬓`14af61dd`（F3a 落地，F3b 待办） | 3 | ①/BR5 BR3 J4 J8 ⑧ ⑨ | 拆成 prepare → HTTP → finalize |
 | F4 | 库存/月结账实 | 1 | BR9 BR10 BR11 BR13 BR14 BR15 BR16 BR1 BR2 月账单利润 | 判据改 SKU 级 + 加恒等式 |
 | F5 | 状态机/快照覆盖 | 0 | J5 J6 BR12 BR17 BR18 BR19 | 一切状态写入带 `WHERE status=快照态` |
 | F6 | 幂等/重试窗口 | 0 | J10 BR4 BR6 BR7 | 幂等键不含可变 ID |
@@ -307,6 +307,23 @@ Wave 4（发布前）          F7 部署可复现
 **测试**：trade-service 全量 **3227/0**；本族新增/改——`DeviceRentalServiceTest` 39/0（+5）、`DeviceValidationServiceTest` 12/0（+1 负向）、`InventoryOpsConcurrencyTest` 5/0（+2）、`DeviceHttpCredentialServiceTest` 9/0（+3）、`OpsReplenishmentScopePushdownTest` 8/0（+3）。
 
 **遗留（不属 F2，登记待办）**：`AdCampaignService` 只挡了「投放清单里的柜机」，**读面**（活动列表/播放统计）仍全平台可见——那是 F8 文档/门禁漂移与后续 P2 越权的交界，不在本族修。
+
+### F3 结算/对账事务边界 — **F3a 已落地（`14af61dd`），F3b 待办**
+
+按「先止血、再拆段」切成两半：先把**已经会丢钱**的那条缝堵上（不改事务形状），再动结构。
+
+**F3a 已落地（MA-333，P1 ①/BR5）**
+
+| 项 | 落法 | 说明 |
+|---|---|---|
+| 收口时机 | `submitChannelCharge` 成功段 → `settleChargeTraceAfterCommit` | 有活动事务 ⇒ 注册 `afterCommit`；回滚则回调不执行、痕迹保留 `CHARGE_PENDING` 可被 reconciler 收敛 |
+| 无事务时的取舍 | **刻意不收口**（交给 `finalizeCollected`） | 补扣链的渠道 HTTP 已在事务外（MA-274），在那里提前收口正是要修的缺陷；这里若「图省事就地收口」= 把补扣链重新弄坏 |
+| 无单号例外 | 渠道判回落余额（一分钱没扣）仍允许就地收口 | 否则 `CHARGE_PENDING_STALE` 对回落单全量误报 |
+| 存量兜底 | `hasUnsettledCharge` + `findSettledButUnbooked` + `alertChargeSettledButUnbookedOps` | 只告警不自动修：可能已人工补记，程序改单会二次记账 |
+| 门禁 | `check:charge-trace-after-commit`（R1/R2/R3） | 负向：还原成旧写法 → 红（2 条判据）→ 还原 → md5 一致 → 绿 |
+
+**F3b 待办（明确不塞进本轮）**：主结算链的 `prepare → HTTP → finalize` 拆段（`SettlementSettleOrchestrator` 那个大事务）、争议首扣腿同构、`DataConsistencyService` 退款段移出事务、`SettlementService` 130 行 Redis 锁补心跳、`ConsumerPreauthService` 与 `PayScoreService` 的冻结/结算判据统一。
+**为什么不一起做**：拆段要改「识别→落单→扣款→分账」整条链的事务形状，必须有真 PG 的 IT（并发双投 + finalize 注入失败）才敢动；本轮只做了可被单测完全覆盖的那层，剩下的一律留在 F3b，并在 §7 的验收里按「F3a 已治标、F3b 治本」分别记账。**风险不变**：拆段期间若没有 F1 的巡检，出问题看不见——F1 已合入，F3b 的前置条件已满足。
 
 ---
 
