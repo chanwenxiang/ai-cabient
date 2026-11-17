@@ -12714,31 +12714,6 @@ export interface components {
             scopeMerchantId?: string;
             scopeDeviceIds?: string[];
         };
-        AccountDto: {
-            /** Format: int64 */
-            userId?: number;
-            phoneNumber?: string;
-            name?: string;
-            nickname?: string;
-            wechatUser?: boolean;
-            /** Format: int32 */
-            balanceCents?: number;
-            /** Format: int32 */
-            frozenCents?: number;
-            /** Format: int32 */
-            availableCents?: number;
-            verified?: boolean;
-            operator?: boolean;
-            payscoreEnabled?: boolean;
-            alipayAgreementEnabled?: boolean;
-            passwordFreeReady?: boolean;
-        };
-        ApiResponseAccountDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["AccountDto"];
-        };
         Item: {
             skuId?: string;
             /** Format: int32 */
@@ -15798,6 +15773,31 @@ export interface components {
         VerifyIdentityRequest: {
             realName: string;
             idCard: string;
+        };
+        AccountDto: {
+            /** Format: int64 */
+            userId?: number;
+            phoneNumber?: string;
+            name?: string;
+            nickname?: string;
+            wechatUser?: boolean;
+            /** Format: int32 */
+            balanceCents?: number;
+            /** Format: int32 */
+            frozenCents?: number;
+            /** Format: int32 */
+            availableCents?: number;
+            verified?: boolean;
+            operator?: boolean;
+            payscoreEnabled?: boolean;
+            alipayAgreementEnabled?: boolean;
+            passwordFreeReady?: boolean;
+        };
+        ApiResponseAccountDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["AccountDto"];
         };
         ApiResponsePayContractDto: {
             /** Format: int32 */
