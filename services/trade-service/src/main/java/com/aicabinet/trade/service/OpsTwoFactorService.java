@@ -5,6 +5,7 @@ import com.aicabinet.common.dto.TwoFactorStatusDto;
 import com.aicabinet.common.dto.TwoFactorEnrollDto;
 import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.trade.auth.JwtService;
+import com.aicabinet.trade.auth.LoginThrottleService;
 import com.aicabinet.trade.auth.TotpService;
 import com.aicabinet.trade.config.AuthProperties;
 import com.aicabinet.trade.domain.OpsTwoFactorRecoveryCode;
@@ -45,6 +46,7 @@ public class OpsTwoFactorService {
     private final AuthService authService;
     private final DistributedLockService distributedLockService;
     private final AdminAuditService auditService;
+    private final LoginThrottleService loginThrottleService;
     private final byte[] recoveryPepper;
 
     public OpsTwoFactorService(UserInfoMapper userInfoRepository,
@@ -54,7 +56,8 @@ public class OpsTwoFactorService {
                                AuthService authService,
                                DistributedLockService distributedLockService,
                                AuthProperties authProperties,
-                               AdminAuditService auditService) {
+                               AdminAuditService auditService,
+                               LoginThrottleService loginThrottleService) {
         this.userInfoRepository = userInfoRepository;
         this.recoveryRepository = recoveryRepository;
         this.totpService = totpService;
@@ -62,6 +65,7 @@ public class OpsTwoFactorService {
         this.authService = authService;
         this.distributedLockService = distributedLockService;
         this.auditService = auditService;
+        this.loginThrottleService = loginThrottleService;
         String secret = authProperties == null ? null : authProperties.jwtSecret();
         if (secret == null || secret.isBlank()) {
             throw new IllegalStateException("aicabinet.auth.jwt-secret required for 2FA recovery hash");
@@ -129,16 +133,46 @@ public class OpsTwoFactorService {
         auditService.appendLog(operatorId, "OPS_2FA_ENABLE", "USER", String.valueOf(operatorId), null);
     }
 
-    @Transactional(readOnly = true)
+    /**
+     * 动态码完成登录。
+     *
+     * <p>🔴 MA-320（2026-11-17 对抗验证轮）：修前这条链**零失败计数**——密码已经通过（challenge token
+     * 是密码登录发的）之后，攻击者可以对着 6 位 TOTP 反复试，窗口内穷举成功即完成账号接管，
+     * 而 2FA 正是 MA-072 认定的「账号接管最后一道门」。现在复用
+     * {@link LoginThrottleService} 的**同一份**按手机号预算（与密码爆破计数合并，
+     * 免得攻击者换个入口就换新配额）：先判锁定，错一次记一次，成功清零。</p>
+     *
+     * <p>计数在 {@code runWithTwoFactorLock} 内做，避免并发试码时 Redis 计数与校验交错。
+     * 本方法刻意**不带** {@code @Transactional}（原来是 readOnly）：里面只有一次账号读 + Redis 计数，
+     * 把锁包进事务正是 MA-313 记过的形态——没有 DB 写就不需要事务。</p>
+     */
     public LoginResponse verifyChallenge(String challengeToken, String code) {
         Long userId = jwtService.validateChallengeToken(challengeToken);
+        return runWithTwoFactorLock(userId, () -> doVerifyChallenge(userId, code));
+    }
+
+    private LoginResponse doVerifyChallenge(Long userId, String code) {
         UserInfo user = requireOperatorUser(userId);
+        String phone = user.getPhoneNumber();
+        if (loginThrottleService.isLocked(phone)) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "登录失败次数过多，请稍后重新登录");
+        }
         if (user.isTotpEnabled() && totpService.verify(user.getTotpSecret(), code)) {
+            loginThrottleService.clearFailures(phone);
             return authService.finalizeTwoFactorLogin(userId);
         }
+        loginThrottleService.recordFailure(phone);
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "动态码不正确");
     }
 
+    /**
+     * 后备码完成登录。
+     *
+     * <p>MA-320 刻意**不**把后备码接进 {@code LoginThrottleService} 计数：后备码是 20 位
+     * （{@link #RECOVERY_ALPHABET} 31 字符集）且**一次一密**（命中即置 used），穷举不可行；
+     * 把它计入同一预算只会让连打错三次后备码的正常运营被锁在登录门外。</p>
+     */
     @Transactional
     public LoginResponse verifyRecovery(String challengeToken, String recoveryCode) {
         Long userId = jwtService.validateChallengeToken(challengeToken);

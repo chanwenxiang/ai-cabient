@@ -11,6 +11,8 @@ import com.aicabinet.trade.mapper.DeviceRentalDepositMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -48,6 +50,7 @@ class DeviceRentalServiceTest {
     private DistributedLockService distributedLockService;
     private MerchantWalletService merchantWalletService;
     private ScheduledTaskService taskService;
+    private MerchantScopeService merchantScopeService;
     private DeviceRentalService service;
 
     @BeforeEach
@@ -65,11 +68,12 @@ class DeviceRentalServiceTest {
         Clock clock = Clock.fixed(Instant.parse("2026-10-12T00:20:00Z"), ZoneId.of("Asia/Shanghai"));
         merchantWalletService = mock(MerchantWalletService.class);
         taskService = mock(ScheduledTaskService.class);
+        merchantScopeService = mock(MerchantScopeService.class);
         when(taskService.tryBegin(anyString(), anyLong())).thenReturn(true);
         service = new DeviceRentalService(depositMapper, depositEventMapper, billMapper, deviceMapper,
                 permissionService, auditService, systemConfigService, salesLockService, monthResolver,
                 distributedLockService, merchantWalletService, taskService, clock,
-                mock(MerchantScopeService.class));
+                merchantScopeService);
         when(monthResolver.resolve(any())).thenAnswer(inv -> {
             String m = inv.getArgument(0);
             return m == null || m.isBlank() ? "2026-10" : m;
@@ -542,5 +546,79 @@ class DeviceRentalServiceTest {
 
         verify(salesLockService, never()).applySalesLock(any(), any(), eq(true), anyString(), anyBoolean());
         assertThat(unpaid.getLockAt()).isNotNull();
+    }
+
+    // ── MA-316（2026-11-17）：押金读面的数据范围下推 ────────────────────────────
+    // 修前形态：/deposits 是 selectList(null)（全平台行返给任何持 ops:fund:list 的账号），
+    // /deposits/{id}/events 只按 ID 直查（可自增枚举读别家押金事件）。
+    // V118 给 role 2 挂 ops:order:list + V125 把它传播成 ops:fund:list ⇒ 域受限运营确实可利用。
+
+    @Test
+    void deposits_scopedOperator_getsDeviceFilterPushedDown() {
+        when(merchantScopeService.pushdownDeviceIds(9L, null)).thenReturn(java.util.Set.of("CAB-001"));
+        when(depositMapper.findScoped(java.util.Set.of("CAB-001"))).thenReturn(List.of());
+
+        service.listDeposits(9L);
+
+        verify(depositMapper).findScoped(java.util.Set.of("CAB-001"));
+        // 旧写法 selectList(null)＝全表；必须一次都不出现
+        verify(depositMapper, never()).selectList(any());
+    }
+
+    @Test
+    void findScoped_emptyScope_returnsEmptyWithoutTouchingTable() {
+        when(depositMapper.findScoped(any())).thenCallRealMethod();
+
+        assertThat(depositMapper.findScoped(java.util.Set.of())).isEmpty();
+        verify(depositMapper, never()).selectList(any());
+    }
+
+    @Test
+    void findScoped_nullScope_meansUnrestrictedAndStillQueries() {
+        when(depositMapper.findScoped(any())).thenCallRealMethod();
+        when(depositMapper.selectList(any())).thenReturn(List.of(new DeviceRentalDeposit()));
+
+        assertThat(depositMapper.findScoped(null)).hasSize(1);
+        verify(depositMapper).selectList(any());
+    }
+
+    @Test
+    void depositEvents_outOfScopeDevice_isRejectedBeforeReadingEvents() {
+        DeviceRentalDeposit deposit = new DeviceRentalDeposit();
+        deposit.setDepositId(7L);
+        deposit.setDeviceId("CAB-OTHER");
+        when(depositMapper.selectById(7L)).thenReturn(deposit);
+        org.mockito.Mockito.doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "无权访问该设备"))
+                .when(merchantScopeService).requireDeviceAccess(9L, "CAB-OTHER");
+
+        assertThatThrownBy(() -> service.listDepositEvents(9L, 7L))
+                .isInstanceOf(ResponseStatusException.class);
+
+        verify(depositEventMapper, never()).findByDepositOrderByCreatedDesc(any());
+    }
+
+    @Test
+    void depositEvents_unknownDeposit_is404NotSilentEmpty() {
+        when(depositMapper.selectById(7L)).thenReturn(null);
+
+        assertThatThrownBy(() -> service.listDepositEvents(9L, 7L))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+
+        verify(depositEventMapper, never()).findByDepositOrderByCreatedDesc(any());
+    }
+
+    @Test
+    void depositEvents_inScope_readsEvents() {
+        DeviceRentalDeposit deposit = new DeviceRentalDeposit();
+        deposit.setDepositId(7L);
+        deposit.setDeviceId("CAB-001");
+        when(depositMapper.selectById(7L)).thenReturn(deposit);
+        DeviceRentalDepositEvent event = new DeviceRentalDepositEvent();
+        when(depositEventMapper.findByDepositOrderByCreatedDesc(7L)).thenReturn(List.of(event));
+
+        assertThat(service.listDepositEvents(9L, 7L)).containsExactly(event);
+
+        verify(merchantScopeService).requireDeviceAccess(9L, "CAB-001");
     }
 }

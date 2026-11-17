@@ -88,7 +88,7 @@ copy infra\.env.production.example infra\.env.production
 - [ ] 短信（2026-10-20 起）：`SMS_PROVIDER=aliyun` 且 `SMS_ALIYUN_ACCESS_KEY_ID/SECRET/SIGN_NAME/TEMPLATE_CODE` 已配（签名=深圳前海易购科创智能设备，验证码模板 SMS_512651638 变量须 `${code}`）；已用真实手机号实发一条验证码收通（不得再依赖 prod-server 的 mock 容器，已移除）
 - [ ] 微信支付 API v3 证书与 notify URL HTTPS
 - [ ] 小程序 `WECHAT_MINIAPP_ID` / `SECRET`
-- [ ] PostgreSQL 备份；Flyway 已到本分支高水位 **V447**（2026-11-06 两次订正：原文写 V405 已过期 41 个号，V446 是将邑第七章商品状态快照随 jy-v16 合入，V447 是短信到达率巡检的 `scheduled_task` 登记行。**号一律现算，别信本文写的数字**：`ls services/trade-service/src/main/resources/db/migration | sed -n 's/^V\([0-9]\+\)__.*/\1/p' | sort -n | tail -1`）。全新库启动日志逐条 Migrating 到该号；已在该版本的老库启动时不再有 Migrating 行属正常。已在旧水位（如 V402/V405）的库跑本版镜像会**严格升序**补齐中间所有号，不属倒挂。**编号序与倒挂兜底见 §3.1.3，部署前必查**
+- [ ] PostgreSQL 备份；Flyway 已到本分支高水位 **V494**（**487** 个迁移脚本 / 最新号 **V494**，2026-11-17 隔离 UAT 与 `mvn verify` 双处实测；上一版本文写 V447 已过期 47 个号，V490–V494 是退款流水幂等键、渠道扣款痕迹列、对账 `EMPTY`、资金索引收窄）。**号一律现算，别信本文写的数字**：`ls services/trade-service/src/main/resources/db/migration | sed -n 's/^V\([0-9]\+\)__.*/\1/p' | sort -n | tail -1`）。全新库启动日志逐条 Migrating 到该号；已在该版本的老库启动时不再有 Migrating 行属正常。已在旧水位（如 V402/V405）的库跑本版镜像会**严格升序**补齐中间所有号，不属倒挂。**编号序与倒挂兜底见 §3.1.3，部署前必查**
 - [ ] 将邑面：`JIANGYI_JWT_SECRET` 已配（≥32 字节）；`JIANGYI_OSS_ACCESS_KEY_ID/SECRET/ROLE_ARN/REGION/BUCKET` 已配；`JIANGYI_PUBLIC_BASE_URL` 指向固定公网域名（勿用花生壳穿透）；OSS `jiangyi-video/` 生命周期规则已建（§3.1.1）
 - [ ] MinIO/OSS 桶策略、CORS、视频生命周期（**OSS 侧见 §3.1.1，必配**）
 - [ ] **资金类定时任务的开启状态已逐条确认**（V376 起默认关；2026-10-17 拍板**上线当天两条都保持关**，见 §3.1.2）
@@ -317,8 +317,19 @@ The Step 4 gate must verify:
 
 > 规则：任何一项不能勾选，必须显式写「接受 + 理由 + 复审时点」并留痕；不允许静默遗留。
 
-- [ ] **Flyway 已应用迁移**：已应用过 V483/V485 的环境先 `flyway repair`（dev 已完成；UAT/生产按同一 runbook）。
-- [ ] **新迁移**：V491（`payment_operation` 渠道/金额列）、V492（`charge-pending-reconcile` 登记行）、V493（对账 `EMPTY` 状态）随 jar 应用；`scheduled_task` 该行存在且首跑 SUCCESS。
+- [ ] **Flyway 已应用迁移被原位改写（MA-318 范围订正，2026-11-17）**：仓内共有 **5 个已应用迁移带 `MIGRATION_IMMUTABLE_EXEMPT` 头**——
+      **V466 / V470 / V473**（S14 死语句复核，`f3d4a3a1` 2026-11-13 改）、**V483**（存量重复预检，`531708dc` 改）、
+      **V485**（回填 `COALESCE(merchant_id,'UNKNOWN')`，`c63d3bf7` 改）。该头**只是本仓 `check:migration-immutable`
+      的豁免标记，Flyway 不认**：凡是应用过改写前版本的环境，启动时 `validate-on-migrate` 必报
+      `Migration checksum mismatch`。**逐环境**跑
+      `SELECT version, checksum, script FROM flyway_schema_history WHERE version IN ('466','470','473','483','485')`
+      与 `node scripts/flyway-drift-check.mjs` 对账，不一致先 `flyway repair`
+      （`scripts/devops/flyway-repair/README.md`；locations 必须同时含 `db/migration` 与 `db/seed`）。
+      dev 已 repair；部署链在 build 之前有 drift-check 硬拦（`deploy-prod.sh` §[4/7]），**不要绕过它**。
+- [ ] **新迁移**：V491（`payment_operation` 渠道/金额列）、V492（`charge-pending-reconcile` 登记行）、V493（对账 `EMPTY` 状态）、
+      **V494**（`uk_payment_operation_gateway_trade_no` 收窄为只约束 `status='COMPLETED'` 资金行，MA-311 资金 P0 修复）随 jar 应用；
+      `scheduled_task` 该行存在且首跑 SUCCESS。V494 是**热表 DROP+CREATE 索引**（`LOCK_RISK: high`，Flyway 事务内不能 CONCURRENTLY）
+      ⇒ 生产低峰执行；**回滚前必须先删掉「审计痕迹行与资金行同号」的行**，否则旧全局唯一索引建不回来。
 - [ ] **调度**：staging `XXL_JOB_ENABLED=false`（无 admin 时 Spring 回退）；生产 `XXL=true` + admin + seed；`ChargePendingReconciler` 是 Spring 常驻（不进 XXL），`platform-fund-daily`/`device-rental-daily` 已有 `@Scheduled` 回退。
 - [ ] **网络暴露**：dev 80/花生壳隧道只留 dev；生产入口只走 nginx 443，无 dev 端口/隧道映射。
 - [ ] **Secret**：生产 env 无 dev JWT/内部 key/支付 mock；引导超管密码建号后移除。

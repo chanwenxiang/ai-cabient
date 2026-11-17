@@ -1132,7 +1132,7 @@ const promoForm = reactive({
 const bountyYuan = computed({
   get: () => centsToYuanNumber(promoForm.bountyCents),
   set: (v: number | undefined) => {
-    promoForm.bountyCents = v == null ? 0 : Math.round(v * 100);
+    promoForm.bountyCents = v == null ? 0 : (yuanToCents(v) ?? 0);
   }
 });
 const form = reactive({
@@ -1155,7 +1155,7 @@ const commissionPercent = computed({
 const commissionFixedYuan = computed({
   get: () => centsToYuanNumber(form.commissionFixedCents),
   set: (v: number | undefined) => {
-    form.commissionFixedCents = v == null ? 0 : Math.round(v * 100);
+    form.commissionFixedCents = v == null ? 0 : (yuanToCents(v) ?? 0);
   }
 });
 const wdBatchLoading = ref<'approve' | 'reject' | ''>('');

@@ -19,12 +19,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -207,6 +209,50 @@ class PaymentServiceSilentCallbackAlertTest {
 
         verify(balanceLedgerService, never())
                 .change(anyLong(), anyInt(), anyString(), anyString(), anyString(), anyString());
+    }
+
+    // ── MA-314（R23X-03 收口）：入账没成 ⇒ 归还防重放槽位，渠道重投才进得来 ─────────
+
+    @Test
+    void wechatRecharge_creditRejected_releasesNonceSoChannelCanRetry() {
+        stubWeChat(weChatSuccess("R-WX-RETRY", 100));
+        when(rechargeOrderRepository.findById("R-WX-RETRY"))
+                .thenReturn(Optional.of(order("R-WX-RETRY", "WECHAT", 100)));
+        // 入账入口的充值锁忙 ⇒ 503：语义是「这次没入账」，微信会重投
+        when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(false);
+
+        assertThrows(ResponseStatusException.class,
+                () -> paymentService.handleWeChatNotify("{}", "ts", "nonce-1", "sig", "serial"));
+
+        // 修前形态：nonce 占位留在 Redis 10 分钟 ⇒ 这段时间每次重投都被判 REPLAY，只能等查单兜底
+        verify(notifyService).releaseNonce("nonce-1");
+    }
+
+    @Test
+    void wechatRecharge_handledWithoutThrow_keepsNonceSlot() {
+        // 「已处理但不入账」的分支（渠道不符）必须**不**归还：归还等于把同一条通知放进第二次处理
+        stubWeChat(weChatSuccess("R-WX-KEEP", 100));
+        when(rechargeOrderRepository.findById("R-WX-KEEP"))
+                .thenReturn(Optional.of(order("R-WX-KEEP", "ALIPAY", 100)));
+
+        assertDoesNotThrow(() -> paymentService.handleWeChatNotify("{}", "ts", "nonce-2", "sig", "serial"));
+
+        verify(notifyService, never()).releaseNonce(anyString());
+    }
+
+    @Test
+    void alipayRecharge_creditRejected_releasesNotifyId() {
+        Map<String, String> verified = alipaySuccess("R-ALI-RETRY", "1.00");
+        stubAlipay(verified);
+        when(rechargeOrderRepository.findById("R-ALI-RETRY"))
+                .thenReturn(Optional.of(order("R-ALI-RETRY", "ALIPAY", 100)));
+        when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(false);
+
+        assertThrows(ResponseStatusException.class, () -> paymentService.handleAlipayNotify(verified));
+
+        // 支付宝占位 TTL 是 24 小时，不归还就是「当天所有重投全被挡」
+        verify(alipayNotifyService).assertNotifyIdOnce("NID-1");
+        verify(alipayNotifyService).releaseNotifyId("NID-1");
     }
 
     /** 每类分支统一断言：告警类型 + 本地可见的订单/单号 + 绝不入账。 */

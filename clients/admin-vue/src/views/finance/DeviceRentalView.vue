@@ -627,7 +627,7 @@ async function submitDeduct() {
   submitting.value = true;
   try {
     await api.request(AdminEndpoints.rentalDepositDeduct(target.depositId), 'POST', {
-      amountCents: Math.round(deductForm.yuan * 100),
+      amountCents: yuanToCents(deductForm.yuan) ?? 0,
       reason: deductForm.reason.trim()
     });
     ElMessage.success('扣款已登记');

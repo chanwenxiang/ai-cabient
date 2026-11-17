@@ -92,7 +92,7 @@
               yuan(
                 row.totalSpentCents != null
                   ? row.totalSpentCents
-                  : Math.round(Number(row.totalSpent ?? 0) * 100)
+                  : (yuanToCents(row.totalSpent ?? 0) ?? 0)
               )
             }}</template>
           </el-table-column>
@@ -161,7 +161,7 @@
               yuan(
                 row.totalSpentCents != null
                   ? row.totalSpentCents
-                  : Math.round(Number(row.totalSpent ?? 0) * 100)
+                  : (yuanToCents(row.totalSpent ?? 0) ?? 0)
               )
             }}</template>
           </el-table-column>
@@ -205,7 +205,7 @@
 </template>
 
 <script setup lang="ts">
-import { yuanTextNone as yuan, centsToYuanFixed } from '@/utils/display';
+import { yuanTextNone as yuan, centsToYuanFixed, yuanToCents } from '@/utils/display';
 import { computed, onMounted, ref } from 'vue';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { ElMessage } from 'element-plus';
@@ -349,7 +349,7 @@ function avgTicket(row: { orderCount?: number; totalSpentCents?: number; totalSp
   if (n <= 0) return '暂无';
   const cents =
     row.totalSpentCents == null
-      ? Math.round(Number(row.totalSpent ?? 0) * 100)
+      ? (yuanToCents(row.totalSpent ?? 0) ?? 0)
       : Number(row.totalSpentCents);
   return yuan(Math.round(cents / n));
 }

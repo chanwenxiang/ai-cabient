@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -27,6 +28,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 
 /**
@@ -216,5 +220,41 @@ class WalletWithdrawFreezeIdempotencyTest {
         assertEquals(HttpStatus.PRECONDITION_FAILED, e.getStatusCode(),
                 "账户冻结为 0 时应按旧口径报冻结不足，而不是当作已释放");
         assertEquals(0L, ledgerCount("WITHDRAW_RELEASE"));
+    }
+
+    /**
+     * MA-313（2026-11-17 对抗验证轮抓到的并发残留）：上面所有幂等判据的输入都是「已提交流水」，
+     * 而 {@code runWithWalletLock} 的 Redis 锁是在方法内取、{@code finally} 放，事务提交却发生在
+     * 方法返回**之后** ⇒ 第二个同 ref 请求可在第一个提交前拿到锁。此时若先读 {@code held}，
+     * 读到的是第一个尚未写入的旧流水（RELEASE 不可见），夹取失效 ⇒ 第二个照样把别的在途单冻结释放掉。
+     * 唯一可行的串行点是账户行锁，所以判据是**顺序**本身：{@code findByOwnerForUpdate} 必须早于
+     * {@code listByRefAndEntryTypes}。把 WalletEngine 里两行换回原序 ⇒ 本用例必红（负向控制已实测）。
+     */
+    @Test
+    @DisplayName("🔴 MA-313 释放：held 必须在账户行锁之后读（否则并发同 ref 会二次释放他单冻结）")
+    void release_readHeldOnlyAfterRowLock() {
+        engine.freezeForWithdraw(WalletDomain.MERCHANT, "M-1", 10_000L, REF_TYPE, "R-313", "申请冻结");
+        clearInvocations(accountMapper, ledgerMapper);
+
+        engine.releaseFrozen(WalletDomain.MERCHANT, "M-1", 10_000L, REF_TYPE, "R-313", "打款失败释放");
+
+        InOrder order = inOrder(accountMapper, ledgerMapper);
+        order.verify(accountMapper).findByOwnerForUpdate(WalletDomain.MERCHANT.column(), "M-1");
+        order.verify(ledgerMapper).listByRefAndEntryTypes(
+                eq(WalletDomain.MERCHANT.column()), eq("M-1"), eq(REF_TYPE), eq("R-313"), any());
+    }
+
+    @Test
+    @DisplayName("🔴 MA-313 扣款：同一顺序纪律适用于 consumeFrozenSplit 的本单占用校验")
+    void consume_readHeldOnlyAfterRowLock() {
+        engine.freezeForWithdraw(WalletDomain.MERCHANT, "M-1", 10_000L, REF_TYPE, "R-313C", "申请冻结");
+        clearInvocations(accountMapper, ledgerMapper);
+
+        engine.consumeFrozen(WalletDomain.MERCHANT, "M-1", 10_000L, REF_TYPE, "R-313C", "打款成功扣冻结");
+
+        InOrder order = inOrder(accountMapper, ledgerMapper);
+        order.verify(accountMapper).findByOwnerForUpdate(WalletDomain.MERCHANT.column(), "M-1");
+        order.verify(ledgerMapper).listByRefAndEntryTypes(
+                eq(WalletDomain.MERCHANT.column()), eq("M-1"), eq(REF_TYPE), eq("R-313C"), any());
     }
 }

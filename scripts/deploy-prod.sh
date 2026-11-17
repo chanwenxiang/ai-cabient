@@ -195,4 +195,17 @@ REMOTE3
 
 echo "── [7/7] 完成 ──"
 echo "✅ 生产已部署 $SHA_SHORT；服务器归档与 .tmp 本地归档可手动清理"
-echo "   回滚方式：git checkout <旧SHA> && 重新跑本脚本"
+# 🔴 MA-318（2026-11-17）：旧文案写「git checkout <旧SHA> && 重新跑本脚本」是**错的**，
+# 照做会在 §[4/7] 的 flyway-drift-check 直接红（库里已应用的新迁移在旧树里不存在，
+# 报「applied not resolved locally」），而且本仓没有任何 down 迁移可回退 schema。
+echo "   回滚（三选一，按是否含迁移决定）："
+echo "   A. 仅代码回退（本次部署**没有**新迁移时）：git checkout <旧SHA> && bash $0"
+echo "      —— drift-check 此时不会红，因为库与旧树的迁移集一致。"
+echo "   B. 有新迁移：只回退**镜像**，库保持新水位（迁移只向前）："
+echo "      docker compose -p ai-cabinet -f infra/docker-compose.yml -f infra/docker-compose.apps.yml \\"
+echo "        -f infra/docker-compose.production.yml -f infra/docker-compose.prod-server.yml --profile apps"
+echo "      up -d --no-deps trade-service   # 用上一个 tag 的镜像；新列/新索引对旧代码必须兼容"
+echo "      前提：本次迁移是加列/加索引类（本仓约定），旧 jar 的 INSERT 不依赖它们。"
+echo "   C. 破坏性迁移（改类型/删列/重建约束）无法向前兼容 ⇒ 只能恢复部署前快照："
+echo "      pg_dump 已按每日 02:30 落盘（scripts/backup-postgres.sh），事故时按时间点位恢复；"
+echo "      ⚠️ 恢复到点位会丢掉点位之后的业务数据，需与运营确认后再执行。"

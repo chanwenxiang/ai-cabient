@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useBrandStore } from '@/stores/brand';
 import { safeRedirectPath } from '@/utils/safe-redirect';
 import { resolveHomePath } from '@/composables/useNavAccess';
+import { decideNavAccess } from '@/router/nav-access';
 
 /** 已移除 NProgress：硬刷新时顶栏品牌色残条易卡住直到点击才消失（lessons #102） */
 
@@ -540,7 +541,8 @@ const router = createRouter({
       path: '/print',
       name: 'print',
       component: () => import('@/views/print/PrintView.vue'),
-      // 权限由 findNavByPath('/print') → ops:warehouse:list 在 beforeEach 校验
+      // 权限走 findNavByPath('/print') 的 **perms**（OR：仓储/SKU/采购三选一），
+      // 由 beforeEach 的 decideNavAccess 判定（MA-317 起 perms 才真的生效）
       meta: { title: '打印单据', group: '履约仓储' }
     },
     {
@@ -608,9 +610,16 @@ router.beforeEach(async (to) => {
   }
   const metaPerm = typeof to.meta.perm === 'string' ? to.meta.perm : '';
   const nav = findNavByPath(to.path);
-  const requiredPerm = metaPerm || nav?.perm || '';
-  // fail-closed：业务路由须能解析到菜单项或显式 meta.perm；未登记路径一律拒绝
-  if (!nav && !metaPerm) {
+  // MA-317：三条判据（未登记 / 功能码 / 菜单可见性）收进纯函数——旧写法在这里写了两遍
+  // 且第二条以 `nav?.perm` 为前提，导致 `/print` 这类只在菜单里声明 `perms` 数组的隐藏页
+  // 恒被放行（地址栏直入绕过侧栏）。判据本体见 router/nav-access.ts + 同名单测。
+  const verdict = decideNavAccess({
+    metaPerm,
+    nav,
+    hasPerm: (perm) => auth.hasPerm(perm),
+    canAccessNav: (item) => auth.canAccessNav(item)
+  });
+  if (verdict === 'unregistered') {
     return {
       name: 'forbidden',
       query: {
@@ -620,7 +629,7 @@ router.beforeEach(async (to) => {
       replace: true
     };
   }
-  if (requiredPerm && !auth.hasPerm(requiredPerm)) {
+  if (verdict === 'denied') {
     // 默认工作台等落页无权限时，落到首个可进菜单（补货员等），避免一登录就「无权」
     if (to.path === '/dashboard' || to.path === '/') {
       const home = resolveHomePath(auth);
@@ -631,20 +640,6 @@ router.beforeEach(async (to) => {
       query: {
         from: to.fullPath,
         title: String(to.meta.title || nav?.title || '')
-      },
-      replace: true
-    };
-  }
-  if (nav?.perm && !auth.canAccessNav(nav)) {
-    if (to.path === '/dashboard' || to.path === '/') {
-      const home = resolveHomePath(auth);
-      return { path: home, replace: true };
-    }
-    return {
-      name: 'forbidden',
-      query: {
-        from: to.fullPath,
-        title: String(to.meta.title || nav.title || '')
       },
       replace: true
     };

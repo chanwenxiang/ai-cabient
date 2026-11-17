@@ -157,7 +157,7 @@
 </template>
 
 <script setup lang="ts">
-import { yuanTextZero as yuan, centsToYuanNumber } from '@/utils/display';
+import { yuanTextZero as yuan, centsToYuanNumber, yuanToCents } from '@/utils/display';
 import { computed, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Check } from '@element-plus/icons-vue';
@@ -287,7 +287,7 @@ const configEnabled = ref(true);
 const configElectricYuan = computed({
   get: () => centsToYuanNumber(configForm.value.electricAmountCents),
   set: (v: number) => {
-    configForm.value.electricAmountCents = Math.round((v ?? 0) * 100);
+    configForm.value.electricAmountCents = yuanToCents(v ?? 0) ?? 0;
   }
 });
 

@@ -203,6 +203,10 @@ public class AdminJiangyiController {
      * socketUrl 留空按 domain 自动推导（wss://host/websocket/device/）。</p>
      *
      * <p>⚠️ 对厂商云共享状态的写：租户下所有设备的上报/WS 目标都会随之切换。</p>
+     *
+     * <p>🔴 MA-315（2026-11-17）：功能码 {@code ops:device:edit} 域受限运营也有（V8/V118），而本端点
+     * 路径里没有 {@code {deviceId}} ⇒ {@code OpsDeviceScopeInterceptor} 拦不到。数据范围判定下沉到
+     * {@code JiangyiOnboardingService#setTenantDomain}：只允许平台全局账号，其余 403。</p>
      */
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/jiangyi/tenant-domain")

@@ -337,16 +337,24 @@ public class WalletEngine {
      * 而渠道钱已经出账（「钱出账、余额未扣」）。单据状态挡不住这类重复（FAILED 不区分是否已释放）。
      *
      * <p>判据改为流水自证：{@code held = -(Σ WITHDRAW_FREEZE/RELEASE/PAID/FEE 金额)}，
-     * {@code held<=0} ⇒ 已释放或已扣款，直接空转（记 info，不再动账户）；{@code 0<held<金额}
+     * {@code held<=0} ⇒ 已释放或已消费，直接空转（记 info，不再动账户）；{@code 0<held<金额}
      * ⇒ 只释放 {@code held}（历史脏数据下不stranded、也不越界吃别单）。
      * 无任何相关流水（{@code held} 不可判）时退回旧口径并留 warn —— 老单据/迁移前数据没有
      * 冻结流水，此时按账户级判定是唯一可行口径。
+     *
+     * <p>🔴 MA-313：{@code held} 必须在**拿到账户行锁之后**才读。这把 Redis 锁是在本方法内取、
+     * {@code finally} 里放，而事务提交发生在方法返回**之后** ⇒ 解锁早于提交；并发同 ref 的两个请求
+     * 都先读流水时，第二个读到的是第一个尚未提交的旧值（它的 RELEASE 不可见），夹取形同失效，
+     * 仍会把别的在途单的冻结释放掉——正是本方法要修的 MA-262 形态在并发下复活。
+     * 提现冻结流水按 V388 被 {@code uk_wallet_ledger_ref} 显式排除（一 ref 多行），DB 唯一键**不兜**这一类，
+     * 所以顺序本身就是判据，不得调换。
      */
     @Transactional
     public void releaseFrozen(WalletDomain domain, String ownerId, long amountCents,
                               String refType, String refId, String remark) {
         runWithWalletLock(domain, ownerId, () -> {
             requirePositive(amountCents);
+            WalletAccount account = reload(domain, ownerId);
             Long held = heldFrozenCents(domain, ownerId, refType, refId);
             if (held != null && held <= 0L) {
                 log.info("release skipped (freeze already released/consumed) domain={} owner={} ref={}/{} amount={}",
@@ -358,7 +366,6 @@ public class WalletEngine {
                 log.warn("release clamped to held freeze domain={} owner={} ref={}/{} request={} held={}",
                         domain, ownerId, refType, refId, amountCents, held);
             }
-            WalletAccount account = reload(domain, ownerId);
             if (value(account.getFrozenCents()) < release) {
                 throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "冻结金额不足");
             }
@@ -395,12 +402,13 @@ public class WalletEngine {
             // MA-262 另一半：账户冻结合计够 ≠ **本单**冻结够。本单冻结被别处释放/被吃后，
             // 只判合计会扣掉别的在途单的冻结额 ⇒ 那张单打款成功时回滚（钱已出账、余额未扣）。
             // 有冻结流水时按 ref 判：本单占用不足即拒付，把资损挡在渠道调用之前。
+            // 🔴 MA-313：与 releaseFrozen 同纪律——行锁先于 held 读，否则并发下读到的是别人未提交的旧值。
+            WalletAccount account = reload(domain, ownerId);
             Long held = heldFrozenCents(domain, ownerId, refType, refId);
             if (held != null && held < gross) {
                 throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED,
                         "本单冻结不足：可扣 " + held + " 分 < 应付 " + gross + " 分");
             }
-            WalletAccount account = reload(domain, ownerId);
             if (value(account.getBalanceCents()) < gross || value(account.getFrozenCents()) < gross) {
                 throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "冻结或余额不足");
             }

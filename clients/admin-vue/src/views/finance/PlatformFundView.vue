@@ -204,7 +204,7 @@
 </template>
 
 <script setup lang="ts">
-import { yuanTextZero as yuan } from '@/utils/display';
+import { yuanTextZero as yuan, yuanToCents } from '@/utils/display';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { computed, reactive, ref } from 'vue';
 import { Download, EditPen, Plus, Tickets } from '@element-plus/icons-vue';
@@ -291,7 +291,7 @@ async function submitCreate() {
     await api.request(AdminEndpoints.platformFundAccounts, 'POST', {
       channel: createForm.channel.trim(),
       accountName: createForm.accountName.trim() || null,
-      initialBalanceCents: Math.round(createForm.initialYuan * 100),
+      initialBalanceCents: yuanToCents(createForm.initialYuan) ?? 0,
       remark: createForm.remark.trim() || null
     });
     ElMessage.success('账户已创建');
@@ -331,7 +331,7 @@ function openAmount(row: FundAccount, kind: AmountKind) {
 async function submitAmount() {
   const target = amountTarget.value;
   if (!target) return;
-  const cents = Math.round(amountForm.yuan * 100);
+  const cents = yuanToCents(amountForm.yuan) ?? 0;
   if (amountKind.value !== 'adjust' && cents <= 0) {
     ElMessage.warning('金额必须大于 0');
     return;

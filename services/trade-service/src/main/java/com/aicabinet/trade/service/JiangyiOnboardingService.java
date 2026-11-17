@@ -7,7 +7,9 @@ import com.aicabinet.trade.mapper.JiangyiDeviceMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
 import java.time.Instant;
@@ -40,6 +42,7 @@ public class JiangyiOnboardingService {
     private final JiangyiDeviceDirectory jiangyiDeviceDirectory;
     private final SystemConfigService systemConfigService;
     private final AdminAuditService auditService;
+    private final MerchantScopeService merchantScopeService;
     private final long tenantId;
     private final String secret;
 
@@ -49,6 +52,7 @@ public class JiangyiOnboardingService {
                                     JiangyiDeviceDirectory jiangyiDeviceDirectory,
                                     SystemConfigService systemConfigService,
                                     AdminAuditService auditService,
+                                    MerchantScopeService merchantScopeService,
                                     @Value("${JIANGYI_TENANT_ID:0}") long tenantId,
                                     @Value("${JIANGYI_SECRET:}") String secret) {
         this.jiangyiDeviceMapper = jiangyiDeviceMapper;
@@ -57,6 +61,7 @@ public class JiangyiOnboardingService {
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
         this.systemConfigService = systemConfigService;
         this.auditService = auditService;
+        this.merchantScopeService = merchantScopeService;
         this.tenantId = tenantId;
         this.secret = secret;
     }
@@ -136,8 +141,8 @@ public class JiangyiOnboardingService {
      * 租户级 setDomain（2026-10-20，系统参数设置「将邑接入」区块的落点）。
      *
      * <p><b>为什么是全局</b>：{@code /platform/tenant/setDomain} 参数只有
-     * tenantId+secret+domain+socketUrl——作用域是<b>商户（租户）</b>，一次调用覆盖租户下
-     * 全部设备，与单台柜机无关。设备卡的 bind 流程（{@link #bindDomain}）保留给首次入驻，
+     * tenantId+secret+domain+socketUrl——作用域是<b>云侧租户账号</b>（不是我方商户），
+     * 一次调用覆盖该账号下全部设备，与单台柜机无关。设备卡的 bind 流程（{@link #bindDomain}）保留给首次入驻，
      * 但 BOUND 设备的卡片不再显示接入表单 ⇒ 本方法是唯一「重新下发」入口。</p>
      *
      * <p><b>成因注释</b>：2026-10-20 WS 停摆复盘发现 setDomain 正道从未被调用过
@@ -146,8 +151,19 @@ public class JiangyiOnboardingService {
      *
      * <p>成功后把最近下发值落 SystemConfig（jiangyi.tenant.domain / socketUrl / pushedAt），
      * 供参数设置页回显。这是对厂商云<b>共享状态</b>的写：租户下所有设备都会受影响。</p>
+     *
+     * <p>🔴 <b>此处的「租户」是将邑云侧的账号（env {@code JIANGYI_TENANT_ID} 单例），不是我方商户</b>：
+     * 一次调用会把全平台所有将邑柜的上报地址与 WS 目标一起切走。MA-315（2026-11-17 对抗验证轮）：
+     * 本方法原来只靠 {@code ops:device:edit} 功能码，而 {@code OpsDeviceScopeInterceptor} 只拦
+     * 路径里有 {@code {deviceId}} 的端点 ⇒ 域受限运营（role 2 持有该码，V118/V8 实证）可绕过
+     * 数据范围把别人的柜机整体改指到任意域名。判据改为**平台全局账号**（与拦截器同口径的
+     * {@link MerchantScopeService#isGlobalScope}）才能下发，null 操作者一并拒绝。</p>
      */
     public TenantDomainView setTenantDomain(Long operatorId, String domain, String socketUrl) {
+        if (operatorId == null || !merchantScopeService.isGlobalScope(operatorId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "租户级 setDomain 会切走全部将邑柜的上报与 WS 目标，仅平台全局账号可操作");
+        }
         if (tenantId <= 0 || secret == null || secret.isBlank()) {
             throw new IllegalStateException("将邑租户凭据未配置（JIANGYI_TENANT_ID/JIANGYI_SECRET）");
         }

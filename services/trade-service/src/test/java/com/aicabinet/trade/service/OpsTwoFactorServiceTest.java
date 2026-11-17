@@ -59,6 +59,7 @@ class OpsTwoFactorServiceTest {
     @Mock private JwtService jwtService;
     @Mock private AuthService authService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private com.aicabinet.trade.auth.LoginThrottleService loginThrottleService;
 
     private OpsTwoFactorService service;
 
@@ -70,7 +71,8 @@ class OpsTwoFactorServiceTest {
         service = new OpsTwoFactorService(userInfoRepository, recoveryRepository,
                 totpService, jwtService, authService, distributedLockService,
                 new AuthProperties(JWT_SECRET, 3600L, false, false, 5, 15, null, AuthProperties.DEFAULT_REFRESH_GRACE_SECONDS),
-                org.mockito.Mockito.mock(com.aicabinet.trade.service.AdminAuditService.class));
+                org.mockito.Mockito.mock(com.aicabinet.trade.service.AdminAuditService.class),
+                loginThrottleService);
     }
 
     private UserInfo operator(boolean enabled, String secret) {
@@ -133,6 +135,55 @@ class OpsTwoFactorServiceTest {
         LoginResponse out = service.verifyChallenge("CHAL", "123456");
 
         assertEquals(expected, out);
+    }
+
+    /**
+     * MA-320（2026-11-17 对抗验证轮）：修前 {@code /admin-2fa/verify} 没有任何账号维度失败计数——
+     * 密码过了（challenge token 是密码登录发的）就能对着 6 位 TOTP 无限试，2FA 这道
+     * 「账号接管最后一道门」形同虚设。现在复用 LoginThrottleService 的同一份预算。
+     */
+    @Test
+    void verifyChallenge_wrongCode_recordsThrottleFailure() {
+        UserInfo user = operator(true, SECRET);
+        when(jwtService.validateChallengeToken("CHAL")).thenReturn(OPERATOR_ID);
+        when(userInfoRepository.findById(OPERATOR_ID)).thenReturn(Optional.of(user));
+        when(totpService.verify(SECRET, "000000")).thenReturn(false);
+
+        assertThrows(ResponseStatusException.class, () -> service.verifyChallenge("CHAL", "000000"));
+
+        verify(loginThrottleService).recordFailure("13900000001");
+    }
+
+    @Test
+    void verifyChallenge_lockedAccount_rejectedWithoutTryingTotp() {
+        UserInfo user = operator(true, SECRET);
+        when(jwtService.validateChallengeToken("CHAL")).thenReturn(OPERATOR_ID);
+        when(userInfoRepository.findById(OPERATOR_ID)).thenReturn(Optional.of(user));
+        when(loginThrottleService.isLocked("13900000001")).thenReturn(true);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.verifyChallenge("CHAL", "123456"));
+
+        assertEquals(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, ex.getStatusCode(),
+                "已锁定必须在试码之前拒绝，而不是又给一次穷举机会");
+        verify(totpService, org.mockito.Mockito.never())
+                .verify(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        verify(authService, org.mockito.Mockito.never())
+                .finalizeTwoFactorLogin(org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
+    void verifyChallenge_success_clearsThrottleFailures() {
+        UserInfo user = operator(true, SECRET);
+        when(jwtService.validateChallengeToken("CHAL")).thenReturn(OPERATOR_ID);
+        when(userInfoRepository.findById(OPERATOR_ID)).thenReturn(Optional.of(user));
+        when(totpService.verify(SECRET, "654321")).thenReturn(true);
+        when(authService.finalizeTwoFactorLogin(OPERATOR_ID))
+                .thenReturn(new LoginResponse("T", OPERATOR_ID, 3600, 1L, true, false));
+
+        service.verifyChallenge("CHAL", "654321");
+
+        verify(loginThrottleService).clearFailures("13900000001");
     }
 
     @Test

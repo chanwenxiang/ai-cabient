@@ -346,6 +346,19 @@ public class PaymentService {
                                    String signature,
                                    String serial) {
         JsonNode transaction = notifyService.parseAndVerify(body, timestamp, nonce, signature, serial);
+        try {
+            applyVerifiedWeChatNotify(transaction);
+        } catch (RuntimeException e) {
+            // MA-314（R23X-03 收口）：验签过了但这一支没入账 ⇒ 归还 nonce 槽位，让渠道重投真正重试。
+            // 不归还则 10 分钟 TTL 内每次重投都被判 WECHAT_NOTIFY_REPLAY，钱到没入账只能等查单兜底。
+            // 入账本身幂等（recharge-credit 幂等键），归还后重投不会重复加余额。
+            notifyService.releaseNonce(nonce);
+            throw e;
+        }
+    }
+
+    /** 已验签的支付成功通知入账；抛异常＝本次没入账，调用方据此归还防重放槽位。 */
+    private void applyVerifiedWeChatNotify(JsonNode transaction) {
         if (!STATUS_SUCCESS.equals(transaction.path(TRADE_STATE).asText())) {
             String tradeState = transaction.path(TRADE_STATE).asText();
             log.info("wechat notify ignored trade_state={}", tradeState);
@@ -392,6 +405,18 @@ public class PaymentService {
                                          String signature,
                                          String serial) {
         JsonNode refund = notifyService.parseAndVerify(body, timestamp, nonce, signature, serial);
+        try {
+            applyVerifiedWeChatRefundNotify(refund);
+        } catch (RuntimeException e) {
+            // MA-314：与充值回调同族——退款同步抛异常＝这笔还没落账，归还 nonce 让微信重投进得来。
+            // 同步本身有幂等键（channel-refund-sync:refundId + MA-269 的 applied 判定），重投不会双扣余额。
+            notifyService.releaseNonce(nonce);
+            throw e;
+        }
+    }
+
+    /** 已验签的退款结果通知入账；抛异常＝本次没入账，调用方据此归还防重放槽位。 */
+    private void applyVerifiedWeChatRefundNotify(JsonNode refund) {
         String outTradeNo = refund.path(OUT_TRADE_NO).asText(null);
         String refundId = refund.path("refund_id").asText(null);
         String refundStatus = refund.path("refund_status").asText("");
@@ -563,9 +588,17 @@ public class PaymentService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "充值金额与订单不一致");
         }
         // 同一 notify_id 只入账一次（占位在金额校验之后、入账之前）
-        alipayNotifyService.assertNotifyIdOnce(verified.get("notify_id"));
+        String notifyId = verified.get("notify_id");
+        alipayNotifyService.assertNotifyIdOnce(notifyId);
         String tradeNo = verified.get(TRADE_NO);
-        creditRechargeNotify(order.getOrderId(), notifyCents, null, tradeNo);
+        try {
+            creditRechargeNotify(order.getOrderId(), notifyCents, null, tradeNo);
+        } catch (RuntimeException e) {
+            // MA-314：这一族的占位 TTL 是 **24 小时**（微信 10 分钟）——入账失败不归还，
+            // 当天所有重投都被判 ALIPAY_NOTIFY_REPLAY，只能人工加钱。入账幂等，归还后重投可自愈。
+            alipayNotifyService.releaseNotifyId(notifyId);
+            throw e;
+        }
     }
 
     private static boolean isAlipayAgreementNotify(Map<String, String> params) {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { centsToYuanNumber } from '@/utils/display';
+import { centsToYuanNumber, yuanToCents } from '@/utils/display';
 import { computed } from 'vue';
 import AddressPicker from '@/components/AddressPicker.vue';
 import type { DeviceAssetForm } from '@/composables/device/useDeviceAsset';
@@ -50,14 +50,15 @@ const depositYuan = computed({
   get: () =>
     asset.value.depositCents == null ? undefined : centsToYuanNumber(asset.value.depositCents),
   set: (v?: number) => {
-    asset.value.depositCents = v == null ? undefined : Math.round(v * 100);
+    // 非法/空输入落 undefined（=未设置），不能像旧写法那样把 NaN 存进 depositCents
+    asset.value.depositCents = v == null ? undefined : (yuanToCents(v) ?? undefined);
   }
 });
 const dataFeeYuan = computed({
   get: () =>
     asset.value.dataFeeCents == null ? undefined : centsToYuanNumber(asset.value.dataFeeCents),
   set: (v?: number) => {
-    asset.value.dataFeeCents = v == null ? undefined : Math.round(v * 100);
+    asset.value.dataFeeCents = v == null ? undefined : (yuanToCents(v) ?? undefined);
   }
 });
 </script>

@@ -65,6 +65,25 @@ public class AlipayNotifyService {
         }
     }
 
+    /**
+     * MA-314（R23X-03 同族，2026-11-17）：入账抛异常时归还 notify_id 占位。
+     *
+     * <p>支付宝这一族的占位 TTL 是 <b>24 小时</b>（微信 10 分钟）：入账失败后不归还，
+     * 渠道当天所有重投都会被 {@link ApiMessages#ALIPAY_NOTIFY_REPLAY} 挡掉，
+     * 「钱已到、余额未加」只能靠人工。入账本身幂等，归还后重投可自愈。</p>
+     */
+    public void releaseNotifyId(String notifyId) {
+        if (notifyId == null || notifyId.isBlank()) {
+            return;
+        }
+        try {
+            redisson.getBucket(NOTIFY_ID_KEY_PREFIX + notifyId.trim(), StringCodec.INSTANCE).delete();
+            log.info("alipay notify_id released for retry（入账未完成，交回渠道重投）");
+        } catch (Exception e) {
+            log.warn("alipay notify_id release failed（等 TTL 过期）: {}", e.getMessage());
+        }
+    }
+
     private void assertAppIdMatches(Map<String, String> params) {
         String appId = params.get("app_id");
         if (appId == null || appId.isBlank()) {

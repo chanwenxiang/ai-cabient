@@ -37,7 +37,8 @@ class OpsTwoFactorConcurrencyTest {
         service = new OpsTwoFactorService(userInfoRepository, recoveryRepository,
                 totpService, jwtService, authService, distributedLockService,
                 new AuthProperties("ai-cabinet-test-secret-key-32bytes!!", 3600L, false, false, 5, 15, null, AuthProperties.DEFAULT_REFRESH_GRACE_SECONDS),
-                org.mockito.Mockito.mock(com.aicabinet.trade.service.AdminAuditService.class));
+                org.mockito.Mockito.mock(com.aicabinet.trade.service.AdminAuditService.class),
+                org.mockito.Mockito.mock(com.aicabinet.trade.auth.LoginThrottleService.class));
     }
 
     @Test

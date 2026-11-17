@@ -419,12 +419,32 @@ public class DeviceRentalService {
         return processed;
     }
 
-    public List<DeviceRentalDepositEvent> listDepositEvents(Long depositId) {
+    /**
+     * 押金事件（MA-316，2026-11-17）：先按押金行反查其柜机并过数据范围，再取事件。
+     *
+     * <p>修前形态：只按 {@code depositId} 直查 ⇒ 任何持 {@code ops:fund:list} 的账号都能靠自增 ID
+     * 枚举读别家商户的押金金额与流水。判据与本类写侧（{@code deduct}/{@code settle}）同源：
+     * {@link MerchantScopeService#requireDeviceAccess}。</p>
+     */
+    public List<DeviceRentalDepositEvent> listDepositEvents(Long operatorId, Long depositId) {
+        DeviceRentalDeposit deposit = depositMapper.selectById(depositId);
+        if (deposit == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "押金不存在");
+        }
+        merchantScopeService.requireDeviceAccess(operatorId, deposit.getDeviceId());
         return depositEventMapper.findByDepositOrderByCreatedDesc(depositId);
     }
 
-    public List<DeviceRentalDeposit> listDeposits() {
-        return depositMapper.selectList(null);
+    /**
+     * 押金列表（MA-316）：范围判据与月租账单同源。
+     *
+     * <p>修前形态是 {@code selectList(null)}——全平台押金行返给任何持 {@code ops:fund:list} 的账号，
+     * 而 V118 让 role 2（运营）持有 {@code ops:order:list}、V125 又把它传播成 {@code ops:fund:list}
+     * ⇒ 域受限运营可读任意商户的押金金额。这里**不**保留无参重载：留着就等于给下一次「收了
+     * operatorId 再丢掉」留门（R23X C43/C44 同族教训）。</p>
+     */
+    public List<DeviceRentalDeposit> listDeposits(Long operatorId) {
+        return depositMapper.findScoped(merchantScopeService.pushdownDeviceIds(operatorId, null));
     }
 
     // ── 月租账单 ──────────────────────────────────────────────────────────

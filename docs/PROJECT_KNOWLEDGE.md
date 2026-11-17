@@ -34,7 +34,7 @@
 
 | 维度 | 当前值 | 备注 |
 |------|--------|------|
-| Flyway 迁移 | **476** 个脚本（仅 `services/trade-service`），最新 **V483**（2026-11-15 批 14 实测回填，MA-290） | 合入前 `ls V*` 查重号；门禁拦同号；勿再写已占用版本号 |
+| Flyway 迁移 | **487** 个脚本（仅 `services/trade-service`），最新 **V494**（2026-11-17 实测回填；上一版写 476/V483 已过期） | 合入前 `ls V*` 查重号；门禁拦同号；勿再写已占用版本号 |
 | trade Controllers | **93** | `*Controller.java` |
 | trade 单测 | **380** `*Test.java` | 含大量并发测；全量 `mvn -o -pl services/trade-service -am test` |
 | admin-vue 业务视图 | **83** `.vue` | `src/views` |
@@ -685,6 +685,19 @@ gross − member − activity − coupon = total      （部分退款单例外�
 ---
 
 ## 12. Changelog（按日追加，新条目在上）
+
+### 2026-11-17（对抗验证轮落地：2 处越权 + 1 处冻结并发 + 回调防重放 + 前端守卫/2FA/元分口径；MA-313…MA-320）
+
+- **越权（新发现，旧报告没有）**：① 「将邑租户级 setDomain」只挂 `ops:device:edit`（role 2 有）且路径里没有 `{deviceId}` ⇒ 范围拦截器看不见，域受限运营可把**全平台**柜机的上报/WS 目标整体切走（MA-315）——服务层补 `isGlobalScope` 闸 + 2 条钉测；② 押金读面 `/deposits`、`/deposits/{id}/events` 原为 `selectList(null)` / 按 ID 直查 ⇒ 任意持 `ops:fund:list`（V125 从 operator 传播）的账号可跨商户读金额与事件（MA-316）——改 `pushdownDeviceIds` 下推 + 按押金行 `requireDeviceAccess`，旧无参重载直接删除。
+- **资金并发**：`WalletEngine#releaseFrozen/#consumeFrozenSplit` 的 `held` 在读账户行锁**之前**算，而 Redis 锁在事务内、`finally` 释放早于提交 ⇒ 同 ref 并发第二次释放读到旧流水，MA-262 的「吃他单冻结」在并发下复活；V388 唯一键又显式排除 `ref_type='WITHDRAW'`（DB 不兜）。改为「行锁先于 held 读」+ 2 条 InOrder 钉测；**负向控制实测**：换回原序恰好 2 红，复原 9/9 绿（MA-313）。
+- **回调防重放**：微信/支付宝回调验签后立刻占 nonce/notify_id、入账异常**不归还**（微信 10 分钟、**支付宝 24 小时**），期间渠道重投全被判重放（R23X-03 旧账）；新增 `releaseNonce`/`releaseNotifyId`，三条回调链在「已验签但没入账」的异常分支归还后原样抛出，3 条钉测（含「已处理但不入账的分支不归还是硬要求」）（MA-314）。
+- **前端权限面**：admin 守卫只认 `meta.perm || nav?.perm`，而 `/print` 在 menu 里是 `perms` 数组 ⇒ 任意登录用户地址栏直开；判定抽成 `router/nav-access.ts#decideNavAccess` 并无条件走 `canAccessNav`（perms OR + 菜单停用），7 例 vitest（MA-317）；admin 全量 152/152、`vue-tsc + vite build` 绿、产物已重建配对。
+- **2FA**：`/admin-2fa/verify` 原无账号维度失败计数（密码 + challenge token 到位后可穷举 6 位 TOTP）——复用 `LoginThrottleService` 同一份预算（锁定 429 / 错一次记一次 / 成功清零），去掉 `@Transactional` 以免重蹈「锁在事务内」，3 例钉测（MA-320）。
+- **元→分口径**：7 个 admin 文件的金额站点由 `Math.round(v*100)` 改走 `yuanToCents`（费率/百分比换算刻意不动）；3 位小数（如 2.675 元）不再出现「一处 267、一处 268」；`yuan-to-cents` 基线 55→43（MA-319）。
+- **部署面**：已应用迁移原位改写**不止 V485**——V466/V470/V473/V483 同样带 `MIGRATION_IMMUTABLE_EXEMPT`（该头只是本仓门禁豁免，Flyway 不认）⇒ 清单 §7 列全 5 个 + 逐环境 `flyway_schema_history` 对账 SQL + `flyway repair` runbook；`deploy-prod.sh` 的「checkout 旧 SHA 重跑即可回滚」改为三档（仅代码回退 / 镜像回退+库只向前 / 破坏性迁移只能恢复快照），并写明旧写法会被自己的 drift-check 红（MA-318）。高水位回填 V494/487 脚本。
+- **验证**：trade 单测 **3214/0/0**（+16）；受影响 SQL IT **26/0/0**；admin vitest 152/152 + 构建绿；`check:yuan-to-cents`、`check:no-inline-money-math`、`check:write-endpoint-attribution`（477/332/145）、台账证据/状态锚点门禁均绿。
+- **刻意不修（需外部条件，见 `PENDING_DECISIONS_R23_2026-11-14.md` ⑮–⑲）**：设备 WS token 走 query（需固件同步改）、OSS 预签名读策略按设备收窄（需 trade↔gateway 契约一起改）、争议 UI 的 CI e2e 种子（需 EMQX+模拟器编排，A/B 待拍板）、备份异地副本（需外部对象存储）、simulator root + deploy 默认 root/测试服 IP。
+- ⚠️ 本批为**本地提交、未推送**；`origin/dev` 仍是 `cf6a8b05`，V494（MA-311 资金 P0）也仍未上远端。
 
 ### 2026-11-14（R20-2 最后一块：运营「确认完结 LEDGER_ONLY」加实收门）
 

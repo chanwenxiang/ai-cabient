@@ -129,4 +129,25 @@ public class WeChatPayNotifyService {
             throw new IllegalArgumentException(ApiMessages.WECHAT_NOTIFY_REPLAY);
         }
     }
+
+    /**
+     * MA-314（R23X-03 收口，2026-11-17）：入账链路抛异常时**归还** nonce 槽位。
+     *
+     * <p>nonce 的语义是「同一条通知不要重复入账」，不是「处理失败也不许再试」。入账本身是幂等的
+     * （{@code recharge-credit:} / 退款幂等键），所以失败后必须让渠道重投进得来；否则占位到 TTL
+     * 过期前（10 分钟）每一次重投都被判 {@code WECHAT_NOTIFY_REPLAY}，钱到没入账只能等查单兜底。</p>
+     *
+     * <p>删除失败只记日志、不改写原异常：最坏退化成修前形态（等 TTL），不能因为清理动作再抛一个错。</p>
+     */
+    public void releaseNonce(String nonce) {
+        if (nonce == null || nonce.isBlank()) {
+            return;
+        }
+        try {
+            redisson.getBucket(NONCE_KEY_PREFIX + nonce.trim(), StringCodec.INSTANCE).delete();
+            log.info("wechat notify nonce released for retry（入账未完成，交回渠道重投）");
+        } catch (Exception e) {
+            log.warn("wechat notify nonce release failed（等 TTL 过期）: {}", e.getMessage());
+        }
+    }
 }

@@ -634,7 +634,7 @@ async function submitPayout(): Promise<void> {
   if (!activeWallet.value) return;
   try {
     await api.request(AdminEndpoints.staffWalletPayout(activeWallet.value.staffUserId), 'POST', {
-      amountCents: Math.round(payoutYuan.value * 100),
+      amountCents: yuanToCents(payoutYuan.value) ?? 0,
       remark: payoutRemark.value,
       requestNo: payoutRequestNo.value
     });

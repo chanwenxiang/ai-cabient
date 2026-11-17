@@ -151,3 +151,39 @@
 - **MA-284（同频兜底）**：新增 `alertRefundSyncNotAdvancedOps`（挂 autoCancelExpired 的清扫腿）——账本 RECHARGE_REFUND 流水合计 > 订单 refunded_cents ⇒ HIGH 告警，只告警不自动修（与 MA-269 残留边界同档）。
 - **MA-177（V483 唯一键）**：dev 库 GROUP BY HAVING count>1 实测 0 行 ⇒ 无需清理，V483 直接建 `uq_lot_device_sku_batch(device_id,sku_id,batch_no)`。
 - **MA-260（既有兜底确证）**：`platform-fund-daily`/`device-rental-daily` 已在 `XxlJobManagedTasks.KEYS` + `ScheduleZones.MAX_SILENCE_BY_TASK`（26h）+ StaleMonitor→OpsAlertDispatcher ⇒ 拍板项 ②停摆告警**已有实现**，无需 @Scheduled 回退。台账按证据关闭。
+
+---
+
+## ⑮–⑲ 对抗验证轮追加（2026-11-17）：本轮**判定不在代码侧修**的 5 项
+
+> 背景：本轮另两路 AI 各出一版发现式审计，我逐条复核后把「可自闭环的」实修入账（MA-313…MA-320），
+> 下面 5 项**不是漏修**，而是修它需要外部条件或会打断现网链路，按纪律在此显式留痕。
+> 每条格式：现状 → 为什么本轮不修 → 复审时点/触发条件。
+
+### ⑮ 设备 WS 握手 token 走 URL query（`jiangyi-gateway`）
+- **现状**：`DeviceHandshakeInterceptor.beforeHandshake` 从 `?token=` 取设备 token（`:52`），设备侧只能拼 URL。
+- **风险**：query 串默认进 nginx access log（本机 `log_format` 含 `$request`）⇒ 拿到日志者可冒充该柜机上报。
+- **本轮不修的原因**：改成 `Sec-WebSocket-Protocol` 或首帧鉴权需要**设备固件同步改**（806 固件的 WS 地址在设备侧组装，`URL=COMMON_URL+identifier?token=` 是厂商协议 §4.3.1）；我方单方面改会当场断掉在线柜机，而真柜只有一台且在现场。
+- **复审时点/触发条件**：与将邑约定「握手后首帧带 token」的固件版本时一起改；期间缓解=日志侧对 `/websocket/` location 关 access_log 或改写掉 query（运维项，动共享栈须按 UAT 规程逐键 diff 证明只有该项变化）。
+
+### ⑯ OSS 预签名读策略按 `dirName` 全局前缀（不按设备归属）
+- **现状**：`OssStsService.normalizeObjectKey` 只允许 `properties.dirName` 前缀（`:239`），`readPolicyJson` 同为 `dirName*`；`/internal/v1/jiangyi/oss/presign-get` 由 trade 侧带内部 key 调用，`ref` 来自订单视频 URL。
+- **风险**：内部 key 泄露 ⇒ 可签任意设备视频（读侧没有设备维度）。上传侧早已是 `dirName/{deviceId}/*`，**读写不对称**。
+- **本轮不修的原因**：收窄要同时改 trade→gateway 的内部契约（多传 `deviceId`/`identifier` 并在 presign 前校验订单归属），跨两服务 + 影响运营复核视频播放链路；没有真柜/真单复跑条件时改这条，等于用现网可用性换纵深防御。
+- **复审时点/触发条件**：真渠道全链联调那一轮一起做（与 V494 的「真渠道未跑」同批）；期间缓解=端点在 `/internal/**`（`X-Internal-Api-Key` + 生产 CIDR）。
+
+### ⑰ 争议 UI 的 CI e2e 恒 0 断言（`.tmp/open-dispute.json` 种子缺失）
+- **现状**：`ci.yml` 的 Three-end dispute UAT / imp-dispute-copy 两步在 CI 里必然 exit 2 → 打 `::warning::` 后 exit 0（步骤注释 2026-09-20 已自证：造 DISPUTED 会话必须走 MQTT 模拟器 + 端侧识别上报，仓内**没有**等价 REST 路径）。
+- **风险**：争议/退款相关 UI 从未被自动化验证过（只靠本地 UAT）。
+- **本轮不修的原因**：把它改成红会挡掉之后每一个 PR；要真绿得在 CI 里编排 EMQX + device-simulator + 识别回传（或在 jiangyi-gateway 加一条「测试专用假识别回调」端点——那是**新增可达面**，按铁律不能为测试便利开）。GitHub Actions 也没有「skipped 且不算失败」的原生语义，warning + exit 0 已是显式降级。
+- **需拍板**：A 接受现状（争议 UI = 本地 UAT 覆盖，CI 只保证脚本不崩）；B 允许在 test profile 下开一条假识别回调端点换 CI 覆盖（代价：多一个只靠 profile 关闭的写面）。**当前按 A 执行**，选 B 请说一声。
+
+### ⑱ 备份「异地副本」实为同机 MinIO
+- **现状**：`scripts/backup-postgres.sh` 的 offsite 腿是 `docker exec ai-cabinet-minio-1`（同机不同卷），脚本自身已 warn「单机故障即备份全失」；`BACKUP_REMOTE_CMD` 钩子存在但未配。
+- **本轮不修的原因**：需要外部对象存储/异地主机凭据（用户已拍板过「同机非异地」，见 MEMORY 备份演练条目）；我不会自己新建云资源或写别人的桶。
+- **复审时点/触发条件**：真要上线前配一条 `BACKUP_REMOTE_CMD`（对象存储或第二台机器），并把「点位恢复丢多少数据」写进事故预案（与 MA-318 的 C 档回滚是同一条链）。
+
+### ⑲ device-simulator 镜像以 root 运行 + `deploy-prod.sh` 默认 root/公网 IP
+- **现状**：`edge/device-simulator/Dockerfile` 无 `USER`；`deploy-prod.sh:25/26` 的 `PROD_HOST=120.25.246.179` / `PROD_USER=root` 是**可 env 覆盖的默认值**。
+- **本轮不修的原因**：模拟器只在测试拓扑里跑（不入生产），加 `USER` 需同时验证 jar 写日志目录权限，收益低；deploy 的默认值指向的是**测试服务器**（项目当前无生产环境），改成什么用户名/主机要用户给生产 SSH 口径，我不猜。
+- **复审时点/触发条件**：生产主机与安全账号定案时，一并把 deploy 默认值改掉或删掉默认（强制显式传参）。

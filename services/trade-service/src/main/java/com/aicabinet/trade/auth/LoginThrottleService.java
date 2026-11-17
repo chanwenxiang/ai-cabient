@@ -57,6 +57,17 @@ public class LoginThrottleService {
         return redisson.getAtomicLong(KEY_PREFIX + phone).get();
     }
 
+    /**
+     * 是否已锁定（=失败次数已达阈值）。MA-320：2FA 动态码校验要复用**同一份**账号维度预算——
+     * 只读判定，不累加；累加一律走 {@link #recordFailure}。
+     */
+    public boolean isLocked(String phone) {
+        if (phone == null || phone.isBlank()) {
+            return false;
+        }
+        return failureCount(phone) >= maxFailures();
+    }
+
     private int maxFailures() {
         return authProperties.loginMaxFailures() > 0 ? authProperties.loginMaxFailures() : 5;
     }

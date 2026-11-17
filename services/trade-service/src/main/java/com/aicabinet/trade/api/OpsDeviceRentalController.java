@@ -34,16 +34,21 @@ public class OpsDeviceRentalController {
 
     // ── 押金 ──────────────────────────────────────────────────────────────
 
+    /**
+     * MA-316（2026-11-17）：读侧同样要带操作者——押金金额/事件是商户级敏感数据，
+     * 服务层按 {@code pushdownDeviceIds} 下推数据范围（全局账号不限，域受限账号只见范围内柜机）。
+     */
     @RequiresPermissions("ops:fund:list")
     @GetMapping("/deposits")
-    public ApiResponse<List<DeviceRentalDeposit>> deposits() {
-        return ApiResponse.ok(rentalService.listDeposits());
+    public ApiResponse<List<DeviceRentalDeposit>> deposits(HttpServletRequest request) {
+        return ApiResponse.ok(rentalService.listDeposits(operatorId(request)));
     }
 
     @RequiresPermissions("ops:fund:list")
     @GetMapping("/deposits/{depositId}/events")
-    public ApiResponse<List<DeviceRentalDepositEvent>> depositEvents(@PathVariable long depositId) {
-        return ApiResponse.ok(rentalService.listDepositEvents(depositId));
+    public ApiResponse<List<DeviceRentalDepositEvent>> depositEvents(HttpServletRequest request,
+                                                                     @PathVariable long depositId) {
+        return ApiResponse.ok(rentalService.listDepositEvents(operatorId(request), depositId));
     }
 
     @RequiresPermissions("ops:rental:manage")
