@@ -22,12 +22,18 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+PROD_HOST_EXPLICIT="${PROD_HOST:-}"
+PROD_USER_EXPLICIT="${PROD_USER:-}"
 PROD_HOST="${PROD_HOST:-120.25.246.179}"
 PROD_USER="${PROD_USER:-root}"
 PROD_DIR="${PROD_DIR:-/data/apps/ai-cabinet}"
 PROD_SSH_KEY="${PROD_SSH_KEY:-$HOME/.ssh/aicabinet-prod.pem}"
 PROD_SSH_KEY="${PROD_SSH_KEY/#\~/$HOME}"   # Actions 场景传 ~ 开头路径，变量内不会自动展开
 PROD_PORT="${PROD_PORT:-22}"
+
+if [ -z "$PROD_HOST_EXPLICIT" ] || [ -z "$PROD_USER_EXPLICIT" ]; then
+  echo "⚠️ 使用内置默认目标 ${PROD_USER}@${PROD_HOST}（当前为测试服务器）。生产部署必须显式传 PROD_HOST/PROD_USER；生产口径定案前不得把默认值当生产地址。"
+fi
 
 # 注意：ssh 端口是小写 -p，scp 是大写 -P（scp -p=保留时间戳，端口会被当成本地文件）
 SSH_OPTS=(-i "$PROD_SSH_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new -o BatchMode=yes)
