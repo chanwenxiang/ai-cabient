@@ -9,7 +9,8 @@
 #   · 容器名可用 PG_CONTAINER 覆盖（默认 ai-cabinet-postgres-1）
 #   · 先写 .tmp 再 mv：避免 dump 中途失败留下半个文件被当成可用备份
 #   · 文件小于 64KB 视为异常（空库也应有 schema），保留 .tmp 并退出非零
-#   · 异地副本：检测到同机 MinIO 容器时自动流式上传（mc pipe），失败退出非零；
+#   · 同机 MinIO 副本（**非异地**）：检测到同机 MinIO 容器时自动流式上传（mc pipe），失败退出非零；
+#     真正的异地归档不在本脚本里（配外部 BACKUP_REMOTE_CMD 或另一台机器）；
 #     MINIO_CONTAINER / MINIO_BUCKET / OFFSITE_KEEP_DAYS 可覆盖
 #
 # P2-r19-28（2026-11-12）备份告警与新鲜度：
@@ -94,7 +95,8 @@ echo "[backup] ok $OUT ($((SIZE / 1024)) KB)"
 DELETED=$(find "$BACKUP_DIR" -maxdepth 1 -type f -name 'aicabinet-*.dump' -mtime "+$KEEP_DAYS" -print -delete | wc -l)
 echo "[backup] retention=${KEEP_DAYS}d deleted=$DELETED"
 
-# 异地副本：MinIO 在本机（卷不同、可被单独备份/同步）；容器不在则明确告警跳过。
+# 同机 MinIO 副本（**非异地**）：MinIO 在本机（卷不同、可被单独备份/同步）；容器不在则明确告警跳过。
+# 单机故障会同时丢掉 PG 与这份副本——真正的异地副本必须另配 BACKUP_REMOTE_CMD。
 if docker inspect "$MINIO_CONTAINER" >/dev/null 2>&1; then
   MU="$(docker exec "$MINIO_CONTAINER" printenv MINIO_ROOT_USER)"
   MP="$(docker exec "$MINIO_CONTAINER" printenv MINIO_ROOT_PASSWORD)"
@@ -102,15 +104,15 @@ if docker inspect "$MINIO_CONTAINER" >/dev/null 2>&1; then
   docker exec "$MINIO_CONTAINER" mc mb --ignore-existing "backup-local/$MINIO_BUCKET" >/dev/null
   NAME="$(basename "$OUT")"
   if docker exec -i "$MINIO_CONTAINER" mc pipe "backup-local/$MINIO_BUCKET/$NAME" < "$OUT" >/dev/null; then
-    echo "[backup] offsite ok minio://$MINIO_BUCKET/$NAME"
+    echo "[backup] minio-copy ok（同机，非异地） minio://$MINIO_BUCKET/$NAME"
   else
     ALERTED=1
-    alert CRITICAL "本机备份已生成（$OUT），但 MinIO 上传失败 —— 异地副本缺失，单机故障即全失"
+    alert CRITICAL "本机备份已生成（$OUT），但同机 MinIO 副本上传失败 —— 无异地副本，单机故障即全失"
     exit 1
   fi
   docker exec "$MINIO_CONTAINER" mc rm --recursive --force --older-than "${OFFSITE_KEEP_DAYS}d"     "backup-local/$MINIO_BUCKET/" >/dev/null 2>&1 || true
 else
-  echo "[backup] WARN: 未发现 $MINIO_CONTAINER，跳过异地副本（单机故障即备份全失）" >&2
+  echo "[backup] WARN: 未发现 $MINIO_CONTAINER，跳过同机 MinIO 副本（无异地副本，单机故障即备份全失）" >&2
 fi
 
 # 只有真正走完全部步骤才更新时间戳：新鲜度检查据此判断「昨天到底成没成」。

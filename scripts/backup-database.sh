@@ -3,7 +3,7 @@
 #
 # ⚠️ 本仓现在有**两份** bash 备份脚本，语义不同（P3-r19-29，2026-11-12 实证）：
 #   · scripts/backup-postgres.sh  ← **生产实际安装的那份**（cron 02:30，见
-#     docs/production-launch-checklist.md）。平铺目录 + 内建 MinIO 流式异地副本 +
+#     docs/production-launch-checklist.md）。平铺目录 + 内建同机 MinIO 流式副本（非异地）+
 #     64KB 下限 + 失败/新鲜度告警（BACKUP_ALERT_CMD）。
 #   · scripts/backup-database.sh  ← 本文件，AU-189 的通用实现：按时间戳分子目录、
 #     1KB 下限、异地归档走外部 BACKUP_REMOTE_CMD 钩子。

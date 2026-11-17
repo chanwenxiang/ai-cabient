@@ -30,14 +30,14 @@
 
 ---
 
-## 2. 仓库现状速览（2026-09-24 校准）
+## 2. 仓库现状速览（2026-11-17 校准）
 
 | 维度 | 当前值 | 备注 |
 |------|--------|------|
 | Flyway 迁移 | **487** 个脚本（仅 `services/trade-service`），最新 **V494**（2026-11-17 实测回填；上一版写 476/V483 已过期） | 合入前 `ls V*` 查重号；门禁拦同号；勿再写已占用版本号 |
-| trade Controllers | **93** | `*Controller.java` |
-| trade 单测 | **380** `*Test.java` | 含大量并发测；全量 `mvn -o -pl services/trade-service -am test` |
-| admin-vue 业务视图 | **83** `.vue` | `src/views` |
+| trade Controllers | **94** | `*Controller.java`（2026-11-17 实测） |
+| trade 单测 | **516** `*Test.java`（2026-11-17 全量 3214 例） | 含大量并发测；全量 `mvn -o -pl services/trade-service -am test` |
+| admin-vue 业务视图 | **85** `.vue` | `src/views`（2026-11-17 实测） |
 | consumer-mp / merchant-mp | 独立 uni-app | 分包 + `preloadRule`；H5 `:3002` / `:3001` |
 | shared packages | types / api / dict / rbac / uni | 改 API 后 `pnpm gen:api-types` |
 | 踩坑总册条目 | **346 号 / 337 行**（编号不连续） | `docs/engineering/lessons-learned.md` |
