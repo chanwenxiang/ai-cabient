@@ -1587,6 +1587,29 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "2ef3d0ba",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "MA-311",
+          "files": [
+            "services/trade-service/src/main/resources/db/migration/V494__payment_operation_gateway_no_settled_only.sql",
+            "services/trade-service/src/test/java/com/aicabinet/trade/integration/PaymentOperationGatewayNoIndexIT.java",
+            "docs/module-audit/ISSUES.md"
+          ]
+        },
+        {
+          "id": "MA-312",
+          "files": [
+            "scripts/check-status-enum-parity.mjs",
+            "scripts/status-check-inventory.json",
+            "docs/module-audit/ISSUES.md"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
