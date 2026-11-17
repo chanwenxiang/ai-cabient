@@ -51,6 +51,26 @@ class ProductionStartupValidatorTest {
     }
 
     @Test
+    void unknownProfileRejectsBuiltInDevSecrets() {
+        // MA-322：uat / 空 profile 以前整段跳过校验（只认 prod/staging）⇒ 默认 JWT/内部 key 可上线
+        ProductionStartupValidator validator = buildValidator(
+                "uat", "482913", true, true,
+                "ai-cabinet-dev-secret-key-32bytes!!", "dev-internal-key-change-me");
+        assertThatThrownBy(validator::validateProductionConfig)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("JWT_SECRET");
+    }
+
+    @Test
+    void devProfileAllowsBuiltInDevSecrets() {
+        // dev 是显式的本地 profile：允许默认值，仍走 warn 早退
+        ProductionStartupValidator validator = buildValidator(
+                "dev", "123456", false, false,
+                "ai-cabinet-dev-secret-key-32bytes!!", "dev-internal-key-change-me");
+        validator.validateProductionConfig();
+    }
+
+    @Test
     void prodAcceptsAliyunSmsWithoutWebhook() {
         // 2026-10-20 短信双轨：只配阿里云四件套、无 webhook URL ⇒ 合法生产配置（生产实证曾被误拦）
         Environment environment = mock(Environment.class);
@@ -236,6 +256,13 @@ class ProductionStartupValidatorTest {
 
     private ProductionStartupValidator buildValidator(
             String profile, String smsCode, boolean cookieEnabled, boolean cookieSecure) {
+        return buildValidator(profile, smsCode, cookieEnabled, cookieSecure,
+                "prod-jwt-secret-32bytes-at-least!!!!", "prod-internal-key-32bytes-at-least!!");
+    }
+
+    private ProductionStartupValidator buildValidator(
+            String profile, String smsCode, boolean cookieEnabled, boolean cookieSecure,
+            String jwtSecret, String internalKey) {
         Environment environment = mock(Environment.class);
         when(environment.getActiveProfiles()).thenReturn(new String[] {profile});
         when(environment.getProperty("spring.datasource.password", "")).thenReturn("prod-db-password-not-default");
@@ -248,11 +275,11 @@ class ProductionStartupValidatorTest {
         when(stagingProperties.stagingMode()).thenReturn("staging".equals(profile));
 
         InternalApiProperties internalApiProperties = mock(InternalApiProperties.class);
-        when(internalApiProperties.key()).thenReturn("prod-internal-key-32bytes-at-least!!");
+        when(internalApiProperties.key()).thenReturn(internalKey);
         when(internalApiProperties.hasCidrRestriction()).thenReturn(true);
 
         AuthProperties authProperties = mock(AuthProperties.class);
-        when(authProperties.jwtSecret()).thenReturn("prod-jwt-secret-32bytes-at-least!!!!");
+        when(authProperties.jwtSecret()).thenReturn(jwtSecret);
         when(authProperties.cookieEnabled()).thenReturn(cookieEnabled);
         when(authProperties.cookieSecure()).thenReturn(cookieSecure);
         when(authProperties.sms()).thenReturn(new SmsProperties(

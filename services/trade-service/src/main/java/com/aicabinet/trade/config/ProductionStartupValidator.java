@@ -313,7 +313,22 @@ public class ProductionStartupValidator {
     }
 
     private boolean isStrictProfile() {
-        return isProdProfile() || isStagingProfile();
+        // MA-322（2026-11-17 对抗验证轮）：除 dev/test 外的**所有** profile 一律按生产标准校验。
+        // 原实现只认 prod/staging ⇒ 以 uat / 空 profile 启动时整个 validateProductionConfig 提前
+        // return，application.yml 里的 dev 默认 JWT / 内部 API key、默认库密码、cookie/SMS 全不校验，
+        // 等于把「全站鉴权可伪造」的配置带上线。stagingMode 标志仍单独生效
+        // （dev profile + AICABINET_STAGING_MODE=true 依旧 strict）。
+        return isProdProfile() || isStagingProfile() || !isDevOrTestProfile();
+    }
+
+    /** dev/test 是仅有的两个「允许本地默认密钥/弱 cookie」的 profile。 */
+    private boolean isDevOrTestProfile() {
+        for (String profile : environment.getActiveProfiles()) {
+            if ("dev".equalsIgnoreCase(profile) || "test".equalsIgnoreCase(profile)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isProdProfile() {

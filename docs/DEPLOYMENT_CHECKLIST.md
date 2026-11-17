@@ -330,6 +330,7 @@ The Step 4 gate must verify:
       **V494**（`uk_payment_operation_gateway_trade_no` 收窄为只约束 `status='COMPLETED'` 资金行，MA-311 资金 P0 修复）随 jar 应用；
       `scheduled_task` 该行存在且首跑 SUCCESS。V494 是**热表 DROP+CREATE 索引**（`LOCK_RISK: high`，Flyway 事务内不能 CONCURRENTLY）
       ⇒ 生产低峰执行；**回滚前必须先删掉「审计痕迹行与资金行同号」的行**，否则旧全局唯一索引建不回来。
+- [ ] **V494 真渠道验证（2026-11-17 仍未完成）**：V494 只在本机隔离 UAT 的 5s 渠道桩 + 真库 IT 上验证过；**真实 PayScore/支付宝协议 + 一笔小额真实订单扣款**未跑（真渠道才会暴露网关报文/超时/拒付形态）。代码侧修复本身是 DB-only（索引只约束 COMPLETED 资金行），但上线前不得宣称「资金链真渠道已验证」；具备真实协议与测试用户后按「合成 PENDING 订单 + 小额渠道扣款 → PAID + 痕迹 FINALIZED + 资金 COMPLETED 同号」复跑并留证。
 - [ ] **调度**：staging `XXL_JOB_ENABLED=false`（无 admin 时 Spring 回退）；生产 `XXL=true` + admin + seed；`ChargePendingReconciler` 是 Spring 常驻（不进 XXL），`platform-fund-daily`/`device-rental-daily` 已有 `@Scheduled` 回退。
 - [ ] **网络暴露**：dev 80/花生壳隧道只留 dev；生产入口只走 nginx 443，无 dev 端口/隧道映射。
 - [ ] **Secret**：生产 env 无 dev JWT/内部 key/支付 mock；引导超管密码建号后移除。

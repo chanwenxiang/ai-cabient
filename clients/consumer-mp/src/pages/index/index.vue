@@ -536,6 +536,7 @@ import { isPayReady, resolveEntryChannel, type EntryChannel } from '@/utils/acco
 import { absoluteImageUrl, productGlyph, productThumb } from '@/utils/product-thumb';
 import { isSafeCampaignPath, openCampaignPath } from '@/utils/campaign-path';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
+import { resolveSessionBill } from '@/utils/session-bill';
 import { refreshMineTabBadge } from '@/utils/tab-badge';
 import { createPopupSeenStore } from '@/utils/popup-seen';
 import {
@@ -2275,8 +2276,10 @@ async function finishSession(sessionState: string, sid: string) {
       let pendingOrderStatus: string | null = null;
       try {
         const order = await consumerApi.getSessionOrder(sid);
-        totalCents = order?.totalAmountCents ?? 0;
-        pendingOrderStatus = order?.status ?? null;
+        // MA-321：订单未落单/金额缺失 ⇒ null（未知），不能 `?? 0` 误报「本次未消费」
+        const bill = resolveSessionBill(order);
+        totalCents = bill.totalCents;
+        pendingOrderStatus = bill.status;
       } catch {
         /* 零元单或查询失败：保持 null，提示走「账单已生成，正在打开」 */
       }
