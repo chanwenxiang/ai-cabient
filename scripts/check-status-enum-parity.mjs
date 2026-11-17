@@ -48,7 +48,10 @@ const MIGRATIONS = [
   'V476__status_check_batch13_approval_coupon.sql',
   'V477__status_check_batch14_notification_ota.sql',
   'V478__status_check_batch15_line_chain.sql',
-  'V479__status_check_batch16_misc_final.sql'
+  'V479__status_check_batch16_misc_final.sql',
+  // 枚举扩展（2026-11-17 补登记）：同一约束在后续迁移里 DROP + 重建时以**最后定义**为准，
+  // 不得新增第二份「未 DROP 的直接重名」（那说明两条迁移都在抢着定义同一列）。
+  'V493__reconciliation_status_empty.sql'
 ].map((f) => `${MIG_DIR}/${f}`);
 
 const P = {
@@ -164,7 +167,8 @@ function extractChecks(sql) {
       constraint: m[2],
       column: m[3],
       values: [...m[4].matchAll(/'([^']*)'/g)].map((x) => x[1]),
-      notValid: !!m[5]
+      notValid: !!m[5],
+      index: m.index
     });
   }
   return out;
@@ -284,8 +288,26 @@ function evaluate(input) {
     if (addCount !== checks.length)
       bad(`${path}: 存在无法解析成 CHECK (col IN (...)) 的 ADD CONSTRAINT`);
     for (const c of checks) {
-      if (byConstraint.has(c.constraint))
-        bad(`约束名重复：${c.constraint}（${constraintFile.get(c.constraint)} 与 ${path}）`);
+      if (byConstraint.has(c.constraint)) {
+        // 枚举扩展允许「后续迁移先 DROP 再 ADD 同名约束」；没有 DROP 的直接重名仍是错误。
+        // 第 N 次重建必须有第 N 次 DROP 出现在它**之前**（ADD…DROP 顺序或一次 DROP 放行多次重建都不算）。
+        const droppedBefore = (
+          sql
+            .slice(0, c.index)
+            .match(
+              new RegExp(`DROP\\s+CONSTRAINT\\s+(?:IF\\s+EXISTS\\s+)?${c.constraint}\\b`, 'gi')
+            ) || []
+        ).length;
+        const addedBefore =
+          (
+            sql
+              .slice(0, c.index)
+              .match(new RegExp(`ADD\\s+CONSTRAINT\\s+${c.constraint}\\b`, 'gi')) || []
+          ).length + 1;
+        if (droppedBefore < addedBefore) {
+          bad(`约束名重复：${c.constraint}（${constraintFile.get(c.constraint)} 与 ${path}）`);
+        }
+      }
       byConstraint.set(c.constraint, c);
       constraintFile.set(c.constraint, path);
       if (!c.notValid)
@@ -298,8 +320,11 @@ function evaluate(input) {
     const ref = /^--\s*COMPETITOR_REF\s*:\s*(.+)$/im.exec(raw);
     if (!ref) bad(`${path}: 迁移头缺 COMPETITOR_REF（文件内容含业务语义词，N/A 一律判红）`);
     else
-      for (const id of ref[1].split(',').map((x) => x.trim())) {
-        if (!/^CB-\d{3}$/.test(id)) bad(`${path}: COMPETITOR_REF 引用了非法编号「${id}」`);
+      for (const part of ref[1].split(',').map((x) => x.trim())) {
+        // 允许编号后带中文括注（与全仓迁移头写法一致，如「CB-061（退款流水逐笔台账）」）；
+        // 编号本体仍须是 3 位且必须能在台账里找到，CB-9999 / N/A 都判红。
+        const id = /^(CB-\d{3})(?!\d)/.exec(part)?.[1];
+        if (!id) bad(`${path}: COMPETITOR_REF 引用了非法编号「${part}」`);
         else if (!bench.includes(`### ${id}`)) bad(`COMPETITOR_REF 引用了台账里不存在的 ${id}`);
       }
     if (!/^--\s*MIGRATION_KIND\s*:\s*schema\s*$/im.test(raw))
@@ -747,6 +772,20 @@ function selfTest() {
           "online_status     VARCHAR(16)  NOT NULL DEFAULT 'TOTALLY_BOGUS'"
         ),
       'DDL DEFAULT'
+    ],
+    [
+      '后续迁移未 DROP 就重名（枚举扩展只允许先 DROP 再重建）',
+      MIGRATIONS[16],
+      (s) =>
+        s +
+        "\nALTER TABLE payment_reconciliation ADD CONSTRAINT chk_payment_reconciliation_status CHECK (status IN ('FAILED','MATCHED','MISMATCH','PENDING')) NOT VALID;\n",
+      '约束名重复'
+    ],
+    [
+      'COMPETITOR_REF 编号位数不对（CB-9999 不得当 CB-999 前缀放过）',
+      MIGRATIONS[16],
+      (s) => s.replace('COMPETITOR_REF: CB-061', 'COMPETITOR_REF: CB-9999'),
+      '非法编号'
     ]
   ];
   let passed = 0;

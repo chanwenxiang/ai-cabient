@@ -199,7 +199,7 @@
       "constraint": "chk_payment_reconciliation_status",
       "chain": "recon",
       "batch": 5,
-      "migration": "V468__status_check_batch5_recon.sql"
+      "migration": "V493__reconciliation_status_empty.sql"
     },
     {
       "table": "device_info",
