@@ -30,5 +30,9 @@
   "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsAdController.java": {
     "endpoint": "/ad/assets",
     "reason": "MA-082：素材 update/delete 只追加 HttpServletRequest 取操作者；请求体/路径/返回类型未变"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsDeviceRentalController.java": {
+    "endpoint": "/deposits",
+    "reason": "MA-316：押金读面两个 GET 追加 HttpServletRequest 仅用于把 operatorId 传进数据范围下推/归属校验；请求体/路径/返回类型均未变（映射签名与基线逐条相等），spec 不含这类服务端形参"
   }
 }
