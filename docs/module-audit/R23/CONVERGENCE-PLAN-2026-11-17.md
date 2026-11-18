@@ -47,7 +47,7 @@
 | F3 | 结算/对账事务边界 ⬓`3af7b9eb`（F3a + F3b-1/2 落地，拆段待办） | 3 | ①/BR5 BR3 J4 J8 ⑧ ⑨ | 拆成 prepare → HTTP → finalize |
 | F4 | 库存/月结账实 ⬓`66355c32`（批次判据已改 SKU 级，恒等式待补） | 1 | BR9 BR10 BR11 BR13 BR14 BR15 BR16 BR1 BR2 月账单利润 | 判据改 SKU 级 + 加恒等式 |
 | F5 | 状态机/快照覆盖 | 0 | J5 J6 BR12 BR17 BR18 BR19 | 一切状态写入带 `WHERE status=快照态` |
-| F6 | 幂等/重试窗口 ⬓`c09ef21d`（J10 已关，BR4/BR6/BR7 待办） | 0 | J10 BR4 BR6 BR7 | 幂等键不含可变 ID |
+| F6 | 幂等/重试窗口 ✅`df9d7cb4` | 0 | J10 BR4 BR6 BR7 | 幂等键不含可变 ID |
 | F7 | 部署可复现 ⬓`442fabc7`（J11/xxljob 已关；drift/备份/ECS/admin SHA 待取证） | 5 | J11 L-03 L-04 N-02 N-03 N-10 | 部署链与迁移链可重放 |
 | F8 | 文档/门禁漂移 ✅`442fabc7` | 2 | L-01 L-02 L-10 L-11 注释族 | 文档与门禁跟着代码走 |
 
@@ -376,6 +376,15 @@ Wave 4（发布前）          F7 部署可复现
 - 共享产物：「未跟踪」与「显式 gitignore」分开判，新增 `check:shared-dist-tracked`，堵住 `tracked.length===0 → continue` 的假绿。
 
 **F7 仍待取证（不是代码能修的）**：目标库 `flyway-drift-check` PASS 证据、`BACKUP_REMOTE_CMD` 落外部 OSS、ECS 22/80 通道恢复、admin 发布 SHA「源码==产物」核对。这三项运维动作按 DoD 第 1/4 条留证，不靠改代码闭环。
+
+---
+
+### F6 收口（2026-11-18，`df9d7cb4`）
+
+J10（幂等键）、BR4（置失败前查单）、BR6（按 sessionId 取消支付分单）、BR7（XXL 失败重试）四项全关，F6 整族完成。
+其中 BR6 是 V496 的连带必修：开门期支付分单没有 orderId，仍按 orderId 取消必然漏单。
+`check:retry-window` R1–R3 钉住三项判据，真树注入 seed 重试次数 → 红 → 还原 → 绿。
+trade-service 全量 3247/0。
 
 ---
 

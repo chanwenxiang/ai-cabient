@@ -1920,6 +1920,37 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "df9d7cb4",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 3,
+      "items": [
+        {
+          "id": "MA-342",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/PayScoreOrderMapper.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SessionService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SessionServiceRecoveryTest.java"
+          ]
+        },
+        {
+          "id": "MA-343",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/OrderPaymentService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/RefundRetryScheduler.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/RefundRetrySchedulerTest.java"
+          ]
+        },
+        {
+          "id": "MA-344",
+          "files": [
+            "infra/xxl-job/seed_aicabinet_jobs.sql",
+            "scripts/check-retry-window.mjs",
+            "scripts/check-retry-window.test.mjs"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
