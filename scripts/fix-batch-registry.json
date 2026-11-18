@@ -1893,6 +1893,33 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "442fabc7",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "MA-340",
+          "files": [
+            "scripts/deploy-prod.sh",
+            "scripts/check-deploy-compose-chain.mjs",
+            "scripts/check-deploy-compose-chain.test.mjs"
+          ]
+        },
+        {
+          "id": "MA-341",
+          "files": [
+            "docs/TROUBLESHOOTING_GUIDE.md",
+            "scripts/devops/flyway-repair/ValidateCheck.java",
+            "scripts/deploy-staging.ps1",
+            "scripts/check-shared-dist-tracked.mjs",
+            "scripts/check-shared-dist-tracked.test.mjs",
+            "scripts/check-doc-commands.mjs",
+            "scripts/check-doc-commands.test.mjs"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
