@@ -374,7 +374,9 @@ public class WarehouseMonthlyCloseSheetService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "差异金额超出单行上限");
             }
             wo.setCostCents(line.getGapAmountCents().intValue());
-            // 索赔额 = 差异金额（盘盈行不会走到 CLAIM——服务层只对 gap<0 开放 CLAIM 见下）
+            // F4/BR15（2026-11-18 用户拍板「维持全额」）：索赔额 = 差异金额全额，损耗列只做展示。
+            // expected 是损耗前应有，gap 已含损耗量；四类损耗不单独出索赔单，避免同一批货两次追责。
+            // 盘盈行不会走到 CLAIM——服务层只对 gap<0 开放。
             wo.setClaimAmountCents(line.getGapAmountCents());
         }
         wo.setOperatorId(operatorId);

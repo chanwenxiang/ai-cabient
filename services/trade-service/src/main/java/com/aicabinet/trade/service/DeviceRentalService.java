@@ -266,8 +266,9 @@ public class DeviceRentalService {
 
         long refund = deposit.getBalanceCents();
         if (refund > 0) {
-            // 老口径：押金未退完撤机 → 一律退剩余 − 安装费（满期豁免只作用于「已退完」分支）
-            long fee = Math.min(Math.max(0L, installFee), refund);
+            // F4/BR18（2026-11-18 拍板）：满期即免安装费——无论押金是否已按月退完。
+            // 旧口径只在「已退完」分支豁免，租满 5 年但余额未退完仍扣，与「满期免安装费」不一致。
+            long fee = contractExpired ? 0L : Math.min(Math.max(0L, installFee), refund);
             long net = refund - fee;
             if (depositMapper.adjustBalance(depositId, -refund) == 0) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "押金余额推进失败，请重试");

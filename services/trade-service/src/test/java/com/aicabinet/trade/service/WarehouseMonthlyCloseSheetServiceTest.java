@@ -232,6 +232,31 @@ class WarehouseMonthlyCloseSheetServiceTest {
             assertEquals(WarehouseMonthlyCloseLine.DISP_CLAIM, lossRow.getGapDisposition());
         }
 
+        /** F4/BR15 拍板：索赔按差异全额，四类损耗列不抵扣（避免同一批货两次追责）。 */
+        @Test
+        void claimKeepsFullGapEvenWithLossColumns() {
+            WarehouseMonthlyCloseSheet approved = draftSheet(11L);
+            approved.setStatus(WarehouseMonthlyCloseSheet.STATUS_APPROVED);
+            when(sheetMapper.selectById(11L)).thenReturn(approved);
+            WarehouseMonthlyCloseLine row = sheetLine(24L, 11L, "SKU-LOSS", -3, 1500L);
+            row.setRockLossQty(1);
+            row.setExpiredLossQty(2);
+            when(lineMapper.selectById(24L)).thenReturn(row);
+            doAnswer(inv -> {
+                InventoryWriteOff wo = inv.getArgument(0);
+                wo.setWriteOffId(99L);
+                return 1;
+            }).when(writeOffMapper).insert(any());
+
+            service.disposeLine(1L, 11L, 24L, WarehouseMonthlyCloseLine.DISP_CLAIM,
+                    "供应商A", "CLM-LOSS");
+
+            ArgumentCaptor<InventoryWriteOff> captor = ArgumentCaptor.forClass(InventoryWriteOff.class);
+            verify(writeOffMapper).insert(captor.capture());
+            assertEquals(1500L, captor.getValue().getClaimAmountCents(),
+                    "索赔额必须是差异全额，不因损耗列被抵扣");
+        }
+
         @Test
         void claimShouldRequireResponsibleParty() {
             WarehouseMonthlyCloseSheet approved = draftSheet(11L);

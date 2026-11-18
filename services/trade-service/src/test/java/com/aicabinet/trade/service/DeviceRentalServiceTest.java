@@ -266,6 +266,28 @@ class DeviceRentalServiceTest {
     }
 
     @Test
+    void settle_contractExpiredWithBalance_waivesInstallFee() {
+        // F4/BR18（拍板）：满期免安装费，即使押金还没按月退完。
+        DeviceRentalDeposit deposit = heldDeposit(1L, 50_000L);
+        deposit.setChargeMode("ONLINE");
+        deposit.setInstallFeeDeductCents(10_000L);
+        deposit.setContractYears(5);
+        deposit.setCreatedAt(java.time.Instant.now().minus(java.time.Duration.ofDays(365L * 6)));
+        when(depositMapper.selectById(1L)).thenReturn(deposit);
+        when(depositMapper.adjustBalance(1L, -50_000L)).thenReturn(1);
+
+        service.settle(9L, 1L, null);
+
+        ArgumentCaptor<DeviceRentalDepositEvent> captor = ArgumentCaptor.forClass(DeviceRentalDepositEvent.class);
+        verify(depositEventMapper, org.mockito.Mockito.times(1)).insert(captor.capture());
+        assertThat(captor.getValue().getEventType()).isEqualTo(DeviceRentalDeposit.EVENT_RETURN);
+        assertThat(captor.getValue().getAmountCents()).isEqualTo(-50_000L);
+        // times(1) 已证明没有 DEDUCT 事件；返还额必须是全额（未扣安装费）
+        verify(merchantWalletService).creditIfAbsent(eq("10001"), eq(50_000L), eq("DEPOSIT_RETURN"),
+                eq("RENTAL_DEPOSIT_SETTLE"), eq("1"), anyString());
+    }
+
+    @Test
     void settle_depositExhaustedAndContractExpired_grantsRewardWithoutFee() {
         // 押金已按月退完 + 满 5 年 → 发期满奖励（不扣安装费）；refId 与月度链同款 ⇒ 幂等不双发
         DeviceRentalDeposit deposit = heldDeposit(1L, 0L);
