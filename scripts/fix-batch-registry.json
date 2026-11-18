@@ -1817,6 +1817,32 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "3af7b9eb",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "MA-334",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/LockHeartbeat.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SettlementService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SettlementWaiveRefundService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SettlementSessionSettleConcurrencyTest.java"
+          ]
+        },
+        {
+          "id": "MA-335",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SessionOpenService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SessionService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/ConsumerPreauthService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/OrderPaymentService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SessionOpenFreezeCriterionTest.java"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [

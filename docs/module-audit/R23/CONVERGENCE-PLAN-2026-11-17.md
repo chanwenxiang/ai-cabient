@@ -44,7 +44,7 @@
 |---|---|---|---|---|
 | F1 | 可观测性自证 ✅`9f0da9c2` | 4 | J1 J2 J3 J9 J14 J15 J16 N-04 | 让「任务停跑」这件事自己暴露出来 |
 | F2 | 设备范围闸形态 ✅`d37a02e5` | 1 | N-01 N-05 N-06 L-09 | 闸从拦截器下沉到 service 入口 |
-| F3 | 结算/对账事务边界 ⬓`14af61dd`（F3a 落地，F3b 待办） | 3 | ①/BR5 BR3 J4 J8 ⑧ ⑨ | 拆成 prepare → HTTP → finalize |
+| F3 | 结算/对账事务边界 ⬓`3af7b9eb`（F3a + F3b-1/2 落地，拆段待办） | 3 | ①/BR5 BR3 J4 J8 ⑧ ⑨ | 拆成 prepare → HTTP → finalize |
 | F4 | 库存/月结账实 | 1 | BR9 BR10 BR11 BR13 BR14 BR15 BR16 BR1 BR2 月账单利润 | 判据改 SKU 级 + 加恒等式 |
 | F5 | 状态机/快照覆盖 | 0 | J5 J6 BR12 BR17 BR18 BR19 | 一切状态写入带 `WHERE status=快照态` |
 | F6 | 幂等/重试窗口 | 0 | J10 BR4 BR6 BR7 | 幂等键不含可变 ID |
@@ -324,6 +324,20 @@ Wave 4（发布前）          F7 部署可复现
 
 **F3b 待办（明确不塞进本轮）**：主结算链的 `prepare → HTTP → finalize` 拆段（`SettlementSettleOrchestrator` 那个大事务）、争议首扣腿同构、`DataConsistencyService` 退款段移出事务、`SettlementService` 130 行 Redis 锁补心跳、`ConsumerPreauthService` 与 `PayScoreService` 的冻结/结算判据统一。
 **为什么不一起做**：拆段要改「识别→落单→扣款→分账」整条链的事务形状，必须有真 PG 的 IT（并发双投 + finalize 注入失败）才敢动；本轮只做了可被单测完全覆盖的那层，剩下的一律留在 F3b，并在 §7 的验收里按「F3a 已治标、F3b 治本」分别记账。**风险不变**：拆段期间若没有 F1 的巡检，出问题看不见——F1 已合入，F3b 的前置条件已满足。
+
+---
+
+### F3b 执行记录（2026-11-18，前两项 + 配套门禁）
+
+| 计划项 | 落法 | 与计划的差异 |
+|---|---|---|
+| `SettlementService` Redis 锁补心跳 | `LockHeartbeat`（60s 租约 / 20s 续租）接入主链 | 计划只提这一类；实测发现**同一把 `session:settle:*` 锁有两份实现**——`SettlementWaiveRefundService#runWithSessionSettleLock` 是独立私有副本，只改 `SettlementService` 仍会双跑。两处都改，且 `stop` 严格早于 `unlock` |
+| `ConsumerPreauthService` 与 `PayScoreService` 判据统一 | 先建支付分单，再用 `hasOpenWechatOrderForSession` 的读值决定 `skipFreeze` | 计划写「统一为『本次会话是否创建了支付分单』」；实现上**把建单调用挪到冻结之前**，让判据变成对同一张表的真实读值，而不是「预测会不会建单」。开发测试通道从不建单 ⇒ 恒冻结（不再按 entryChannel 推断） |
+| 配套门禁 `check-tx-boundary-channel-call` | R1 事务内渠道调用 / R2 基线棘轮 / R3 扫描面下限 | 计划写「扫 `@Transactional` 方法体含 1 跳 self 调用」；实现额外支持「客户端字段名从字段声明类型反查」（`client` 这类短名 + 全限定类型），并把 `isXxx` 本地能力探测豁免，否则 `alipayPayClient.isConfigured()` 会造出关不掉的噪音。**跨服务多跳链静态不覆盖**，不塞进基线冒充已管 |
+
+**F3b 仍待办（三项，风险从高到低）**：`SettlementSettleOrchestrator`/`SettlementOrderFinalizeService` 主链拆 `prepare → HTTP → finalize`（外层 `@Transactional` 必须一起拆，否则 HTTP 仍在事务内）、`SettlementConfirmDisputeService` 争议首扣腿同构、`DataConsistencyService` 退款 HTTP 移出事务。这三项都会改变「渠道成功后本地失败」的落库形态（订单转 PENDING 而非整笔回滚），需要真 PG IT 覆盖后再动；门禁已先把新增形态钉住，存量按基线逐项摘除。
+
+**验证**：trade-service 全量 **3238/0**；`SettlementSessionSettleConcurrencyTest` 5/0（+3）、`SessionOpenFreezeCriterionTest` 3/0、`LockHeartbeatTest` 2/0。门禁真树注入 `chargeOrder` → 红（带 file:line）→ 还原 md5 一致 → 绿；sibling 夹具 13 断言覆盖 R1/R2/R3。本机 Docker 重启后全栈恢复（EMQX 11883 撞 Windows 保留端口，改用 `EMQX_MQTT_PORT=12883` 启动）。
 
 ---
 
