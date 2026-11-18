@@ -91,6 +91,25 @@ public class InventoryLotService {
         return !lotRepository.findByDeviceId(deviceId.trim()).isEmpty();
     }
 
+    /** F4：批次判据必须贴「柜 + SKU」，设备级口径会让同柜其他 SKU 的无批次裸库存被 FEFO 判 409。 */
+    public boolean hasLotForSku(String deviceId, String skuId) {
+        if (deviceId == null || deviceId.isBlank() || skuId == null || skuId.isBlank()) {
+            return false;
+        }
+        return !lotRepository.findByDeviceIdAndSkuIdOrderByExpiryDateAsc(deviceId.trim(), skuId).isEmpty();
+    }
+
+    /** F4：汇总台账的裸数量（可能没有批次支撑），用于决定要不要先补建 LEGACY-OPENING。 */
+    public int rawAggregateQuantity(String deviceId, String skuId) {
+        if (deviceId == null || deviceId.isBlank() || skuId == null || skuId.isBlank()) {
+            return 0;
+        }
+        return inventoryRepository
+                .findById(new DeviceSkuInventoryId(deviceId.trim(), skuId))
+                .map(DeviceSkuInventory::getQuantity)
+                .orElse(0);
+    }
+
     /**
      * 该柜**已建批次账**的 SKU 集合（含 DEPLETED/EXPIRED 等零可售批次——只表示进过账本）。
      *
@@ -151,6 +170,10 @@ public class InventoryLotService {
         if (quantity <= 0) {
             return new FefoDeductResult(null);
         }
+        // F4：本柜其他 SKU 有批次、本 SKU 只有汇总裸库存时，先把裸库存并成 LEGACY-OPENING
+        // 再 FEFO，否则「账面有货、批次为空」被判 409（原设备级判据的典型形态）。
+        // 放在持锁段内，避免并发两次并批。已有批次时 methods 内部直接返回。
+        materializeUntrackedInventory(deviceId, skuId);
         SkuCatalog sku = skuCatalogRepository.findById(skuId).orElse(null);
         int blockDays = sku != null ? sku.getBlockSaleDaysBeforeExpiry() : 0;
         LocalDate today = LocalDate.now();

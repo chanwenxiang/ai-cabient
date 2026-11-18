@@ -59,6 +59,37 @@ class InventoryServiceTest {
     }
 
     @Test
+    void deduct_skuWithBareAggregate_usesFefoInsteadOf409() {
+        // F4：同柜 SKU-A 有批次、SKU-B 只有汇总裸库存时，旧「设备级」判据会把 SKU-B
+        // 也塞进 FEFO 且无批次 ⇒ 409；新判据按 SKU 看汇总有货，走 FEFO（内部补建期初批次）。
+        when(inventoryLotService.hasLotForSku("CAB-001", "SKU-B")).thenReturn(false);
+        when(inventoryLotService.rawAggregateQuantity("CAB-001", "SKU-B")).thenReturn(2);
+        when(inventoryLotService.deductFefo("CAB-001", "SKU-B", 2, "ORDER", "S1"))
+                .thenReturn(new InventoryLotService.FefoDeductResult("LEGACY-OPENING"));
+
+        Map<String, String> batches = inventoryService.deductForOrder("CAB-001",
+                List.of(new RecognizedItem("SKU-B", 2, 1f)), "S1");
+
+        assertEquals("LEGACY-OPENING", batches.get("SKU-B"));
+        verify(inventoryLotService).deductFefo("CAB-001", "SKU-B", 2, "ORDER", "S1");
+        verify(inventoryRepository, never()).deductQuantityAtomic("CAB-001", "SKU-B", 2);
+    }
+
+    @Test
+    void deduct_skuWithOwnLots_usesFefoEvenWithoutAggregate() {
+        // 反向：本 SKU 有批次行但汇总台账为 0，仍必须走 FEFO（汇总口径不能盖过批次真值）。
+        when(inventoryLotService.hasLotForSku("CAB-001", "SKU-L")).thenReturn(true);
+        when(inventoryLotService.deductFefo("CAB-001", "SKU-L", 1, "ORDER", null))
+                .thenReturn(new InventoryLotService.FefoDeductResult("BATCH-L"));
+
+        Map<String, String> batches = inventoryService.deductForOrder("CAB-001",
+                List.of(new RecognizedItem("SKU-L", 1, 1f)));
+
+        assertEquals("BATCH-L", batches.get("SKU-L"));
+        verify(inventoryRepository, never()).deductQuantityAtomic("CAB-001", "SKU-L", 1);
+    }
+
+    @Test
     void deduct_busyLock_throwsConflict() {
         when(lockService.tryLock(eq(InventoryService.deviceLockKey("CAB-001")), anyLong(), anyLong())).thenReturn(false);
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -130,7 +161,8 @@ class InventoryServiceTest {
     /** I1: 有 lot 账本可售不足时 409，禁止汇总表虚扣。 */
     @Test
     void deduct_lotLedgerInsufficient_doesNotTouchAggregateInventory() {
-        when(inventoryLotService.deviceUsesLotLedger("CAB-001")).thenReturn(true);
+        // F4：判据从设备级改 SKU 级——本 SKU 有批次行即必须走 FEFO，汇总表不得虚扣。
+        when(inventoryLotService.hasLotForSku("CAB-001", "SKU-DEMO-001")).thenReturn(true);
         when(inventoryLotService.deductFefo(eq("CAB-001"), eq("SKU-DEMO-001"), eq(2), anyString(), anyString()))
                 .thenThrow(new ResponseStatusException(
                         org.springframework.http.HttpStatus.CONFLICT,

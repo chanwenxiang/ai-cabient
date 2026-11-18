@@ -114,13 +114,17 @@ public class InventoryService {
         if (items == null || items.isEmpty()) {
             return batchBySku;
         }
-        boolean lotLedger = inventoryLotService.deviceUsesLotLedger(deviceId);
         for (RecognizedItem item : items) {
             if (item.quantity() <= 0) {
                 continue;
             }
-            // 有批次账本时一律 FEFO：可售为 0 时禁止靠汇总表虚扣（会与消费者/货道账面不一致）
-            if (lotLedger || inventoryLotService.hasSellableLots(deviceId, item.skuId())) {
+            // F4：批次口径按「柜 + SKU」判，不再用「该柜有任意批次」一刀切。
+            // ① 本 SKU 有批次行（含已售罄/过期，FEFO 会 fail-closed）⇒ 走 FEFO；
+            // ② 本 SKU 无批次但汇总有裸库存 ⇒ 走 FEFO，doDeductFefo 持锁补建 LEGACY-OPENING；
+            // ③ 两者都没有 ⇒ 汇总原子扣减（0 行即 409），语义不变。
+            boolean useLot = inventoryLotService.hasLotForSku(deviceId, item.skuId())
+                    || inventoryLotService.rawAggregateQuantity(deviceId, item.skuId()) > 0;
+            if (useLot) {
                 InventoryLotService.FefoDeductResult result = inventoryLotService.deductFefo(
                         deviceId, item.skuId(), item.quantity(), ORDER, refId);
                 batchBySku.put(item.skuId(), result.primaryBatch());
