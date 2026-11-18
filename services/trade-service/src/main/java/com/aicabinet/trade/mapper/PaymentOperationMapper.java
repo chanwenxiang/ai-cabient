@@ -267,6 +267,15 @@ public interface PaymentOperationMapper extends BaseTradeMapper<PaymentOperation
                 .set(PaymentOperation::getUpdatedAt, updatedAt));
     }
 
+    /** F3a：超过静默期仍停留在 CHARGE_PENDING 的扣款痕迹（供对账收敛）。 */
+    @Select("""
+            SELECT * FROM payment_operation
+            WHERE operation_type = 'CHARGE'
+              AND status = 'CHARGE_PENDING'
+              AND created_at < #{cutoff}
+            ORDER BY created_at ASC
+            LIMIT #{limit}
+            """)
     java.util.List<PaymentOperation> findStaleChargePending(@Param("cutoff") java.time.Instant cutoff,
                                                             @Param("limit") int limit);
 

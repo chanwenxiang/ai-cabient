@@ -104,7 +104,6 @@ public class SettlementSettleOrchestrator {
         return settlement.finalizeOrder(session, plan.items());
     }
 
-    @Transactional(noRollbackFor = {DisputeRequiredException.class, BalanceInsufficientException.class})
     public OrderReadModel processRecognitionResult(ShoppingSession session,
                                                    RecognitionOutcome recognition) {
         return self.processRecognitionResult(session, recognition, true);
