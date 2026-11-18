@@ -118,6 +118,18 @@ public class RefundRetryScheduler {
         int exhausted = 0;
         for (PaymentOperation trace : overdue) {
             try {
+                // BR4：先查渠道再置失败。SUCCESS ⇒ 走闭环而不是转人工；UNKNOWN ⇒ 本轮跳过，
+                // 等下轮查单明确后再判，避免把「已退款成功但本地未收口」误标成失败。
+                String channelStatus = orderPaymentService.queryInitiatedRefundStatus(trace);
+                if ("UNKNOWN".equalsIgnoreCase(channelStatus)) {
+                    log.warn("refund exhaust deferred: channel status unknown orderId={}", trace.getOrderId());
+                    continue;
+                }
+                if ("SUCCESS".equalsIgnoreCase(channelStatus)
+                        && orderPaymentService.retryFromInitiatedTrace(trace)) {
+                    exhausted++;
+                    continue;
+                }
                 orderPaymentService.markRefundFailed(trace, "超 " + EXHAUST_AFTER_MINUTES + " 分钟无终态");
                 exhausted++;
             } catch (Exception e) {

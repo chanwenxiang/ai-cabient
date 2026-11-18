@@ -125,6 +125,36 @@ class RefundRetrySchedulerTest {
         verify(taskService).finish(eq(RefundRetryScheduler.REFUND_RETRY), eq("SUCCESS"), anyString(), anyLong());
     }
 
+    /** BR4：超时置失败前必须先查渠道——已退成功要闭环，查不到要跳过。 */
+    @Test
+    void run_exhaustDefersWhenChannelQueryUnknown() {
+        PaymentOperation t = trace("O-SC-UNKNOWN");
+        when(taskService.tryBegin(RefundRetryScheduler.REFUND_RETRY, 600)).thenReturn(true);
+        when(paymentOperationMapper.selectList(any())).thenReturn(Collections.emptyList(), List.of(t));
+        when(weChatRefundReconciler.advanceProcessingRefunds()).thenReturn(0);
+        when(orderPaymentService.queryInitiatedRefundStatus(t)).thenReturn("UNKNOWN");
+
+        scheduler.run();
+
+        verify(orderPaymentService, never()).markRefundFailed(any(), anyString());
+        verify(orderPaymentService, never()).retryFromInitiatedTrace(any());
+    }
+
+    @Test
+    void run_exhaustClosesWhenChannelAlreadySucceeded() {
+        PaymentOperation t = trace("O-SC-SUCCESS");
+        when(taskService.tryBegin(RefundRetryScheduler.REFUND_RETRY, 600)).thenReturn(true);
+        when(paymentOperationMapper.selectList(any())).thenReturn(Collections.emptyList(), List.of(t));
+        when(weChatRefundReconciler.advanceProcessingRefunds()).thenReturn(0);
+        when(orderPaymentService.queryInitiatedRefundStatus(t)).thenReturn("SUCCESS");
+        when(orderPaymentService.retryFromInitiatedTrace(t)).thenReturn(true);
+
+        scheduler.run();
+
+        verify(orderPaymentService).retryFromInitiatedTrace(t);
+        verify(orderPaymentService, never()).markRefundFailed(any(), anyString());
+    }
+
     @Test
     void run_staleScanByUpdatedAt_exhaustScanByCreatedAt() {
         when(taskService.tryBegin(RefundRetryScheduler.REFUND_RETRY, 600)).thenReturn(true);

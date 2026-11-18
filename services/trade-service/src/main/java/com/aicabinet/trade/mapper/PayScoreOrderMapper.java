@@ -21,6 +21,16 @@ public interface PayScoreOrderMapper extends BaseTradeMapper<PayScoreOrder> {
                 .last("LIMIT " + Math.max(1, Math.min(limit, 100))));
     }
 
+    /** 开门期支付分单的 out_order_no = sessionId（V496 后可能还没有 orderId）。 */
+    default List<PayScoreOrder> findByOutOrderNo(String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<PayScoreOrder>lambdaQuery()
+                .eq(PayScoreOrder::getOutOrderNo, sessionId.trim())
+                .orderByAsc(PayScoreOrder::getCreatedAt));
+    }
+
     default List<PayScoreOrder> findByOrderId(String orderId) {
         if (orderId == null || orderId.isBlank()) {
             return List.of();

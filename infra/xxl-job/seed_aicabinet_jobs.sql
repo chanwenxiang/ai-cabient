@@ -66,10 +66,14 @@ INSERT INTO `xxl_job_info`(
 (118, 10, '温控计划下发', now(), now(), 'aicabinet', '',
  'CRON', '0 0/1 * * * ?', 'DO_NOTHING', 'FAILOVER',
  'tempPlanApplyJob', '', 'SERIAL_EXECUTION', 300, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),
+-- F6/BR7（2026-11-18）：分账重试与日结通知的 executor_fail_retry_count 2 → 0。
+-- 两者都含不可回滚的外部动作，调度器失败重试会越过业务幂等口径重复执行；
+-- 改由任务自身幂等 + 下一轮定时扫描收敛。只影响新初始化的 XXL 调度库，
+-- 存量库需运维同步改 job 配置（部署取证清单留痕）。
 -- ── 资金 / 财务 ─────────────────────────────────────────────────────────
 (103, 10, '分账重试', now(), now(), 'aicabinet', '',
  'CRON', '0 0/15 * * * ?', 'DO_NOTHING', 'FAILOVER',
- 'profitSharingRetryJob', '', 'SERIAL_EXECUTION', 900, 2, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),
+ 'profitSharingRetryJob', '', 'SERIAL_EXECUTION', 900, 0, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),
 (104, 10, '每日对账', now(), now(), 'aicabinet', '',
  'CRON', '0 30 1 * * ?', 'DO_NOTHING', 'FAILOVER',
  'reconciliationJob', '', 'SERIAL_EXECUTION', 1800, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),
@@ -84,7 +88,7 @@ INSERT INTO `xxl_job_info`(
  'opsFeeBillMonthlyJob', '', 'SERIAL_EXECUTION', 3600, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),
 (140, 10, '商户日结通知（T+1）', now(), now(), 'aicabinet', '',
  'CRON', '0 20 0 * * ?', 'DO_NOTHING', 'FAILOVER',
- 'merchantDailyIncomeNotifyJob', '', 'SERIAL_EXECUTION', 1800, 2, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),
+ 'merchantDailyIncomeNotifyJob', '', 'SERIAL_EXECUTION', 1800, 0, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),
 (141, 10, '机器账单出账（付场地方）', now(), now(), 'aicabinet', '',
  'CRON', '0 10 1 1 * ?', 'DO_NOTHING', 'FAILOVER',
  'machinePayeeBillJob', '', 'SERIAL_EXECUTION', 3600, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),

@@ -367,7 +367,7 @@ public class SessionService {
         }
         consumerPreauthService.releaseIfFrozen(session);
         // H64(b): 取消会话同步释放支付分订单（未支付置 CANCELLED，已支付标记需退款并 log.error 告警）
-        cancelPayScoreOrdersQuietly(session.getOrderId());
+        cancelPayScoreOrdersQuietly(session);
         transition(session, SessionState.CANCELLED);
         log.info("consumer cancelled opening session={} device={}", sessionId, session.getDeviceId());
         return toDto(session);
@@ -378,12 +378,27 @@ public class SessionService {
      * 真实渠道释放/退款 API 未接入（明确不在代码修复内）：先把本地状态与痕迹做对 ——
      * 未支付单置 CANCELLED；已支付单置 REFUND_REQUIRED 并 log.error 告警，由人工跟进渠道退款。
      */
-    private void cancelPayScoreOrdersQuietly(String orderId) {
-        if (payScoreOrderMapper == null || orderId == null || orderId.isBlank()) {
+    private void cancelPayScoreOrdersQuietly(ShoppingSession session) {
+        if (payScoreOrderMapper == null || session == null) {
+            return;
+        }
+        String orderId = session.getOrderId();
+        String sessionId = session.getSessionId();
+        if ((orderId == null || orderId.isBlank()) && (sessionId == null || sessionId.isBlank())) {
             return;
         }
         try {
-            for (com.aicabinet.trade.domain.PayScoreOrder psOrder : payScoreOrderMapper.findByOrderId(orderId)) {
+            // F6：开门期支付分单的 out_order_no = sessionId，此时 order_id 还没有值（V496）；
+            // 结算后的单则按 orderId 关联。两侧都查并按 payscoreOrderId 去重，避免漏单/重复告警。
+            java.util.Map<String, com.aicabinet.trade.domain.PayScoreOrder> targets =
+                    new java.util.LinkedHashMap<>();
+            for (com.aicabinet.trade.domain.PayScoreOrder po : payScoreOrderMapper.findByOutOrderNo(sessionId)) {
+                targets.put(po.getPayscoreOrderId(), po);
+            }
+            for (com.aicabinet.trade.domain.PayScoreOrder po : payScoreOrderMapper.findByOrderId(orderId)) {
+                targets.put(po.getPayscoreOrderId(), po);
+            }
+            for (com.aicabinet.trade.domain.PayScoreOrder psOrder : targets.values()) {
                 String state = psOrder.getOrderState() == null ? "" : psOrder.getOrderState();
                 if ("DONE".equalsIgnoreCase(state)) {
                     psOrder.setOrderState("REFUND_REQUIRED");
@@ -433,7 +448,7 @@ public class SessionService {
         }
         consumerPreauthService.releaseIfFrozen(session);
         // H64(b): 运营终止会话同步释放支付分订单
-        cancelPayScoreOrdersQuietly(session.getOrderId());
+        cancelPayScoreOrdersQuietly(session);
         session.setFailReason(reason == null ? "运营终止会话" : reason.trim());
         transition(session, SessionState.CANCELLED);
         domainEventPublisher.publish("SessionForceCancelled", sessionId,

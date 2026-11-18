@@ -1522,6 +1522,31 @@ public class OrderPaymentService {
      * 先查单（微信）确认结果——渠道可能已退成功只是本地未达；确认无结果才重发（同 out_refund_no 幂等）。
      * @return true=已闭环（finalize 完成）；false=仍无终态（留待下轮）
      */
+    /**
+     * BR4：把 REFUND_INITIATED 置 FAILED 前**先查渠道**，避免「渠道已退款成功、本地未收口」
+     * 被误判成失败转人工。查不到（渠道瞬断/未配置）返回 UNKNOWN，调用方必须跳过置失败。
+     */
+    public String queryInitiatedRefundStatus(PaymentOperation trace) {
+        String idem = trace.getIdempotencyKey() != null
+                && trace.getIdempotencyKey().startsWith("REFUND:INIT:")
+                ? trace.getIdempotencyKey().substring("REFUND:INIT:".length()) : null;
+        if (idem != null && isCompleted(idem)) {
+            return "SUCCESS";
+        }
+        if (!PayChannels.WECHAT.equalsIgnoreCase(trace.getChannel()) || idem == null) {
+            return "N/A";
+        }
+        try {
+            com.fasterxml.jackson.databind.JsonNode resp = weChatPayClient.v3()
+                    .queryRefund(trace.getOrderId(), deterministicRefundNo(idem));
+            String status = resp == null ? "" : resp.path("status").asText("");
+            return status.isBlank() ? "UNKNOWN" : status;
+        } catch (Exception e) {
+            log.warn("refund pre-fail query failed order={}: {}", trace.getOrderId(), e.getMessage());
+            return "UNKNOWN";
+        }
+    }
+
     public boolean retryFromInitiatedTrace(PaymentOperation trace) {
         String refundIdemKey = trace.getIdempotencyKey() != null
                 && trace.getIdempotencyKey().startsWith("REFUND:INIT:")

@@ -43,6 +43,7 @@ class SessionServiceRecoveryTest {
     @Mock ApiRateLimitService apiRateLimitService;
     @Mock ScheduledTaskService taskService;
     @Mock DisputeService disputeService;
+    @Mock com.aicabinet.trade.mapper.PayScoreOrderMapper payScoreOrderMapper;
 
     private SessionService service;
     private SessionExpireService expireService;
@@ -52,7 +53,7 @@ class SessionServiceRecoveryTest {
         service = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
                 settlementService, cabinetMetrics, domainEventPublisher,
                 gravityHelper, null, null, null, null, null, null, userInfoRepository, orderRepository,
-                consumerPreauthService, distributedLockService, null, apiRateLimitService, null);
+                consumerPreauthService, distributedLockService, null, apiRateLimitService, payScoreOrderMapper);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         SessionSettleService settleService = new SessionSettleService(
                 repository, settlementService, cabinetMetrics, opsExceptionService, service);
@@ -111,6 +112,24 @@ class SessionServiceRecoveryTest {
 
         assertEquals(SessionState.CANCELLED, service.cancelSession(7L, "S1").state());
         verify(repository, never()).save(existing);
+    }
+
+    /** F6：开门期支付分单还没有 orderId，取消必须按 sessionId(out_order_no) 找到它。 */
+    @Test
+    void cancelOpening_cancelsPayscoreOrderBySessionIdEvenWithoutOrderId() {
+        ShoppingSession existing = session("S-PS-CANCEL", 7L, "CAB-001", SessionState.CREATED);
+        com.aicabinet.trade.domain.PayScoreOrder po = new com.aicabinet.trade.domain.PayScoreOrder();
+        po.setPayscoreOrderId("PS-1");
+        po.setOutOrderNo("S-PS-CANCEL");
+        po.setOrderState("CREATED");
+        when(repository.findByIdForUpdate("S-PS-CANCEL")).thenReturn(Optional.of(existing));
+        when(payScoreOrderMapper.findByOutOrderNo("S-PS-CANCEL")).thenReturn(java.util.List.of(po));
+
+        assertEquals(SessionState.CANCELLED,
+                service.cancelSession(7L, "S-PS-CANCEL").state());
+
+        assertEquals("CANCELLED", po.getOrderState());
+        verify(payScoreOrderMapper).updateById(po);
     }
 
     @Test
