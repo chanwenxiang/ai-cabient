@@ -48,7 +48,7 @@
 | F4 | 库存/月结账实 ✅`f0b2cbeb`（口径已拍板） | 1 | BR9 BR10 BR11 BR13 BR14 BR15 BR16 BR1 BR2 月账单利润 | 判据改 SKU 级 + 加恒等式 |
 | F5 | 状态机/快照覆盖 ✅`0cd3bd58` | 0 | J5 J6 BR12 BR17 BR18 BR19 | 一切状态写入带 `WHERE status=快照态` |
 | F6 | 幂等/重试窗口 ✅`df9d7cb4` | 0 | J10 BR4 BR6 BR7 | 幂等键不含可变 ID |
-| F7 | 部署可复现 ⬓`23267eb9`（J11/备份门禁已关；drift/ECS/admin SHA 待取证） | 5 | J11 L-03 L-04 N-02 N-03 N-10 | 部署链与迁移链可重放 |
+| F7 | 部署可复现 ⬓（通道/drift/admin SHA 已取证；仅异地备份缺凭据，MA-359） | 5 | J11 L-03 L-04 N-02 N-03 N-10 | 部署链与迁移链可重放 |
 | F8 | 文档/门禁漂移 ✅`442fabc7` | 2 | L-01 L-02 L-10 L-11 注释族 | 文档与门禁跟着代码走 |
 
 ---
@@ -453,6 +453,16 @@ trade-service 全量 3250/0。
 `BACKUP_LOCAL_ONLY_ACK=1`（横幅留痕）；自测 +2 并接入聚合门禁，CI 每轮验证。
 
 **F7 仍剩 3 项纯运维取证**（代码侧已无可做）：目标库 drift-check PASS 证据、ECS 22/80 通道恢复、admin 发布 SHA「源码==产物」核对。
+
+---
+
+### F7 取证结果（2026-11-18，`EVIDENCE-F7-2026-11-18.md`）
+
+- 通道：SSH 22 正常；HTTP 80 机内/公网均返回 404（gateway 在监听）✅
+- drift：生产库 446 条已应用迁移与本地逐条 checksum 相等 ✅
+- admin SHA：线上 `static/admin/index.html` 命中 commit `e61502d5`（逐字节一致）✅
+- 备份：**发现生产无备份 cron、12 天无新备份**（MA-358）——已补跑一次并装每日 02:10 cron；
+  异地归档缺 OSS 凭据/工具（MA-359，仍 open）。
 
 ---
 
