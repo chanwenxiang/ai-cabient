@@ -248,7 +248,10 @@ function main() {
     // 改这里写死的 10 ⇒ CI 一路红到本次推送才被发现（那 65 笔提交从未推过、CI 从未跑过）。
     // 所以除了钉死两个数，再加一条「Σcount == 站点数」的不变式：以后任何一次合并/新增
     // 只要两边不匹配就红，不再依赖有人记得改魔术数。
-    assert(live.allowlistCount === 5, `真仓应有 5 条清单（F5 修复后），实际 ${live.allowlistCount}`);
+    assert(
+      live.allowlistCount === 5,
+      `真仓应有 5 条清单（F5 修复后），实际 ${live.allowlistCount}`
+    );
     const allowlistJson = JSON.parse(
       readFileSync(resolve(ROOT, 'scripts/scheduler-entity-save-allowlist.json'), 'utf8')
     );
