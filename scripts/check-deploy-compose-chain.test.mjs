@@ -20,7 +20,11 @@ function assert(cond, message) {
   if (!cond) throw new Error(`${TAG} 断言失败：${message}`);
 }
 
-const TRACKED = new Set(['infra/docker-compose.yml', 'infra/docker-compose.apps.yml']);
+const TRACKED = new Set([
+  'infra/docker-compose.yml',
+  'infra/docker-compose.apps.yml',
+  'infra/docker-compose.xxljob.yml'
+]);
 const existsAll = () => true;
 const real = readFileSync(resolve(ROOT, 'scripts/deploy-prod.sh'), 'utf8');
 // 真实脚本引用 4 个 overlay，全部已入库（AU-185 那次就是把 prod-server overlay 留在服务器上
@@ -95,12 +99,23 @@ const REAL_TRACKED = new Set([
   const script = [
     '#!/usr/bin/env bash',
     '#   4. 服务器现场 compose build trade-service → up -d   ← 注释，不是执行位置',
-    'C="docker compose -f infra/docker-compose.yml -f infra/docker-compose.apps.yml"',
+    'C="docker compose -f infra/docker-compose.yml -f infra/docker-compose.apps.yml -f infra/docker-compose.xxljob.yml"',
     'node scripts/flyway-drift-check.mjs --applied-file "$APPLIED_TMP"',
     '$C build trade-service'
   ].join('\n');
   const p = evaluate(script, TRACKED, existsAll);
   assert(p.length === 0, `注释不得参与顺序比对（真实脚本头就有这行注释）：${p.join(' | ')}`);
+}
+
+// 8) F7：生产链摘掉 xxljob overlay ⇒ 红（--profile apps 下调度中心根本不启动）
+{
+  const noXxl = real.replace(/ -f infra\/docker-compose\.xxljob\.yml/g, '');
+  assert(noXxl !== real, '夹具前提：真实脚本应含 xxljob overlay');
+  const p = evaluate(noXxl, REAL_TRACKED, existsAll);
+  assert(
+    p.some((x) => x.includes('xxljob')),
+    `摘掉 xxljob overlay 必须红：${p.join(' | ')}`
+  );
 }
 
 console.log(`${TAG} OK：${checks} 项断言全过`);

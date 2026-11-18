@@ -132,7 +132,7 @@ ssh "${SSH_OPTS[@]}" -p "$PROD_PORT" "${SSH_CMD[0]}" bash -s -- "$PROD_DIR" > "$
 set -euo pipefail
 DIR="$1"
 cd "$DIR"
-C="docker compose -p ai-cabinet --env-file infra/.env.production -f infra/docker-compose.yml -f infra/docker-compose.apps.yml -f infra/docker-compose.production.yml -f infra/docker-compose.prod-server.yml --profile apps"
+C="docker compose -p ai-cabinet --env-file infra/.env.production -f infra/docker-compose.yml -f infra/docker-compose.apps.yml -f infra/docker-compose.production.yml -f infra/docker-compose.prod-server.yml -f infra/docker-compose.xxljob.yml --profile apps"
 # SQL 里刻意不用任何单引号（heredoc + sh -c 双层引号嵌套是这里最容易踩的坑）：
 # 用 where version is not null 直接排除 R__ 可重复迁移，NULL checksum 由 psql -tA 打成空串。
 $C exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F"|" -c "select installed_rank, version, type, checksum from flyway_schema_history where version is not null order by installed_rank"'
@@ -160,10 +160,10 @@ DIR="$1"
 cd "$DIR"
 # AU-185：服务器侧预检 + 指纹留痕（解包后应与仓库一致；sha 打进部署日志可追漂移）
 [ -f infra/docker-compose.prod-server.yml ] || { echo "❌ 服务器缺 infra/docker-compose.prod-server.yml（解包异常？）"; exit 1; }
-sha256sum infra/docker-compose.yml infra/docker-compose.apps.yml infra/docker-compose.production.yml infra/docker-compose.prod-server.yml
+sha256sum infra/docker-compose.yml infra/docker-compose.apps.yml infra/docker-compose.production.yml infra/docker-compose.prod-server.yml infra/docker-compose.xxljob.yml
 # 上线清单 P0：拒绝开发默认密钥（base compose 的 `${KEY:-dev默认}` 会静默生效）
 bash scripts/check-prod-env-secrets.sh infra/.env.production
-C="docker compose -p ai-cabinet --env-file infra/.env.production -f infra/docker-compose.yml -f infra/docker-compose.apps.yml -f infra/docker-compose.production.yml -f infra/docker-compose.prod-server.yml --profile apps"
+C="docker compose -p ai-cabinet --env-file infra/.env.production -f infra/docker-compose.yml -f infra/docker-compose.apps.yml -f infra/docker-compose.production.yml -f infra/docker-compose.prod-server.yml -f infra/docker-compose.xxljob.yml --profile apps"
 $C build trade-service 2>&1 | tail -2
 $C up -d --no-deps --force-recreate trade-service 2>&1 | tail -1
 echo "等待健康检查…"
@@ -209,7 +209,7 @@ echo "   A. 仅代码回退（本次部署**没有**新迁移时）：git checko
 echo "      —— drift-check 此时不会红，因为库与旧树的迁移集一致。"
 echo "   B. 有新迁移：只回退**镜像**，库保持新水位（迁移只向前）："
 echo "      docker compose -p ai-cabinet -f infra/docker-compose.yml -f infra/docker-compose.apps.yml \\"
-echo "        -f infra/docker-compose.production.yml -f infra/docker-compose.prod-server.yml --profile apps"
+echo "        -f infra/docker-compose.production.yml -f infra/docker-compose.prod-server.yml -f infra/docker-compose.xxljob.yml --profile apps"
 echo "      up -d --no-deps trade-service   # 用上一个 tag 的镜像；新列/新索引对旧代码必须兼容"
 echo "      前提：本次迁移是加列/加索引类（本仓约定），旧 jar 的 INSERT 不依赖它们。"
 echo "   C. 破坏性迁移（改类型/删列/重建约束）无法向前兼容 ⇒ 只能恢复部署前快照："

@@ -23,7 +23,7 @@
 
 ### 2. 诊断步骤
 
-`
+```
 1. 确认故障现象
    ↓
 2. 检查监控系统
@@ -39,11 +39,11 @@
 7. 验证修复效果
    ↓
 8. 编写故障报告
-`
+```
 
 ### 3. 常用诊断命令
 
-`ash
+```bash
 # 检查服务状态
 systemctl status trade-service
 docker ps | grep trade-service
@@ -69,7 +69,7 @@ redis-cli -h localhost ping
 # 检查网络连接
 curl -v http://localhost:8080/actuator/health
 telnet localhost 5432
-`
+```
 
 ---
 
@@ -78,29 +78,29 @@ telnet localhost 5432
 ### 1. 服务无法启动
 
 #### 现象
-`
+```
 Application failed to start
-`
+```
 
 #### 排查步骤
 
 **步骤1**: 检查端口占用
-`ash
+```bash
 netstat -tunlp | grep 8080
 lsof -i :8080
-`
+```
 
 **步骤2**: 检查配置文件
-`ash
+```bash
 # 检查application.yml语法
 cat application.yml
 
 # 检查环境变量
 env | grep SPRING
-`
+```
 
 **步骤3**: 检查依赖服务
-`ash
+```bash
 # 数据库
 psql -h localhost -U postgres
 
@@ -109,10 +109,10 @@ redis-cli -h localhost ping
 
 # Kafka
 kafka-topics.sh --list --bootstrap-server localhost:19092
-`
+```
 
 **解决方案**:
-`ash
+```bash
 # 杀掉占用端口的进程
 kill -9 <PID>
 
@@ -121,30 +121,30 @@ vim application.yml
 
 # 启动依赖服务
 docker-compose up -d postgres redis
-`
+```
 
 ---
 
 ### 2. 数据库连接池耗尽
 
 #### 现象
-`
+```
 HikariPool - Connection is not available
-`
+```
 
 #### 排查步骤
 
 **步骤1**: 查看连接池状态
 `sql
 SELECT count(*), state FROM pg_stat_activity GROUP BY state;
-`
+```
 
 **步骤2**: 查看长时间查询
 `sql
 SELECT pid, now() - pg_stat_activity.query_start AS duration, query, state
 FROM pg_stat_activity
 WHERE (now() - pg_stat_activity.query_start) > interval '5 minutes';
-`
+```
 
 **步骤3**: 查看锁等待
 `sql
@@ -160,7 +160,7 @@ JOIN pg_catalog.pg_locks blocking_locks ON blocking_locks.locktype = blocked_loc
     AND blocking_locks.relation = blocked_locks.relation
     AND blocking_locks.granted
 WHERE NOT blocked_locks.granted;
-`
+```
 
 **解决方案**:
 `sql
@@ -171,75 +171,75 @@ WHERE (now() - query_start) > interval '10 minutes';
 
 -- 增加连接池大小
 ALTER SYSTEM SET max_connections = 200;
-`
+```
 
 ---
 
 ### 3. 内存溢出（OOM）
 
 #### 现象
-`
+```
 java.lang.OutOfMemoryError: Java heap space
-`
+```
 
 #### 排查步骤
 
 **步骤1**: 检查内存使用
-`ash
+```bash
 free -h
 jstat -gc <pid> 1000 10
-`
+```
 
 **步骤2**: 生成堆转储
-`ash
+```bash
 jmap -dump:format=b,file=heap.hprof <pid>
-`
+```
 
 **步骤3**: 分析堆转储
-`ash
+```bash
 # 使用MAT或VisualVM分析
 # 查看大对象和内存泄漏
-`
+```
 
 **解决方案**:
-`ash
+```bash
 # 增加堆内存
 java -Xms4g -Xmx4g -jar trade-service.jar
 
 # 启用GC日志
 -XX:+PrintGCDetails -XX:+PrintGCDateStamps -Xloggc:gc.log
-`
+```
 
 ---
 
 ### 4. Redis连接失败
 
 #### 现象
-`
+```
 Unable to connect to Redis
-`
+```
 
 #### 排查步骤
 
 **步骤1**: 检查Redis状态
-`ash
+```bash
 redis-cli ping
 redis-cli info
-`
+```
 
 **步骤2**: 检查连接数
-`ash
+```bash
 redis-cli info clients
 redis-cli info stats | grep connected
-`
+```
 
 **步骤3**: 检查内存
-`ash
+```bash
 redis-cli info memory
-`
+```
 
 **解决方案**:
-`ash
+```bash
 # 重启Redis
 docker restart redis
 
@@ -248,23 +248,23 @@ redis-cli CONFIG SET maxclients 10000
 
 # 清理内存
 redis-cli FLUSHDB  # 谨慎使用
-`
+```
 
 ---
 
 ### 5. 支付回调失败
 
 #### 现象
-`
+```
 支付成功但订单状态未更新
-`
+```
 
 #### 排查步骤
 
 **步骤1**: 查看支付日志
-`ash
+```bash
 grep "payment_callback" /var/log/trade-service.log
-`
+```
 
 **步骤2**: 查询订单与支付流水（真实表名）
 ```sql
@@ -293,35 +293,35 @@ SELECT split_id, status, merchant_cents, failure_reason FROM order_revenue_split
 ### 6. 设备离线
 
 #### 现象
-`
+```
 设备状态显示离线，无法开门
-`
+```
 
 #### 排查步骤
 
 **步骤1**: 检查MQTT连接
-`ash
+```bash
 # 查看EMQX连接
 docker exec emqx emqx_ctl clients show device_001
 
 # 查看订阅
 docker exec emqx emqx_ctl subscriptions list
-`
+```
 
 **步骤2**: 检查设备状态
 `sql
 SELECT * FROM devices WHERE device_id = 'xxx';
 SELECT * FROM device_sessions WHERE device_id = 'xxx';
-`
+```
 
 **步骤3**: 检查网络
-`ash
+```bash
 # 测试设备连接
 mosquitto_pub -h emqx-host -t "device/xxx/command" -m "ping"
-`
+```
 
 **解决方案**:
-`ash
+```bash
 # 重启设备服务
 docker restart device-service
 
@@ -330,16 +330,16 @@ docker exec emqx emqx_ctl clients kick device_001
 
 # 重新注册设备
 curl -X POST http://localhost:8080/api/v2/devices/xxx/reconnect
-`
+```
 
 ---
 
 ### 7. 高延迟/慢查询
 
 #### 现象
-`
+```
 API响应时间超过5秒
-`
+```
 
 #### 排查步骤
 
@@ -349,19 +349,19 @@ SELECT query, calls, total_time, mean_time
 FROM pg_stat_statements
 ORDER BY mean_time DESC
 LIMIT 10;
-`
+```
 
 **步骤2**: 分析执行计划
 `sql
 EXPLAIN ANALYZE SELECT * FROM orders WHERE user_id = 123;
-`
+```
 
 **步骤3**: 检查索引
 `sql
 SELECT schemaname, tablename, indexname, idx_scan
 FROM pg_stat_user_indexes
 ORDER BY idx_scan;
-`
+```
 
 **解决方案**:
 `sql
@@ -372,38 +372,38 @@ CREATE INDEX CONCURRENTLY idx_orders_user_id ON orders(user_id);
 -- 避免SELECT *
 -- 使用覆盖索引
 -- 添加查询条件
-`
+```
 
 ---
 
 ### 8. 消息队列堆积
 
 #### 现象
-`
+```
 Kafka消息堆积，处理延迟
-`
+```
 
 #### 排查步骤
 
 **步骤1**: 查看消费组状态
-`ash
+```bash
 kafka-consumer-groups.sh --bootstrap-server localhost:19092 \
   --describe --group ai-cabinet-group
-`
+```
 
 **步骤2**: 查看Topic信息
-`ash
+```bash
 kafka-topics.sh --bootstrap-server localhost:19092 \
   --describe --topic orders
-`
+```
 
 **步骤3**: 查看消费者日志
-`ash
+```bash
 grep "kafka_consumer" /var/log/trade-service.log
-`
+```
 
 **解决方案**:
-`ash
+```bash
 # 增加消费者实例
 kubectl scale deployment trade-service --replicas=5
 
@@ -414,7 +414,7 @@ kafka-consumer-groups.sh --bootstrap-server localhost:19092 \
 # 增加分区
 kafka-topics.sh --bootstrap-server localhost:19092 \
   --alter --topic orders --partitions 10
-`
+```
 
 ---
 
@@ -425,7 +425,7 @@ kafka-topics.sh --bootstrap-server localhost:19092 \
 **现象**: 所有用户无法访问服务
 
 **响应流程**:
-`
+```
 1. 确认影响范围（5分钟内）
    - 检查监控大盘
    - 确认故障时间
@@ -445,34 +445,34 @@ kafka-topics.sh --bootstrap-server localhost:19092 \
    - 分析日志和监控
    - 定位问题代码
    - 制定改进措施
-`
+```
 
 ### 2. 数据丢失（P0）
 
 **现象**: 重要数据丢失或损坏
 
 **响应流程**:
-`
+```
 1. 立即停止写入
 2. 评估数据丢失范围
 3. 从备份恢复
 4. 验证数据完整性
 5. 补录缺失数据
 6. 编写事故报告
-`
+```
 
 ### 3. 支付异常（P1）
 
 **现象**: 支付功能异常
 
 **响应流程**:
-`
+```
 1. 检查支付渠道状态
 2. 查看支付日志
 3. 核对账单
 4. 手动处理异常订单
 5. 通知财务部门
-`
+```
 
 ---
 
@@ -481,27 +481,36 @@ kafka-topics.sh --bootstrap-server localhost:19092 \
 ### 1. 数据库恢复
 
 #### 全量恢复
-`ash
+```bash
 # 停止服务
 systemctl stop trade-service
 
 # 恢复数据库
-pg_restore -h localhost -U postgres -d ai_cabinet backup.dump
+pg_restore -h localhost -U postgres -d aicabinet backup.dump
 
 # 启动服务
 systemctl start trade-service
-`
+```
 
 #### 时间点恢复（PITR）
-`ash
-# 恢复到指定时间点
-pg_restore -h localhost -U postgres -d ai_cabinet \
-  --time="2026-07-14 10:00:00" backup.dump
-`
+`pg_restore` **没有** `--time` 参数（旧文档写的是不存在的命令，照抄必然失败）。
+时间点恢复靠「基础备份 + WAL 重放」两步，且必须先恢复到临时库验证，不能直接覆盖生产库：
+```bash
+# 1. 基础备份还原到临时库（库名取 infra/docker-compose.yml 的 POSTGRES_DB=aicabinet）
+createdb -h localhost -U postgres aicabinet_pitr
+pg_restore -h localhost -U postgres -d aicabinet_pitr backup.dump
+
+# 2. 在临时实例的 postgresql.conf 配置 WAL 回放，再启动到目标时间点
+#    restore_command = 'cp /path/to/wal_archive/%f %p'
+#    recovery_target_time = '2026-07-14 10:00:00+08'
+#    recovery_target_action = 'promote'
+
+# 3. 核对临时库数据无误后再停服切换；切勿把 --time 传给 pg_restore
+```
 
 ### 2. Redis数据恢复
 
-`ash
+```bash
 # 检查RDB文件
 ls -lh /var/lib/redis/dump.rdb
 
@@ -509,17 +518,17 @@ ls -lh /var/lib/redis/dump.rdb
 cp /backup/redis/dump.rdb /var/lib/redis/
 chown redis:redis /var/lib/redis/dump.rdb
 systemctl restart redis
-`
+```
 
 ### 3. 文件恢复（MinIO）
 
-`ash
+```bash
 # 使用mc恢复
 mc mirror /backup/minio local/
 
 # 恢复单个文件
 mc cp /backup/product-images/image1.jpg local/product-images/
-`
+```
 
 ---
 
@@ -585,7 +594,7 @@ mc cp /backup/product-images/image1.jpg local/product-images/
 ---
 报告人：张三
 日期：2026-07-14
-`
+```
 
 ---
 

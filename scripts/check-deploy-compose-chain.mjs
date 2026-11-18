@@ -57,6 +57,13 @@ export function evaluate(script, trackedSet, existsFn) {
   if (refs.length === 0) {
     problems.push('references no "-f infra/*.yml" compose chain - extraction rule may be stale');
   }
+  // F7：生产链必须叠加 xxljob overlay。production.yml 里的 xxl-job 服务带
+  // profiles:["xxljob"]，只用 --profile apps 时它们根本不会启动 ⇒ 换机重建后 38 个任务停摆。
+  if (!refs.includes('infra/docker-compose.xxljob.yml')) {
+    problems.push(
+      'compose 链缺 -f infra/docker-compose.xxljob.yml —— 生产只起 apps profile，xxl-job 调度中心不会启动'
+    );
+  }
   for (const ref of refs) {
     if (!existsFn(ref)) problems.push(`${ref}: missing on disk`);
     else if (!trackedSet.has(ref))

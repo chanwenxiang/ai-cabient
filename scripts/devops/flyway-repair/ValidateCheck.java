@@ -59,6 +59,8 @@ public class ValidateCheck {
             // 故意不引用返回类型：校验失败时 Flyway 抛 FlywayValidateException，
             // 打到 stdout 便于在日志里 grep（退出码本身不区分成因）。
             System.out.println("VALIDATE=FAIL: " + e.getMessage());
+            // F8：只打 FAIL 却以 0 退出，会让部署脚本 grep 不到就当成功；必须给非零退出码。
+            System.exit(1);
         }
     }
 }
