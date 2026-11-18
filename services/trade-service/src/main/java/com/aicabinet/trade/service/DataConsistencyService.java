@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -117,6 +118,11 @@ public class DataConsistencyService {
     private static final int CHECK_BATCH = 200;
 
     /** 显式修复结果（供运营 API 回传 message）。 */
+    /** F3b：事务内只登记退款意图，事务提交后再发渠道。 */
+    record RefundIntent(String orderId, int overCents, int netPaidCents) {}
+
+    record FixPlan(FixOutcome outcome, List<RefundIntent> refunds) {}
+
     public record FixOutcome(boolean fixed, String message) {
         public static FixOutcome ok(String message) {
             return new FixOutcome(true, message);
@@ -1471,42 +1477,87 @@ public class DataConsistencyService {
     }
 
     private FixOutcome doFixInconsistencyDetailed(Long operatorId, Long recordId) {
-        DataConsistencyRecord consistencyRecord = consistencyRepository.findByIdForUpdate(recordId).orElse(null);
-        if (consistencyRecord == null) {
-            return FixOutcome.fail("记录不存在");
-        }
-        // MA-124：原实现只判「记录在不在」，FIXED 记录可反复点修复 ⇒ 同一笔多收金额被重复走退款分支。
-        // 重放入口只留一条：重新巡检（run）产生的新 FAIL 记录。
-        if (STATUS_FIXED.equals(consistencyRecord.getStatus())) {
-            return FixOutcome.fail("该记录已是 FIXED，不重放修复（请重新巡检出新的 FAIL 再处理）");
-        }
-
         try {
-            FixOutcome outcome = applyFix(consistencyRecord);
-            if (outcome.fixed()) {
-                consistencyRecord.setStatus(STATUS_FIXED);
-                consistencyRecord.setFixedAt(Instant.now());
-                if (outcome.message() != null) {
-                    // MA-116：原来是**整值覆盖**——把巡检当时写下的「为什么不一致」证据抹掉了。
-                    // 改成追加，原始描述永远留在前半段（列是 TEXT，追加不受宽度限制）。
-                    String original = consistencyRecord.getErrorMessage();
-                    consistencyRecord.setErrorMessage((original == null ? "" : original + "\n")
-                            + "[FIX " + Instant.now() + "] " + outcome.message());
-                }
-                consistencyRepository.save(consistencyRecord);
-                auditService.appendLog(operatorId, "CONSISTENCY_FIX", "DATA_CONSISTENCY_RECORD",
-                        String.valueOf(recordId),
-                        "checkType=" + consistencyRecord.getCheckType()
-                                + ",checkKey=" + consistencyRecord.getCheckKey()
-                                + ",result=" + outcome.message());
-                log.info("已修复一致性问题 recordId={} operator={} msg={}",
-                        recordId, operatorId, outcome.message());
+            FixPlan plan = self.applyFixInTx(recordId);
+            if (!plan.outcome().fixed()) {
+                return plan.outcome();
             }
-            return outcome;
+            StringBuilder message = new StringBuilder(
+                    plan.outcome().message() == null ? "" : plan.outcome().message());
+            for (RefundIntent intent : plan.refunds()) {
+                FixOutcome refund = doRefundOutsideTx(intent);
+                if (!refund.fixed()) {
+                    // 记录保持 FAIL：DB 修复已提交（幂等），退款可重试，不能假报 FIXED
+                    return refund;
+                }
+                message.append(refund.message());
+            }
+            String finalMessage = message.toString();
+            self.markFixedInTx(recordId, operatorId, finalMessage);
+            return FixOutcome.ok(finalMessage);
         } catch (Exception e) {
             log.error("修复一致性问题失败 recordId={} operator={}", recordId, operatorId, e);
             return FixOutcome.fail("修复异常: " + e.getMessage());
         }
+    }
+
+    /** 事务内只做 DB 修复；退款意图带出来，事务提交后再走渠道。 */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public FixPlan applyFixInTx(Long recordId) {
+        DataConsistencyRecord consistencyRecord = consistencyRepository.findByIdForUpdate(recordId).orElse(null);
+        if (consistencyRecord == null) {
+            return new FixPlan(FixOutcome.fail("记录不存在"), List.of());
+        }
+        if (STATUS_FIXED.equals(consistencyRecord.getStatus())) {
+            return new FixPlan(FixOutcome.fail("该记录已是 FIXED，不重放修复（请重新巡检出新的 FAIL 再处理）"),
+                    List.of());
+        }
+        List<RefundIntent> refunds = new java.util.ArrayList<>();
+        FixOutcome outcome = applyFix(consistencyRecord, refunds);
+        return new FixPlan(outcome, outcome.fixed() ? refunds : List.of());
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markFixedInTx(Long recordId, Long operatorId, String message) {
+        DataConsistencyRecord consistencyRecord = consistencyRepository.findByIdForUpdate(recordId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "一致性记录不存在"));
+        consistencyRecord.setStatus(STATUS_FIXED);
+        consistencyRecord.setFixedAt(Instant.now());
+        if (message != null) {
+            String original = consistencyRecord.getErrorMessage();
+            consistencyRecord.setErrorMessage((original == null ? "" : original + "\n")
+                    + "[FIX " + Instant.now() + "] " + message);
+        }
+        consistencyRepository.save(consistencyRecord);
+        auditService.appendLog(operatorId, "CONSISTENCY_FIX", "DATA_CONSISTENCY_RECORD",
+                String.valueOf(recordId),
+                "checkType=" + consistencyRecord.getCheckType()
+                        + ",checkKey=" + consistencyRecord.getCheckKey()
+                        + ",result=" + message);
+        log.info("已修复一致性问题 recordId={} operator={} msg={}", recordId, operatorId, message);
+    }
+
+    /** 事务外退款：渠道 HTTP + 分账回算（回算自身有事务）。 */
+    private FixOutcome doRefundOutsideTx(RefundIntent intent) {
+        CabinetOrder order = cabinetOrderRepository.findById(intent.orderId()).orElse(null);
+        if (order == null) {
+            return FixOutcome.ok("");
+        }
+        if (!orderPaymentService.refundOrder(order, intent.overCents(), "一致性修复退多收")) {
+            return FixOutcome.fail("多收 " + intent.overCents() + " 分的退款未被确认"
+                    + "（渠道幂等跳过或失败），须人工复核后再重新巡修复，勿按已退处理");
+        }
+        CabinetOrder refreshed = cabinetOrderRepository.findById(intent.orderId()).orElse(order);
+        boolean fullRefund = intent.netPaidCents() > 0 && intent.overCents() >= intent.netPaidCents();
+        try {
+            revenueSplitService.adjustSplitAfterPartialRefund(refreshed, fullRefund);
+        } catch (RuntimeException e) {
+            log.error("退多收后回算分账失败 orderId={} over={} full={}",
+                    intent.orderId(), intent.overCents(), fullRefund, e);
+            return FixOutcome.ok("，已退多收 " + intent.overCents() + " 分（分账回算失败，已留待巡检复核："
+                    + e.getMessage() + "）");
+        }
+        return FixOutcome.ok("，已退多收 " + intent.overCents() + " 分（分账已按净额回算）");
     }
 
     static String recordLockKey(Long recordId) {
@@ -1525,18 +1576,18 @@ public class DataConsistencyService {
         }
     }
 
-    private FixOutcome applyFix(DataConsistencyRecord consistencyRecord) {
+    private FixOutcome applyFix(DataConsistencyRecord consistencyRecord, List<RefundIntent> refunds) {
         String checkType = consistencyRecord.getCheckType();
         if (isWalletScanOnlyType(checkType)) {
             return FixOutcome.fail("该类仅巡检记录，请人工核对处理");
         }
         return switch (checkType) {
-            case ORDER_AMOUNT -> fixOrderAmount(consistencyRecord);
+            case ORDER_AMOUNT -> fixOrderAmount(consistencyRecord, refunds);
             case INVENTORY_MISMATCH -> fixInventoryMismatch(consistencyRecord);
             case INVENTORY_ORPHAN_LOT -> fixInventoryOrphanLot(consistencyRecord);
-            case ORDER_LINE_SUM -> fixOrderLineSum(consistencyRecord);
+            case ORDER_LINE_SUM -> fixOrderLineSum(consistencyRecord, refunds);
             case COUPON_USED_LINK -> fixCouponUsedLink(consistencyRecord);
-            case PAYMENT_AMOUNT -> fixPaymentAmount(consistencyRecord);
+            case PAYMENT_AMOUNT -> fixPaymentAmount(consistencyRecord, refunds);
             case REFUND_AMOUNT, WALLET_BALANCE,
                  REVENUE_SPLIT_SUM, REVENUE_SPLIT_MISSING,
                  // MA-270：回算分账会冲正商户钱包（钱会变），与 PAID_GROSS_MISMATCH 同档 —— 不自动改。
@@ -1569,7 +1620,8 @@ public class DataConsistencyService {
                         || checkType.endsWith(WALLET_BALANCE_TYPE_SUFFIX));
     }
 
-    private FixOutcome fixOrderAmount(DataConsistencyRecord consistencyRecord) {
+    private FixOutcome fixOrderAmount(DataConsistencyRecord consistencyRecord,
+                                     List<RefundIntent> refunds) {
         String orderId = consistencyRecord.getCheckKey();
         OrderAmountSnapshot snap = loadOrderAmountSnapshot(orderId);
         if (snap == null) {
@@ -1582,11 +1634,11 @@ public class DataConsistencyService {
         if (couponFix != null) {
             return couponFix;
         }
-        FixOutcome paidEqualsHeader = tryFixWhenPaidEqualsHeader(orderId, snap);
+        FixOutcome paidEqualsHeader = tryFixWhenPaidEqualsHeader(orderId, snap, refunds);
         if (paidEqualsHeader != null) {
             return paidEqualsHeader;
         }
-        return tryAlignHeaderToPayable(orderId, snap);
+        return tryAlignHeaderToPayable(orderId, snap, refunds);
     }
 
     private OrderAmountSnapshot loadOrderAmountSnapshot(String orderId) {
@@ -1634,13 +1686,14 @@ public class DataConsistencyService {
         return null;
     }
 
-    private FixOutcome tryFixWhenPaidEqualsHeader(String orderId, OrderAmountSnapshot snap) {
+    private FixOutcome tryFixWhenPaidEqualsHeader(String orderId, OrderAmountSnapshot snap,
+                                                List<RefundIntent> refunds) {
         if (snap.paid() != snap.header()) {
             return null;
         }
         if (snap.lineCount() == 1 && snap.couponDiscountCents() == 0 && snap.memberDiscountCents() == 0
                 && snap.lineSum() != snap.header()) {
-            return alignSingleLineToHeader(orderId, snap.header());
+            return alignSingleLineToHeader(orderId, snap.header(), refunds);
         }
         if (snap.lineCount() == 0) {
             return FixOutcome.fail("无明细行，无法自动补 SKU，请人工补行");
@@ -1648,7 +1701,8 @@ public class DataConsistencyService {
         return FixOutcome.fail("多行明细与头金额不一致，需人工拆分/改价");
     }
 
-    private FixOutcome tryAlignHeaderToPayable(String orderId, OrderAmountSnapshot snap) {
+    private FixOutcome tryAlignHeaderToPayable(String orderId, OrderAmountSnapshot snap,
+                                             List<RefundIntent> refunds) {
         if (snap.lineSum() > 0 && snap.paid() == 0) {
             jdbcTemplate.update(
                     UPDATE_CABINET_ORDER_SET_TOTAL_AMOUNT_CENTS_WHERE_ORDER_ID,
@@ -1684,7 +1738,8 @@ public class DataConsistencyService {
     }
 
     /** 单行订单按单价×数量对齐；头金额不能整除数量时同步头金额为折后行合计。 */
-    private FixOutcome alignSingleLineToHeader(String orderId, int header) {
+    private FixOutcome alignSingleLineToHeader(String orderId, int header,
+                                             List<RefundIntent> refunds) {
         Integer quantity = jdbcTemplate.query(
                 "SELECT quantity FROM cabinet_order_line WHERE order_id = ? LIMIT 1",
                 rs -> rs.next() ? rs.getInt(1) : null,
@@ -1699,7 +1754,7 @@ public class DataConsistencyService {
             jdbcTemplate.update(
                     UPDATE_CABINET_ORDER_SET_TOTAL_AMOUNT_CENTS_WHERE_ORDER_ID,
                     line, orderId);
-            FixOutcome refund = refundOverchargeIfNeeded(orderId, line);
+            FixOutcome refund = refundOverchargeIfNeeded(orderId, line, refunds);
             if (!refund.fixed()) {
                 return refund;
             }
@@ -1716,36 +1771,22 @@ public class DataConsistencyService {
      * 见 {@code OrderPaymentService#refundOrder}）。原实现忽略它并回报「已退多收 X 分」，
      * 等于给用户一个假的资金结论。
      */
-    private FixOutcome refundOverchargeIfNeeded(String orderId, int newHeaderCents) {
+    /**
+     * 只登记「多收待退」，不在这里退。
+     *
+     * <p>F3b：退款是渠道 HTTP，必须在事务外执行；旧实现直接 refundOrder + 回算分账，
+     * 被 {@code fixInconsistencyDetailed} 的外层事务包住 ⇒ 退款期间一直持有记录/订单行锁。
+     * 现在事务内只算差额，事务提交后由 {@link #doRefundOutsideTx} 真正退。</p>
+     */
+    private FixOutcome refundOverchargeIfNeeded(String orderId, int newHeaderCents,
+                                               List<RefundIntent> refunds) {
         Integer netPaid = queryNetCompletedCents(orderId);
         if (netPaid == null || netPaid <= newHeaderCents) {
             return FixOutcome.ok("");
         }
-        CabinetOrder order = cabinetOrderRepository.findByIdForUpdate(orderId).orElse(null);
-        if (order == null) {
-            return FixOutcome.ok("");
-        }
         int over = netPaid - newHeaderCents;
-        if (!orderPaymentService.refundOrder(order, over, "一致性修复退多收")) {
-            return FixOutcome.fail("多收 " + over + " 分的退款未被确认（渠道幂等跳过或失败），"
-                    + "须人工复核后再重新巡修复，勿按已退处理");
-        }
-        // MA-270：refundOrder 只写 refunded_cents，分账行不会自动跟随 ⇒ 这里必须按净额回算，
-        // 否则「钱退了、分账还按原毛额分」，佣金/GMV/月结三处一起多记（dev 库实锤 293 分）。
-        // 重新读一次拿最新 refunded_cents，不依赖 refundOrder 内部 refresh 的时序；
-        // 本次退款吃掉全部净入账（newHeader=0）时按全额退款走作废分支。
-        CabinetOrder refreshed = cabinetOrderRepository.findById(orderId).orElse(order);
-        boolean fullRefund = over >= netPaid;
-        try {
-            revenueSplitService.adjustSplitAfterPartialRefund(refreshed, fullRefund);
-        } catch (RuntimeException e) {
-            // 退款已经发生，这里失败不能让调用方以为「没退」——钱的事实优先，
-            // 分账回算失败留给下一轮巡检（REVENUE_SPLIT_REFUND_STALE）兜住。
-            log.error("退多收后回算分账失败 orderId={} over={} full={}", orderId, over, fullRefund, e);
-            return FixOutcome.ok("，已退多收 " + over + " 分（分账回算失败，已留待巡检复核："
-                    + e.getMessage() + "）");
-        }
-        return FixOutcome.ok("，已退多收 " + over + " 分（分账已按净额回算）");
+        refunds.add(new RefundIntent(orderId, over, netPaid));
+        return FixOutcome.ok("，多收 " + over + " 分待退");
     }
 
     private Integer queryNetCompletedCents(String orderId) {
@@ -1758,7 +1799,8 @@ public class DataConsistencyService {
                 orderId);
     }
 
-    private FixOutcome fixOrderLineSum(DataConsistencyRecord consistencyRecord) {
+    private FixOutcome fixOrderLineSum(DataConsistencyRecord consistencyRecord,
+                                     List<RefundIntent> refunds) {
         String[] parts = consistencyRecord.getCheckKey().split("\\|", 2);
         if (parts.length < 2) {
             return FixOutcome.fail("行键格式无效，期望 orderId|skuId");
@@ -1807,7 +1849,7 @@ public class DataConsistencyService {
             jdbcTemplate.update(
                     UPDATE_CABINET_ORDER_SET_TOTAL_AMOUNT_CENTS_WHERE_ORDER_ID,
                     alignedLine, orderId);
-            FixOutcome refund = refundOverchargeIfNeeded(orderId, alignedLine);
+            FixOutcome refund = refundOverchargeIfNeeded(orderId, alignedLine, refunds);
             if (!refund.fixed()) {
                 return refund;
             }
@@ -1818,7 +1860,8 @@ public class DataConsistencyService {
     }
 
     /** 实付大于订单头时退多收差额（常见于修行金额后遗留尾差）。 */
-    private FixOutcome fixPaymentAmount(DataConsistencyRecord consistencyRecord) {
+    private FixOutcome fixPaymentAmount(DataConsistencyRecord consistencyRecord,
+                                       List<RefundIntent> refunds) {
         String orderId = consistencyRecord.getCheckKey();
         int expected = parseRecordCents(consistencyRecord.getExpectedValue());
         int actual = parseRecordCents(consistencyRecord.getActualValue());
@@ -1834,26 +1877,9 @@ public class DataConsistencyService {
             return FixOutcome.fail("订单状态 " + status + " 不支持自动退多收");
         }
         int over = actual - expected;
-        // MA-270：refundOrder 只推进 refunded_cents，分账行不会自动跟随。与
-        // refundOverchargeIfNeeded 同口径：退多收后必须按净额回算分账，否则分账/佣金/GMV
-        // 继续按虚高毛额计算（2026-11-16 真栈复现：PAYMENT_AMOUNT 修完 gross 仍 1000）。
         Integer netPaidBox = queryNetCompletedCents(orderId);
-        int netPaid = netPaidBox == null ? 0 : netPaidBox;
-        // MA-124：同上——refundOrder 返回 false 时不得回报「已退多收」
-        if (!orderPaymentService.refundOrder(order, over, "一致性修复退多收")) {
-            return FixOutcome.fail("多收 " + over + " 分的退款未被确认（渠道幂等跳过或失败），须人工复核");
-        }
-        CabinetOrder refreshed = cabinetOrderRepository.findById(orderId).orElse(order);
-        boolean fullRefund = netPaid > 0 && over >= netPaid;
-        try {
-            revenueSplitService.adjustSplitAfterPartialRefund(refreshed, fullRefund);
-        } catch (RuntimeException e) {
-            // 退款已经发生：失败不得让调用方以为「没退」；分账回算留给 REVENUE_SPLIT_REFUND_STALE 巡检。
-            log.error("退多收后回算分账失败 orderId={} over={} full={}", orderId, over, fullRefund, e);
-            return FixOutcome.ok("已退多收 " + over + " 分（分账回算失败，已留待巡检复核："
-                    + e.getMessage() + "）");
-        }
-        return FixOutcome.ok("已退多收 " + over + " 分（分账已按净额回算）");
+        refunds.add(new RefundIntent(orderId, over, netPaidBox == null ? 0 : netPaidBox));
+        return FixOutcome.ok("多收 " + over + " 分待退");
     }
 
     private static int parseRecordCents(String raw) {

@@ -403,12 +403,40 @@ class DataConsistencyServiceTest {
 
         when(consistencyRepository.findByIdForUpdate(12L)).thenReturn(java.util.Optional.of(consistencyRecord));
         when(cabinetOrderRepository.findByIdForUpdate("O-SNACK")).thenReturn(java.util.Optional.of(order));
+        when(cabinetOrderRepository.findById("O-SNACK")).thenReturn(java.util.Optional.of(order));
 
         DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(OPERATOR, 12L);
         assertTrue(outcome.fixed());
         assertTrue(outcome.message().contains("1"));
         verify(orderPaymentService).refundOrder(order, 1, "一致性修复退多收");
         assertEquals(DataConsistencyService.STATUS_FIXED, consistencyRecord.getStatus());
+    }
+
+    /** F3b：退款在事务外，失败时记录必须留 FAIL（可重试），不能提前标 FIXED。 */
+    @Test
+    void fixInconsistency_paymentAmount_refundUnconfirmed_keepsRecordFail() {
+        DataConsistencyRecord consistencyRecord = new DataConsistencyRecord();
+        consistencyRecord.setId(13L);
+        consistencyRecord.setCheckType("PAYMENT_AMOUNT");
+        consistencyRecord.setCheckKey("O-SNACK-2");
+        consistencyRecord.setExpectedValue("1503");
+        consistencyRecord.setActualValue("1504");
+        consistencyRecord.setStatus(DataConsistencyService.STATUS_FAIL);
+
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-SNACK-2");
+        order.setStatus("PAID");
+
+        when(consistencyRepository.findByIdForUpdate(13L)).thenReturn(java.util.Optional.of(consistencyRecord));
+        when(cabinetOrderRepository.findByIdForUpdate("O-SNACK-2")).thenReturn(java.util.Optional.of(order));
+        when(cabinetOrderRepository.findById("O-SNACK-2")).thenReturn(java.util.Optional.of(order));
+        when(orderPaymentService.refundOrder(any(), anyInt(), anyString())).thenReturn(false);
+
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(OPERATOR, 13L);
+
+        assertFalse(outcome.fixed());
+        assertTrue(outcome.message().contains("未被确认"));
+        assertEquals(DataConsistencyService.STATUS_FAIL, consistencyRecord.getStatus());
     }
 
     @Test

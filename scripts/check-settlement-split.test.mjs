@@ -26,6 +26,14 @@ const base = {
   }`,
   [P + 'SettlementService.java']:
     'class S { public OrderReadModel settleManual(ShoppingSession s, List i) { return null; } }',
+  [P + 'DataConsistencyService.java']: `class DC {
+    private FixOutcome doFixInconsistencyDetailed(Long o, Long r) { return null; }
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public FixPlan applyFixInTx(Long r) { return null; }
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markFixedInTx(Long r, Long o, String m) { }
+    private FixOutcome doRefundOutsideTx(RefundIntent i) { refundOrder(o, i.overCents(), "x"); return null; }
+  }`,
   [P + 'SettlementConfirmDisputeService.java']: `class D {
     public ConfirmDisputePrep prepareConfirmDispute(String id, List i) { return null; }
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -91,4 +99,13 @@ assert.ok(
   'R5 未判红'
 );
 
-console.log('[check-settlement-split.test] OK：6 项断言全过（R1/R2/R4/R5 负向）');
+const dcTx = base[P + 'DataConsistencyService.java'].replace(
+  'private FixOutcome doFixInconsistencyDetailed(',
+  '@Transactional\n    private FixOutcome doFixInconsistencyDetailed('
+);
+assert.ok(
+  gate.evaluate(read({ [P + 'DataConsistencyService.java']: dcTx })).some((e) => e.includes('R6')),
+  'R6 未判红'
+);
+
+console.log('[check-settlement-split.test] OK：7 项断言全过（R1/R2/R4/R5/R6 负向）');

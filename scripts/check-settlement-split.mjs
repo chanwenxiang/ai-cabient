@@ -10,6 +10,7 @@
  * R3 编排器决策方法 REQUIRES_NEW，processRecognitionResultInTx 不再带 @Transactional
  * R4 settleManual 不再带 @Transactional
  * R5 争议首扣腿 prepareConfirmDispute 不带 @Transactional，改单准备 prepareAdjustInTx REQUIRES_NEW
+ * R6 一致性修复：fixInconsistencyDetailed 不带事务，DB 修复/标记 FIXED 各自 REQUIRES_NEW，退款在事务外
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -23,7 +24,8 @@ const FILES = {
   fin: P + 'SettlementOrderFinalizeService.java',
   orch: P + 'SettlementSettleOrchestrator.java',
   settle: P + 'SettlementService.java',
-  dispute: P + 'SettlementConfirmDisputeService.java'
+  dispute: P + 'SettlementConfirmDisputeService.java',
+  dc: P + 'DataConsistencyService.java'
 };
 
 function slice(src, sig, len = 2600) {
@@ -100,6 +102,15 @@ export function evaluate(rawRead) {
   if (!reqNew(dispute, 'public ConfirmDisputePrep prepareAdjustInTx(')) {
     errors.push('R5 prepareAdjustInTx 不是 REQUIRES_NEW');
   }
+
+  const dc = read(FILES.dc);
+  if (annotated(dc, 'private FixOutcome doFixInconsistencyDetailed(')) {
+    errors.push('R6 doFixInconsistencyDetailed 仍带 @Transactional');
+  }
+  if (!reqNew(dc, 'public FixPlan applyFixInTx(')) errors.push('R6 applyFixInTx 不是 REQUIRES_NEW');
+  if (!reqNew(dc, 'public void markFixedInTx(')) errors.push('R6 markFixedInTx 不是 REQUIRES_NEW');
+  const refund = dc.slice(dc.indexOf('private FixOutcome doRefundOutsideTx('));
+  if (!/refundOrder\s*\(/.test(refund)) errors.push('R6 退款没有在 doRefundOutsideTx 里执行');
   return errors;
 }
 
