@@ -242,6 +242,31 @@ public interface PaymentOperationMapper extends BaseTradeMapper<PaymentOperation
             ORDER BY created_at ASC
             LIMIT #{limit}
             """)
+    /** F5：退款痕迹置失败必须带状态谓词，0 行说明已被并发闭环，禁止覆盖终态。 */
+    default int failIfInitiated(String operationId, java.time.Instant updatedAt) {
+        if (operationId == null || operationId.isBlank()) {
+            return 0;
+        }
+        return update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers
+                .<PaymentOperation>lambdaUpdate()
+                .eq(PaymentOperation::getOperationId, operationId)
+                .eq(PaymentOperation::getStatus, "REFUND_INITIATED")
+                .set(PaymentOperation::getStatus, "REFUND_FAILED")
+                .set(PaymentOperation::getUpdatedAt, updatedAt));
+    }
+
+    /** F5：静默期续命同样只认 REFUND_INITIATED，避免把已终结痕迹改回中间态。 */
+    default int touchIfInitiated(String operationId, java.time.Instant updatedAt) {
+        if (operationId == null || operationId.isBlank()) {
+            return 0;
+        }
+        return update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers
+                .<PaymentOperation>lambdaUpdate()
+                .eq(PaymentOperation::getOperationId, operationId)
+                .eq(PaymentOperation::getStatus, "REFUND_INITIATED")
+                .set(PaymentOperation::getUpdatedAt, updatedAt));
+    }
+
     java.util.List<PaymentOperation> findStaleChargePending(@Param("cutoff") java.time.Instant cutoff,
                                                             @Param("limit") int limit);
 

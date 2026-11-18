@@ -446,6 +446,17 @@ public class SessionService {
                         OrderPaymentService.chargePendingIdempotencyKey(pendingOrderId))) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "支付处理中，请等渠道结果后再终止会话");
         }
+        // F5：会话已产生订单时不得直接强杀——PAID/PENDING/DISPUTED 都是钱在手上的状态，
+        // 只把会话置 CANCELLED 会留下「钱收了、会话取消」的无主单。要求运营先在订单页处置
+        // （退款/关单/补扣），再从会话页终止。REFUNDED/FAILED 等终态不拦。
+        if (session.getOrderId() != null && !session.getOrderId().isBlank()) {
+            CabinetOrder linked = orderRepository.selectById(session.getOrderId());
+            if (linked != null && java.util.Set.of("PAID", "PENDING", "DISPUTED")
+                    .contains(linked.getStatus())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "会话已产生订单（" + linked.getStatus() + "），请先在订单页退款/关单后再终止会话");
+            }
+        }
         consumerPreauthService.releaseIfFrozen(session);
         // H64(b): 运营终止会话同步释放支付分订单
         cancelPayScoreOrdersQuietly(session);

@@ -1634,13 +1634,16 @@ public class OrderPaymentService {
     /** 痕迹行耗尽处置：置 REFUND_FAILED + HIGH 告警转人工（不自动冲账，金额方向敏感）。 */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void markRefundFailed(PaymentOperation trace, String cause) {
-        PaymentOperation op = paymentOperationRepository.findById(trace.getOperationId()).orElse(null);
-        if (op == null || !"REFUND_INITIATED".equals(op.getStatus())) {
+        // F5：条件更新取代「读→判→写」。两个实例可能都读到 REFUND_INITIATED，
+        // 无条件写入会让后到者覆盖先到者的终态，并各发一次告警。
+        int rows = paymentOperationRepository.failIfInitiated(trace.getOperationId(), Instant.now());
+        if (rows <= 0) {
+            log.info("refund trace no longer INITIATED, skip fail opId={}", trace.getOperationId());
             return;
         }
+        PaymentOperation op = paymentOperationRepository.findById(trace.getOperationId()).orElse(trace);
         op.setStatus("REFUND_FAILED");
         op.setUpdatedAt(Instant.now());
-        paymentOperationRepository.updateById(op);
         try {
             opsAlertDispatcher.send("REFUND_RETRY_EXHAUSTED", "渠道退款重试耗尽",
                     "orderId=" + trace.getOrderId() + " amount=" + trace.getAmountCents()

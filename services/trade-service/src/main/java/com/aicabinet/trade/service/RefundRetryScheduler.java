@@ -141,7 +141,10 @@ public class RefundRetryScheduler {
 
     /** 处理过仍无终态的痕迹推后（updated_at 静默期重新计时；耗尽判定按 created_at 不受影响）。 */
     private void touch(PaymentOperation trace) {
-        trace.setUpdatedAt(Instant.now());
-        paymentOperationMapper.updateById(trace);
+        // F5：只对仍是 REFUND_INITIATED 的痕迹续命；已闭环/已失败的不许改回中间态。
+        Instant now = Instant.now();
+        if (paymentOperationMapper.touchIfInitiated(trace.getOperationId(), now) > 0) {
+            trace.setUpdatedAt(now);
+        }
     }
 }

@@ -19,6 +19,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -130,6 +131,27 @@ class SessionServiceRecoveryTest {
 
         assertEquals("CANCELLED", po.getOrderState());
         verify(payScoreOrderMapper).updateById(po);
+    }
+
+    /** F5：会话已有 PAID 订单时禁止强杀，否则留下「钱收了、会话取消」的无主单。 */
+    @Test
+    void forceCancel_withPaidOrder_rejected() {
+        ShoppingSession existing = session("S-FORCE", 7L, "CAB-001", SessionState.SHOPPING);
+        existing.setOrderId("O-FORCE");
+        when(distributedLockService.tryLock(
+                SessionService.sessionLifeLockKey("S-FORCE"), 60L, 5L)).thenReturn(true);
+        when(repository.findByIdForUpdate("S-FORCE")).thenReturn(Optional.of(existing));
+        com.aicabinet.trade.domain.CabinetOrder linked = new com.aicabinet.trade.domain.CabinetOrder();
+        linked.setStatus("PAID");
+        when(orderRepository.selectById("O-FORCE")).thenReturn(linked);
+
+        org.springframework.web.server.ResponseStatusException ex =
+                assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                        () -> service.forceCancelForOperations("S-FORCE", "ops kill"));
+
+        assertEquals(org.springframework.http.HttpStatus.CONFLICT, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("请先在订单页"));
+        assertEquals(SessionState.SHOPPING, existing.getState());
     }
 
     @Test

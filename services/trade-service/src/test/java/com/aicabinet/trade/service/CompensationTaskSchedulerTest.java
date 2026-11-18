@@ -23,10 +23,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
@@ -52,6 +55,11 @@ class CompensationTaskSchedulerTest {
                 taskService, splitRepository, merchantRepository, profitSharingService,
                 profitSharingReturnAlertService, legRepository, null);
         ReflectionTestUtils.setField(scheduler, "self", scheduler);
+        // F5：任务领取/收尾改条件更新；默认放行，具体用例可覆盖为 0 验证「已被别人推进」。
+        lenient().when(taskRepository.claimIfPending(anyLong())).thenReturn(1);
+        lenient().when(taskRepository.finishIfProcessing(anyLong(), anyString(), anyString(), any()))
+                .thenReturn(1);
+        lenient().when(taskRepository.rescheduleIfProcessing(anyLong(), any(), anyString())).thenReturn(1);
     }
 
     @Test
@@ -61,6 +69,18 @@ class CompensationTaskSchedulerTest {
         assertEquals(540L, CompensationTaskScheduler.profitSharingReturnBackoffSeconds(3));
         assertEquals(900L, CompensationTaskScheduler.profitSharingReturnBackoffSeconds(4));
         assertEquals(900L, CompensationTaskScheduler.profitSharingReturnBackoffSeconds(10));
+    }
+
+    /** F5：条件领取失败（另一实例已接管/已终结）必须整体放弃，不得复活终态。 */
+    @Test
+    void processTask_whenAlreadyClaimed_skipsWithoutTouchingLeg() {
+        CompensationTask task = pendingReturnTask(11L);
+        when(taskRepository.claimIfPending(99L)).thenReturn(0);
+
+        scheduler.processTask(task);
+
+        verify(taskRepository, never()).finishIfProcessing(anyLong(), anyString(), anyString(), any());
+        verify(taskRepository, never()).rescheduleIfProcessing(anyLong(), any(), anyString());
     }
 
     @Test
@@ -101,7 +121,6 @@ class CompensationTaskSchedulerTest {
         assertTrue(task.getResult().contains("max retries exceeded"));
         // R20-9：告警按腿聚合，钉住新重载（旧两参数入口不再从调度器调用）。
         verify(profitSharingReturnAlertService).sendCompensationExhausted(eq(task), eq(split), eq(List.of(leg)));
-        verify(taskRepository, times(2)).save(task);
     }
 
     @Test
@@ -122,7 +141,6 @@ class CompensationTaskSchedulerTest {
         assertEquals("PENDING", task.getStatus());
         assertEquals(1, task.getRetryCount());
         assertTrue(task.getResult().contains("retry=1/5"));
-        verify(taskRepository, times(2)).save(task);
     }
 
     /** R20-9 核心：两条腿各有独立任务，处理其中一条不得碰另一条。 */

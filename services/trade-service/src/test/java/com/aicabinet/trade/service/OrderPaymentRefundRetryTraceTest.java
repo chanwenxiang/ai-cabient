@@ -33,6 +33,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -62,6 +63,7 @@ class OrderPaymentRefundRetryTraceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(paymentOperationRepository.failIfInitiated(anyString(), any())).thenReturn(1);
         service = new OrderPaymentService(
                 userInfoRepository,
                 payScoreService,
@@ -205,7 +207,7 @@ class OrderPaymentRefundRetryTraceTest {
         service.markRefundFailed(t, "超 30 分钟无终态");
 
         assertEquals("REFUND_FAILED", t.getStatus());
-        verify(paymentOperationRepository).updateById(t);
+        verify(paymentOperationRepository).failIfInitiated(eq("OP-rk5"), any());
         verify(opsAlertDispatcher).send(eq("REFUND_RETRY_EXHAUSTED"), eq("渠道退款重试耗尽"),
                 contains("O-RT-5"));
     }

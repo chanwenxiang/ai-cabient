@@ -88,6 +88,14 @@ public class CompensationTaskScheduler {
 
     @Transactional
     public void processTask(CompensationTask task) {
+        // F5：条件领取。扫描结果可能是几秒前的 PENDING 快照，另一实例可能已领取/终结；
+        // 无条件 save(PROCESSING) 会把别人的终态复活成处理中。
+        if (taskRepository.claimIfPending(task.getTaskId()) <= 0) {
+            log.info("compensation task already claimed/finished, skip taskId={} snapshot={}",
+                    task.getTaskId(), task.getStatus());
+            return;
+        }
+        task.setStatus("PROCESSING");
         if (ProfitSharingReturnCompensationService.TASK_TYPE.equals(task.getTaskType())) {
             processProfitSharingReturnTask(task);
             return;
@@ -102,8 +110,6 @@ public class CompensationTaskScheduler {
      * 多腿时一条腿成功就会把整条任务判完成，其余腿再没人查单/重提。
      */
     private void processProfitSharingReturnTask(CompensationTask task) {
-        task.setStatus("PROCESSING");
-        taskRepository.save(task);
         String splitId = task.getTxId();
         try {
             OrderSplitReturnLeg leg = resolveLeg(task);
@@ -188,10 +194,15 @@ public class CompensationTaskScheduler {
             return;
         }
         long delaySeconds = profitSharingReturnBackoffSeconds(attempt);
+        Instant nextAt = Instant.now().plusSeconds(delaySeconds);
+        String merged = result + "; retry=" + attempt + "/" + PROFIT_SHARING_RETURN_MAX_RETRIES;
+        if (taskRepository.rescheduleIfProcessing(task.getTaskId(), nextAt, merged) <= 0) {
+            log.info("compensation task no longer PROCESSING, skip reschedule taskId={}", task.getTaskId());
+            return;
+        }
         task.setStatus("PENDING");
-        task.setScheduledAt(Instant.now().plusSeconds(delaySeconds));
-        task.setResult(result + "; retry=" + attempt + "/" + PROFIT_SHARING_RETURN_MAX_RETRIES);
-        taskRepository.save(task);
+        task.setScheduledAt(nextAt);
+        task.setResult(merged);
         log.info("profit sharing return retry deferred splitId={} attempt={} delay={}s",
                 splitId, attempt, delaySeconds);
     }
@@ -205,10 +216,15 @@ public class CompensationTaskScheduler {
     }
 
     private void finishCompensationTask(CompensationTask task, String status, String result) {
+        Instant executedAt = Instant.now();
+        if (taskRepository.finishIfProcessing(task.getTaskId(), status, result, executedAt) <= 0) {
+            log.info("compensation task no longer PROCESSING, skip finish taskId={} wanted={}",
+                    task.getTaskId(), status);
+            return;
+        }
         task.setStatus(status);
         task.setResult(result);
-        task.setExecutedAt(Instant.now());
-        taskRepository.save(task);
+        task.setExecutedAt(executedAt);
         log.info("profit sharing return compensation finished taskId={} status={}", task.getTaskId(), status);
     }
 

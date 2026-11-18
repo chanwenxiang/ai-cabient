@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
  *   <li>排除退款冲正单 VOIDED/REVERSED（旧聚合视图未剔除，属口径瑕疵，不延续）。</li>
  *   <li>settled = status='SUCCESS'；pending = 其余有效状态；failedCount 只数
  *       WECHAT_FAILED/FAILED（与 selectAggregateBatchByMerchants 的 c8/c9/c10 同义）。</li>
- *   <li>重建即真相：幂等整月覆盖；已 CONFIRMED 行只刷新金额不动状态；本月已无
+ *   <li>重建即真相：幂等整月覆盖；已 CONFIRMED 行**不参与重建**（金额/存在性都冻结）；本月已无
  *       有效 split 的陈旧行删除。</li>
  * </ul>
  */
@@ -107,8 +107,15 @@ public class MerchantSettlementBillService {
                     billRepository.findByMerchantAndPeriod(row.getMerchantId(), row.getPeriodMonth());
             if (existing == null) {
                 billRepository.insert(row);
+            } else if ("CONFIRMED".equalsIgnoreCase(existing.getStatus())) {
+                // F5：已确认的结算单是双方对过账的事实，重建不得回溯改金额。
+                // 跨月退款/补差要走调整单，而不是把已签字的数字悄悄刷新（否则商户对账时
+                // 拿到的金额与当初确认的不一致，且没有任何变更痕迹）。
+                log.warn("settlement bill CONFIRMED, skip rebuild override merchant={} period={}",
+                        existing.getMerchantId(), existing.getPeriodMonth());
+                continue;
             } else {
-                // 快照刷新只动金额与统计时间；status/confirmedAt 保留（CONFIRMED 不被重置回 PENDING）。
+                // 快照刷新只动金额与统计时间；status/confirmedAt 保留。
                 // 🔴 联合主键无 @TableId，禁用 updateById，按 wrapper 更新。
                 existing.setOrderCount(row.getOrderCount());
                 existing.setGrossCents(row.getGrossCents());
@@ -138,6 +145,10 @@ public class MerchantSettlementBillService {
         List<MerchantSettlementBill> persisted = billRepository.selectList(Wrappers.<MerchantSettlementBill>lambdaQuery()
                 .eq(MerchantSettlementBill::getPeriodMonth, month.atDay(1)));
         for (MerchantSettlementBill old : persisted) {
+            if ("CONFIRMED".equalsIgnoreCase(old.getStatus())) {
+                // F5：已确认的单不因「本月无 split」被删——那会把已对账事实整行抹掉。
+                continue;
+            }
             if (old.getMerchantId() != null && !currentMerchantIds.contains(old.getMerchantId())) {
                 billRepository.delete(Wrappers.<MerchantSettlementBill>lambdaQuery()
                         .eq(MerchantSettlementBill::getMerchantId, old.getMerchantId())

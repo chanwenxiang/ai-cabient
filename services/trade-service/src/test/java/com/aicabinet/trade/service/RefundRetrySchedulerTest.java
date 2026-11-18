@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -55,6 +56,8 @@ class RefundRetrySchedulerTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(paymentOperationMapper.touchIfInitiated(anyString(), any())).thenReturn(1);
+        lenient().when(paymentOperationMapper.failIfInitiated(anyString(), any())).thenReturn(1);
         scheduler = new RefundRetryScheduler(
                 paymentOperationMapper, orderPaymentService, weChatRefundReconciler, taskService);
     }
@@ -108,7 +111,7 @@ class RefundRetrySchedulerTest {
         scheduler.run();
 
         // touch 推后 updated_at：下轮静默期重新计时（防与渠道侧持续未决的痕迹空转）
-        verify(paymentOperationMapper).updateById(t);
+        verify(paymentOperationMapper).touchIfInitiated(eq(t.getOperationId()), any());
         assertNotEquals(Instant.EPOCH, t.getUpdatedAt());
     }
 

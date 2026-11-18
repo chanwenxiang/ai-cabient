@@ -146,7 +146,7 @@ class MerchantSettlementBillRebuildTest {
     }
 
     @Test
-    void rebuildMonth_updatesExistingAndKeepsConfirmedStatus() {
+    void rebuildMonth_confirmedBillIsFrozen() {
         givenSplitsInMonth(split("M1", "SUCCESS", 1000, 100, 900));
         MerchantSettlementBill existing = new MerchantSettlementBill();
         existing.setMerchantId("M1");
@@ -160,16 +160,13 @@ class MerchantSettlementBillRebuildTest {
 
         int written = service.rebuildMonth(MONTH);
 
-        assertEquals(1, written);
+        // F5：已确认单是双方对过账的事实，重建既不改金额也不改状态（跨月退款走调整单）。
+        assertEquals(0, written);
         verify(billRepository, never()).insert(any(MerchantSettlementBill.class));
-        ArgumentCaptor<MerchantSettlementBill> captor = ArgumentCaptor.forClass(MerchantSettlementBill.class);
-        verify(billRepository).update(captor.capture(), any());
-        MerchantSettlementBill saved = captor.getValue();
-        // 金额刷新、状态与确认时间保留（CONFIRMED 不被重置回 PENDING）
-        assertEquals(1000, saved.getGrossCents());
-        assertEquals("CONFIRMED", saved.getStatus());
-        assertEquals(confirmedAt, saved.getConfirmedAt());
-        assertNotNull(saved.getComputedAt());
+        verify(billRepository, never()).update(any(MerchantSettlementBill.class), any());
+        assertEquals(1, existing.getGrossCents());
+        assertEquals("CONFIRMED", existing.getStatus());
+        assertEquals(confirmedAt, existing.getConfirmedAt());
     }
 
     @Test
@@ -185,6 +182,22 @@ class MerchantSettlementBillRebuildTest {
 
         // any(Wrapper.class) 消歧：BaseTradeMapper 自定义了 delete(T)，裸 any() 无法在两个重载间选择
         verify(billRepository).delete(any(Wrapper.class));
+    }
+
+    /** F5：已确认单不因「本月无 split」被删——整行消失等于抹掉已对账事实。 */
+    @Test
+    void rebuildMonth_doesNotDeleteConfirmedStaleRow() {
+        givenSplitsInMonth(split("M1", "SUCCESS", 1000, 100, 900));
+        when(billRepository.findByMerchantAndPeriod(any(), any())).thenReturn(null);
+        MerchantSettlementBill stale = new MerchantSettlementBill();
+        stale.setMerchantId("M3");
+        stale.setPeriodMonth(MONTH.atDay(1));
+        stale.setStatus("CONFIRMED");
+        when(billRepository.selectList(any())).thenReturn(List.of(stale));
+
+        service.rebuildMonth(MONTH);
+
+        verify(billRepository, never()).delete(any(Wrapper.class));
     }
 
     @Test
