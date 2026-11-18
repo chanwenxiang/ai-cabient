@@ -2041,6 +2041,20 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "709f3681",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-353",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/PaymentOperationMapper.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SettlementSettleOrchestrator.java"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [

@@ -422,6 +422,19 @@ trade-service 全量 3250/0。
 
 ---
 
+### F3b 联调补修（2026-11-18，`709f3681`）
+
+- 🔴 **实测教训**：拆段后 `SettlementSettleOrchestrator` 2 参 `processRecognitionResult` 还留着
+  `@Transactional`，把 REQUIRES_NEW 又包回外层——挂起外层时行锁仍被持有，子事务等锁 ⇒
+  Hikari `connection leak detected`、E2E 卡死、CI build 40 分钟不结束。**只拆内层、忘了摘外层入口，
+  是最容易漏的形态**；`check:settlement-split` 现已把 `processRecognitionResultInTx` 纳入 R3，
+  但 2 参入口仍需人工核对（本轮已摘）。
+- `PaymentOperationMapper#findStaleChargePending` 缺 SQL（F3a 引入），对账巡检每轮
+  `Invalid bound statement` 被定时任务日志吞掉 ⇒ 实际从未跑过。补 `@Select` 后本地
+  `ConsumerE2ETest` 11/0、1m15。
+
+---
+
 ## 附：条目 → 族 索引
 
 | 族 | 条目 |
