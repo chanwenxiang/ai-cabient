@@ -1861,6 +1861,38 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "c09ef21d",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "MA-338",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/OrderPaymentService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/PayScoreOrderNotifyService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/OrderPaymentChargeInvariantTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/OrderPaymentIdempotencyTest.java",
+            "scripts/check-charge-idem-session-scoped.mjs",
+            "scripts/check-charge-idem-session-scoped.test.mjs"
+          ]
+        },
+        {
+          "id": "MA-339",
+          "files": [
+            "docs/COMPETITOR_BENCHMARK.md",
+            "clients/merchant-mp/src/utils/todo-list.test.ts",
+            "services/trade-service/src/main/resources/db/migration/V496__payscore_order_opening_nullable.sql",
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/PayScoreOrderMapper.java",
+                     "services/trade-service/src/main/java/com/aicabinet/trade/service/SysDictBootstrap.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/UnpaidOrderService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/UnpaidOrderConcurrencyTest.java",
+            "scripts/check-payscore-order-link.mjs",
+            "scripts/check-payscore-order-link.test.mjs"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [

@@ -47,7 +47,7 @@
 | F3 | 结算/对账事务边界 ⬓`3af7b9eb`（F3a + F3b-1/2 落地，拆段待办） | 3 | ①/BR5 BR3 J4 J8 ⑧ ⑨ | 拆成 prepare → HTTP → finalize |
 | F4 | 库存/月结账实 ⬓`66355c32`（批次判据已改 SKU 级，恒等式待补） | 1 | BR9 BR10 BR11 BR13 BR14 BR15 BR16 BR1 BR2 月账单利润 | 判据改 SKU 级 + 加恒等式 |
 | F5 | 状态机/快照覆盖 | 0 | J5 J6 BR12 BR17 BR18 BR19 | 一切状态写入带 `WHERE status=快照态` |
-| F6 | 幂等/重试窗口 | 0 | J10 BR4 BR6 BR7 | 幂等键不含可变 ID |
+| F6 | 幂等/重试窗口 ⬓`c09ef21d`（J10 已关，BR4/BR6/BR7 待办） | 0 | J10 BR4 BR6 BR7 | 幂等键不含可变 ID |
 | F7 | 部署可复现 | 5 | J11 L-03 L-04 N-02 N-03 N-10 | 部署链与迁移链可重放 |
 | F8 | 文档/门禁漂移 | 2 | L-01 L-02 L-10 L-11 注释族 | 文档与门禁跟着代码走 |
 
@@ -354,6 +354,17 @@ Wave 4（发布前）          F7 部署可复现
 ### 计划外发现（2026-11-18，未修，待拍板）
 
 `PayScoreService#openServiceOrderForShopping` 建开门支付分单时**不写 `payscore_order.order_id`**，而真实库该列为 `NOT NULL` + FK 到 `cabinet_order`（V74 建表，V218 未放宽；docker 内 `information_schema` 实查 `order_id|NO`）。当前 `PAYSCORE_ENABLED` 默认 false（`application.yml:323`、`docker-compose.full.yml:261`）所以未暴露；一旦生产开启微信支付分免确认模式，每次开门都会在 insert 阶段失败并被包成 412「微信免密确认失败」。修法有两条路：① 允许开门期未关联订单（`DROP NOT NULL` + 迁移），② 改为结算时才建单（与 F3b-2「先建单再判冻结」的时序相反，需重排判据）。**先拍板再动**，不猜着改。
+
+---
+
+### F6 前置与支付分建单拍板（2026-11-18，`c09ef21d`）
+
+| 项 | 落法 | 说明 |
+|---|---|---|
+| J10 幂等键 | `CHARGE:S:<sessionId>:<amount>`，旧键只双读不写 | 用户拍板接受「拆段后 PENDING 走补缴」前，必须先让重试换 orderId 绕不过幂等；这是 F3b 拆段的硬前置。DONE 回调与 reconciler 同源，避免同笔两条 CHARGE 流水 |
+| 支付分建单 `order_id` | V496 `DROP NOT NULL`（保留 FK），结算回填 + 孤儿单告警 | 用户采纳方案①。方案②（结算时才建单）被否：官方 CB-064 的创单与风险金评估在开门前，挪到结算等于让未评估用户先进柜 |
+
+**验收**：trade-service 3244/0；两道新门禁 R1–R4 / R1–R3 均做真树注入负向 + md5/逐字节还原；迁移在 psql 事务内验证可执行且可回滚；CB-064 补第 6 条决策记录。此项完成后，§9 上一节「计划外发现（未修，待拍板）」已闭环。
 
 ---
 
