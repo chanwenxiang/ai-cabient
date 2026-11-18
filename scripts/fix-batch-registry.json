@@ -1992,6 +1992,26 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "d9cbbad5",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "MA-349",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/WarehouseMonthlyCloseSheetService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/WarehouseMonthlyCloseSheetServiceTest.java"
+          ]
+        },
+        {
+          "id": "MA-350",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceRentalService.java"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
