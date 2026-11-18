@@ -2012,6 +2012,35 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "973caf60",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "MA-351",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SettlementOrderFinalizeService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SettlementRecognitionService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SettlementSettleOrchestrator.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SettlementService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SettlementDisputeTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SettlementOrderFinalizeAmountTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SettlementUncollectedLegsTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SettlementSplitBoundaryTest.java"
+          ]
+        },
+        {
+          "id": "MA-352",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SettlementConfirmDisputeService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SettlementConfirmDisputeTest.java",
+            "scripts/check-settlement-split.mjs",
+            "scripts/check-settlement-split.test.mjs"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [

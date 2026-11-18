@@ -44,7 +44,7 @@
 |---|---|---|---|---|
 | F1 | 可观测性自证 ✅`9f0da9c2` | 4 | J1 J2 J3 J9 J14 J15 J16 N-04 | 让「任务停跑」这件事自己暴露出来 |
 | F2 | 设备范围闸形态 ✅`d37a02e5` | 1 | N-01 N-05 N-06 L-09 | 闸从拦截器下沉到 service 入口 |
-| F3 | 结算/对账事务边界 ⬓`3af7b9eb`（F3a + F3b-1/2 落地，拆段待办） | 3 | ①/BR5 BR3 J4 J8 ⑧ ⑨ | 拆成 prepare → HTTP → finalize |
+| F3 | 结算/对账事务边界 ⬓`973caf60`（主链/争议已拆段，退款 HTTP 待办） | 3 | ①/BR5 BR3 J4 J8 ⑧ ⑨ | 拆成 prepare → HTTP → finalize |
 | F4 | 库存/月结账实 ⬓`d9cbbad5`（3 项已修，恒等式/口径 4 项待产品拍板） | 1 | BR9 BR10 BR11 BR13 BR14 BR15 BR16 BR1 BR2 月账单利润 | 判据改 SKU 级 + 加恒等式 |
 | F5 | 状态机/快照覆盖 ✅`0cd3bd58` | 0 | J5 J6 BR12 BR17 BR18 BR19 | 一切状态写入带 `WHERE status=快照态` |
 | F6 | 幂等/重试窗口 ✅`df9d7cb4` | 0 | J10 BR4 BR6 BR7 | 幂等键不含可变 ID |
@@ -406,6 +406,19 @@ trade-service 全量 3250/0。
 - BR16：押金余额归零也落 SETTLED（期满奖励仍只在期满发），结清带 `WHERE status=HELD`。
 
 **F4 仍待办（4 项，需产品/口径拍板）**：`DeviceSkuLotMapper.xml` 可售是否含 `BLOCKED`（建议不含但另出「在柜总量」）、差异与四损耗列是否重复计入索赔、`LEGACY-OPENING` 并批的唯一键（生产可能已有重复行，直接加约束会失败）、`DeviceRentalService` 满期是否免安装费。这些不是代码能力问题，是需要口径决定后才能动。
+
+---
+
+### F3b 拆段（2026-11-18，`973caf60`）
+
+- 主结算链：`prepareSettlement`（落单/扣库存/绑券）→ `chargeOrder`（事务外 HTTP）→ `finalizePaidSettlement`（冻结/券/分账/会话/会员）；失败/不确定走 `settleAsPending` 落 PENDING。
+- 争议首扣腿同构；改单准备单独 `prepareAdjustInTx` 短事务。
+- 痕迹收口 `finalizeChargePending` 移到 finalize 提交之后，finalize 失败保持 PENDING 交 F3a 巡检。
+- 识别服务只产出决策，编排器决策短事务；`settleManual` 去外层事务。
+- 🔴 自查发现：package-private 方法上的 `@Transactional` 会被 Spring 忽略，三个事务方法已改 public。
+- `check:settlement-split` R1–R5 + 夹具 6 断言，真树注入 @Transactional 即红。
+
+**F3 仍剩 1 项**：`DataConsistencyService` 退款分支的渠道 HTTP 仍在 `fixInconsistencyDetailed` 的 `@Transactional` 内（`refundOverchargeIfNeeded`）。它和主链不同——修复链同时改订单头/券/分账，拆开需要先把「退款」从 applyFix 的多分支里单独抽出，建议单独一轮做，不塞进本批。
 
 ---
 
