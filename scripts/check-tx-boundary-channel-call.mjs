@@ -45,8 +45,7 @@ export function maskComments(src) {
         // 行注释的首个 '/' 必须当场涂掉：下一轮才进 line 分支，漏这一个字符会
         // 让 `// client.fetch()` 残留一个 `client`，判据把注释当真代码（夹具实测）。
         out[i] = ' ';
-      }
-      else if (c === '/' && n === '*') {
+      } else if (c === '/' && n === '*') {
         state = 'block';
         out[i] = ' ';
         out[i + 1] = ' ';
