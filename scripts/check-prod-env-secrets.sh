@@ -41,6 +41,10 @@ MIN_LEN_KEYS='JWT_SECRET JIANGYI_JWT_SECRET'
 # 不给默认放行：要么配置地址，要么**显式**声明知情（ALERTS_DISABLED_ACK=1，打印横幅留痕）。
 ALERT_DELIVERY_KEY='FEISHU_WEBHOOK_URL'
 ALERTS_ACK_ENV='ALERTS_DISABLED_ACK'
+# 备份异地（F7/L-04）：BACKUP_REMOTE_CMD 为空时备份只在本机，机器/盘挂了就一起没了。
+# 与告警同款：要么配置外部 OSS 钩子，要么显式 BACKUP_LOCAL_ONLY_ACK=1 声明「已知只有本地」。
+BACKUP_REMOTE_KEY='BACKUP_REMOTE_CMD'
+BACKUP_LOCAL_ACK='BACKUP_LOCAL_ONLY_ACK'
 
 read_key() {
   # 同名键取最后一次（dotenv 语义），去 CR 与首尾空白
@@ -95,6 +99,17 @@ EOF
       fail=1
     fi
   fi
+  if [ -z "$(read_key "$BACKUP_REMOTE_KEY" "$file")" ]; then
+    if [ "${!BACKUP_LOCAL_ACK:-}" = '1' ]; then
+      echo "$TAG ⚠️  $BACKUP_REMOTE_KEY 为空，且已显式 $BACKUP_LOCAL_ACK=1 ——"
+      echo "$TAG    备份只落本机，机器/磁盘故障会连同备份一起丢。这是知情决定，不是修复。"
+    else
+      echo "$TAG ❌ $BACKUP_REMOTE_KEY 为空：备份只有本机副本，不满足异地要求"
+      echo "$TAG    修法：在 infra/.env.production 配置外部 OSS 归档命令；"
+      echo "$TAG          确知只留本地，则显式设置 $BACKUP_LOCAL_ACK=1 重跑（会留横幅）"
+      fail=1
+    fi
+  fi
   return "$fail"
 }
 
@@ -112,6 +127,7 @@ MINIO_ROOT_PASSWORD=prod-minio-pass-3c8
 JWT_SECRET=prod-jwt-secret-0123456789abcdefghijklmn
 JIANGYI_JWT_SECRET=prod-jy-jwt-secret-0123456789abcdefgh
 FEISHU_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/prod-sample
+BACKUP_REMOTE_CMD=aws s3 cp
 ENV
   if check_file "$tmp/good.env" >/dev/null; then ok=$((ok + 1)); else echo "$TAG self-test: good.env 误判红"; fi
 
@@ -155,6 +171,7 @@ MINIO_ROOT_PASSWORD=prod-minio-pass-3c8
 JWT_SECRET=prod-jwt-secret-0123456789abcdefghijklmn
 JIANGYI_JWT_SECRET=prod-jy-jwt-secret-0123456789abcdefgh
 FEISHU_WEBHOOK_URL=
+BACKUP_REMOTE_CMD=aws s3 cp
 ENV
   if check_file "$tmp/no-alert.env" >/dev/null; then
     echo "$TAG self-test: 空 FEISHU_WEBHOOK_URL 未判红（告警静默被放行）"
@@ -168,8 +185,30 @@ ENV
     echo "$TAG self-test: 显式 ALERTS_DISABLED_ACK=1 仍判红（知情覆盖通道失效）"
   fi
 
-  if [ "$ok" -eq 2 ] && [ "$bad" -eq 7 ]; then
-    echo "$TAG OK：基线绿 + 显式知情绿 + 7 类红场景逐个命中（含告警投递空值）"
+  # 备份异地：空 BACKUP_REMOTE_CMD 必须判红；显式 BACKUP_LOCAL_ONLY_ACK=1 才放行。
+  cat > "$tmp/no-backup.env" <<'ENV'
+POSTGRES_PASSWORD=prod-pg-pass-9f2
+REDIS_PASSWORD=prod-redis-pass-7a1
+MINIO_ROOT_PASSWORD=prod-minio-pass-3c8
+JWT_SECRET=prod-jwt-secret-0123456789abcdefghijklmn
+JIANGYI_JWT_SECRET=prod-jy-jwt-secret-0123456789abcdefgh
+FEISHU_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/prod-sample
+BACKUP_REMOTE_CMD=
+ENV
+  if check_file "$tmp/no-backup.env" >/dev/null; then
+    echo "$TAG self-test: 空 BACKUP_REMOTE_CMD 未判红（本地单副本被放行）"
+  else
+    bad=$((bad + 1))
+  fi
+
+  if BACKUP_LOCAL_ONLY_ACK=1 check_file "$tmp/no-backup.env" >/dev/null; then
+    ok=$((ok + 1))
+  else
+    echo "$TAG self-test: 显式 BACKUP_LOCAL_ONLY_ACK=1 仍判红（知情覆盖通道失效）"
+  fi
+
+  if [ "$ok" -eq 3 ] && [ "$bad" -eq 8 ]; then
+    echo "$TAG OK：基线绿 + 告警/备份显式知情绿 + 8 类红场景逐个命中"
     return 0
   fi
   echo "$TAG FAIL：self-test 结果不符（ok=$ok bad=$bad）"
