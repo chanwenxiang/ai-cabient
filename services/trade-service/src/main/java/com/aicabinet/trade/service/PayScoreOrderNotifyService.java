@@ -203,8 +203,13 @@ public class PayScoreOrderNotifyService {
         int amount = po.getActualAmountCents() != null ? po.getActualAmountCents() : order.getTotalAmountCents();
         String tradeNo = firstNonBlank(event.path("transaction_id").asText(""),
                 event.path("out_order_no").asText(""));
-        String idemKey = "CHARGE:" + order.getOrderId() + ":" + amount;
-        if (paymentOperationMapper.findByIdempotencyKey(idemKey).isEmpty()) {
+        // F6/J10：与 OrderPaymentService 主链同源的幂等键（sessionId 为轴），
+        // 并双读旧键——历史单已按 orderId 落过 CHARGE 流水时不能再补一条。
+        String idemKey = OrderPaymentService.chargeIdempotencyKey(order, amount);
+        boolean legacyBooked = order.getSessionId() != null && !order.getSessionId().isBlank()
+                && paymentOperationMapper.findByIdempotencyKey(
+                        "CHARGE:" + order.getOrderId() + ":" + amount).isPresent();
+        if (paymentOperationMapper.findByIdempotencyKey(idemKey).isEmpty() && !legacyBooked) {
             PaymentOperation op = new PaymentOperation();
             op.setOperationId("CHG-PAYSCORE-" + po.getOutOrderNo());
             op.setOrderId(order.getOrderId());

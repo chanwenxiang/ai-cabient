@@ -2146,6 +2146,8 @@
   3. **采纳同行共性「不自建信用」**：跑单防线=微信自动重试/催收/降分/联合惩戒 + 我方欠款闸与三级催缴（代码已有，CB-003/011）。
   4. **有意不同（相对直连灰度现实的取舍）**：不等全量——先按直连契约落码 config 门控，灰度/service_id 下发后即插即用；若微信拒绝灰度再评估 CB-032 Q8 的资金流拍板（CB-010 已证服务商场景不含智慧零售，此路大概率不通）。
   5. **验收判据**：①首条真实授权回调字段与契约核对；②首笔真实创单/完结/扣款 DONE 回调落 PAID；③真机全链走通前不放开非白名单用户。
+  6. **2026-11-18 补充拍板（开门期支付分单的 order_id 可空）**：官方 ②创单在**开门前**完成风险金评估（CB-064 引文「评估不过=不可使用服务」），此时柜机订单尚未生成，我方 `payscore_order.order_id` 必然为空；V74 把它建成 `NOT NULL` + FK 会让 `PAYSCORE_ENABLED=true` 时每次开门 insert 违约、被包成 412。**决定采纳「保留 FK、放开 NOT NULL」**（V496），结算完结时 `PayScoreService#completeWechatOrderForSession` 回填真实 `orderId`。**不采纳「结算时才建单」**：那会让未通过评估的用户先进柜，与官方先享语义和上面第 1 条的落地顺序相反。配套要求：会话取消链必须把未关联订单的支付分单取消，并对长期 `order_id IS NULL` 的行告警。
+
 - **2026-10-24 字段级复核与订正（授权链路）**——按官方直连免确认文档逐字段核对，原实现与 v3 契约不一致；同日已订正并用单测钉住：
   - 《商户预授权》`POST /v3/payscore/permissions` 请求体逐字为 `service_id`(必填)、`appid`(必填)、`authorization_code`(必填；商户生成的授权协议号，32 字符内，**同一个商户号下唯一**，多个用户不得复用同一号)、`notify_url`(选填)；返回 `apply_permissions_token`。**没有 `out_request_no`，也没有 `openid`。**
   - 《授权/解除授权回调》解密后字段逐字为 `appid`、`mchid`、`service_id`、`openid`、`user_service_status`（`USER_OPEN_SERVICE`=授权成功 / `USER_CLOSE_SERVICE`=解除授权成功）、`openorclose_time`、`authorization_code`。**没有 `out_request_no`。**

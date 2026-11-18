@@ -141,7 +141,7 @@ public class OrderPaymentService {
     // 慢时锁被钉住（Redis 锁有心跳续租，DB 行锁没有）。去事务化后与 refundOrder 同构：
     // HTTP 前的痕迹（recordChargePending）与 HTTP 后的收口（finalizeChargePending）
     // 都是 REQUIRES_NEW 自提交；其余写随语句自动提交——重放安全由幂等键
-    // （restoreCompletedCharge / CHARGE:<orderId>:<amount>）兜底。
+    // （restoreCompletedCharge / CHARGE:S:<sessionId>:<amount>，老单双读旧键）兜底。
     // BalanceInsufficientException 本就不经过 txTemplate（change 内部自捕），传播语义不变。
     // 残留（Phase B，另行专项）：调用方自带事务的路径（UnpaidOrderService.collect /
     // collectByUser @Transactional → markPaid → chargeOrder）HTTP 期间仍持调用方行锁——
@@ -194,8 +194,8 @@ public class OrderPaymentService {
         if (order.getTotalAmountCents() <= 0) {
             return ChargePlan.of(ChargeLeg.ZERO);
         }
-        String idemKey = "CHARGE:" + order.getOrderId() + ":" + order.getTotalAmountCents();
-        if (isCompleted(idemKey)) {
+        String idemKey = chargeIdempotencyKey(order, order.getTotalAmountCents());
+        if (isChargeCompleted(order, order.getTotalAmountCents())) {
             return ChargePlan.of(ChargeLeg.COMPLETED);
         }
         UserInfo user = userInfoRepository.findById(order.getUserId())
@@ -248,8 +248,8 @@ public class OrderPaymentService {
     }
 
     private void chargeOrderUnderLockWithPlan(CabinetOrder order, String requestedChannel, ChargePlan plan) {
-        String idemKey = "CHARGE:" + order.getOrderId() + ":" + order.getTotalAmountCents();
-        if (restoreCompletedCharge(order, idemKey)) {
+        String idemKey = chargeIdempotencyKey(order, order.getTotalAmountCents());
+        if (restoreCompletedCharge(order)) {
             return;
         }
         UserInfo user = userInfoRepository.findById(order.getUserId())
@@ -271,8 +271,8 @@ public class OrderPaymentService {
     }
 
     private void chargeOrderUnderLock(CabinetOrder order, String requestedChannel) {
-        String idemKey = "CHARGE:" + order.getOrderId() + ":" + order.getTotalAmountCents();
-        if (restoreCompletedCharge(order, idemKey)) {
+        String idemKey = chargeIdempotencyKey(order, order.getTotalAmountCents());
+        if (restoreCompletedCharge(order)) {
             return;
         }
         UserInfo user = userInfoRepository.findById(order.getUserId())
@@ -360,11 +360,11 @@ public class OrderPaymentService {
         }
     }
 
-    private boolean restoreCompletedCharge(CabinetOrder order, String idemKey) {
-        if (!isCompleted(idemKey)) {
+    private boolean restoreCompletedCharge(CabinetOrder order) {
+        if (!isChargeCompleted(order, order.getTotalAmountCents())) {
             return false;
         }
-        order.setPayChannel(paymentOperationRepository.findByIdempotencyKey(idemKey)
+        order.setPayChannel(findChargeOperation(order, order.getTotalAmountCents())
                 .map(PaymentOperation::getChannel).orElse(PayChannels.BALANCE));
         ensurePayTradeNo(order);
         ensurePaymentOperationId(order);
@@ -464,6 +464,44 @@ public class OrderPaymentService {
 
     static String chargePendingIdempotencyKey(String orderId) {
         return "CHARGE:PENDING:" + orderId;
+    }
+
+    /**
+     * F6/J10：CHARGE 流水幂等键以 **sessionId** 为轴。
+     *
+     * <p>旧口径含 orderId：渠道已扣、本地失败后用户重试会生成新 orderId，绕过旧幂等键再扣一次。
+     * 同一 session 只有一个订单（{@code findBySessionId} 唯一），所以 sessionId 才是「这次购物」
+     * 的稳定身份。没有 sessionId 的老单/测试单沿用旧键，保证历史 COMPLETED 流水仍可被识别。</p>
+     */
+    static String chargeIdempotencyKey(CabinetOrder order, int amountCents) {
+        String sessionId = order.getSessionId();
+        if (sessionId == null || sessionId.isBlank()) {
+            return legacyChargeIdempotencyKey(order.getOrderId(), amountCents);
+        }
+        return "CHARGE:S:" + sessionId + ":" + amountCents;
+    }
+
+    /** 历史键：仅用于双读识别老单，绝不再写入。 */
+    private static String legacyChargeIdempotencyKey(String orderId, int amountCents) {
+        return "CHARGE:" + orderId + ":" + amountCents;
+    }
+
+    /** 双读：新键优先，兼容旧键已记账的历史单。 */
+    private java.util.Optional<PaymentOperation> findChargeOperation(CabinetOrder order, int amountCents) {
+        java.util.Optional<PaymentOperation> op = paymentOperationRepository
+                .findByIdempotencyKey(chargeIdempotencyKey(order, amountCents));
+        String sessionId = order.getSessionId();
+        if (op.isEmpty() && sessionId != null && !sessionId.isBlank()) {
+            op = paymentOperationRepository
+                    .findByIdempotencyKey(legacyChargeIdempotencyKey(order.getOrderId(), amountCents));
+        }
+        return op;
+    }
+
+    private boolean isChargeCompleted(CabinetOrder order, int amountCents) {
+        return findChargeOperation(order, amountCents)
+                .map(op -> STATUS_COMPLETED.equals(op.getStatus()))
+                .orElse(false);
     }
 
     /** H41: 独立事务落 CHARGE_PENDING 痕迹（立即提交，外层回滚不影响）。 */
@@ -657,8 +695,8 @@ public class OrderPaymentService {
      */
     public void recordReconciledCharge(CabinetOrder order, int traceTotalCents, String channel,
                                        int chargeCents, String tradeNo) {
-        String idemKey = "CHARGE:" + order.getOrderId() + ":" + traceTotalCents;
-        if (!isCompleted(idemKey)) {
+        String idemKey = chargeIdempotencyKey(order, traceTotalCents);
+        if (!isChargeCompleted(order, traceTotalCents)) {
             recordOperation(order, CHARGE, chargeCents, channel, idemKey, tradeNo, "reconciled charge");
         }
         order.setPayChannel(channel);

@@ -498,6 +498,50 @@ class OrderPaymentIdempotencyTest {
         when(paymentOperationRepository.netCompletedCents(orderId)).thenReturn(cents);
     }
 
+    /**
+     * F6/J10：重试换了 orderId 也不能绕过幂等——同一 session 的新订单必须识别为已扣过。
+     * 旧键含 orderId 时这里会第二次走余额腿，造成真双扣。
+     */
+    @Test
+    void duplicateCharge_newOrderIdSameSession_skipsSecondLedgerChange() {
+        CabinetOrder first = order("O-RETRY-1", 10001L, 500, "BALANCE");
+        first.setSessionId("S-RETRY");
+        CabinetOrder retry = order("O-RETRY-2", 10001L, 500, "BALANCE");
+        retry.setSessionId("S-RETRY");
+        stubOrderLock(first);
+        stubOrderLock(retry);
+        PaymentOperation completed = new PaymentOperation();
+        completed.setStatus("COMPLETED");
+        completed.setChannel("BALANCE");
+        when(paymentOperationRepository.findByIdempotencyKey("CHARGE:S:S-RETRY:500"))
+                .thenReturn(Optional.of(completed));
+
+        service.chargeOrder(first);
+        service.chargeOrder(retry);
+
+        verifyNoMoreInteractions(balanceLedgerService);
+    }
+
+    /** 历史单只有旧键：必须双读识别，否则老用户重试会被当新单再扣一次。 */
+    @Test
+    void duplicateCharge_legacyOrderIdKeyStillRecognized() {
+        CabinetOrder legacy = order("O-LEGACY", 10001L, 700, "BALANCE");
+        legacy.setSessionId("S-LEGACY");
+        stubOrderLock(legacy);
+        PaymentOperation completed = new PaymentOperation();
+        completed.setStatus("COMPLETED");
+        completed.setChannel("BALANCE");
+        when(paymentOperationRepository.findByIdempotencyKey("CHARGE:S:S-LEGACY:700"))
+                .thenReturn(Optional.empty());
+        when(paymentOperationRepository.findByIdempotencyKey("CHARGE:O-LEGACY:700"))
+                .thenReturn(Optional.of(completed));
+
+        service.chargeOrder(legacy);
+        service.chargeOrder(legacy);
+
+        verifyNoMoreInteractions(balanceLedgerService);
+    }
+
     private void stubOrderLock(CabinetOrder order) {
         when(distributedLockService.tryLock(OrderPaymentService.orderPaymentLockKey(order.getOrderId()), 60L, 5L))
                 .thenReturn(true);

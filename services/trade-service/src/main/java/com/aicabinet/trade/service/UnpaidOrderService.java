@@ -71,6 +71,8 @@ public class UnpaidOrderService {
     private final DistributedLockService distributedLockService;
     private final ApiRateLimitService apiRateLimitService;
     private final OpsExceptionService opsExceptionService;
+    /** V496 后允许开门期支付分单无 orderId；这里盯长期未关联的孤儿单。 */
+    private final com.aicabinet.trade.mapper.PayScoreOrderMapper payScoreOrderMapper;
     private final UnpaidDunningService unpaidDunningService;
     private final TransactionTemplate requiresNewTx;
 
@@ -97,7 +99,8 @@ public class UnpaidOrderService {
                               ApiRateLimitService apiRateLimitService,
                               OpsExceptionService opsExceptionService,
                               UnpaidDunningService unpaidDunningService,
-                              PlatformTransactionManager transactionManager) {
+                              PlatformTransactionManager transactionManager,
+                              com.aicabinet.trade.mapper.PayScoreOrderMapper payScoreOrderMapper) {
         this.orderRepository = orderRepository;
         this.orderLineRepository = orderLineRepository;
         this.userInfoRepository = userInfoRepository;
@@ -120,6 +123,7 @@ public class UnpaidOrderService {
         this.distributedLockService = distributedLockService;
         this.apiRateLimitService = apiRateLimitService;
         this.opsExceptionService = opsExceptionService;
+        this.payScoreOrderMapper = payScoreOrderMapper;
         this.unpaidDunningService = unpaidDunningService;
         this.requiresNewTx = new TransactionTemplate(transactionManager);
         this.requiresNewTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -260,6 +264,12 @@ public class UnpaidOrderService {
             alertChargeSettledButUnbookedOps();
         } catch (Exception ex) {
             log.warn("settled-but-unbooked charge alert sweep failed", ex);
+        }
+        // V496：开门期支付分单允许 order_id 为空，但超过 2 小时仍未关联说明取消链断了。
+        try {
+            alertStaleUnlinkedPayscoreOrders();
+        } catch (Exception ex) {
+            log.warn("stale unlinked payscore order alert sweep failed", ex);
         }
         int hours = systemConfigService.getInt(SystemConfigService.UNPAID_AUTO_CANCEL_HOURS, 48);
         if (hours <= 0) {
@@ -410,6 +420,25 @@ public class UnpaidOrderService {
                     op.getOrderId(), op.getGatewayTradeNo(), op.getChargeCents());
         }
         return settled.size();
+    }
+
+    /** V496 配套：长期未关联的支付分单只告警，不自动取消（渠道状态机由微信侧掌管）。 */
+    public int alertStaleUnlinkedPayscoreOrders() {
+        Instant cutoff = Instant.now().minus(2, java.time.temporal.ChronoUnit.HOURS);
+        java.util.List<com.aicabinet.trade.domain.PayScoreOrder> stale =
+                payScoreOrderMapper.findUnlinkedBefore(cutoff, 20);
+        for (com.aicabinet.trade.domain.PayScoreOrder po : stale) {
+            opsExceptionService.report(
+                    "PAYSCORE_ORDER_UNLINKED",
+                    "HIGH",
+                    new OpsExceptionService.ExceptionReport.ExceptionRefs(
+                            null, po.getOutOrderNo(), null, po.getUserId()),
+                    "支付分单长期未关联柜机订单",
+                    "开门期支付分单 " + po.getOutOrderNo() + " 创建于 " + po.getCreatedAt()
+                            + "，至今 order_id 为空：会话取消时未取消支付分单，或结算回填链断了。"
+                            + "请核对微信侧订单状态后人工取消/补关联，勿直接改本地单");
+        }
+        return stale.size();
     }
 
     private boolean cancelSingleExpiredOrder(CabinetOrder order, int hours, boolean autoBlacklist) {

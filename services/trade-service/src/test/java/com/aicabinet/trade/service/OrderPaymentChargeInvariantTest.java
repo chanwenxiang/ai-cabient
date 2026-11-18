@@ -300,7 +300,7 @@ class OrderPaymentChargeInvariantTest {
         CabinetOrder order = order();
         buildService(false).recordReconciledCharge(order, TOTAL, "WECHAT", 40, "TXN-R");
 
-        PaymentOperation op = store.get("CHARGE:" + ORDER_ID + ":" + TOTAL);
+        PaymentOperation op = store.get(OrderPaymentService.chargeIdempotencyKey(order, TOTAL));
         assertEquals(40, op.getAmountCents());
         assertEquals("WECHAT", op.getChannel());
         assertEquals("TXN-R", op.getGatewayTradeNo());

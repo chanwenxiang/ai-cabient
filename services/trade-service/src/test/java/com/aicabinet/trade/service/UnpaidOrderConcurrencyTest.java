@@ -59,6 +59,7 @@ class UnpaidOrderConcurrencyTest {
     @Mock private OpsExceptionService opsExceptionService;
     /** V325：欠款催缴阶梯（CB-011）。用 mock 避免本测试关心短信副作用。 */
     @Mock private UnpaidDunningService unpaidDunningService;
+    @Mock private com.aicabinet.trade.mapper.PayScoreOrderMapper payScoreOrderMapper;
 
     private UnpaidOrderService service;
 
@@ -74,10 +75,27 @@ class UnpaidOrderConcurrencyTest {
                 riskControlService, systemConfigService, weChatMiniAppClient,
                 weChatMiniAppProperties, settlementService, consumerPreauthService,
                 notificationService, distributedLockService, apiRateLimitService,
-                opsExceptionService, unpaidDunningService, new TrackingTxManager());
+                opsExceptionService, unpaidDunningService, new TrackingTxManager(), payScoreOrderMapper);
     }
 
     /** B1-B 形态钉：补缴入口不得再挂外层事务（否则行锁又会横跨渠道 HTTP）。 */
+    @Test
+    void staleUnlinkedPayscoreOrder_isReportedNotAutoCancelled() {
+        com.aicabinet.trade.domain.PayScoreOrder po = new com.aicabinet.trade.domain.PayScoreOrder();
+        po.setOutOrderNo("S-UNLINKED");
+        po.setUserId(10001L);
+        po.setCreatedAt(java.time.Instant.now().minus(3, java.time.temporal.ChronoUnit.HOURS));
+        when(payScoreOrderMapper.findUnlinkedBefore(any(java.time.Instant.class), eq(20)))
+                .thenReturn(java.util.List.of(po));
+
+        assertEquals(1, service.alertStaleUnlinkedPayscoreOrders());
+
+        verify(opsExceptionService).report(
+                eq("PAYSCORE_ORDER_UNLINKED"), eq("HIGH"),
+                any(OpsExceptionService.ExceptionReport.ExceptionRefs.class),
+                contains("支付分单"), contains("S-UNLINKED"));
+    }
+
     @Test
     void collectEntrypoints_haveNoOuterTransaction() throws Exception {
         assertNull(UnpaidOrderService.class.getMethod("collect", Long.class, String.class)
