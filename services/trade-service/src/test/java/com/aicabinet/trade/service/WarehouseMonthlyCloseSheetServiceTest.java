@@ -413,7 +413,7 @@ class WarehouseMonthlyCloseSheetServiceTest {
     class Export {
 
         @Test
-        void shouldProduceXlsxWith18FinancialColumns() throws Exception {
+        void shouldProduceXlsxWith19FinancialColumnsIncludingReturns() throws Exception {
             WarehouseMonthlyCloseSheet sheet = draftSheet(11L);
             when(sheetMapper.selectById(11L)).thenReturn(sheet);
             WarehouseMonthlyCloseLine row = sheetLine(21L, 11L, "SKU-A", -3, 1500L);
@@ -423,7 +423,10 @@ class WarehouseMonthlyCloseSheetServiceTest {
 
             assertTrue(bytes.length > 0);
             try (XSSFWorkbook wb = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
-                assertEquals(18, wb.getSheetAt(0).getRow(0).getLastCellNum(), "财务 18 列对齐");
+                var head = wb.getSheetAt(0).getRow(0);
+                assertEquals(19, head.getLastCellNum(), "财务 19 列对齐（补退货列后）");
+                assertEquals("退货", head.getCell(9).getStringCellValue(),
+                        "退货列必须在机器补货与损耗之间，否则恒等式无法复算");
             }
         }
     }

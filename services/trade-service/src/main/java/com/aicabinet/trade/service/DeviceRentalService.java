@@ -399,14 +399,23 @@ public class DeviceRentalService {
             insertEvent(deposit.getDepositId(), DeviceRentalDeposit.EVENT_RETURN, -unitThisMonth,
                     "按月退还（第 " + monthFromStart + "/" + threshold + " 个月）", null);
             processed++;
-            boolean last = monthFromStart == threshold;
-            if (last) {
+            // F4/BR16：余额扣到 0 也必须落终态，否则押金永远 HELD、月退任务每月空转。
+            // 期满（threshold）才发期满奖励；只是余额提前退完的，只结清不发奖。
+            long remaining = deposit.getBalanceCents() - unitThisMonth;
+            boolean expired = monthFromStart == threshold;
+            boolean fullyReturned = remaining <= 0;
+            if (expired || fullyReturned) {
                 DeviceRentalDeposit fresh = depositMapper.selectById(deposit.getDepositId());
                 fresh.setStatus(DeviceRentalDeposit.STATUS_SETTLED);
                 fresh.setSettledAt(Instant.now(clock));
                 fresh.setUpdatedAt(Instant.now(clock));
-                depositMapper.updateById(fresh);
-                long reward = deposit.getExpireRewardCents() == null ? 0L : deposit.getExpireRewardCents();
+                // 并发/重跑保护：只有仍是 HELD 才结清，避免覆盖更晚的状态。
+                depositMapper.update(fresh, com.baomidou.mybatisplus.core.toolkit.Wrappers
+                        .<DeviceRentalDeposit>lambdaUpdate()
+                        .eq(DeviceRentalDeposit::getDepositId, fresh.getDepositId())
+                        .eq(DeviceRentalDeposit::getStatus, DeviceRentalDeposit.STATUS_HELD));
+                long reward = expired && deposit.getExpireRewardCents() != null
+                        ? deposit.getExpireRewardCents() : 0L;
                 if (reward > 0) {
                     merchantWalletService.creditIfAbsent(deposit.getMerchantId(), reward,
                             "DEPOSIT_EXPIRE_REWARD", "RENTAL_DEPOSIT_REFUND",

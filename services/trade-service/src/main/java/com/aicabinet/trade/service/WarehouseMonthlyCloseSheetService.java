@@ -287,7 +287,7 @@ public class WarehouseMonthlyCloseSheetService {
     public byte[] exportXlsx(Long closeId) {
         WarehouseCloseSheetDto sheet = getSheet(closeId);
         String[] headers = {"库存月份", "分仓名称", "商品sku", "商品全称", "上期盘点", "采购入库",
-                "仓库调入", "仓库外调", "机器补货", "摇机损耗", "过期损耗", "客情用水", "费用抵扣",
+                "仓库调入", "仓库外调", "机器补货", "退货", "摇机损耗", "过期损耗", "客情用水", "费用抵扣",
                 "仓库应有", "实际盘点数", "差异", "单价", "金额"};
         try (XSSFWorkbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet xs = wb.createSheet("月结");
@@ -317,6 +317,9 @@ public class WarehouseMonthlyCloseSheetService {
                 row.createCell(c++).setCellValue(l.transferInQty());
                 row.createCell(c++).setCellValue(l.transferOutQty());
                 row.createCell(c++).setCellValue(l.restockQty());
+                // F4/BR11：退货列此前只存在于 DTO，没有导出 ⇒ 期初+采购+调入−外调−补货−退货
+                // 这条恒等式在 Excel 里无法复算（只能回代码里看）。
+                row.createCell(c++).setCellValue(l.returnQty());
                 row.createCell(c++).setCellValue(l.rockLossQty());
                 row.createCell(c++).setCellValue(l.expiredLossQty());
                 row.createCell(c++).setCellValue(l.guestWaterQty());
