@@ -59,7 +59,10 @@ assert.ok(
 );
 
 // R2：拿掉汇总裸数量读取
-writeFileSync(join(DIR, INV), goodInv.replace('rawAggregateQuantity(deviceId, item.skuId()) > 0', 'false'));
+writeFileSync(
+  join(DIR, INV),
+  goodInv.replace('rawAggregateQuantity(deviceId, item.skuId()) > 0', 'false')
+);
 assert.ok(
   gate.evaluate(BOX).some((e) => e.includes('R2')),
   'R2 未判红'
