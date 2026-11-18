@@ -2055,6 +2055,43 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "48d33cee",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-354",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/DataConsistencyService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+            "scripts/check-settlement-split.mjs",
+            "scripts/check-settlement-split.test.mjs"
+          ]
+        }
+      ]
+    },
+    {
+      "commit": "f0b2cbeb",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "MA-355",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceRentalService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/DeviceRentalServiceTest.java"
+          ]
+        },
+        {
+          "id": "MA-356",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/WarehouseMonthlyCloseSheetService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/WarehouseMonthlyCloseSheetServiceTest.java"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [

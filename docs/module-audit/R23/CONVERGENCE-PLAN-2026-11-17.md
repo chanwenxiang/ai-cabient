@@ -44,8 +44,8 @@
 |---|---|---|---|---|
 | F1 | 可观测性自证 ✅`9f0da9c2` | 4 | J1 J2 J3 J9 J14 J15 J16 N-04 | 让「任务停跑」这件事自己暴露出来 |
 | F2 | 设备范围闸形态 ✅`d37a02e5` | 1 | N-01 N-05 N-06 L-09 | 闸从拦截器下沉到 service 入口 |
-| F3 | 结算/对账事务边界 ⬓`973caf60`（主链/争议已拆段，退款 HTTP 待办） | 3 | ①/BR5 BR3 J4 J8 ⑧ ⑨ | 拆成 prepare → HTTP → finalize |
-| F4 | 库存/月结账实 ⬓`d9cbbad5`（3 项已修，恒等式/口径 4 项待产品拍板） | 1 | BR9 BR10 BR11 BR13 BR14 BR15 BR16 BR1 BR2 月账单利润 | 判据改 SKU 级 + 加恒等式 |
+| F3 | 结算/对账事务边界 ✅`48d33cee` | 3 | ①/BR5 BR3 J4 J8 ⑧ ⑨ | 拆成 prepare → HTTP → finalize |
+| F4 | 库存/月结账实 ✅`f0b2cbeb`（口径已拍板） | 1 | BR9 BR10 BR11 BR13 BR14 BR15 BR16 BR1 BR2 月账单利润 | 判据改 SKU 级 + 加恒等式 |
 | F5 | 状态机/快照覆盖 ✅`0cd3bd58` | 0 | J5 J6 BR12 BR17 BR18 BR19 | 一切状态写入带 `WHERE status=快照态` |
 | F6 | 幂等/重试窗口 ✅`df9d7cb4` | 0 | J10 BR4 BR6 BR7 | 幂等键不含可变 ID |
 | F7 | 部署可复现 ⬓`442fabc7`（J11/xxljob 已关；drift/备份/ECS/admin SHA 待取证） | 5 | J11 L-03 L-04 N-02 N-03 N-10 | 部署链与迁移链可重放 |
@@ -432,6 +432,18 @@ trade-service 全量 3250/0。
 - `PaymentOperationMapper#findStaleChargePending` 缺 SQL（F3a 引入），对账巡检每轮
   `Invalid bound statement` 被定时任务日志吞掉 ⇒ 实际从未跑过。补 `@Select` 后本地
   `ConsumerE2ETest` 11/0、1m15。
+
+---
+
+### F3 收尾 + F4 拍板（2026-11-18，`48d33cee` / `f0b2cbeb`）
+
+- F3 最后一项：一致性修复拆成 `applyFixInTx`（DB 修复 + 收集退款意图）→ `doRefundOutsideTx`（渠道退款 + 分账回算）→ `markFixedInTx`；退款未确认不标 FIXED，记录留 FAIL 可重试。
+- F4 三项拍板：
+  1. **索赔维持全额**（差异金额全额，损耗列只展示不抵扣）—— 已加注释 + 测试钉住；
+  2. **满期免安装费**（任何分支 fee=0）—— 已改 + 测试；
+  3. **期初唯一键不新增**：V483 已有 `uq_lot_device_sku_batch`，且该迁移明确禁止自动合并重复行；用户选的「迁移先去重」与既有设计冲突，按既有设计为准（不自动动库存真值）。
+
+至此 F1–F8 的代码可修项全部收口；剩余只有 F7 的四项运维取证（drift 证据 / 备份落 OSS / ECS 通道 / admin SHA），需要真实环境动作。
 
 ---
 
