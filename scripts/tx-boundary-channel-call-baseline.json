@@ -1,0 +1,29 @@
+{
+  "_note": "check-tx-boundary-channel-call 的存量豁免（棘轮只降不升）。每条必须带 reason；方法修完后必须摘掉条目，否则 R2 判红（防永久免检）。2026-11-18 F3b 首跑：1100 个 @Transactional 方法里 6 处直调渠道，全部为「外部事实先于本地事务」的已知形态，逐条登记并在 CONVERGENCE-PLAN F3b 中排期。跨服务多跳链（SettlementSettleOrchestrator→finalizeOrder→chargeOrder、DataConsistencyService→refundOverchargeIfNeeded→refundOrder）静态扫描不覆盖，按计划条目推进，不在此登记。",
+  "entries": [
+    {
+      "key": "services/trade-service/src/main/java/com/aicabinet/trade/service/AdRevenueSyncService.java#syncEstimates",
+      "reason": "流量主估算拉取：只读外部报表，HTTP 失败直接抛不落库；本地写入按天幂等，不存在「外部扣钱本地回滚」。F7 部署批次可顺手把拉取移到事务外。"
+    },
+    {
+      "key": "services/trade-service/src/main/java/com/aicabinet/trade/service/AdRevenueSyncService.java#syncSettlements",
+      "reason": "流量主结算拉取：同上，只读外部结算单；sett_status 2/3/5 才落库，HTTP 与事务不构成资金不可逆动作。"
+    },
+    {
+      "key": "services/trade-service/src/main/java/com/aicabinet/trade/service/LineManagerService.java#identityVerify",
+      "reason": "实名核验调用第三方：本地只记核验结果；外部核验不可回滚，回滚本地记录最多导致重复核验（有幂等），无资损。"
+    },
+    {
+      "key": "services/trade-service/src/main/java/com/aicabinet/trade/service/PayScoreService.java#openServiceOrderForShopping",
+      "reason": "F3b-2 刚把建单挪到冻结判据之前（本次会话是否真有支付分单）。仍是事务内 HTTP，外部建单成功而本地回滚会留微信侧孤儿单；排期在 F3b 拆段时把 HTTP 挪到 prepare 提交之后。"
+    },
+    {
+      "key": "services/trade-service/src/main/java/com/aicabinet/trade/service/PayScoreService.java#completeWechatOrderForSession",
+      "reason": "支付分完结（扣款）由 DONE 回调/补缴成功后触发；完结失败本地留 COMPLETE_FAILED 痕迹供补偿，回调链已有幂等。排期同 F3b 拆段。"
+    },
+    {
+      "key": "services/trade-service/src/main/java/com/aicabinet/trade/service/PayScoreService.java#cancelWechatOrderForSession",
+      "reason": "支付分取消是**释放**资金授权，失败留 CANCEL_FAILED 痕迹供对账；与扣款方向相反，回滚不会造成多扣。排期同 F3b 拆段。"
+    }
+  ]
+}
