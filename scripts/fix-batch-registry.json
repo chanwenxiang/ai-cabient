@@ -1951,6 +1951,47 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "0cd3bd58",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 4,
+      "items": [
+        {
+          "id": "MA-345",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/CompensationTaskMapper.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/CompensationTaskScheduler.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/CompensationTaskSchedulerTest.java"
+          ]
+        },
+        {
+          "id": "MA-346",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/PaymentOperationMapper.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/OrderPaymentService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/RefundRetryScheduler.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/RefundRetrySchedulerTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/OrderPaymentRefundRetryTraceTest.java"
+          ]
+        },
+        {
+          "id": "MA-347",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantSettlementBillService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/MerchantSettlementBillRebuildTest.java"
+          ]
+        },
+        {
+          "id": "MA-348",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SessionService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SessionServiceRecoveryTest.java",
+            "scripts/check-status-cas.mjs",
+            "scripts/check-status-cas.test.mjs"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
