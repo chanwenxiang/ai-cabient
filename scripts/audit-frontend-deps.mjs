@@ -21,7 +21,13 @@ const IGNORE_GHSAS = new Set([
   'GHSA-fx2h-pf6j-xcff', // vite high — uni 传递
   'GHSA-4w7w-66w2-5vf9', // vite moderate — uni 传递
   'GHSA-v6wh-96g9-6wx3', // vite moderate — uni 传递
-  'GHSA-67mh-4wv8-2f99' // esbuild moderate — uni 传递
+  'GHSA-67mh-4wv8-2f99', // esbuild moderate — uni 传递
+  // 2026-11-18 CI 新报：picomatch <=4.0.7 ReDoS，经 @dcloudio/uni-cli-shared →
+  // @rollup/pluginutils / unimport 进入，只参与 uni 编译期的 glob 展开，不进 mp-weixin 产物。
+  // npm advisory 的 patched_versions = "<0.0.0"、recommendation = "None" ⇒ **官方尚无修复版本**，
+  // 且 uni 工具链锁版本不能单独大升（铁律 22）。触发条件是恶意 glob 模式，非用户可控输入。
+  // 升级 uni 工具链或官方出补丁后必须删掉本条。
+  'GHSA-fc5q-39xc-vjpf' // picomatch high — uni 编译期传递，无 OSS 修复
 ]);
 
 const SEVERITY_RANK = { critical: 4, high: 3, moderate: 2, low: 1, info: 0 };
