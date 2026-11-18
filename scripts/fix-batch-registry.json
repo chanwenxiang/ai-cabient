@@ -2092,6 +2092,21 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "23267eb9",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-357",
+          "files": [
+            "scripts/check-prod-env-secrets.sh",
+            "infra/.env.production.example",
+            "package.json"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
