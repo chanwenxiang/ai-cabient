@@ -67,7 +67,8 @@ class SettlementUncollectedLegsTest {
                 sessionRepository, orderRepository, orderLineRepository, deviceValidationService,
                 inventoryService, orderPaymentService, userValidationService, couponService, memberService,
                 revenueSplitService, notificationService, displaySnapshotHelper,
-                orderSupport, opsExceptionService, riskControlService);
+                orderSupport, opsExceptionService, riskControlService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
 
         doAnswer(inv -> {
             CabinetOrder o = inv.getArgument(0);

@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.OrderReadModel;
 import com.aicabinet.trade.recognition.RecognitionOutcome;
+import com.aicabinet.trade.recognition.RecognizedItem;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.StagingProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
@@ -89,17 +90,20 @@ public class SettlementRecognitionService {
         }
     }
 
-    OrderReadModel processRecognitionResultUnlocked(ShoppingSession session,
+    /** 识别决策结果：early 非空=直接返回（已存在订单）；否则 items 交结算落单。 */
+    record RecognitionPlan(OrderReadModel early, List<RecognizedItem> items) {}
+
+    RecognitionPlan processRecognitionResultUnlocked(ShoppingSession session,
                                                     RecognitionOutcome recognition) {
         return processRecognitionResultUnlocked(session, recognition, true);
     }
 
-    OrderReadModel processRecognitionResultUnlocked(ShoppingSession session,
+    RecognitionPlan processRecognitionResultUnlocked(ShoppingSession session,
                                                     RecognitionOutcome recognition,
                                                     boolean allowDevFallback) {
         var existingOrder = orderRepository.findBySessionId(session.getSessionId());
         if (existingOrder.isPresent()) {
-            return orderSupport.toDto(existingOrder.get());
+            return new RecognitionPlan(orderSupport.toDto(existingOrder.get()), List.of());
         }
 
         session.setRecognitionTaskId(recognition.taskId());
@@ -112,15 +116,14 @@ public class SettlementRecognitionService {
         recordRecognitionResult(session, recognition);
 
         escalateIfHumanReviewRequired(session, recognition);
-        OrderReadModel early = trySettleEmptyRecognition(session, recognition);
-        if (early != null) {
-            return early;
+        if (trySettleEmptyRecognition(session, recognition)) {
+            return new RecognitionPlan(null, List.of());
         }
 
         if (skipConfidenceGate(allowDevFallback)) {
             log.info("dev mock settle session={} cartItems={}",
                     session.getSessionId(), recognition.items().size());
-            return settlement.finalizeOrder(session, recognition.items());
+            return new RecognitionPlan(null, recognition.items());
         }
 
         String confidenceReason = confidenceService.reviewReasonIfNeeded(recognition);
@@ -134,7 +137,7 @@ public class SettlementRecognitionService {
 
         // 旧「识别入驻白名单」闸已随旧链退役（2026-10-11）：将邑链的准入=classId 映射激活
         // （未命中在 gateway 即 fail-closed 转 DISPUTED），置信度闸在上方 confidenceService。
-        return settlement.finalizeOrder(session, recognition.items());
+        return new RecognitionPlan(null, recognition.items());
     }
 
     /**
@@ -157,20 +160,20 @@ public class SettlementRecognitionService {
     }
 
     /** 识别无商品：自动零结 / 进审单。 */
-    private OrderReadModel trySettleEmptyRecognition(ShoppingSession session,
-                                                     RecognitionOutcome recognition) {
+    private boolean trySettleEmptyRecognition(ShoppingSession session,
+                                              RecognitionOutcome recognition) {
         if (!recognition.items().isEmpty()) {
-            return null;
+            return false;
         }
         // 竞品口径：识别为空且政策允许自动零结 → 未取货/拿了又放回，自动零结；
         // 政策关闭时生产仍进争议（防摄像头静默失败）。
         if (shouldAutoCompleteEmptyCart()) {
             log.info("empty cart auto-complete session={} device={}",
                     session.getSessionId(), session.getDeviceId());
-            return settlement.finalizeOrder(session, List.of());
+            return true;
         }
         escalateToDispute(session, recognition, "未识别到商品，需人工审核");
-        return null;
+        return false;
     }
 
     /**

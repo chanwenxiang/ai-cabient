@@ -161,7 +161,8 @@ class SettlementOrderFinalizeAmountTest {
                 sessionRepository, orderRepository, orderLineRepository, deviceValidationService,
                 inventoryService, orderPaymentService, userValidationService, couponService, memberService,
                 revenueSplitService, notificationService, displaySnapshotHelper,
-                orderSupport, opsExceptionService, riskControlService);
+                orderSupport, opsExceptionService, riskControlService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
 
         // 行金额=会员折后 343（无活动），券 ¥2 ⇒ 选中后应付 143；扣款 412 失败 ⇒ 还原 343 并摘券
         org.mockito.Mockito.doAnswer(inv -> {

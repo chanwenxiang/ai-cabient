@@ -13,7 +13,10 @@ import com.aicabinet.trade.util.BizIds;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
@@ -45,6 +48,8 @@ public class SettlementOrderFinalizeService {
     /** 记欠款风控事件（让逃单在运营台可见）。 */
     private final RiskControlService riskControlService;
     private final SettlementOrderSupport orderSupport;
+    /** 经 Spring 代理调用本类的短事务方法，避免自调用失效。 */
+    private final SettlementOrderFinalizeService self;
 
     public SettlementOrderFinalizeService(ShoppingSessionMapper sessionRepository,
                                           CabinetOrderMapper orderRepository,
@@ -60,7 +65,8 @@ public class SettlementOrderFinalizeService {
                                           DisplaySnapshotHelper displaySnapshotHelper,
                                           SettlementOrderSupport orderSupport,
                                           OpsExceptionService opsExceptionService,
-                                          RiskControlService riskControlService) {
+                                          RiskControlService riskControlService,
+                                          @Lazy SettlementOrderFinalizeService self) {
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
         this.orderLineRepository = orderLineRepository;
@@ -76,10 +82,59 @@ public class SettlementOrderFinalizeService {
         this.orderSupport = orderSupport;
         this.opsExceptionService = opsExceptionService;
         this.riskControlService = riskControlService;
+        this.self = self;
     }
 
+    /**
+     * 落单编排（F3b 拆段）：prepare（短事务落单/扣库存）→ charge（事务外渠道 HTTP）
+     * → finalize（短事务收口分账/券/会话）。
+     *
+     * <p>为什么必须拆：旧实现整段在一个 {@code @Transactional} 里，渠道 HTTP 期间一直持有
+     * {@code shopping_session}/订单行锁；弱网时锁被钉住，重试还会换 orderId 再扣。
+     * 拆段后「渠道已扣、本地后续失败」由 CHARGE_PENDING 痕迹 + 对账兜底，订单落 PENDING 走补缴
+     * （2026-11-18 用户拍板语义）；重试的幂等由 `CHARGE:S:<sessionId>` 键保证。</p>
+     */
     OrderReadModel finalizeOrder(ShoppingSession session,
                                  List<RecognizedItem> items) {
+        SettlementPrep prep = self.prepareSettlement(session, items);
+        if (prep.earlyDto() != null) {
+            return prep.earlyDto();
+        }
+        CabinetOrder order = prep.order();
+        try {
+            orderPaymentService.chargeOrder(order);
+        } catch (BalanceInsufficientException e) {
+            // 信号化不足：扣款已发出但没收到回执，欠款原因与普通失败不同
+            return self.settleAsPending(session, order, e.getMessage(), "CHARGE_UNCONFIRMED");
+        } catch (ResponseStatusException e) {
+            if (!isInsufficientBalance(e)) {
+                throw e;
+            }
+            return self.settleAsPending(session, order, e.getMessage(), "CHARGE_FAILED");
+        }
+        OrderReadModel dto = self.finalizePaidSettlement(session, order, prep.coupon());
+        // 痕迹收口放在 finalize 事务提交之后：finalize 失败则保持 PENDING 供对账捞取，
+        // 绝不出现「痕迹 FINALIZED、本地却没记账」的不可见缺口。
+        try {
+            orderPaymentService.finalizeChargePending(order.getOrderId(), order.getPayTradeNo());
+        } catch (Exception e) {
+            log.warn("finalize charge trace failed after settle order={}", order.getOrderId(), e);
+        }
+        return dto;
+    }
+
+    /** prepare 结果：未支付时直接带回可返回的 DTO。 */
+    record SettlementPrep(CabinetOrder order, CouponService.BestCoupon coupon, OrderReadModel earlyDto) {}
+
+    /** 短事务①：落单 + 扣库存 + 绑券（不接触渠道）。 */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public SettlementPrep prepareSettlement(ShoppingSession session, List<RecognizedItem> items) {
+        // 幂等：并发/重投时已有订单直接返回（旧 settleManual 的重复判定移到这里，
+        // 因为它现在不在事务里，读-判-写必须收进 prepare 的短事务）。
+        var existing = orderRepository.findBySessionId(session.getSessionId());
+        if (existing.isPresent()) {
+            return new SettlementPrep(existing.get(), null, orderSupport.toDto(existing.get()));
+        }
         deviceValidationService.ensureSettlementAllowed(session.getDeviceId());
         CabinetOrder order = buildOrder(session, items);
         // v1 活动（CB-082）：命中活动价的订单**禁用券**（用户 2026-11-01 拍板：活动优先）
@@ -104,11 +159,15 @@ public class SettlementOrderFinalizeService {
             // 🔴 记风控事件：欠款在风控台必须可见（此前完全隐形，运营既没法催缴也没法统计）
             riskControlService.onUnpaidOrderCreated(order.getUserId(), order.getDeviceId(),
                     order.getOrderId(), "PRE_CHARGE", order.getTotalAmountCents());
-            return finishUnpaidOrder(session, order);
+            return new SettlementPrep(order, null, finishUnpaidOrder(session, order));
         }
-        if (!tryChargeSettledOrder(session, order)) {
-            return orderSupport.toDto(order);
-        }
+        return new SettlementPrep(order, appliedCoupon, null);
+    }
+
+    /** 短事务③：钱已到账后的收口（冻结毛额 / 券核销 / 分账 / 会话绑定 / 会员与通知）。 */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public OrderReadModel finalizePaidSettlement(ShoppingSession session, CabinetOrder order,
+                                          CouponService.BestCoupon appliedCoupon) {
         // F-9（CB-057）：钱已收到 ⇒ 立刻冻结毛额。此后 total 会被部分退款摊薄、
         // 被争议改单回写，佣金基数只认这一列，不再跟着 total 漂。
         orderPaymentService.freezePaidAmount(order);
@@ -135,8 +194,8 @@ public class SettlementOrderFinalizeService {
                                 + " couponId=" + appliedCoupon.couponId() + " err=" + e.getMessage());
             }
         }
-        // recordSplit 刻意**不**包 try：分账/钱包入账是资金动作，失败必须随结算事务整体
-        // 回滚（扣款一并回滚、结算可重试）——吞掉会留下「已扣款、无分账」的资损黑洞。
+        // recordSplit 刻意**不**包 try：分账/钱包入账是资金动作，失败必须随本事务整体
+        // 回滚（订单已落库、扣款已完成，由对账/补记收敛，不能静默无分账）。
         revenueSplitService.recordSplit(order);
         session.setOrderId(order.getOrderId());
         sessionRepository.save(session);
@@ -170,6 +229,21 @@ public class SettlementOrderFinalizeService {
         log.info("settled session={} order={} amount={} couponDiscount={} channel={}",
                 session.getSessionId(), order.getOrderId(), order.getTotalAmountCents(),
                 order.getCouponDiscountCents(), order.getPayChannel());
+        return orderSupport.toDto(order);
+    }
+
+    /** 短事务③'：扣款失败/结果不明 → 落 PENDING，交补缴或对账，不把整笔结算判死。 */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public OrderReadModel settleAsPending(ShoppingSession session, CabinetOrder order,
+                                   String reason, String phase) {
+        clearCouponSelection(order);
+        markPendingAndDropCoupon(order);
+        riskControlService.onUnpaidOrderCreated(order.getUserId(), order.getDeviceId(),
+                order.getOrderId(), phase, order.getTotalAmountCents());
+        session.setOrderId(order.getOrderId());
+        sessionRepository.save(session);
+        log.info("unpaid order after charge fail session={} order={} amount={} reason={} phase={}",
+                session.getSessionId(), order.getOrderId(), order.getTotalAmountCents(), reason, phase);
         return orderSupport.toDto(order);
     }
 

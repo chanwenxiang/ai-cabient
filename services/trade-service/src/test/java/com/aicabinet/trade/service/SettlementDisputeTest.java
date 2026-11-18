@@ -85,7 +85,8 @@ class SettlementDisputeTest {
                 inventoryService, orderPaymentService, userValidationService, couponService, memberService,
                 revenueSplitService, notificationService, displaySnapshotHelper,
                 orderSupport, org.mockito.Mockito.mock(OpsExceptionService.class),
-                org.mockito.Mockito.mock(RiskControlService.class));
+                org.mockito.Mockito.mock(RiskControlService.class), null);
+        org.springframework.test.util.ReflectionTestUtils.setField(finalizeSvc, "self", finalizeSvc);
         SettlementRecognitionService recognitionSvc = new SettlementRecognitionService(
                 sessionRepository, orderRepository, confidenceService,
                 securityProperties, stagingProperties, systemConfigService,

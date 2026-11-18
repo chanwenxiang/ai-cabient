@@ -151,26 +151,22 @@ public class SettlementConfirmDisputeService {
         }
     }
 
-    @Transactional(noRollbackFor = {BalanceInsufficientException.class})
+    /**
+     * F3b：首扣腿不再包在外层事务里——先做一次无锁读判定，无订单直接交给
+     * {@link SettlementService#finalizeOrder}（它自己 prepare → charge → finalize）；
+     * 有订单才进 {@link #prepareAdjustInTx} 短事务做 forUpdate 计算。
+     */
     public ConfirmDisputePrep prepareConfirmDispute(String sessionId,
                                                     List<RecognizedItem> items) {
         if (items == null || items.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DISPUTE_ITEMS_REQUIRED);
         }
-        sessionRepository.findByIdForUpdate(sessionId);
         ShoppingSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-        // R20 P2-3（2026-11-12）：非消费者会话（补货 / 运维远程 / 盘点）不得走到这里。
-        // 这条是「建消费单 + 扣款」的唯一汇聚点（无订单时 finalizeOrder 全新落单、
-        // 有订单时补差扣款），此前只判会话状态与订单状态，于是补货员开门被设备迟到识别
-        // 报到「有货未结算」后，运营在争议单上点确认就能从**补货员的余额**里扣出这笔货款——
-        // 货是商户自己搬进柜子的，钱却记在员工头上。闸放在汇聚点而不是只放投诉入口：
-        // 迟到识别兜账（rescueCancelledSessionWithLateRecognition）与超时转争议都不经过消费者入口。
         if (DeviceValidationService.isNonConsumerSession(session)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     ApiMessages.NON_CONSUMER_SESSION_NOT_SETTLEABLE);
         }
-
         var existing = orderRepository.findBySessionId(sessionId);
         if (existing.isEmpty()) {
             OrderReadModel order = settlement.finalizeOrder(session, items);
@@ -178,8 +174,23 @@ public class SettlementConfirmDisputeService {
             return ConfirmDisputePrep.firstCharge(
                     new SettlementService.ConfirmDisputeResult(order, 0, amount, amount));
         }
+        return self.prepareAdjustInTx(sessionId, items);
+    }
 
-        CabinetOrder order = existing.get();
+    /** 改单准备（短事务）：只做 forUpdate 读取与纯计算，不写库存/订单。 */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW,
+            noRollbackFor = {BalanceInsufficientException.class})
+    public ConfirmDisputePrep prepareAdjustInTx(String sessionId, List<RecognizedItem> items) {
+        sessionRepository.findByIdForUpdate(sessionId);
+        ShoppingSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        if (DeviceValidationService.isNonConsumerSession(session)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    ApiMessages.NON_CONSUMER_SESSION_NOT_SETTLEABLE);
+        }
+        CabinetOrder order = orderRepository.findBySessionId(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT,
+                        "订单已被并发处理，请刷新后重试"));
         orderSupport.hydrateOrderLines(order);
         if (CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_ALREADY_REFUNDED);
@@ -211,8 +222,6 @@ public class SettlementConfirmDisputeService {
             userValidationService.validateSufficientBalanceForCharge(session.getUserId(), delta);
         }
 
-        // C06：prepare 只做纯读计算与预校验，不写库存/订单；
-        // 库存调整挪到 finalize（支付差额成功之后），支付失败时不做任何库存变更。
         log.info("dispute confirm prepare session={} order={} original={} final={} delta={}",
                 sessionId, order.getOrderId(), originalPayable, finalTotal, delta);
         return ConfirmDisputePrep.adjust(order, originalPayable, finalTotal, delta,

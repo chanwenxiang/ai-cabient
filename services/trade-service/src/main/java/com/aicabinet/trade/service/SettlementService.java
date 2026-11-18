@@ -116,16 +116,13 @@ public class SettlementService {
         return "识别结果需人工审核";
     }
 
-    @Transactional
+    /**
+     * 人工补录结算。F3b：不再自带外层事务——重复判定与落单都收进
+     * {@link SettlementOrderFinalizeService#prepareSettlement} 的短事务，渠道 HTTP 在事务外。
+     */
     public OrderReadModel settleManual(ShoppingSession session,
                                  List<RecognizedItem> items) {
-        return runWithSessionSettleLock(session.getSessionId(), () -> {
-            sessionRepository.findByIdForUpdate(session.getSessionId());
-            if (orderRepository.findBySessionId(session.getSessionId()).isPresent()) {
-                return orderSupport.toDto(orderRepository.findBySessionId(session.getSessionId()).get());
-            }
-            return finalizeOrder(session, items);
-        });
+        return runWithSessionSettleLock(session.getSessionId(), () -> finalizeOrder(session, items));
     }
 
     /**

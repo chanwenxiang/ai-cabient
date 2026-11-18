@@ -458,7 +458,6 @@ class SettlementConfirmDisputeTest {
         restock.setUserId(100000011L);
         restock.setDeviceId("CAB-1");
         restock.setReplenishmentTaskId(9L);
-        when(sessionRepository.findByIdForUpdate("S-RS")).thenReturn(Optional.of(restock));
         when(sessionRepository.findById("S-RS")).thenReturn(Optional.of(restock));
 
         org.springframework.web.server.ResponseStatusException ex =

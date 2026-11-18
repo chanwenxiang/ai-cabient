@@ -8,6 +8,7 @@ import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -73,12 +74,34 @@ public class SettlementSettleOrchestrator {
         });
     }
 
-    /** 识别已完成：短事务内 forUpdate + 落单/扣款。 */
-    @Transactional(noRollbackFor = {DisputeRequiredException.class, BalanceInsufficientException.class})
+    /**
+     * 识别已完成：识别决策在短事务内，落单/扣款交给 {@link SettlementService#finalizeOrder}
+     * （F3b：渠道 HTTP 不再被外层事务包裹）。
+     */
     public OrderReadModel processRecognitionAfterVision(ShoppingSession session,
                                                         RecognitionOutcome recognition) {
+        return settleDecision(session, recognition, true);
+    }
+
+    /** 决策事务（forUpdate + 识别落库 + 争议分流）与落单事务彻底分开。 */
+    @Transactional(propagation = Propagation.REQUIRES_NEW,
+            noRollbackFor = {DisputeRequiredException.class, BalanceInsufficientException.class})
+    public SettlementRecognitionService.RecognitionPlan decideRecognition(ShoppingSession session,
+                                                                   RecognitionOutcome recognition,
+                                                                   boolean allowDevFallback) {
         sessionRepository.findByIdForUpdate(session.getSessionId());
-        return settlementRecognitionService.processRecognitionResultUnlocked(session, recognition);
+        return settlementRecognitionService.processRecognitionResultUnlocked(
+                session, recognition, allowDevFallback);
+    }
+
+    private OrderReadModel settleDecision(ShoppingSession session, RecognitionOutcome recognition,
+                                          boolean allowDevFallback) {
+        SettlementRecognitionService.RecognitionPlan plan =
+                self.decideRecognition(session, recognition, allowDevFallback);
+        if (plan.early() != null) {
+            return plan.early();
+        }
+        return settlement.finalizeOrder(session, plan.items());
     }
 
     @Transactional(noRollbackFor = {DisputeRequiredException.class, BalanceInsufficientException.class})
@@ -99,15 +122,16 @@ public class SettlementSettleOrchestrator {
         // 原实现 @Transactional 包住 runWithSessionSettleLock，Redis 等锁期间每个请求挂死
         // 一个 DB 连接，10 并发即耗尽连接池。事务边界移入 self 代理的 Tx 方法。
         return settlement.runWithSessionSettleLock(session.getSessionId(), () ->
-                self.processRecognitionResultInTx(session, recognition, allowDevFallback));
+                settleDecision(session, recognition, allowDevFallback));
     }
 
-    @Transactional(noRollbackFor = {DisputeRequiredException.class, BalanceInsufficientException.class})
+    /**
+     * 历史方法名保留（被注释/文档引用）：现在只是「锁内编排」，不再自带长事务。
+     * 决策与落单各自短事务，渠道 HTTP 位于两者之间。
+     */
     public OrderReadModel processRecognitionResultInTx(ShoppingSession session,
                                                        RecognitionOutcome recognition,
                                                        boolean allowDevFallback) {
-        sessionRepository.findByIdForUpdate(session.getSessionId());
-        return settlementRecognitionService.processRecognitionResultUnlocked(
-                session, recognition, allowDevFallback);
+        return settleDecision(session, recognition, allowDevFallback);
     }
 }
