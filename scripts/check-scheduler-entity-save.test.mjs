@@ -239,16 +239,16 @@ function main() {
     });
     expectFinding(fixture, '整实体回写', 'Job 后缀应扫描');
 
-    // 10) 真仓：10 处 ↔ 10 条，24 类
+    // 10) 真仓：6 处 ↔ 5 条（markEarnLogsExpired count=2）
     const live = checkProject(ROOT);
     assert(live.ok, `真仓应绿，实际 ${JSON.stringify(live.findings)}`);
-    assert(live.hits.length === 10, `真仓应有 10 处读改写，实际 ${live.hits.length}`);
+    assert(live.hits.length === 6, `真仓应有 6 处读改写（F5 修复后），实际 ${live.hits.length}`);
     // 9 条**键**覆盖 10 处：PointsExpiryScheduler#markEarnLogsExpired 一条 count=2
     // （196/206 两处同一方法）。706dff7d 合并该对时把清单从 10 键降到 9 键，却没同步
     // 改这里写死的 10 ⇒ CI 一路红到本次推送才被发现（那 65 笔提交从未推过、CI 从未跑过）。
     // 所以除了钉死两个数，再加一条「Σcount == 站点数」的不变式：以后任何一次合并/新增
     // 只要两边不匹配就红，不再依赖有人记得改魔术数。
-    assert(live.allowlistCount === 9, `真仓应有 9 条清单（合并后），实际 ${live.allowlistCount}`);
+    assert(live.allowlistCount === 5, `真仓应有 5 条清单（F5 修复后），实际 ${live.allowlistCount}`);
     const allowlistJson = JSON.parse(
       readFileSync(resolve(ROOT, 'scripts/scheduler-entity-save-allowlist.json'), 'utf8')
     );
