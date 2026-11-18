@@ -12,7 +12,10 @@
 #   OSS_BACKUP_ENDPOINT     默认 oss-${OSS_BACKUP_REGION}.aliyuncs.com
 #   OSS_BACKUP_ACCESS_KEY_ID / OSS_BACKUP_ACCESS_KEY_SECRET
 #       未设置时回退 JIANGYI_OSS_ACCESS_KEY_ID / JIANGYI_OSS_ACCESS_KEY_SECRET
-#       （但该子账号默认只授权 jiangyi-video/*，写 backups/ 会 403，需补 RAM 策略）
+#   OSS_BACKUP_ROLE_ARN      可选；设置则用 STS AssumeRole 换临时凭据再上传
+#       （将邑子账号只有 AssumeRole 权限，直写任何 OSS 前缀都会 403；
+#        备份策略授给角色 jiangyivideoupload 时走这条）
+#   OSS_BACKUP_ROLE_SESSION  默认 aicabinet-backup
 #
 # 纪律：
 #   - 上传成功不等于归档成功：必须再 stat 一次远端对象，字节数与本地一致才退出 0；
@@ -33,25 +36,56 @@ OSS_BACKUP_REGION="${OSS_BACKUP_REGION:-cn-shenzhen}"
 OSS_BACKUP_ENDPOINT="${OSS_BACKUP_ENDPOINT:-oss-${OSS_BACKUP_REGION}.aliyuncs.com}"
 
 remote_key() {
-  # 只允许普通文件名，避免把路径分隔符带进 OSS key
-  local name
+  # 保留本地时间戳目录（20261118-175751/aicabinet.dump），否则每天覆盖同一个 key
+  local name dir
   name="$(basename "$1")"
+  dir="$(basename "$(dirname "$1")")"
   case "$name" in
     *[\/*]*) die "非法文件名: $name" ;;
   esac
-  echo "${OSS_BACKUP_PREFIX%/}/$name"
+  # 目录名必须形如 YYYYMMDD-HHMMSS，其他情况退回平铺，避免把任意路径带进 OSS
+  if ! printf '%s' "$dir" | grep -qE '^[0-9]{8}-[0-9]{6}$'; then
+    dir=""
+  fi
+  if [ -n "$dir" ]; then
+    echo "${OSS_BACKUP_PREFIX%/}/$dir/$name"
+  else
+    echo "${OSS_BACKUP_PREFIX%/}/$name"
+  fi
 }
 
 upload_and_verify() {
   local file="$1"
   [ -f "$file" ] || die "本地备份文件不存在: $file"
-  local size ak sk
+  local size ak sk token=""
   ak="${OSS_BACKUP_ACCESS_KEY_ID:-${JIANGYI_OSS_ACCESS_KEY_ID:-}}"
   sk="${OSS_BACKUP_ACCESS_KEY_SECRET:-${JIANGYI_OSS_ACCESS_KEY_SECRET:-}}"
   size="$(wc -c < "$file" | tr -d ' ')"
   [ "$size" -gt 0 ] || die "本地备份为空: $file"
   command -v ossutil >/dev/null 2>&1 || die "ossutil 未安装（/usr/local/bin/ossutil）"
   [ -n "$ak" ] && [ -n "$sk" ] || die "缺少 OSS 访问凭据（OSS_BACKUP_ACCESS_KEY_ID/SECRET）"
+
+  # 子账号只有 AssumeRole 权限时，先换临时凭据（临时 AK/SK/Token 只在本次进程内存里）
+  if [ -n "${OSS_BACKUP_ROLE_ARN:-}" ]; then
+    command -v aliyun >/dev/null 2>&1 || die "配置了 OSS_BACKUP_ROLE_ARN 但未安装 aliyun CLI"
+    command -v python3 >/dev/null 2>&1 || die "配置了 OSS_BACKUP_ROLE_ARN 但未安装 python3"
+    local sts
+    if ! sts="$(aliyun sts AssumeRole --RoleArn "$OSS_BACKUP_ROLE_ARN" \
+        --RoleSessionName "${OSS_BACKUP_ROLE_SESSION:-aicabinet-backup}" \
+        --DurationSeconds 3600 --cli-output json 2>/dev/null)"; then
+      die "STS AssumeRole 失败（检查 RAM 角色信任与子账号授权）"
+    fi
+    ak="$(printf '%s' "$sts" | python3 -c "import sys,json;print(json.load(sys.stdin)['Credentials']['AccessKeyId'])" 2>/dev/null)" \
+      || die "STS 返回无法解析"
+    sk="$(printf '%s' "$sts" | python3 -c "import sys,json;print(json.load(sys.stdin)['Credentials']['AccessKeySecret'])" 2>/dev/null)" \
+      || die "STS 返回无法解析"
+    token="$(printf '%s' "$sts" | python3 -c "import sys,json;print(json.load(sys.stdin)['Credentials']['SecurityToken'])" 2>/dev/null)" \
+      || die "STS 返回无法解析"
+    [ -n "$ak" ] && [ -n "$sk" ] && [ -n "$token" ] || die "STS 临时凭据不完整"
+  fi
+
+  local auth=(-i "$ak" -k "$sk")
+  [ -n "$token" ] && auth+=(-t "$token")
 
   local key remote
   key="$(remote_key "$file")"
@@ -60,7 +94,7 @@ upload_and_verify() {
   # 显式判退出码：函数被 if 调用时 set -e 不生效（bash 语义），不能靠它兜底
   if ! ossutil cp "$file" "$remote" -f \
     -e "$OSS_BACKUP_ENDPOINT" --region "$OSS_BACKUP_REGION" \
-    -i "$ak" -k "$sk" >/dev/null; then
+    "${auth[@]}" >/dev/null; then
     die "上传失败: $remote"
   fi
 
@@ -68,10 +102,11 @@ upload_and_verify() {
   local meta remote_size
   if ! meta="$(ossutil stat "$remote" \
     -e "$OSS_BACKUP_ENDPOINT" --region "$OSS_BACKUP_REGION" \
-    -i "$ak" -k "$sk" 2>/dev/null)"; then
+    "${auth[@]}" 2>/dev/null)"; then
     die "远端对象 stat 失败: $remote"
   fi
-  remote_size="$(printf '%s' "$meta" | sed -nE 's/.*"Content-Length"[[:space:]]*:[[:space:]]*"?([0-9]+)"?.*/\1/p' | head -1)"
+  # stat 默认输出是表格（Content-Length : 123），也兼容 JSON 形态
+  remote_size="$(printf '%s' "$meta" | sed -nE 's/.*Content-Length[^0-9]*([0-9]+).*/\1/p' | head -1)"
   [ -n "$remote_size" ] || die "无法从 stat 解析 Content-Length: $remote"
   [ "$remote_size" = "$size" ] || die "远端字节数不一致 local=$size remote=$remote_size ($remote)"
 
@@ -148,8 +183,30 @@ FAKE
     bad=$((bad + 1))
   fi
 
-  if [ "$ok" -eq 1 ] && [ "$bad" -eq 3 ]; then
-    log "OK：1 条绿 + 3 条红（字节不一致/上传失败/缺凭据）"
+  # 配了 ROLE_ARN：应走 AssumeRole 换临时凭据后上传
+  cat > "$tmp/bin/aliyun" <<'FAKE'
+#!/usr/bin/env bash
+echo '{"Credentials":{"AccessKeyId":"tmp-ak","AccessKeySecret":"tmp-sk","SecurityToken":"tmp-token"}}'
+FAKE
+  chmod +x "$tmp/bin/aliyun"
+  cat > "$tmp/bin/ossutil" <<'FAKE'
+#!/usr/bin/env bash
+case "$1" in
+  cp) exit 0 ;;
+  stat) echo '{"Content-Length":"8"}'; exit 0 ;;
+  *) exit 0 ;;
+esac
+FAKE
+  chmod +x "$tmp/bin/ossutil"
+  if ( PATH="$tmp/bin:$PATH" OSS_BACKUP_ACCESS_KEY_ID=x OSS_BACKUP_ACCESS_KEY_SECRET=y \
+      OSS_BACKUP_ROLE_ARN=acs:ram::1:role/test upload_and_verify "$tmp/aicabinet.dump" ); then
+    ok=$((ok + 1))
+  else
+    echo "$TAG self-test: AssumeRole 绿路径被误判失败"
+  fi
+
+  if [ "$ok" -eq 2 ] && [ "$bad" -eq 3 ]; then
+    log "OK：2 条绿（直连/AssumeRole）+ 3 条红（字节不一致/上传失败/缺凭据）"
     return 0
   fi
   echo "$TAG FAIL：self-test 结果不符（ok=$ok bad=$bad）"
