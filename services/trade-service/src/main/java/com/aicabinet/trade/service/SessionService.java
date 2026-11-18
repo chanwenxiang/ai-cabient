@@ -174,8 +174,10 @@ public class SessionService {
         session.setPreferredCouponId(request.preferredCouponId());
         repository.save(session);
 
-        boolean passwordFree = userValidationService.isPasswordFreeReady(userId, entryChannel);
-        consumerPreauthService.freezeForOpen(session, passwordFree);
+        // F3b：开发测试通道从不创建支付分单（本方法没有 openServiceOrderForShopping），
+        // 按统一判据「本次会话是否创建了支付分单」⇒ 恒为 false，必须冻结余额，
+        // 否则用户只有支付宝签约时会跳过冻结、结算又没支付分单可收，应收落空。
+        consumerPreauthService.freezeForOpen(session, false);
 
         transition(session, SessionState.OPENING);
         session.setOpenTime(Instant.now());

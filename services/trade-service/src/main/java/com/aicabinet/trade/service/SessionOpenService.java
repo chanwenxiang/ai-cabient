@@ -77,12 +77,16 @@ public class SessionOpenService {
         // 不会出现两个事务都先向同一台柜机发送开门命令、最后才在提交时发现冲突。
         repository.saveAndFlush(session);
 
-        boolean passwordFree = userValidationService.isPasswordFreeReady(userId, entryChannel);
-        consumerPreauthService.freezeForOpen(session, passwordFree);
-        // 微信支付分（免确认模式）：开门前创单评估，评估不过不开门（CB-064 官方流程）。
-        // 仅真实渠道 + 微信免密已激活用户生效；风险金与预授权口径同源（resolvePreauthCents）。
+        // F3b：冻结与否的唯一判据是「本次会话是否真的创建了微信支付分单」，不再是扫码渠道的
+        // 「免密是否就绪」。此前按 entryChannel 判：用户只有支付宝签约、从支付宝码进来时
+        // passwordFree=true ⇒ 不冻余额；但 openServiceOrderForShopping 只认微信支付分，不会建单，
+        // 结算回落余额时账户里一分钱没冻 ⇒ 应收落空。先建单再读「单在不在」，判据与结算侧
+        // OrderPaymentService#shouldCompleteWeChatPayScore 完全同源（同一张 payscore_order 表）。
+        // 注意：openServiceOrderForShopping 失败会抛 412，整个开门事务回滚，不存在「建单失败却跳过冻结」。
         payScoreService.openServiceOrderForShopping(session,
                 consumerPreauthService.resolvePreauthCents(request.deviceId()));
+        boolean passwordFree = payScoreService.hasOpenWechatOrderForSession(session.getSessionId());
+        consumerPreauthService.freezeForOpen(session, passwordFree);
 
         sessionService.transition(session, SessionState.OPENING);
         return sessionService.toDto(session);

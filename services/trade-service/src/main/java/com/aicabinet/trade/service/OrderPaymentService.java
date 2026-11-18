@@ -300,7 +300,7 @@ public class OrderPaymentService {
      * 与 {@link UnpaidDunningService} 催缴闭环接管，回调 {@code DONE} 后自愈为 PAID。
      *
      * <p>该腿按应付**全额**完结，不与 {@link #submitChannelCharge} 的差额口径对齐：免密会话开门时
-     * 根本不冻钱包（{@code ConsumerPreauthService.freezeForOpen} 的 {@code passwordFreeReady} 早退），
+     * 根本不冻钱包（建单后读 payscore_order 为真 ⇒ {@code ConsumerPreauthService.freezeForOpen} 早退），
      * 净入账恒 0，差额=全额。
      */
     private boolean tryCompleteWeChatPayScore(CabinetOrder order, ShoppingSession session) {

@@ -31,6 +31,8 @@ public class SettlementService {
     private final SettlementSettleOrchestrator settleOrchestrator;
     private final SettlementOrderSupport orderSupport;
     private final DistributedLockService distributedLockService;
+    /** F3b：结算持锁期间含 DB 行锁 + 渠道 HTTP，60s 固定租约会到期易主 ⇒ 按租约/3 续租。 */
+    private final LockHeartbeat settleLockHeartbeat;
 
     public SettlementService(ShoppingSessionMapper sessionRepository,
                              CabinetOrderMapper orderRepository,
@@ -50,6 +52,8 @@ public class SettlementService {
         this.settleOrchestrator = settleOrchestrator;
         this.orderSupport = orderSupport;
         this.distributedLockService = distributedLockService;
+        this.settleLockHeartbeat = new LockHeartbeat(distributedLockService, 60, 20,
+                "session-settle-lock-heartbeat");
     }
 
     /** 人工审核后确认清单：无订单则首次扣款；有订单则按差额退/补。 */
@@ -199,9 +203,12 @@ public class SettlementService {
     }
 
     <T> T runWithSessionSettleLock(String sessionId, java.util.function.Supplier<T> action) {
-        if (!distributedLockService.tryLock(sessionSettleLockKey(sessionId), 60, 5)) {
+        String lockKey = sessionSettleLockKey(sessionId);
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "会话结算处理中，请稍后重试");
         }
+        java.util.concurrent.ScheduledFuture<?> heartbeat =
+                settleLockHeartbeat.start(lockKey, Thread.currentThread().getId());
         try {
             return action.get();
         } catch (ResponseStatusException | DisputeRequiredException | BalanceInsufficientException e) {
@@ -209,7 +216,8 @@ public class SettlementService {
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
         } finally {
-            distributedLockService.unlock(sessionSettleLockKey(sessionId));
+            settleLockHeartbeat.stop(heartbeat);
+            distributedLockService.unlock(lockKey);
         }
     }
 }

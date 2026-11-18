@@ -13,6 +13,11 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -25,10 +30,11 @@ class SettlementSessionSettleConcurrencyTest {
     @Mock private DisplaySnapshotHelper displaySnapshotHelper;
 
     private SettlementService settlementService;
+    private SettlementWaiveRefundService waiveRefundService;
 
     @BeforeEach
     void setUp() {
-        SettlementWaiveRefundService waiveRefundService = new SettlementWaiveRefundService(
+        waiveRefundService = new SettlementWaiveRefundService(
                 sessionRepository, orderRepository, null,
                 null, null, null, distributedLockService, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(waiveRefundService, "self", waiveRefundService);
@@ -73,5 +79,60 @@ class SettlementSessionSettleConcurrencyTest {
 
         assertEquals(0, refunded);
         verify(distributedLockService).unlock(SettlementService.sessionSettleLockKey("S-LOCK-2"));
+    }
+
+    /** F3b：60s 租约必须边跑边续；心跳停必须早于 unlock，否则停心跳前锁已易主仍去解锁别人的锁。 */
+    @Test
+    void sessionSettleLock_heartbeatStopsBeforeUnlock() {
+        String key = SettlementService.sessionSettleLockKey("S-HB-1");
+        LockHeartbeat heartbeat = mock(LockHeartbeat.class);
+        java.util.concurrent.ScheduledFuture<?> future = mock(java.util.concurrent.ScheduledFuture.class);
+        org.mockito.Mockito.doReturn(future).when(heartbeat).start(eq(key), anyLong());
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                settlementService, "settleLockHeartbeat", heartbeat);
+        when(distributedLockService.tryLock(key, 60L, 5L)).thenReturn(true);
+
+        assertEquals("done", settlementService.runWithSessionSettleLock("S-HB-1", () -> "done"));
+
+        verify(heartbeat).start(eq(key), eq(Thread.currentThread().getId()));
+        org.mockito.InOrder inOrder = inOrder(heartbeat, distributedLockService);
+        inOrder.verify(heartbeat).stop(same(future));
+        inOrder.verify(distributedLockService).unlock(key);
+    }
+
+    /** 同一把锁的第二份实现（豁免退款）也必须续租——只改一处等于没改。 */
+    @Test
+    void waiveRefundLock_heartbeatStopsBeforeUnlock() {
+        String key = SettlementService.sessionSettleLockKey("S-HB-2");
+        LockHeartbeat heartbeat = mock(LockHeartbeat.class);
+        java.util.concurrent.ScheduledFuture<?> future = mock(java.util.concurrent.ScheduledFuture.class);
+        org.mockito.Mockito.doReturn(future).when(heartbeat).start(eq(key), anyLong());
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                waiveRefundService, "settleLockHeartbeat", heartbeat);
+        when(distributedLockService.tryLock(key, 60L, 5L)).thenReturn(true);
+
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-HB-2");
+        assertEquals(0, settlementService.waiveAndRefund(session));
+
+        verify(heartbeat).start(eq(key), eq(Thread.currentThread().getId()));
+        org.mockito.InOrder inOrder = inOrder(heartbeat, distributedLockService);
+        inOrder.verify(heartbeat).stop(same(future));
+        inOrder.verify(distributedLockService).unlock(key);
+    }
+
+    /** 拿锁失败时不得启动心跳：没有锁却去续租，会把别人的锁 TTL 顶长。 */
+    @Test
+    void sessionSettleLock_whenLockBusy_doesNotStartHeartbeat() {
+        String key = SettlementService.sessionSettleLockKey("S-HB-3");
+        LockHeartbeat heartbeat = mock(LockHeartbeat.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                settlementService, "settleLockHeartbeat", heartbeat);
+        when(distributedLockService.tryLock(key, 60L, 5L)).thenReturn(false);
+
+        assertThrows(ResponseStatusException.class,
+                () -> settlementService.runWithSessionSettleLock("S-HB-3", () -> "never"));
+
+        verify(heartbeat, org.mockito.Mockito.never()).start(eq(key), anyLong());
     }
 }

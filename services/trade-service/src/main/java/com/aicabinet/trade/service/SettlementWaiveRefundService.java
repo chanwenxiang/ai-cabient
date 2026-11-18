@@ -42,6 +42,9 @@ public class SettlementWaiveRefundService {
     private final InventoryService inventoryService;
     private final RevenueSplitService revenueSplitService;
     private final DistributedLockService distributedLockService;
+    /** F3b：本类持有同一把 session:settle:* 锁，必须与 SettlementService 一起续租。 */
+    private final LockHeartbeat settleLockHeartbeat;
+
     private final CouponService couponService;
     private final SettlementWaiveRefundService self;
 
@@ -62,6 +65,8 @@ public class SettlementWaiveRefundService {
         this.revenueSplitService = revenueSplitService;
         this.distributedLockService = distributedLockService;
         this.couponService = couponService;
+        this.settleLockHeartbeat = new LockHeartbeat(distributedLockService, 60, 20,
+                "session-settle-waive-lock-heartbeat");
         this.self = self;
     }
 
@@ -205,6 +210,8 @@ public class SettlementWaiveRefundService {
         if (!distributedLockService.tryLock(lockKey, 60, 5)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "会话结算处理中，请稍后重试");
         }
+        java.util.concurrent.ScheduledFuture<?> heartbeat =
+                settleLockHeartbeat.start(lockKey, Thread.currentThread().getId());
         try {
             return action.get();
         } catch (ResponseStatusException | DisputeRequiredException | BalanceInsufficientException e) {
@@ -212,6 +219,7 @@ public class SettlementWaiveRefundService {
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
         } finally {
+            settleLockHeartbeat.stop(heartbeat);
             distributedLockService.unlock(lockKey);
         }
     }

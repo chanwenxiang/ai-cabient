@@ -105,9 +105,15 @@ public class ConsumerPreauthService {
         return Math.max(0, account.getBalanceCents() - Math.max(0, account.getFrozenCents()));
     }
 
-    /** 余额开门路径：校验可用余额并冻结；免密/补货不冻结（2026-11-11 起运营号段照常冻结）。 */
+    /**
+     * 余额开门路径：校验可用余额并冻结；补货/远程不冻结。
+     *
+     * <p>F3b：{@code skipFreeze} 的唯一来源是「本次会话是否创建了微信支付分单」
+     * （SessionOpenService 在建单后读 payscore_order），不再由扫码渠道的免密就绪推断——
+     * 只有支付宝签约的用户从支付宝码进来时，旧判据会跳过冻结而结算又回落余额，应收落空。</p>
+     */
     @Transactional
-    public void freezeForOpen(ShoppingSession session, boolean passwordFreeReady) {
+    public void freezeForOpen(ShoppingSession session, boolean skipFreeze) {
         if (session == null || session.getSessionId() == null) {
             return;
         }
@@ -117,7 +123,7 @@ public class ConsumerPreauthService {
             reloadSession(session.getSessionId()).ifPresent(this::clearSessionPreauth);
             return;
         }
-        if (passwordFreeReady) {
+        if (skipFreeze) {
             reloadSession(session.getSessionId()).ifPresent(this::clearSessionPreauth);
             return;
         }

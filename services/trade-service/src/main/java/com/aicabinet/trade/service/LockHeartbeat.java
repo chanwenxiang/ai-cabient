@@ -9,7 +9,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
- * MA-274（C13/R23Q-13）：订单支付锁心跳。
+ * MA-274（C13/R23Q-13）：分布式锁租约心跳（订单支付锁 / 会话结算锁共用）。
  *
  * <p>{@code OrderPaymentService#chargeOrder} 在 DB 事务内发渠道 HTTP（H41 已用 CHARGE_PENDING
  * 痕迹兜住「无痕双扣」），持锁时长可达分钟级，而 Redis 锁租约固定 60s 且无续租 ⇒ 到点被第二
@@ -27,16 +27,27 @@ public class LockHeartbeat {
     private final DistributedLockService lockService;
     private final long leaseSeconds;
     private final long periodSeconds;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(r -> {
-        Thread t = new Thread(r, "order-payment-lock-heartbeat");
-        t.setDaemon(true);
-        return t;
-    });
+    private final ScheduledExecutorService executor;
 
+    /** 兼容原调用方：线程名沿用订单支付锁。 */
     public LockHeartbeat(DistributedLockService lockService, long leaseSeconds, long periodSeconds) {
+        this(lockService, leaseSeconds, periodSeconds, "order-payment-lock-heartbeat");
+    }
+
+    /**
+     * @param threadName 线程名要贴真实持锁场景，否则 jstack 里看不出是哪条链在续租
+     *                   （F3b：会话结算锁与订单支付锁共用本组件）
+     */
+    public LockHeartbeat(DistributedLockService lockService, long leaseSeconds, long periodSeconds,
+                         String threadName) {
         this.lockService = lockService;
         this.leaseSeconds = leaseSeconds;
         this.periodSeconds = periodSeconds;
+        this.executor = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, threadName);
+            t.setDaemon(true);
+            return t;
+        });
     }
 
     /** 启动心跳（调用方持锁线程的 threadId 由调用方传入——renew 的 owner 校验需要它）。 */
@@ -47,14 +58,14 @@ public class LockHeartbeat {
                         lockService.renew(lockKey, leaseSeconds, holderThreadId);
                 if (outcome == DistributedLockService.RenewOutcome.LOST) {
                     // 锁已易主：续租不再有意义，停心跳并大声报出来（双跑风险可见）
-                    log.error("订单支付锁已丢失（过期或易主）lockKey={} —— 任务体仍在执行，存在双跑风险", lockKey);
+                    log.error("分布式锁已丢失（过期或易主）lockKey={} —— 任务体仍在执行，存在双跑风险", lockKey);
                     throw new IllegalStateException("lock lost: " + lockKey);
                 }
                 // TRANSIENT：Redis 瞬断，锁状态未知——保留心跳，下一周期再试
             } catch (IllegalStateException lost) {
                 throw lost; // 让 scheduleAtFixedRate 取消后续执行（异常会吞掉本任务）
             } catch (Throwable t) {
-                log.warn("订单支付锁心跳异常 lockKey={}: {}", lockKey, t.toString());
+                log.warn("锁心跳异常 lockKey={}: {}", lockKey, t.toString());
             }
         }, periodSeconds, periodSeconds, TimeUnit.SECONDS);
     }
