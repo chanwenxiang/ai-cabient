@@ -1843,6 +1843,24 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "66355c32",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-337",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/InventoryService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/InventoryLotService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/InventoryServiceTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/InventoryLotConcurrencyTest.java",
+            "scripts/check-inventory-sku-ledger.mjs",
+            "scripts/check-inventory-sku-ledger.test.mjs"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [

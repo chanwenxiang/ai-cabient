@@ -45,7 +45,7 @@
 | F1 | 可观测性自证 ✅`9f0da9c2` | 4 | J1 J2 J3 J9 J14 J15 J16 N-04 | 让「任务停跑」这件事自己暴露出来 |
 | F2 | 设备范围闸形态 ✅`d37a02e5` | 1 | N-01 N-05 N-06 L-09 | 闸从拦截器下沉到 service 入口 |
 | F3 | 结算/对账事务边界 ⬓`3af7b9eb`（F3a + F3b-1/2 落地，拆段待办） | 3 | ①/BR5 BR3 J4 J8 ⑧ ⑨ | 拆成 prepare → HTTP → finalize |
-| F4 | 库存/月结账实 | 1 | BR9 BR10 BR11 BR13 BR14 BR15 BR16 BR1 BR2 月账单利润 | 判据改 SKU 级 + 加恒等式 |
+| F4 | 库存/月结账实 ⬓`66355c32`（批次判据已改 SKU 级，恒等式待补） | 1 | BR9 BR10 BR11 BR13 BR14 BR15 BR16 BR1 BR2 月账单利润 | 判据改 SKU 级 + 加恒等式 |
 | F5 | 状态机/快照覆盖 | 0 | J5 J6 BR12 BR17 BR18 BR19 | 一切状态写入带 `WHERE status=快照态` |
 | F6 | 幂等/重试窗口 | 0 | J10 BR4 BR6 BR7 | 幂等键不含可变 ID |
 | F7 | 部署可复现 | 5 | J11 L-03 L-04 N-02 N-03 N-10 | 部署链与迁移链可重放 |
@@ -338,6 +338,22 @@ Wave 4（发布前）          F7 部署可复现
 **F3b 仍待办（三项，风险从高到低）**：`SettlementSettleOrchestrator`/`SettlementOrderFinalizeService` 主链拆 `prepare → HTTP → finalize`（外层 `@Transactional` 必须一起拆，否则 HTTP 仍在事务内）、`SettlementConfirmDisputeService` 争议首扣腿同构、`DataConsistencyService` 退款 HTTP 移出事务。这三项都会改变「渠道成功后本地失败」的落库形态（订单转 PENDING 而非整笔回滚），需要真 PG IT 覆盖后再动；门禁已先把新增形态钉住，存量按基线逐项摘除。
 
 **验证**：trade-service 全量 **3238/0**；`SettlementSessionSettleConcurrencyTest` 5/0（+3）、`SessionOpenFreezeCriterionTest` 3/0、`LockHeartbeatTest` 2/0。门禁真树注入 `chargeOrder` → 红（带 file:line）→ 还原 md5 一致 → 绿；sibling 夹具 13 断言覆盖 R1/R2/R3。本机 Docker 重启后全栈恢复（EMQX 11883 撞 Windows 保留端口，改用 `EMQX_MQTT_PORT=12883` 启动）。
+
+---
+
+### F4 执行记录（2026-11-18，第一项）
+
+| 计划项 | 落法 | 与计划的差异 |
+|---|---|---|
+| `deviceUsesLotLedger(deviceId)` → 按 SKU 判 | `hasLotForSku(deviceId, skuId)` + `rawAggregateQuantity(...)` 双判据；`doDeductFefo` 持锁补建 `LEGACY-OPENING` | 计划只写「按 SKU 判 `hasSellableLots(deviceId, skuId)`」；**不能直接替换**：`hasSellableLots` 只统计可售批次，售罄/过期批次会返回 false，那就绕过 FEFO 走汇总虚扣。改为「有批次行（含零可售）→ FEFO fail-closed；无批次但汇总裸量>0 → 仍 FEFO 且补建期初；两者都无 → 原子汇总扣减」 |
+
+**配套门禁**：计划写「IT 不变量测试（不是静态门禁）」，本轮先补 `check:inventory-sku-ledger`（R1/R2/R3 静态判据）止住形态回退；`期初+采购+调入−外调−补货−退货=期末` 与 `Σ批次可售=汇总可售` 的 30 天随机账期 IT 仍在待办，不拿静态门禁冒充已覆盖。
+
+**F4 仍待办**：`LEGACY-OPENING` 并批的唯一键/行锁（当前靠设备锁 + 先查空，并发窗口仅由锁盖住）、`DeviceSkuLotMapper.xml` 可售口径是否含 `BLOCKED`、月结导出缺「退货」列、差异方向变化不重置 `disposition`、实盘取值口径、差异与四损耗列重复计入索赔、租机满期免安装费需产品拍板、余额扣到 0 不落终态。
+
+### 计划外发现（2026-11-18，未修，待拍板）
+
+`PayScoreService#openServiceOrderForShopping` 建开门支付分单时**不写 `payscore_order.order_id`**，而真实库该列为 `NOT NULL` + FK 到 `cabinet_order`（V74 建表，V218 未放宽；docker 内 `information_schema` 实查 `order_id|NO`）。当前 `PAYSCORE_ENABLED` 默认 false（`application.yml:323`、`docker-compose.full.yml:261`）所以未暴露；一旦生产开启微信支付分免确认模式，每次开门都会在 insert 阶段失败并被包成 412「微信免密确认失败」。修法有两条路：① 允许开门期未关联订单（`DROP NOT NULL` + 迁移），② 改为结算时才建单（与 F3b-2「先建单再判冻结」的时序相反，需重排判据）。**先拍板再动**，不猜着改。
 
 ---
 
