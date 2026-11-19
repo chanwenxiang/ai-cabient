@@ -762,6 +762,11 @@ jobs:
         run: |
           set -euo pipefail
           ok=0
+          # apt 自身重试：外层 3 次重试只能解决「镜像选错」，解决不了「同一个包瞬时 5xx」。
+          # 2026-11-19 实测 security.ubuntu.com 对 8 个 fonts-* 包连续返 503
+          # （IP 52.15.102.108），apt 默认不重试 5xx ⇒ 三轮回退全废、job 红 40 分钟。
+          printf 'Acquire::Retries "10";\nAcquire::http::Timeout "60";\n' \
+            | sudo tee /etc/apt/apt.conf.d/99-aicabinet-apt-retries >/dev/null
           for i in 1 2 3; do
             if pnpm exec playwright install chromium --with-deps; then ok=1; break; fi
             echo "::warning::playwright install attempt $i failed (apt mirror DNS?), retrying"
@@ -1042,6 +1047,9 @@ jobs:
         run: |
           set -euo pipefail
           ok=0
+          # apt 自身重试（同上文 apt 503 加固）：两处必须同时加，否则 e2e-h5 仍会被 5xx 打红。
+          printf 'Acquire::Retries "10";\nAcquire::http::Timeout "60";\n' \
+            | sudo tee /etc/apt/apt.conf.d/99-aicabinet-apt-retries >/dev/null
           for i in 1 2 3; do
             if pnpm exec playwright install --with-deps chromium \
                && (cd clients/consumer-mp && pnpm exec playwright install chromium) \
