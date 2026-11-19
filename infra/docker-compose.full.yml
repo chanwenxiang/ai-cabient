@@ -276,7 +276,12 @@ services:
       # 支付宝小程序应用（小程序内支付 alipay.trade.create 专用 app_id）
       ALIPAY_MP_ENABLED: ${ALIPAY_MP_ENABLED:-false}
       ALIPAY_MP_APP_ID: ${ALIPAY_MP_APP_ID:-}
-      # 柜门一码：手机扫码请在 infra/.env 设 QR_PUBLIC_HOST=http://<WLAN局域网IP>（经网关 :80）
+      # 柜门一码对外域名。两种值，用途不同：
+      #   ① https://cabinet.easygovm.com（dev 也建议用这个）——微信「扫普通链接二维码打开小程序」
+      #      规则只认这个前缀，用生产域名生成的码才会被微信拦下直跳小程序；扫码落到生产落地页，
+      #      本地柜机号在生产库里不存在时会提示不可用（跳转本身仍可验证）。
+      #   ② http://<WLAN局域网IP>——仅纯局域网调试 UI 用；微信不会拦（规则不匹配），
+      #      会走 302→URL Link→「打开小程序」中间页，且需 docker-compose.lan.yml 放行端口。
       # 容器内 auto 探测到的是 Docker 网桥 IP，不可用；默认 localhost 仅本机浏览器。
       QR_PUBLIC_HOST: ${QR_PUBLIC_HOST:-http://localhost}
       # auto = 与 QR_PUBLIC_HOST 同主机 + :3002（手机同网可开）；本机开发可覆盖为 http://127.0.0.1:3002/

@@ -515,6 +515,22 @@ psql -h 127.0.0.1 -p 15433 -U aicabinet -d aicabinet
 
 - 开发者工具：确认 `BASE_URL` 为 `http://localhost:8080`，并勾选「不校验合法域名」
 - 真机预览：`BASE_URL` 改为电脑局域网 IP，手机与电脑同一 WiFi
+- 🔴 **真机连不上电脑的最常见原因（2026-11-19 实锤）**：dev 栈 gateway 默认只绑回环
+  `${GATEWAY_PUBLISH:-127.0.0.1:80:80}`（R19-5 安全：mock 万能码能登任意号），
+  `win-ports.yml` 又把 trade 钉在 `127.0.0.1:18080` ⇒ 手机从 LAN 访问是**连接被拒**，
+  不是域名校验问题。放行口只有叠加 `docker-compose.lan.yml`：
+
+  ```bash
+  cd infra && docker compose -p ai-cabinet \
+    -f docker-compose.full.yml -f docker-compose.win-ports.yml -f docker-compose.lan.yml \
+    up -d --no-deps --force-recreate gateway
+  # 手机浏览器验证：http://<局域网IP>/api/v2/auth/server-boot 应 200
+  # 用完切回回环（去掉 -f docker-compose.lan.yml 再 force-recreate）
+  ```
+
+  另需：手机与电脑同一 WiFi、Windows 防火墙放行 Docker、`.env.development.local` 的
+  `VITE_API_BASE_URL` 为当前局域网 IP（`scripts/sync-consumer-mp-api.mjs` 生成的值会被
+  `.local` 覆盖），并用 `build:mp-weixin:dev` 重建（dev 产物 `urlCheck=false`）。
 - 确认 trade-service 已启动：`curl http://localhost:8080/actuator/health`
 
 ### 开门后会话一直 OPENING / SHOPPING
