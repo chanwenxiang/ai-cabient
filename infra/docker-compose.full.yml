@@ -502,6 +502,10 @@ services:
       # V2/V3：与 apps 栈同款 Grafana Basic（消除 full 栈无 auth_basic 的漂移）。
       # AU-146：grafana.htpasswd 不入库，先跑 scripts/devops/gen-grafana-htpasswd.ps1 生成。
       - "./gateway/grafana.htpasswd:/etc/nginx/grafana.htpasswd:ro"
+      # 微信「扫普通链接二维码打开小程序」校验文件（2026-11-19）：规则前缀是 /o/，
+      # 微信要求 https://{域名}/o/{文件名}.txt 能 200 直出（nginx-full.conf 有对应 location）。
+      # 🔴 必须持久挂载：此前是 docker cp 进容器，一重建就丢 ⇒ 校验恒 404（MA-362 实测）。
+      - "./gateway/mp-verify:/usr/share/nginx/html/o:ro"
     depends_on: [trade-service]
     logging:
       driver: json-file

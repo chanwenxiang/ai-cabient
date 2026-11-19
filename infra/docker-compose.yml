@@ -188,6 +188,9 @@ services:
       - "${GATEWAY_PUBLISH:-127.0.0.1:80:80}"
     volumes:
       - ./gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # 微信「扫普通链接二维码打开小程序」校验文件（2026-11-19）：规则前缀 /o/ 要求
+      # https://{域名}/o/{文件名}.txt 200 直出。必须持久挂载——docker cp 进容器一重建即 404。
+      - ./gateway/mp-verify:/usr/share/nginx/html/o:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
