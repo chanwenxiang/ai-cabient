@@ -13112,6 +13112,7 @@ export interface components {
             /** Format: int32 */
             amountCents?: number;
             idempotencyKey: string;
+            payScene?: string;
         };
         AlipayPayParams: {
             orderId?: string;
