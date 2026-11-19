@@ -24,7 +24,9 @@
  *   5. 后端 AlipayPayClient 的 mini 支付带 product_code=JSAPI_PAY 与 buyer_id；
  *   6. 落地页 ALIPAY 分支里 `alipayMiniProperties.isConfigured()` 必须出现在
  *      `hasConsumerH5()` 之前（先小程序、后 H5 兜底）；
- *   7. 防空转：任一目标文件缺失 ⇒ 红（改名/移目录时不许静默绿）。
+ *   7. 启动参数同时认微信 `q` 与支付宝 `qrCode`（两个字段不同名，且 qrCode 分支要兜底 ALIPAY）；
+ *   8. 首页必须用 `uni.getLaunchOptionsSync()` 兜底取启动参数（支付宝的码值**不进**页面 onLoad）；
+ *   9. 防空转：任一目标文件缺失 ⇒ 红（改名/移目录时不许静默绿）。
  *
  * 用法：node scripts/check-alipay-mp-wiring.mjs
  * 负向验证：scripts/check-alipay-mp-wiring.test.mjs（内存夹具，不起仓库文件）
@@ -118,7 +120,15 @@ export function checkWiring(sources) {
   const pkgSrc = sources.pkg;
   if (typeof manifestSrc !== 'string') missing.push('src/manifest.json');
   if (typeof pkgSrc !== 'string') missing.push('package.json');
-  for (const rel of ['consumerApi', 'recharge', 'paymentService', 'alipayClient', 'landing']) {
+  for (const rel of [
+    'consumerApi',
+    'recharge',
+    'paymentService',
+    'alipayClient',
+    'landing',
+    'qrcode',
+    'indexPage'
+  ]) {
     if (typeof sources[rel] !== 'string') missing.push(rel);
   }
   if (missing.length > 0) {
@@ -197,6 +207,26 @@ export function checkWiring(sources) {
     fail('落地页先判 H5 再判小程序：支付宝用户会被 H5 截走（顺序须为先小程序）');
   }
 
+  // 7) 启动参数：微信 q / 支付宝 qrCode 是两个字段，只认 q 会「扫进来但停在首页」
+  const qrcode = maskComments(sources.qrcode);
+  if (!/options\.q\b/.test(qrcode)) {
+    fail('qrcode.ts 未解析微信启动参数 q：微信扫普通链接进小程序会丢柜机号');
+  }
+  if (!/options\.q\s*\|\|\s*options\.qrCode/.test(qrcode)) {
+    fail('qrcode.ts 未把微信 q 与支付宝 qrCode 一起解析：支付宝扫码进小程序会停在首页、开不了门');
+  }
+  if (!/options\.qrCode\s*\?\s*'ALIPAY'/.test(qrcode)) {
+    fail("qrcode.ts 的 qrCode 分支未兜底 channel 'ALIPAY'：entryChannel 记账会落空");
+  }
+
+  // 8) 支付宝码值不进页面 onLoad，必须用启动参数兜底
+  const indexPage = maskComments(sources.indexPage);
+  if (!indexPage.includes('getLaunchOptionsSync')) {
+    fail(
+      'index.vue 未用 getLaunchOptionsSync 兜底：支付宝「关联普通链接二维码」的码值只在 App 启动参数里，页面 onLoad 拿不到'
+    );
+  }
+
   return failures;
 }
 
@@ -220,7 +250,9 @@ function main() {
     ),
     landing: readSource(
       'services/trade-service/src/main/java/com/aicabinet/trade/api/CabinetOpenLandingController.java'
-    )
+    ),
+    qrcode: readSource('packages/shared-uni/src/qrcode.ts'),
+    indexPage: readSource(`${consumer}/src/pages/index/index.vue`)
   });
 
   if (failures.length > 0) {
@@ -228,7 +260,7 @@ function main() {
     for (const f of failures) console.error(`  - ${f}`);
     process.exit(1);
   }
-  console.log('✅ 支付宝小程序接线门禁通过（登录 / 支付 / 落地页 / 构建注入）');
+  console.log('✅ 支付宝小程序接线门禁通过（登录 / 支付 / 落地页 / 构建注入 / 扫码传参）');
 }
 
 // 被测试 import 时不执行主流程

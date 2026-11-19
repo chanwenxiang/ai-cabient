@@ -18,10 +18,16 @@
 | 静默登录 | `my.getAuthCode(scopes=auth_base)` → `POST /api/v2/auth/alipay/login`（服务端 `alipay.system.oauth.token` 换 user_id 建档） | 真机扫码后应直接进首页 |
 | 小程序内支付 | `alipay.trade.create`（`buyer_id` + `product_code=JSAPI_PAY`）→ 客户端 `my.tradePay({tradeNO})` → 轮询到账 | 充值 1 元，看钱包余额 |
 | 落地页分流 | `/o/{deviceId}`：支付宝 UA → 先小程序承接页（`alipays://`），未配小程序才回落 H5/引导页 | `curl -A AlipayClient https://<域名>/o/<柜机号>` |
+| 扫码传参 | `parseLaunchOptions` 同时认微信 `q` 与支付宝 `qrCode`（qrCode 兜底 `channel=ALIPAY`）；首页用 `uni.getLaunchOptionsSync()` 兜底（支付宝码值不进页面 `onLoad`） | `npx vitest run src/utils/launch-options.test.ts` |
 | 门禁 | `check:alipay-mp-wiring`（登录/支付/落地页/构建注入 8 类判据 + 15 条负向夹具） | `pnpm check:alipay-mp-wiring` |
 | 单测 | `AlipayPayClientMiniTest`（4 条：金额单位/产品码/buyer_id/缺 trade_no fail-closed） | `mvn -pl services/trade-service -am test -Dtest=AlipayPayClientMiniTest` |
 
 ## 二、平台侧（阻塞项，必须先做）
+
+> **时机（2026-11-19 结论）**：柜子还没投放、支付宝小程序也还没提审发布，
+> 而**未发布的小程序普通用户根本打不开**（体验版只有白名单成员能进）。
+> 所以第 3 项「关联普通链接二维码」**现在不用配** —— 它是投放前最后一公里的物料配置，
+> 早配也没人扫。真要做，先做 1（确认 appid）、4（资料类目），2 等商户资质。
 
 1. **确认小程序应用与 appid**
    现有 `clients/alipay-mp-shell/mini.project.json` 里的 `2021007118617439` 是「芝麻先享审核载体」，请确认它在开放平台的应用类型是**小程序**（不是网页/生活号）。
@@ -34,15 +40,27 @@
    恢复条件：商户资质补齐 → 签「小程序支付」→ 确认应用私钥/支付宝公钥在**小程序应用**里各配一次
    （可与网页应用共用密钥对，但公钥要各自上传）。
 
-3. **配置「扫普通链接二维码打开小程序」**（决定一码两用体验）
-   开放平台 → 小程序 → 开发管理 → 扫普通链接二维码打开小程序：规则填 `https://<对外域名>/o/`，并上传校验文件。
-   配好后同一张柜门码在支付宝里**直接进小程序**，不经过承接页。未配置时走 `alipays://` 兜底（部分机型 WebView 会拦截，用户需按页面提示操作）。
-   > 传参：支付宝扫普通链接进小程序时 query 里是 `q=<encodeURIComponent(完整URL)>`，
-   > 与微信同名同形态；`parseLaunchOptions()` 已兼容（解码后走 `parseCabinetScan`），
-   > 所以「进得了小程序但拿不到柜机号」这种坑已提前堵住。
+3. **配置「关联普通链接二维码」**（决定一码两用体验）
+   支付宝这套功能**不叫**「扫普通链接二维码打开小程序」——那是**微信**的叫法。支付宝侧名称是
+   「**关联普通链接二维码**」，入口：`b.alipay.com` 商家平台 → 工作台 → 小程序 → 选中我们的小程序 →
+   左侧菜单「**小程序码**」→「关联普通链接二维码」tab → 添加关联规则。
+
+   要填四项：
+   - **二维码地址**：`https://cabinet.easygovm.com/o/`（选**模糊匹配**，前缀命中即可，柜机号在路径末尾）
+   - **校验二维码地址所属权**：下载校验文件 → 放到域名根目录（或最后一级子目录）→ 点「发起确认」
+   - **小程序功能页**：`pages/index/index`（网页路径里的 `page` 参数）
+   - **生效范围**：先选**体验版**测试，通过后再改线上版本，点「发布关联规则」约 2 分钟生效
+
+   > ⚠️ 别和「**openURL 配置**」搞混（那个页面我们在后台也看到了）：openURL 是给 `my.ap.openURL`
+   > 外跳 H5 用的白名单（上限 20 个地址）。我们**不走 H5**，这个页面**什么都不用配**。
+
+   > 传参差异（已实测于源码，非推测）：微信走 `options.query.q`，支付宝走 `options.query.qrCode`，
+   > 而且支付宝的码值**只进 App 启动参数，页面 `onLoad` 拿不到**（微信会透传到页面 query）。
+   > `parseLaunchOptions()` 两者都认，`index.vue` 再用 `uni.getLaunchOptionsSync()` 兜底；
+   > 单测 `launch-options.test.ts` 6 条、门禁 `check:alipay-mp-wiring` 判据 7/8 钉住。
    >
-   > 注意：微信侧那条**你已经配好且实测生效**。生效后微信扫码不再经过 `/o/` 服务端 302，
-   > 柜机号靠 `q` 传进小程序——同一条代码路径。所以「`curl` 带 MicroMessenger UA 仍然 302」
+   > 微信侧那条**你已经配好且真机实测生效**。生效后微信扫码不再经过 `/o/` 服务端 302，
+   > 柜机号靠 `q` 传进小程序。所以「`curl` 带 MicroMessenger UA 仍然 302」
    > **不是**规则没生效的证据：该规则由微信扫一扫客户端本地判定，根本不发 HTTP 请求。
    > 判断规则是否生效只认真机扫码。
 

@@ -49,7 +49,9 @@ function baseSources() {
     ),
     landing: read(
       'services/trade-service/src/main/java/com/aicabinet/trade/api/CabinetOpenLandingController.java'
-    )
+    ),
+    qrcode: read('packages/shared-uni/src/qrcode.ts'),
+    indexPage: read(`${consumer}/src/pages/index/index.vue`)
   };
 }
 
@@ -137,6 +139,29 @@ function expectFail(sources, fragment, label) {
   const s = baseSources();
   s.recharge = `// invokeAlipayTradePay(tradeNo); payScene 'MINI_APP'\nfunction noop() {}`;
   expectFail(s, 'invokeAlipayTradePay', '只在注释里写正确做法（必须仍红）');
+}
+
+// —— ⑧ 启动参数：微信 q / 支付宝 qrCode ——
+{
+  const s = baseSources();
+  // 历史写法：只认微信的 q（支付宝 qrCode 恒取不到 ⇒ 停在首页）
+  s.qrcode = s.qrcode.replace(/options\.q\s*\|\|\s*options\.qrCode/g, 'options.q');
+  expectFail(s, '一起解析', '只认微信 q、不认支付宝 qrCode');
+}
+{
+  const s = baseSources();
+  s.qrcode = s.qrcode.replace(/options\.qrCode\s*\?\s*'ALIPAY'/g, "''");
+  expectFail(s, "channel 'ALIPAY'", 'qrCode 分支没有兜底 ALIPAY 渠道');
+}
+{
+  const s = baseSources();
+  s.qrcode = s.qrcode.replace(/options\.q\b/g, 'options.qq');
+  expectFail(s, '微信启动参数 q', '连微信 q 都不认了');
+}
+{
+  const s = baseSources();
+  s.indexPage = s.indexPage.replace(/getLaunchOptionsSync/g, 'noopLaunchOptions');
+  expectFail(s, 'getLaunchOptionsSync', '首页没做启动参数兜底（支付宝码值不进 onLoad）');
 }
 
 // —— ⑦ 字符串字面量保留 ——

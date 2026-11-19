@@ -205,11 +205,18 @@ export function parseLaunchOptions(options: Record<string, string | undefined> =
   let channel = normalizeEntryChannelFromRaw(
     options.channel || options.entryChannel || options.payChannel
   );
-  if (!deviceId && options.q) {
-    const parsed = parseCabinetScan(decodeURIComponent(options.q));
+  // 微信「扫普通链接二维码打开小程序」→ q；支付宝「关联普通链接二维码」→ qrCode。
+  // 两者**不是同一个字段**：支付宝按 q 取恒为空，表现为「扫进来了但停在首页、开不了门」。
+  // 码值本身都是完整二维码地址（https://host/o/EG...），交给 parseCabinetScan 从路径取柜机号。
+  const scanRaw = options.q || options.qrCode;
+  if (!deviceId && scanRaw) {
+    const parsed = parseCabinetScan(decodeSafe(scanRaw));
     deviceId = parsed.deviceId;
     autoOpen = options.autoOpen === '1' || options.open === '1' || parsed.autoOpen;
-    if (!channel) channel = normalizeEntryChannelFromRaw(parsed.channel);
+    if (!channel) {
+      // qrCode 只由支付宝注入，地址本身不含渠道词，故兜底 ALIPAY（entryChannel 记账用）
+      channel = normalizeEntryChannelFromRaw(parsed.channel) || (options.qrCode ? 'ALIPAY' : '');
+    }
   }
   if (!deviceId && options.scene) {
     try {

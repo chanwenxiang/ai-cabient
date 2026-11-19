@@ -1117,6 +1117,19 @@ onLoad(async (opts) => {
   }
   refreshLandingPad();
   let launch = parseLaunchOptions((opts || {}) as Record<string, string>);
+  // 支付宝「关联普通链接二维码」的码值只进 App 启动参数，**页面 onLoad 拿不到**
+  // （微信的 q 会透传到页面 query，支付宝不会）⇒ 不用启动参数兜底就会「扫进来停在首页」。
+  if (!launch.deviceId) {
+    try {
+      const launchQuery = (uni.getLaunchOptionsSync?.() || {}).query;
+      if (launchQuery && typeof launchQuery === 'object') {
+        const fromLaunch = parseLaunchOptions(launchQuery as Record<string, string>);
+        if (fromLaunch.deviceId) launch = fromLaunch;
+      }
+    } catch {
+      /* 低版本基础库无此 API：按未带参处理，用户仍可手输柜机号 */
+    }
+  }
   // H5：兼容 ?deviceId= / hash 查询（柜门二维码 deep link）
   if (!launch.deviceId && typeof globalThis !== 'undefined') {
     try {
