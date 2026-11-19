@@ -35,11 +35,12 @@ INTERNAL_API_KEY|dev-internal-key-change-me ci-internal-api-key
 AICABINET_OPS_ADMIN_PASSWORD|123456 admin'
 # 至少 32 字符的密钥
 MIN_LEN_KEYS='JWT_SECRET JIANGYI_JWT_SECRET'
-# 告警投递（F1 收敛计划 2026-11-17）：
-# 留空时 feishu-relay 对每次投递返回 503，而 relay/alertmanager/prometheus 全部"健康"——
-# 「没收到告警」于是被读成「一切正常」，这正是本项目最忌的「信号在骗读者」。
-# 不给默认放行：要么配置地址，要么**显式**声明知情（ALERTS_DISABLED_ACK=1，打印横幅留痕）。
-ALERT_DELIVERY_KEY='FEISHU_WEBHOOK_URL'
+# 告警投递（F1 2026-11-17 飞书 → 2026-11-19 改 SMTP 邮件）：
+# 监控栈告警经 Alertmanager 原生 email_configs 发信；这组 key 缺任一 ⇒ alertmanager 容器
+# 启动时 fail-closed（见 compose 的 command 检查），告警链路不可用。
+# 不给默认放行：要么配齐 SMTP 组，要么**显式**声明知情（ALERTS_DISABLED_ACK=1，打印横幅留痕）。
+# 注意：应用内业务告警（ops.alert.email.* 在数据库 system_config）与本组无关，别混。
+ALERT_DELIVERY_KEYS='SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASS SMTP_FROM SMTP_TO'
 ALERTS_ACK_ENV='ALERTS_DISABLED_ACK'
 # 备份异地（F7/L-04）：BACKUP_REMOTE_CMD 为空时备份只在本机，机器/盘挂了就一起没了。
 # 与告警同款：要么配置外部 OSS 钩子，要么显式 BACKUP_LOCAL_ONLY_ACK=1 声明「已知只有本地」。
@@ -87,14 +88,17 @@ EOF
       fail=1
     fi
   done
-  if [ -z "$(read_key "$ALERT_DELIVERY_KEY" "$file")" ]; then
+  local alert_missing=''
+  for key in $ALERT_DELIVERY_KEYS; do
+    [ -z "$(read_key "$key" "$file")" ] && alert_missing="$alert_missing $key"
+  done
+  if [ -n "$alert_missing" ]; then
     if [ "${!ALERTS_ACK_ENV:-}" = '1' ]; then
-      echo "$TAG ⚠️  $ALERT_DELIVERY_KEY 为空，且已显式 $ALERTS_ACK_ENV=1 ——"
-      echo "$TAG    本次上线期间 **监控告警无人接收**（桥对每次投递返回 503）。这是知情决定，不是修复。"
+      echo "$TAG ⚠️  监控告警 SMTP 组缺键:$alert_missing，且已显式 $ALERTS_ACK_ENV=1 ——"
+      echo "$TAG    本次上线期间 **监控告警无人接收**（alertmanager 会拒绝启动）。这是知情决定，不是修复。"
     else
-      echo "$TAG ❌ $ALERT_DELIVERY_KEY 为空：告警桥会对每次投递返回 503，等于整条监控链路静默失效"
-      echo "$TAG    （relay/alertmanager/prometheus 仍然全部「健康」，所以没有人会发现）"
-      echo "$TAG    修法：按 infra/.env.production.example 配置飞书机器人地址并重建 relay；"
+      echo "$TAG ❌ 监控告警 SMTP 组缺键:$alert_missing：alertmanager 会 fail-closed 拒绝启动，整条监控告警链路静默失效"
+      echo "$TAG    修法：按 infra/.env.production.example 配齐 SMTP_HOST/PORT/USER/PASS/FROM/TO；"
       echo "$TAG          确知要无告警上线，则显式设置 $ALERTS_ACK_ENV=1 重跑（会留横幅）"
       fail=1
     fi
@@ -126,7 +130,12 @@ REDIS_PASSWORD=prod-redis-pass-7a1
 MINIO_ROOT_PASSWORD=prod-minio-pass-3c8
 JWT_SECRET=prod-jwt-secret-0123456789abcdefghijklmn
 JIANGYI_JWT_SECRET=prod-jy-jwt-secret-0123456789abcdefgh
-FEISHU_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/prod-sample
+SMTP_HOST=smtp.qiye.aliyun.com
+SMTP_PORT=465
+SMTP_USER=alert@example.com
+SMTP_PASS=prod-smtp-auth-code
+SMTP_FROM=alert@example.com
+SMTP_TO=ops@example.com
 BACKUP_REMOTE_CMD=aws s3 cp
 ENV
   if check_file "$tmp/good.env" >/dev/null; then ok=$((ok + 1)); else echo "$TAG self-test: good.env 误判红"; fi
@@ -163,18 +172,23 @@ ENV
     bad=$((bad + 1))
   fi
 
-  # 告警投递：空 webhook 必须判红（隐式放行 = 监控全静默）；显式知情才放行，且必须仍算「绿」。
+  # 告警投递：SMTP 组缺键必须判红（隐式放行 = 监控全静默）；显式知情才放行，且必须仍算「绿」。
   cat > "$tmp/no-alert.env" <<'ENV'
 POSTGRES_PASSWORD=prod-pg-pass-9f2
 REDIS_PASSWORD=prod-redis-pass-7a1
 MINIO_ROOT_PASSWORD=prod-minio-pass-3c8
 JWT_SECRET=prod-jwt-secret-0123456789abcdefghijklmn
 JIANGYI_JWT_SECRET=prod-jy-jwt-secret-0123456789abcdefgh
-FEISHU_WEBHOOK_URL=
+SMTP_HOST=
+SMTP_PORT=465
+SMTP_USER=alert@example.com
+SMTP_PASS=prod-smtp-auth-code
+SMTP_FROM=alert@example.com
+SMTP_TO=ops@example.com
 BACKUP_REMOTE_CMD=aws s3 cp
 ENV
   if check_file "$tmp/no-alert.env" >/dev/null; then
-    echo "$TAG self-test: 空 FEISHU_WEBHOOK_URL 未判红（告警静默被放行）"
+    echo "$TAG self-test: SMTP 组缺键未判红（告警静默被放行）"
   else
     bad=$((bad + 1))
   fi
@@ -192,7 +206,12 @@ REDIS_PASSWORD=prod-redis-pass-7a1
 MINIO_ROOT_PASSWORD=prod-minio-pass-3c8
 JWT_SECRET=prod-jwt-secret-0123456789abcdefghijklmn
 JIANGYI_JWT_SECRET=prod-jy-jwt-secret-0123456789abcdefgh
-FEISHU_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/prod-sample
+SMTP_HOST=smtp.qiye.aliyun.com
+SMTP_PORT=465
+SMTP_USER=alert@example.com
+SMTP_PASS=prod-smtp-auth-code
+SMTP_FROM=alert@example.com
+SMTP_TO=ops@example.com
 BACKUP_REMOTE_CMD=
 ENV
   if check_file "$tmp/no-backup.env" >/dev/null; then

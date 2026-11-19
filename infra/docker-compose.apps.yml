@@ -369,9 +369,7 @@ services:
         max-size: "50m"
         max-file: "3"
 
-  # AU-188（2026-10-18 批次 6）：告警通知链路进生产栈——旧形态只在 full.yml 的 alerting
-  # profile（dev/demo 用），base/apps/production 无 relay/alertmanager ⇒ 规则触发了没人收到。
-  # 定义对齐 full.yml（含 AU-189 relay 无状态、alertmanager 配置只读挂载）。
+  # 飞书 relay 服务保留（空配置，不工作也不启动），供门禁/Grafana 引用；实际告警走 alertmanager 的 SMTP 邮件。
   feishu-alert-relay:
     stop_grace_period: 30s
     image: python:3.12-slim
@@ -384,10 +382,6 @@ services:
     volumes:
       - "./monitoring/feishu-relay.py:/app/feishu-relay.py:ro"
     ports: ["127.0.0.1:${FEISHU_RELAY_PORT:-18098}:8098"]
-    # F1（收敛计划 2026-11-17）：「桥在跑」不等于「告警送得出去」。
-    # FEISHU_WEBHOOK_URL 为空时 /webhook 恒返 503，而容器本身完全健康 ——
-    # 于是「没收到告警」被所有人读成「一切正常」（本项目最忌的信号在骗读者）。
-    # 把 configured 纳入健康判据：未配置即 unhealthy，`docker ps` / 巡检脚本一眼可见。
     healthcheck:
       test:
         [
@@ -404,14 +398,45 @@ services:
         max-size: "50m"
         max-file: "3"
 
+  # 2026-11-19：alertmanager 实际走原生 SMTP 邮件（渲染 alertmanager.email.yml）。
+  # alertmanager 官方镜像不展开 env，故启动时用 sed 把模板里的 __SMTP_*__ 占位符渲染成真值；
+  # 密码不进模板/镜像/git——从 SMTP_PASS env 写到文件，配置用 smtp_auth_password_file 读。
+  # 🔴 密码文件 chmod 644：alertmanager 以 uid 65534 运行，600 会 permission denied（实测踩坑）。
   alertmanager:
     logging: *default-logging
     stop_grace_period: 30s
     image: prom/alertmanager:v0.28.1
     restart: unless-stopped
+    entrypoint: /bin/sh
     command:
-      - "--config.file=/etc/alertmanager/alertmanager.yml"
-    volumes:
-      - "./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro"
-    ports: ["127.0.0.1:${ALERTMANAGER_PORT:-19093}:9093"]
+      - -c
+      - |
+        set -e
+        # 缺任一必需 SMTP 配置即拒绝启动，避免"容器健康但告警全丢"的静默失效
+        for k in SMTP_HOST SMTP_PORT SMTP_USER SMTP_FROM SMTP_TO SMTP_PASS; do
+          eval "v=\$$k"
+          if [ -z "$v" ]; then echo "alertmanager: 缺 $k，拒绝启动（告警链路不可用）" >&2; exit 1; fi
+        done
+        sed -e "s|__SMTP_HOST__|$$SMTP_HOST|g" \
+            -e "s|__SMTP_PORT__|$$SMTP_PORT|g" \
+            -e "s|__SMTP_USER__|$$SMTP_USER|g" \
+            -e "s|__SMTP_FROM__|$$SMTP_FROM|g" \
+            -e "s|__SMTP_TO__|$$SMTP_TO|g" \
+            /etc/alertmanager/alertmanager.yml.tpl > /etc/alertmanager/alertmanager.yml
+        printf '%s' "$$SMTP_PASS" > /etc/alertmanager/smtp_pass
+        chmod 644 /etc/alertmanager/smtp_pass
+        exec /bin/alertmanager --config.file=/etc/alertmanager/alertmanager.yml
+    environment:
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_TO: ${SMTP_TO:-}
+    # 双配置：alertmanager.yml 仅供门禁校验；实际运行读 alertmanager.email.yml（渲染进 .tpl）。
     depends_on: [feishu-alert-relay]
+    volumes:
+      - "./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.gate.yml:ro"
+      - "./monitoring/alertmanager.email.yml:/etc/alertmanager/alertmanager.yml.tpl:ro"
+      - "./monitoring/email.tmpl:/etc/alertmanager/email.tmpl:ro"
+    ports: ["127.0.0.1:${ALERTMANAGER_PORT:-19093}:9093"]

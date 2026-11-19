@@ -466,4 +466,44 @@ class OpsAlertDispatcherTest {
         assertNull(probes.get(0).detail());
     }
 
+    // ---------- 邮件正文人类可读性（2026-11-19） ----------
+
+    /**
+     * 邮件标题不得带机器告警码（SCHEDULED_TASK_STALE 之类），附加数据必须中文逐行渲染，
+     * 不能把 {@code Map.toString()} 的 {@code {count=2, staleTasks=[...]}} 直接给运营看。
+     */
+    @Test
+    void email_shouldUseChineseTitleAndRenderExtraReadably() {
+        SmtpAlertMailer mailer = org.mockito.Mockito.mock(SmtpAlertMailer.class);
+        OpsAlertDispatcher d = new OpsAlertDispatcher(
+                systemConfigService, RestClient.builder(), mailer,
+                org.mockito.Mockito.mock(com.aicabinet.trade.sms.AliyunSmsSender.class));
+        when(systemConfigService.getValue(SystemConfigService.OPS_ALERT_EMAIL_ENABLED, "false"))
+                .thenReturn("true");
+        when(systemConfigService.getValue(SystemConfigService.OPS_ALERT_EMAIL_SMTP_HOST, ""))
+                .thenReturn("smtp.example.com");
+        when(systemConfigService.getValue(SystemConfigService.OPS_ALERT_EMAIL_SMTP_PORT, "465"))
+                .thenReturn("465");
+        when(systemConfigService.getValue(SystemConfigService.OPS_ALERT_EMAIL_USERNAME, ""))
+                .thenReturn("ops@example.com");
+        when(systemConfigService.getValue(SystemConfigService.OPS_ALERT_EMAIL_PASSWORD, ""))
+                .thenReturn("secret");
+        when(systemConfigService.getValue(SystemConfigService.OPS_ALERT_EMAIL_TO, ""))
+                .thenReturn("ops@example.com");
+
+        d.send("SCHEDULED_TASK_STALE", "定时任务未按时执行", "正文",
+                Map.of("count", 2, "staleTasks", List.of("auto-replenish-task", "sms-delivery-probe")));
+
+        ArgumentCaptor<String> subject = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
+        verify(mailer).send(anyString(), org.mockito.ArgumentMatchers.anyInt(),
+                anyString(), anyString(), any(), subject.capture(), body.capture());
+        assertEquals("【AI柜运营告警】定时任务未按时执行", subject.getValue());
+        assertFalse(subject.getValue().contains("SCHEDULED_TASK_STALE"));
+        assertTrue(body.getValue().contains("补充信息："));
+        assertTrue(body.getValue().contains("数量：2"));
+        assertTrue(body.getValue().contains("超期任务：auto-replenish-task、sms-delivery-probe"));
+        assertFalse(body.getValue().contains("{count="));
+    }
+
 }

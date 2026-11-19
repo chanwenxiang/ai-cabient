@@ -201,16 +201,59 @@ public class OpsAlertDispatcher {
             log.warn("ops alert email skipped: incomplete config (host/username/password/to)");
             return false;
         }
+        // 2026-11-19：标题去掉机器告警码（SCHEDULED_TASK_STALE 之类），正文附加数据用中文逐行
+        // 渲染，不再把 Map.toString()（{count=2, staleTasks=[...]}）直接拼进邮件给人看。
         String body = (message == null || message.isBlank() ? title : title + "\n\n" + message)
-                + (extra == null || extra.isEmpty() ? "" : "\n\n" + extra);
+                + (extra == null || extra.isEmpty() ? "" : "\n\n" + renderExtraForMail(extra));
         try {
             smtpAlertMailer.send(host, port, user, pass, to,
-                    "[AI柜运营告警] " + type + "：" + title, body);
+                    "【AI柜运营告警】" + title, body);
             return true;
         } catch (Exception e) {
             log.warn("ops alert email failed type={}: {}", type, e.toString());
             return false;
         }
+    }
+
+    /**
+     * 把告警附加数据渲染成中文可读行，替代 {@code Map.toString()}（{@code {count=2, ...}} 那种
+     * 技术形状不该直接出现在给运营看的邮件正文里）。List 用顿号连接、键排序保证输出稳定。
+     */
+    private static String renderExtraForMail(Map<String, Object> extra) {
+        StringBuilder sb = new StringBuilder("补充信息：");
+        extra.entrySet().stream()
+                .sorted(java.util.Map.Entry.comparingByKey())
+                .forEach(e -> sb.append('\n').append(extraKeyZh(e.getKey()))
+                        .append("：").append(extraValueText(e.getValue())));
+        return sb.toString();
+    }
+
+    private static String extraKeyZh(String key) {
+        return switch (key) {
+            case "count" -> "数量";
+            case "staleTasks" -> "超期任务";
+            case "taskKey" -> "任务标识";
+            case "total" -> "总数";
+            case "failed" -> "失败数";
+            case "delivered" -> "成功数";
+            case "pending" -> "待回执数";
+            case "codes" -> "验证码";
+            case "thresholdPercent" -> "阈值百分比";
+            case "adminAddresses", "badAddresses" -> "调度中心地址";
+            case "appname" -> "应用名";
+            default -> key;
+        };
+    }
+
+    private static String extraValueText(Object value) {
+        if (value instanceof Iterable<?> items) {
+            java.util.List<String> parts = new java.util.ArrayList<>();
+            for (Object item : items) {
+                parts.add(String.valueOf(item));
+            }
+            return String.join("、", parts);
+        }
+        return String.valueOf(value);
     }
 
     /**

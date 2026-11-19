@@ -362,6 +362,14 @@
       "count": 1,
       "classification": "DISPLAY_ONLY",
       "why": "仅展示文案：log.warn 补货半满足日志，全仓无「；」解析读侧"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/OpsAlertDispatcher.java",
+      "sep": "、",
+      "kind": "writer",
+      "count": 1,
+      "classification": "DISPLAY_ONLY",
+      "why": "仅展示文案：告警邮件正文 List 值用「、」连接（extraValueText），全仓无「、」解析读侧"
     }
   ]
 }

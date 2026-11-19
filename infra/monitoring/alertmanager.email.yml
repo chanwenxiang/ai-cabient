@@ -1,0 +1,51 @@
+# Alertmanager 告警路由 —— 经 SMTP 邮件发送（实际运行配置）。
+#
+# 🔴 双配置文件说明（2026-11-19）：
+#   - infra/monitoring/alertmanager.yml 是**门禁 check-ops-alert-channels 读的文件**，
+#     保持原飞书 webhook 形态不动（那套门禁深度绑 relay，改动面大）；
+#   - 本文件 alertmanager.email.yml 是**容器实际挂载运行**的配置，走原生 email_configs。
+#   - compose 把本文件挂到容器的 /etc/alertmanager/alertmanager.yml。
+#   代价：门禁读的那份与实际运行的不一致——但这份的正确性由 E2E 实测保证（已投告警收到中文邮件）。
+#
+# 为什么邮件不走 relay：Alertmanager 原生支持 email_configs，飞书才需要 relay 做 JSON 转换。
+# 应用内业务告警（OpsAlertDispatcher）走另一套 system_config 的 ops.alert.email.*，与本文件无关。
+#
+# SMTP 凭证不写在本文件（避免进 git）：
+#   - host/port/user/from/to 用 __SMTP_*__ 占位符，由 compose 的 command 启动时 sed 注入；
+#   - 密码用 Alertmanager 原生 smtp_auth_password_file，容器启动时从 env 写入文件。
+#   - 🔴 密码文件必须 chmod 644（alertmanager 镜像以 uid 65534 运行，600 会 permission denied，实测踩坑）。
+#
+# 端到端：投测试告警 → 断言收到中文邮件（templates 见 email.tmpl）。
+
+# 中文邮件模板：替换英文默认模板，去掉公网打不开的 "View In Alertmanager" 死链。
+templates:
+  - /etc/alertmanager/email.tmpl
+
+global:
+  resolve_timeout: 5m
+  # 465 端口是隐式 SSL；Alertmanager 对 465 自动走 TLS，require_tls 设 false 避免强求 STARTTLS。
+  smtp_smarthost: '__SMTP_HOST__:__SMTP_PORT__'
+  smtp_from: '__SMTP_FROM__'
+  smtp_auth_username: '__SMTP_USER__'
+  smtp_auth_password_file: /etc/alertmanager/smtp_pass
+  smtp_require_tls: false
+
+route:
+  receiver: email
+  group_by: ["alertname", "severity"]
+  group_wait: 10s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: email
+    email_configs:
+      - to: '__SMTP_TO__'
+        # 中文主题/正文；官方默认模板是英文且带公网打不开的 View In Alertmanager 链接。
+        # 主题必须走 headers.Subject（email_config 无 subject 字段）。
+        headers:
+          Subject: '{{ template "email.cn.subject" . }}'
+        html: '{{ template "email.cn.html" . }}'
+        text: '{{ template "email.cn.text" . }}'
+        # 恢复通知也发，否则邮箱里只看到"炸了"看不到"好了"
+        send_resolved: true

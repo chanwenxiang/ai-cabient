@@ -1,0 +1,37 @@
+{{/* AI 柜监控告警中文邮件模板（2026-11-19）
+     替换 Alertmanager 英文默认模板；去掉打不开的 "View In Alertmanager" 死链
+     （alertmanager 只绑回环，公网不可达）。邮件正文全中文、inline 样式兼容手机邮箱。
+     标签键与级别值做中文化映射；告警名等标识符值保留原样（否则无法对应 Prometheus 规则）。 */}}
+{{ define "email.cn.labelKey" }}{{ if eq . "alertname" }}告警名{{ else if eq . "severity" }}级别{{ else if eq . "instance" }}实例{{ else if eq . "job" }}任务{{ else if eq . "device_id" }}柜机{{ else if eq . "sku_id" }}商品{{ else if eq . "merchant_id" }}商户{{ else }}{{ . }}{{ end }}{{ end }}
+{{ define "email.cn.severity" }}{{ if eq . "critical" }}严重{{ else if eq . "warning" }}警告{{ else if eq . "info" }}提示{{ else }}{{ . }}{{ end }}{{ end }}
+{{ define "email.cn.subject" }}【AI柜告警{{ if eq .Status "firing" }}·触发{{ else }}·恢复{{ end }}】{{ .CommonLabels.alertname }}{{ if gt (len .Alerts) 1 }} 等{{ len .Alerts }}条{{ end }}{{ end }}
+
+{{ define "email.cn.html" }}<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><title>AI柜监控告警</title></head>
+<body style="margin:0;padding:16px;background:#fff;color:#222;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<div style="max-width:640px;margin:0 auto;">
+  <div style="border-left:4px solid {{ if eq .Status "firing" }}#E24B4A{{ else }}#1D9E75{{ end }};padding-left:12px;margin-bottom:16px;">
+    <h2 style="margin:0 0 6px;font-size:18px;">AI 柜监控告警 · {{ if eq .Status "firing" }}触发{{ else }}恢复{{ end }}</h2>
+    <div style="color:#888;font-size:13px;">共 {{ len .Alerts }} 条 · 来源：Prometheus 监控栈</div>
+  </div>
+  {{ range .Alerts }}
+  <div style="border:1px solid #e5e5e5;border-radius:8px;padding:12px 14px;margin:10px 0;">
+    <div style="font-weight:600;font-size:14px;margin-bottom:8px;">{{ .Annotations.summary }}</div>
+    {{ with .Annotations.description }}<div style="color:#444;font-size:13px;margin-bottom:10px;">{{ . }}</div>{{ end }}
+    <table style="font-size:12px;color:#555;border-collapse:collapse;">
+      {{ range $k, $v := .Labels }}<tr><td style="padding:2px 10px 2px 0;color:#999;">{{ template "email.cn.labelKey" $k }}</td><td>{{ if eq $k "severity" }}{{ template "email.cn.severity" $v }}{{ else }}{{ $v }}{{ end }}</td></tr>{{ end }}
+    </table>
+    <div style="font-size:11px;color:#aaa;margin-top:8px;">开始时间：{{ .StartsAt.Format "2006-01-02 15:04:05" }}</div>
+  </div>
+  {{ end }}
+  <div style="font-size:11px;color:#aaa;border-top:1px solid #eee;padding-top:10px;margin-top:16px;">本邮件由 Alertmanager 自动发出 · AI Cabinet 监控系统</div>
+</div>
+</body></html>{{ end }}
+
+{{ define "email.cn.text" }}AI 柜监控告警 · {{ if eq .Status "firing" }}触发{{ else }}恢复{{ end }}（共 {{ len .Alerts }} 条）
+{{ range .Alerts }}
+{{ .Annotations.summary }}{{ with .Annotations.description }}
+{{ . }}{{ end }}
+{{ range $k, $v := .Labels }}  {{ template "email.cn.labelKey" $k }} = {{ if eq $k "severity" }}{{ template "email.cn.severity" $v }}{{ else }}{{ $v }}{{ end }}
+{{ end }}{{ end }}
+本邮件由 Alertmanager 自动发出 · AI Cabinet 监控系统{{ end }}

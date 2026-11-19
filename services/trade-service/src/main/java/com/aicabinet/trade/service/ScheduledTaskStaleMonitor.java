@@ -84,8 +84,9 @@ public class ScheduledTaskStaleMonitor {
     public static final String ALERT_TYPE = "SCHEDULED_TASK_STALE";
     /** 系统级异常没有设备/会话/订单引用，去重键落到 GLOBAL（见 OpsExceptionService#first）。 */
     private static final String GLOBAL_BUSINESS_KEY = "GLOBAL";
-    private static final DateTimeFormatter TIME_FMT =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.of("Asia/Shanghai"));
+    /** 邮件里的时间省略年份与秒：告警看的是"几点、静默多久"，不需要精确到秒的时间戳。 */
+    private static final DateTimeFormatter SHORT_TIME_FMT =
+            DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.of("Asia/Shanghai"));
 
     /** 超期原因。 */
     enum Reason {
@@ -307,30 +308,33 @@ public class ScheduledTaskStaleMonitor {
         }
         lastAlertFingerprint = fingerprint;
         lastAlertAt = now;
+        // 2026-11-19：extra 不再重复列 staleTasks（正文已逐条列出），只留数量；
+        // 判据说明也移进正文一处，避免同一封邮件里出现多份重复信息。
         alertDispatcher.send(ALERT_TYPE, "定时任务未按时执行",
                 detailOf(stale) + "\n判据：scheduled_task.last_run_at（不看调度台状态）",
-                Map.of("staleTasks", new ArrayList<>(stale.stream().map(StaleTask::taskKey).toList()),
-                        "count", stale.size()));
+                Map.of("count", stale.size()));
     }
 
     private static String detailOf(List<StaleTask> stale) {
-        StringBuilder sb = new StringBuilder();
+        // 2026-11-19：邮件正文排版优化——旧格式每个任务一整行长句、8 个堆一起很难读。
+        // 改为「序号. 中文名（技术 key）」+ 缩进行列原因/上次执行/静默时长；
+        // 时间省略年份与秒（告警看的是"几点静默多久"，不是精确到秒的时间戳）。
+        StringBuilder sb = new StringBuilder("超期 ").append(stale.size()).append(" 个任务：");
+        int i = 0;
         for (StaleTask t : stale) {
-            if (sb.length() > 0) {
-                sb.append('\n');
-            }
-            sb.append(t.taskKey()).append("（").append(t.taskName()).append("）")
-                    .append(t.reason().text());
+            sb.append('\n').append(++i).append(". ").append(t.taskName())
+                    .append("（").append(t.taskKey()).append("）")
+                    .append('\n').append("   原因：").append(t.reason().text());
             if (t.lastRunAt() == null) {
-                sb.append("；阈值 ").append(t.maxSilence().toMinutes()).append(" 分钟");
+                sb.append(" · 阈值 ").append(t.maxSilence().toMinutes()).append(" 分钟");
             } else if (t.afterRestart()) {
-                sb.append("；上次执行 ").append(TIME_FMT.format(t.lastRunAt()))
-                        .append("（早于进程启动），本次启动后已静默 ")
-                        .append(t.silence().toMinutes()).append(" 分钟，阈值 ")
+                sb.append(" · 上次执行 ").append(SHORT_TIME_FMT.format(t.lastRunAt()))
+                        .append("（早于本次启动）· 本次已静默 ")
+                        .append(t.silence().toMinutes()).append(" 分钟 · 阈值 ")
                         .append(t.maxSilence().toMinutes()).append(" 分钟");
             } else {
-                sb.append("；最近执行 ").append(TIME_FMT.format(t.lastRunAt()))
-                        .append(" 已静默 ").append(t.silence().toMinutes()).append(" 分钟");
+                sb.append(" · 上次执行 ").append(SHORT_TIME_FMT.format(t.lastRunAt()))
+                        .append(" · 已静默 ").append(t.silence().toMinutes()).append(" 分钟");
             }
         }
         return sb.toString();
