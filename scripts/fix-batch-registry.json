@@ -2267,6 +2267,25 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "8983e655",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-364",
+          "files": [
+            "clients/consumer-mp/src/pages/index/index.vue",
+            "clients/consumer-mp/src/utils/launch-options.test.ts",
+            "docs/ALIPAY_MINI_APP_LAUNCH.md",
+            "docs/module-audit/ISSUES.md",
+            "packages/shared-uni/src/qrcode.ts",
+            "scripts/check-alipay-mp-wiring.mjs",
+            "scripts/check-alipay-mp-wiring.test.mjs"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
