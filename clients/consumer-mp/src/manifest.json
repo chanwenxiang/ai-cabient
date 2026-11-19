@@ -11,6 +11,12 @@
       "base": "/"
     }
   },
+  "mp-alipay": {
+    "appid": "",
+    "component2": true,
+    "usingComponents": true,
+    "styleIsolation": "apply-shared"
+  },
   "mp-weixin": {
     "appid": "wx6dacefb3671de630",
     "libVersion": "3.10.3",

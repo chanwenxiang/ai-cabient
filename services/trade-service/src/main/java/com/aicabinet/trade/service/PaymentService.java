@@ -60,6 +60,16 @@ public class PaymentService {
     private static final String STATUS_PENDING = "PENDING";
     private static final String AMOUNT = "amount";
 
+    /**
+     * 支付场景：支付宝小程序内支付。客户端（uni-app 编译到 mp-alipay）在
+     * prepay 请求里显式声明；空值一律按 H5/浏览器口径处理（向后兼容）。
+     */
+    public static final String PAY_SCENE_MINI_APP = "MINI_APP";
+
+    private static boolean isMiniAppPayScene(String payScene) {
+        return payScene != null && PAY_SCENE_MINI_APP.equalsIgnoreCase(payScene.trim());
+    }
+
 
     private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
 
@@ -128,20 +138,33 @@ public class PaymentService {
      */
     public RechargePrepayResponse createRechargePrepay(Long userId, String requestedChannel,
                                                        int amountCents, String requestedIdempotencyKey) {
+        // 旧签名（无 payScene）默认按 H5/浏览器口径：支付宝走 wap。
+        return createRechargePrepay(userId, requestedChannel, amountCents, requestedIdempotencyKey, null);
+    }
+
+    /**
+     * @param payScene 支付场景（{@code MINI_APP} = 支付宝小程序内支付）；null/其它 = H5 口径。
+     *                 只影响支付宝渠道：小程序内只能 {@code trade.create + my.tradePay}，
+     *                 不能提交 wap 表单。
+     */
+    public RechargePrepayResponse createRechargePrepay(Long userId, String requestedChannel,
+                                                       int amountCents, String requestedIdempotencyKey,
+                                                       String payScene) {
         String channel = PayChannels.normalize(requestedChannel);
         String idempotencyKey = requestedIdempotencyKey.trim();
         if (!distributedLockService.tryLock(rechargeIdempotencyLockKey(idempotencyKey), 60, 5)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "充值请求处理中，请稍后重试");
         }
         try {
-            return doCreateRechargePrepay(userId, channel, amountCents, idempotencyKey);
+            return doCreateRechargePrepay(userId, channel, amountCents, idempotencyKey, payScene);
         } finally {
             distributedLockService.unlock(rechargeIdempotencyLockKey(idempotencyKey));
         }
     }
 
     private RechargePrepayResponse doCreateRechargePrepay(Long userId, String channel,
-                                                          int amountCents, String idempotencyKey) {
+                                                          int amountCents, String idempotencyKey,
+                                                          String payScene) {
         // DC-6：上限型键 fail-safe——0/负数回落默认（不再有「不限制」形态）
         int maxCents = systemConfigService.getPositiveLimit(SystemConfigService.RECHARGE_MAX_CENTS, 500_000);
         if (amountCents > maxCents) {
@@ -155,12 +178,12 @@ public class PaymentService {
                     || !existing.getChannel().equals(channel)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.INVALID_REQUEST);
             }
-            return toPrepayResponse(existing);
+            return toPrepayResponse(existing, payScene);
         }
         RechargeOrder order = self.insertPendingRechargeOrder(userId, channel, amountCents, idempotencyKey);
         return switch (channel) {
             case PayChannels.WECHAT -> createWeChatPrepay(order, userId);
-            case PayChannels.ALIPAY -> createAlipayPrepay(order);
+            case PayChannels.ALIPAY -> createAlipayPrepay(order, payScene);
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.UNSUPPORTED_CHANNEL);
         };
     }
@@ -206,16 +229,25 @@ public class PaymentService {
         rechargeOrderRepository.save(order);
     }
 
-    private RechargePrepayResponse toPrepayResponse(RechargeOrder order) {
+    private RechargePrepayResponse toPrepayResponse(RechargeOrder order, String payScene) {
         if (PayChannels.ALIPAY.equals(order.getChannel())) {
-            if (alipayPayClient.isConfigured() && STATUS_PENDING.equals(order.getStatus())) {
-                AlipayPayClient.AlipayPrepayResult prepay = alipayPayClient.createWapPay(
-                        order.getOrderId(), order.getAmountCents(), "AI Cabinet Recharge");
-                AlipayPayParams alipayPay = new AlipayPayParams(
-                        order.getOrderId(), prepay.tradeNo(), prepay.payUrl(), prepay.payFormHtml());
+            boolean mini = isMiniAppPayScene(payScene);
+            // 幂等重放：小程序场景下同 key 重试必须先还回**同一笔** trade_no
+            // （my.tradePay 可对同一 tradeNo 重复拉起）。旧实现无条件重建 wap 单，
+            // 小程序里拿到 HTML 表单 = 死路。
+            String existingTradeNo = order.getAlipayTradeNo();
+            if (mini
+                    && STATUS_PENDING.equals(order.getStatus())
+                    && existingTradeNo != null && !existingTradeNo.isBlank()
+                    && !existingTradeNo.startsWith("mock_")) {
                 return new RechargePrepayResponse(
-                        order.getChannel(), order.getOrderId(), null, alipayPay,
-                        Map.of(ORDERID, order.getOrderId(), "mode", "live"));
+                        order.getChannel(), order.getOrderId(), null,
+                        new AlipayPayParams(order.getOrderId(), existingTradeNo, null, null),
+                        Map.of(ORDERID, order.getOrderId(), "mode", "live", "payScene", PAY_SCENE_MINI_APP));
+            }
+            if ((mini ? alipayPayClient.isMiniConfigured() : alipayPayClient.isConfigured())
+                    && STATUS_PENDING.equals(order.getStatus())) {
+                return createAlipayPrepay(order, payScene);
             }
             return new RechargePrepayResponse(order.getChannel(), order.getOrderId(), null,
                     new AlipayPayParams(order.getOrderId(), order.getAlipayTradeNo(), null, null),
@@ -286,7 +318,36 @@ public class PaymentService {
                 Map.of(ORDERID, order.getOrderId(), "mode", "mock", "apiVersion", "v3"));
     }
 
-    private RechargePrepayResponse createAlipayPrepay(RechargeOrder order) {
+    private RechargePrepayResponse createAlipayPrepay(RechargeOrder order, String payScene) {
+        boolean mini = isMiniAppPayScene(payScene);
+        if (mini && alipayPayClient.isMiniConfigured()) {
+            UserInfo user = userInfoRepository.findById(order.getUserId()).orElse(null);
+            String buyerId = user == null ? null : user.getAlipayUserId();
+            if (buyerId == null || buyerId.isBlank()) {
+                // 小程序支付必须带 buyer_id，只有走过支付宝授权登录的用户才有。
+                // 明确让用户去授权，而不是抛网关错误串（40004 用户看不懂）。
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        ApiMessages.ALIPAY_BUYER_NOT_BOUND);
+            }
+            AlipayPayClient.AlipayPrepayResult prepay = alipayPayClient.createMiniPay(
+                    order.getOrderId(), order.getAmountCents(), "AI开门柜充值", buyerId);
+            self.persistAlipayTradeNoForPending(order.getOrderId(), prepay.tradeNo());
+            order.setAlipayTradeNo(prepay.tradeNo());
+            AlipayPayParams alipayPay = new AlipayPayParams(
+                    order.getOrderId(), prepay.tradeNo(), null, null);
+            return new RechargePrepayResponse(
+                    PayChannels.ALIPAY,
+                    order.getOrderId(),
+                    null,
+                    alipayPay,
+                    Map.of(ORDERID, order.getOrderId(), "mode", "live", "payScene", PAY_SCENE_MINI_APP));
+        }
+        // 小程序场景但没配小程序应用：非 mock 必须 fail-closed。**不能**退回 wap——
+        // 小程序里提交 HTML 表单会被支付宝客户端拦掉，用户只看到白屏。
+        if (mini && !securityProperties.mockEnabled()) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    ApiMessages.ALIPAY_MINI_NOT_CONFIGURED);
+        }
         if (alipayPayClient.isConfigured()) {
             AlipayPayClient.AlipayPrepayResult prepay = alipayPayClient.createWapPay(
                     order.getOrderId(), order.getAmountCents(), "AI Cabinet Recharge");

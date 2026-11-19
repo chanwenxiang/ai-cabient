@@ -335,6 +335,92 @@ export async function runWeChatRecharge(
  * - live：跳转表单/链接（沙箱进件）
  * - mock：预下单后走统一 mock-success 即时到账（无真实进件）
  */
+/**
+ * 支付宝小程序收银台：`my.tradePay({ tradeNO })`。
+ *
+ * 🔴 不能走 `uni.requestPayment`：uni 在支付宝端的 requestPayment 需要传入
+ * `orderStr`/`tradeNO` 等支付宝字段，而本仓微信分支传的是 timeStamp/package/paySign
+ * （微信 JSAPI 形状）——原样搬过来必定 `-100` 参数错误，且报错文案是英文平台串。
+ * 因此单独封装，且 resultCode 按支付宝官方码表翻译成中文。
+ */
+export function invokeAlipayTradePay(tradeNo: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const myApi = globalThis as unknown as {
+      my?: {
+        tradePay?: (options: {
+          tradeNO?: string;
+          success?: (res: { resultCode?: string; memo?: string }) => void;
+          fail?: () => void;
+        }) => void;
+      };
+    };
+    const tradePay = myApi.my?.tradePay;
+    if (typeof tradePay !== 'function') {
+      reject(new Error('当前环境不支持支付宝支付'));
+      return;
+    }
+    tradePay({
+      tradeNO: tradeNo,
+      success(res) {
+        const code = String(res?.resultCode || '');
+        if (code === '9000') {
+          resolve();
+          return;
+        }
+        // 6001=用户取消；8000/6002=处理中/网络异常（订单可能已付款，交由轮询兜底，但这里按未完成报错）
+        if (code === '6001') {
+          reject(new Error('已取消支付'));
+          return;
+        }
+        reject(new Error('支付未完成'));
+      },
+      fail() {
+        reject(new Error('支付未完成'));
+      }
+    });
+  });
+}
+
+/**
+ * 支付宝小程序充值（live）：trade.create 拿 tradeNo → my.tradePay → 轮询到账。
+ * 与 H5 分支的区别只有「怎么拉起收银台」：这里服务端必须收到 payScene=MINI_APP，
+ * 否则会返回 wap 表单（小程序里表单会被支付宝客户端拦掉）。
+ */
+async function runAlipayMiniRecharge(
+  amountCents: number,
+  idempotencyKey: string
+): Promise<{ orderId: string; mode: 'mock' | 'live' }> {
+  const prepay = await consumerApi.createRechargePrepay(
+    'ALIPAY',
+    amountCents,
+    idempotencyKey,
+    'MINI_APP'
+  );
+  const rawMode = String(prepay.debugInfo?.mode || '').toLowerCase();
+  if (rawMode !== 'live' && rawMode !== 'mock') {
+    throw new Error('支付参数缺失：预下单未声明支付模式，请稍后重试');
+  }
+  if (rawMode === 'mock') {
+    await consumerApi.confirmMockRecharge(prepay.orderId);
+    return { orderId: prepay.orderId, mode: 'mock' };
+  }
+  const tradeNo = prepay.alipayPay?.tradeNo;
+  if (!tradeNo) {
+    throw new Error('未获取到支付宝交易号，请稍后重试');
+  }
+  savePendingRechargeOrder(prepay.orderId);
+  try {
+    await invokeAlipayTradePay(tradeNo);
+  } catch (e) {
+    // 用户取消/支付失败：这一笔不会自动到账，先清 pending（保留会让每次进页白等一轮轮询）
+    forgetPendingRecharge(prepay.orderId);
+    throw e;
+  }
+  await pollRechargePaid(prepay.orderId, 20, 1500);
+  forgetPendingRecharge(prepay.orderId);
+  return { orderId: prepay.orderId, mode: 'live' };
+}
+
 export async function runAlipayRecharge(
   amountCents: number,
   idempotencyKey: string
@@ -342,6 +428,10 @@ export async function runAlipayRecharge(
   orderId: string;
   mode: 'mock' | 'live';
 }> {
+  // #ifdef MP-ALIPAY
+  return runAlipayMiniRecharge(amountCents, idempotencyKey);
+  // #endif
+  // #ifndef MP-ALIPAY
   const prepay = await consumerApi.createRechargePrepay('ALIPAY', amountCents, idempotencyKey);
   // 审计 P2-17：与微信侧同口径——mock 必须显式声明，缺失即 fail-closed（不再「非 live 即 mock」）
   const rawMode = String(prepay.debugInfo?.mode || '').toLowerCase();
@@ -365,4 +455,5 @@ export async function runAlipayRecharge(
     throw e;
   }
   return { orderId: prepay.orderId, mode: 'live' };
+  // #endif
 }

@@ -1,5 +1,6 @@
 package com.aicabinet.trade.payment;
 
+import com.aicabinet.trade.config.AlipayMiniProperties;
 import com.aicabinet.trade.config.AlipayProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Component;
@@ -15,15 +16,60 @@ public class AlipayPayClient {
 
 
     private final AlipayProperties properties;
+    private final AlipayMiniProperties miniProperties;
     private final AlipayOpenApiClient openApiClient;
 
-    public AlipayPayClient(AlipayProperties properties, AlipayOpenApiClient openApiClient) {
+    public AlipayPayClient(AlipayProperties properties,
+                           AlipayMiniProperties miniProperties,
+                           AlipayOpenApiClient openApiClient) {
         this.properties = properties;
+        this.miniProperties = miniProperties;
         this.openApiClient = openApiClient;
     }
 
     public boolean isConfigured() {
         return properties.isConfigured();
+    }
+
+    /** 小程序内支付是否可用（需要**小程序应用**的 app_id，见 {@link AlipayMiniProperties}）。 */
+    public boolean isMiniConfigured() {
+        return properties.isConfigured() && miniProperties.isConfigured();
+    }
+
+    /**
+     * 支付宝小程序支付：{@code alipay.trade.create}（JSAPI）→ trade_no，客户端用
+     * {@code my.tradePay({tradeNO})} 拉起收银台。
+     *
+     * <p>🔴 两条与 {@link #createWapPay} 不可互换的硬约束：
+     * <ol>
+     *   <li>小程序里**不能**提交 HTML 表单（支付宝客户端会拦截），只能拿 trade_no 由客户端调起；</li>
+     *   <li>{@code trade.create} **必须带 buyer_id**（= 支付宝 user_id，登录时由
+     *       {@code alipay.system.oauth.token} 取得）。因此只有「已在支付宝内授权登录」的
+     *       用户能走这条 —— 拿不到 buyerId 时必须 fail-closed，而不是退回 wap。</li>
+     * </ol>
+     *
+     * @param buyerId 支付宝 user_id（user_info.alipay_user_id）
+     */
+    public AlipayPrepayResult createMiniPay(String outTradeNo, int amountCents, String subject, String buyerId) {
+        if (!isMiniConfigured()) {
+            throw new IllegalStateException("alipay mini program not configured");
+        }
+        if (buyerId == null || buyerId.isBlank()) {
+            throw new IllegalStateException("alipay buyer_id missing");
+        }
+        Map<String, Object> biz = new LinkedHashMap<>();
+        biz.put(OUT_TRADE_NO, outTradeNo);
+        biz.put("total_amount", formatAmount(amountCents));
+        biz.put("subject", subject == null || subject.isBlank() ? "AI开门柜充值" : subject);
+        biz.put("buyer_id", buyerId.trim());
+        // JSAPI_PAY = 小程序支付；不带 product_code 时支付宝会按 wap 处理并报「交易类型不符」
+        biz.put("product_code", "JSAPI_PAY");
+        JsonNode resp = openApiClient.executeAs(miniProperties.appId(), "alipay.trade.create", biz);
+        String tradeNo = resp.path("trade_no").asText(null);
+        if (tradeNo == null || tradeNo.isBlank()) {
+            throw new IllegalStateException("alipay trade.create missing trade_no: " + resp);
+        }
+        return new AlipayPrepayResult(tradeNo, null, null);
     }
 
     public AlipayPrepayResult createWapPay(String outTradeNo, int amountCents, String subject) {

@@ -141,6 +141,11 @@ public final class ApiMessages {
     public static final String INSUFFICIENT_REFUND = "余额不足，无法退款";
     public static final String WECHAT_PAY_NOT_CONFIGURED = "微信支付未配置";
     public static final String ALIPAY_PAY_NOT_CONFIGURED = "支付宝未配置";
+    /** 小程序内支付需要**小程序应用**的 app_id（与网页应用不是同一个），未配即不可用。 */
+    public static final String ALIPAY_MINI_NOT_CONFIGURED =
+            "支付宝小程序支付未配置（需小程序应用 appId 与「小程序支付」产品签约）";
+    /** alipay.trade.create 必须带 buyer_id ⇒ 必须先走过支付宝授权登录。 */
+    public static final String ALIPAY_BUYER_NOT_BOUND = "请先在支付宝内授权登录后再支付";
     public static final String WX_OPENID_NOT_BOUND = "请先绑定微信后再支付";
     public static final String TICKET_NOT_FOUND = "争议工单不存在";
     public static final String TICKET_ALREADY_RESOLVED = "工单已处理";

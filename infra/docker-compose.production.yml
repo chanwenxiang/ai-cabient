@@ -67,6 +67,12 @@ services:
       #    键名以 application.yml 的 ${CONSUMER_H5_BASE:auto} 为准（带 QR_ 前缀不生效）。
       #    值必须是真部署了消费者 H5 的地址，形如 https://<域名>/h5/
       CONSUMER_H5_BASE: ${CONSUMER_H5_BASE:-}
+      # 支付宝**小程序**应用（消费者端 mp-alipay 编译产物用）。
+      # 🔴 与 ALIPAY_APP_ID 不是同一个应用：网页应用只能 wap 支付，小程序内支付
+      #    （alipay.trade.create + my.tradePay）必须用小程序应用的 app_id。
+      #    未配置 ⇒ 支付宝小程序端充值 fail-closed（不退回 wap，小程序里表单会被拦）。
+      ALIPAY_MP_ENABLED: ${ALIPAY_MP_ENABLED:-false}
+      ALIPAY_MP_APP_ID: ${ALIPAY_MP_APP_ID:-}
     logging:
       driver: json-file
       options:

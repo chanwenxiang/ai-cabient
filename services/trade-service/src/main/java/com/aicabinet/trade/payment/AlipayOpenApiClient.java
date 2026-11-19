@@ -39,10 +39,29 @@ public class AlipayOpenApiClient {
     }
 
     public JsonNode execute(String method, Map<String, Object> bizContent) {
+        return executeAs(properties.appId(), method, bizContent, properties.returnUrl());
+    }
+
+    /** 不带 return_url 的指定 app_id 调用（小程序 JSAPI 支付：无回跳页）。 */
+    public JsonNode executeAs(String appId, String method, Map<String, Object> bizContent) {
+        return executeAs(appId, method, bizContent, "");
+    }
+
+    /**
+     * 用指定 app_id 执行（小程序支付走**小程序应用**的 app_id，密钥与网页应用共用）。
+     *
+     * <p>签名必须覆盖 app_id，所以 app_id 必须在 {@link AlipaySignUtil#signRsa2} 之前写进参数——
+     * 先按网页应用签好再替换 app_id 会得到「验签失败」，且错误码（40002）与密钥错配完全一样，
+     * 排查时极易误判成密钥问题。
+     */
+    public JsonNode executeAs(String appId, String method, Map<String, Object> bizContent, String returnUrl) {
         if (!properties.isConfigured()) {
             throw new IllegalStateException("alipay not configured");
         }
-        Map<String, String> params = buildCommonParams(method, bizContent, properties.returnUrl(), null);
+        if (appId == null || appId.isBlank()) {
+            throw new IllegalStateException("alipay app_id missing for method " + method);
+        }
+        Map<String, String> params = buildCommonParams(appId, method, bizContent, returnUrl, null);
         params.put("sign", signUtil.signRsa2(params, properties.privateKey()));
 
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
@@ -165,8 +184,13 @@ public class AlipayOpenApiClient {
 
     private Map<String, String> buildCommonParams(String method, Map<String, Object> bizContent,
                                                   String returnUrl, String notifyUrlOverride) {
+        return buildCommonParams(properties.appId(), method, bizContent, returnUrl, notifyUrlOverride);
+    }
+
+    private Map<String, String> buildCommonParams(String appId, String method, Map<String, Object> bizContent,
+                                                  String returnUrl, String notifyUrlOverride) {
         Map<String, String> params = new TreeMap<>();
-        params.put("app_id", properties.appId());
+        params.put("app_id", appId);
         params.put("method", method);
         params.put("format", "json");
         params.put("charset", "utf-8");
@@ -184,9 +208,7 @@ public class AlipayOpenApiClient {
         if (notify != null && !notify.isBlank()) {
             params.put("notify_url", notify);
         }
-        String resolvedReturnUrl = returnUrl != null && !returnUrl.isBlank()
-                ? returnUrl
-                : properties.returnUrl();
+        String resolvedReturnUrl = returnUrl == null ? properties.returnUrl() : returnUrl;
         if (resolvedReturnUrl != null && !resolvedReturnUrl.isBlank()) {
             params.put("return_url", resolvedReturnUrl);
         }

@@ -144,20 +144,37 @@ export function buildBalanceRefundBody(input: {
 
 export type RechargeChannel = 'WECHAT' | 'ALIPAY';
 
+/**
+ * 支付场景：`MINI_APP` = 支付宝小程序内支付（服务端走 alipay.trade.create，
+ * 客户端用 my.tradePay 拉起）。缺省 = H5/浏览器口径（wap 表单）。
+ * 只对支付宝生效；微信端不传。
+ */
+export type RechargePayScene = 'MINI_APP';
+
 export function buildRechargePrepayBody(input: {
   channel: RechargeChannel;
   amountCents: number;
   idempotencyKey: string;
+  payScene?: RechargePayScene;
 }): {
   channel: RechargeChannel;
   amountCents: number;
   idempotencyKey: string;
+  payScene?: RechargePayScene;
 } {
-  return {
+  const body: {
+    channel: RechargeChannel;
+    amountCents: number;
+    idempotencyKey: string;
+    payScene?: RechargePayScene;
+  } = {
     channel: input.channel,
     amountCents: input.amountCents,
     idempotencyKey: input.idempotencyKey
   };
+  // 不写 undefined：服务端按「缺省 = H5」判定，显式 null 会多一条无意义分支
+  if (input.payScene) body.payScene = input.payScene;
+  return body;
 }
 
 export type MoneyAmountValidationError = 'INVALID_AMOUNT' | 'EXCEEDS_MAX';

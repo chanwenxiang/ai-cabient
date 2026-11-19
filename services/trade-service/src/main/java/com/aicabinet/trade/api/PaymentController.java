@@ -42,7 +42,7 @@ public class PaymentController {
             @Valid @RequestBody RechargePrepayRequest body) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         return ApiResponse.ok(paymentService.createRechargePrepay(userId, body.channel(),
-                body.amountCents(), body.idempotencyKey()));
+                body.amountCents(), body.idempotencyKey(), body.payScene()));
     }
 
     @GetMapping("/recharges")
@@ -73,6 +73,12 @@ public class PaymentController {
     public record RechargePrepayRequest(
             @NotBlank String channel,
             @Min(1) int amountCents,
-            @NotBlank @Size(max = 128) String idempotencyKey
+            @NotBlank @Size(max = 128) String idempotencyKey,
+            /**
+             * 支付场景：{@code MINI_APP} = 支付宝小程序内支付（走 alipay.trade.create +
+             * 客户端 my.tradePay）；null/缺省 = H5/浏览器口径（wap 表单）。
+             * 只对支付宝渠道生效，微信渠道忽略。
+             */
+            @Size(max = 16) String payScene
     ) {}
 }

@@ -23,7 +23,7 @@
 
       <view class="form-card">
         <text class="title">登录后继续</text>
-        <text class="subtitle">微信授权即可开门购物；手机号仅作备用验证</text>
+        <text class="subtitle">{{ authSubtitle }}</text>
 
         <!--
           微信一键登录（CB-040 待补编号；企业主体解锁能力前置就绪）：
@@ -304,7 +304,18 @@ const showPhoneForm = ref(false);
 // #ifdef H5
 showPhoneForm.value = true;
 // #endif
-const wxBtnLabel = computed(() => '微信授权登录');
+/** 编译期平台判定：支付宝端授权通道与按钮文案不同（与 isMpWeixin 同口径）。 */
+let isMpAlipay = false;
+// #ifdef MP-ALIPAY
+isMpAlipay = true;
+// #endif
+const wxBtnLabel = computed(() => (isMpAlipay ? '支付宝授权登录' : '微信授权登录'));
+/** 平台文案：支付宝端不能出现「微信授权」字样（跨端混用会被支付宝审核驳回）。 */
+const authSubtitle = computed(() =>
+  isMpAlipay
+    ? '支付宝授权即可开门购物；手机号仅作备用验证'
+    : '微信授权即可开门购物；手机号仅作备用验证'
+);
 const isDev = showDevTools();
 const demoPhone = String(import.meta.env.VITE_DEMO_PHONE || '').trim();
 const demoPassword = String(import.meta.env.VITE_DEMO_PASSWORD || '').trim();
@@ -504,12 +515,14 @@ async function runMiniProgramWxLogin() {
     const ok = await ensureConsumerAuth({ force: true });
     if (!ok) {
       showPhoneForm.value = true;
-      err.value = '当前环境无法微信授权，请使用手机号登录';
+      err.value = isMpAlipay
+        ? '当前环境无法支付宝授权，请使用手机号登录'
+        : '当前环境无法微信授权，请使用手机号登录';
       return;
     }
     finishLogin();
   } catch (error_) {
-    err.value = caughtErrorMessage(error_, '微信授权失败');
+    err.value = caughtErrorMessage(error_, isMpAlipay ? '支付宝授权失败' : '微信授权失败');
     showPhoneForm.value = true;
   } finally {
     loading.value = false;

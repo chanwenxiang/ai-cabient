@@ -319,6 +319,11 @@ aicabinet:
     agreement-product-code: ${ALIPAY_AGREEMENT_PRODUCT_CODE:GENERAL_WITHHOLDING}
     agreement-notify-url: ${ALIPAY_AGREEMENT_NOTIFY_URL:}
     agreement-sign-scene: ${ALIPAY_AGREEMENT_SIGN_SCENE:DEFAULT}
+    # 支付宝**小程序**应用（与上面网页应用是两个 app_id；小程序内支付只能用它）。
+    # 未配置 ⇒ 支付宝小程序端充值 fail-closed，不退回 wap。
+    mp:
+      enabled: ${ALIPAY_MP_ENABLED:false}
+      app-id: ${ALIPAY_MP_APP_ID:}
   payscore:
     enabled: ${PAYSCORE_ENABLED:false}
     mock-enabled: ${PAYSCORE_MOCK_ENABLED:true}

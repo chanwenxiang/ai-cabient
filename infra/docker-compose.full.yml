@@ -273,6 +273,9 @@ services:
       ALIPAY_GATEWAY: ${ALIPAY_GATEWAY:-https://openapi.alipay.com/gateway.do}
       ALIPAY_NOTIFY_URL: ${ALIPAY_NOTIFY_URL:-}
       ALIPAY_RETURN_URL: ${ALIPAY_RETURN_URL:-}
+      # 支付宝小程序应用（小程序内支付 alipay.trade.create 专用 app_id）
+      ALIPAY_MP_ENABLED: ${ALIPAY_MP_ENABLED:-false}
+      ALIPAY_MP_APP_ID: ${ALIPAY_MP_APP_ID:-}
       # 柜门一码：手机扫码请在 infra/.env 设 QR_PUBLIC_HOST=http://<WLAN局域网IP>（经网关 :80）
       # 容器内 auto 探测到的是 Docker 网桥 IP，不可用；默认 localhost 仅本机浏览器。
       QR_PUBLIC_HOST: ${QR_PUBLIC_HOST:-http://localhost}

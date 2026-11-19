@@ -1,6 +1,7 @@
 package com.aicabinet.trade.api;
 import com.aicabinet.common.constants.CabinetConstants;
 
+import com.aicabinet.trade.config.AlipayMiniProperties;
 import com.aicabinet.trade.config.QrProperties;
 import com.aicabinet.trade.service.ApiRateLimitService;
 import com.aicabinet.trade.service.DeviceQrService;
@@ -33,15 +34,18 @@ public class CabinetOpenLandingController {
     private final QrProperties qrProperties;
     private final WeChatMiniAppClient weChatMiniAppClient;
     private final ApiRateLimitService rateLimitService;
+    private final AlipayMiniProperties alipayMiniProperties;
 
     public CabinetOpenLandingController(DeviceQrService deviceQrService,
                                         QrProperties qrProperties,
                                         WeChatMiniAppClient weChatMiniAppClient,
-                                        ApiRateLimitService rateLimitService) {
+                                        ApiRateLimitService rateLimitService,
+                                        AlipayMiniProperties alipayMiniProperties) {
         this.deviceQrService = deviceQrService;
         this.qrProperties = qrProperties;
         this.weChatMiniAppClient = weChatMiniAppClient;
         this.rateLimitService = rateLimitService;
+        this.alipayMiniProperties = alipayMiniProperties;
     }
 
     @GetMapping(value = "/o/{deviceId}", produces = MediaType.TEXT_HTML_VALUE)
@@ -69,13 +73,19 @@ public class CabinetOpenLandingController {
                     .contentType(MediaType.TEXT_HTML)
                     .body(guidePage(id, openUrl));
         }
-        // 支付宝支：消费者 H5 未部署时不能 302——normalizedConsumerH5Base() 会兜底成
-        // 「同主机 + :3002」，那是本机 uni dev server，生产上连不上，用户只看到
-        // 「无法打开网页」。没落点就给明确引导（2026-11-19 实锤生产 302 到 :3002）。
-        if (CabinetConstants.PAY_CHANNEL_ALIPAY.equals(channel) && !qrProperties.hasConsumerH5()) {
-            return ResponseEntity.ok()
-                    .contentType(MediaType.TEXT_HTML)
-                    .body(alipayUnavailablePage(id));
+        // 支付宝支：小程序上线后优先拉起小程序（一码两用）；未配小程序应用时才看 H5 落点。
+        // 🔴 顺序不能反：H5 只是过渡形态，先跳 H5 会把支付宝用户挡在小程序门外。
+        if (CabinetConstants.PAY_CHANNEL_ALIPAY.equals(channel)) {
+            if (alipayMiniProperties.isConfigured()) {
+                return ResponseEntity.ok()
+                        .contentType(MediaType.TEXT_HTML)
+                        .body(alipayMiniOpenPage(id, alipayMiniProperties.appId()));
+            }
+            if (!qrProperties.hasConsumerH5()) {
+                return ResponseEntity.ok()
+                        .contentType(MediaType.TEXT_HTML)
+                        .body(alipayUnavailablePage(id));
+            }
         }
         String target = resolveTargetUrl(id, channel);
         return ResponseEntity.status(HttpStatus.FOUND)
@@ -176,6 +186,60 @@ public class CabinetOpenLandingController {
                 <code>%s</code>
                 </div></body></html>
                 """.formatted(safeId, safeId, safeUrl);
+    }
+
+    /**
+     * 支付宝内打开柜门码的承接页：拉起支付宝小程序并带 deviceId。
+     *
+     * <p>为什么不是 302：{@code alipays://} 是支付宝客户端的私有 scheme，HTTP 302 到它
+     * 在部分机型/WebView 上会被直接丢弃（用户看到「无法打开网页」），而且失败后没有任何
+     * 补救说明。渲染一页再跳，失败时还能给出「在支付宝首页搜索小程序」的兜底。
+     *
+     * <p>🔴 更优路径是开放平台的「扫普通链接二维码打开小程序」：同一张柜门码由支付宝
+     * 识别后**直接**进小程序，不经过本页。本页是未配该规则/规则未命中时的兜底。
+     */
+    private static String alipayMiniOpenPage(String deviceId, String appId) {
+        String safeId = HtmlUtils.htmlEscape(deviceId);
+        // query 里带 channel=ALIPAY：ShoppingSession.entryChannel 据此记账（与微信侧同源）
+        String query = enc("deviceId=" + deviceId + "&channel=ALIPAY&autoOpen=1");
+        String scheme = "alipays://platformapi/startapp?appId=" + enc(appId)
+                + "&page=" + enc("pages/index/index")
+                + "&query=" + query;
+        String safeScheme = HtmlUtils.htmlEscape(scheme);
+        return """
+                <!DOCTYPE html><html lang="zh-CN"><head>
+                <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+                <title>正在打开易购智能柜 · %s</title>
+                <style>
+                body{font-family:system-ui,sans-serif;margin:0;padding:48px 24px;background:#0b1220;color:#e8eef7;text-align:center}
+                .card{max-width:420px;margin:0 auto;padding:28px 22px;border-radius:16px;background:#121a2b;border:1px solid #243049}
+                h1{font-size:22px;margin:0 0 12px}p{color:#9db0c9;line-height:1.6;margin:8px 0}
+                .tip{display:none;margin-top:16px;padding:12px;border-radius:8px;background:#0b1220;color:#7dd3c7;font-size:13px}
+                a{color:#7dd3c7}
+                </style></head>
+                <body><div class="card">
+                <h1>正在打开易购智能柜</h1>
+                <p>当前柜机 <strong>%s</strong></p>
+                <p id="wait">正在唤起支付宝小程序…</p>
+                <div class="tip" id="tip">
+                  <p>若未自动打开，请在支付宝首页搜索「易购智能柜」小程序后重新扫码。</p>
+                  <p><a id="retry" href="%s">点此重试</a></p>
+                </div>
+                </div>
+                <script>
+                (function(){
+                  // 从 href 读取而不是把 scheme 拼进 JS 字符串：deviceId 来自路径参数，
+                  // 直接内插会因引号/反斜杠破坏脚本（或变成注入点）。
+                  var target = document.getElementById('retry').href;
+                  try { location.replace(target); } catch (e) {}
+                  setTimeout(function(){
+                    document.getElementById('wait').style.display = 'none';
+                    document.getElementById('tip').style.display = 'block';
+                  }, 1800);
+                })();
+                </script>
+                </body></html>
+                """.formatted(safeId, safeId, safeScheme);
     }
 
     /** 支付宝支无落点时的引导页：比 302 到死端口诚实（用户至少知道该怎么做）。 */

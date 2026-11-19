@@ -173,6 +173,10 @@ services:
       ALIPAY_PUBLIC_KEY: ${ALIPAY_PUBLIC_KEY:-}
       ALIPAY_NOTIFY_URL: ${ALIPAY_NOTIFY_URL:-}
       ALIPAY_RETURN_URL: ${ALIPAY_RETURN_URL:-}
+      # 支付宝**小程序**应用（2026-11-19 支付宝端补齐）：小程序内支付只能用它。
+      # 与上面的 ALIPAY_APP_ID（网页应用，wap.pay）不是同一个应用，密钥可共用同一套。
+      ALIPAY_MP_ENABLED: ${ALIPAY_MP_ENABLED:-false}
+      ALIPAY_MP_APP_ID: ${ALIPAY_MP_APP_ID:-}
       # 2026-10-20：通知渠道开关（此前从未透传进容器，与 SMS 同型坑——改 .env 不重启容器不生效）。
       # NOTIFY_SMS_ENABLED 是欠款催缴短信总闸（V326），默认 false；微信订阅消息按模板 channels 决定双发
       NOTIFY_WECHAT_ENABLED: ${NOTIFY_WECHAT_ENABLED:-false}

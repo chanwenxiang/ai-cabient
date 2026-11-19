@@ -12,7 +12,7 @@ import {
   refreshTokenSilently as sharedRefreshToken,
   type MpApiSession
 } from '@aicabinet/shared-uni/request';
-import { buildRechargePrepayBody } from '@/utils/money-ui-contracts';
+import { buildRechargePrepayBody, type RechargePayScene } from '@/utils/money-ui-contracts';
 import { API_BASE_URL } from '@/config/api';
 import { isDevBuild } from '@/utils/runtime-flags';
 import { showConfirm } from '@/utils/notify';
@@ -558,6 +558,48 @@ function wxLoginCode(): Promise<string> {
   });
 }
 
+/**
+ * 支付宝小程序静默授权码。
+ *
+ * 🔴 不用 `uni.login({provider:'alipay'})`：uni 在支付宝端的返回字段是 `authCode`
+ * （`my.getAuthCode` 原生契约），而微信端是 `code`——同一段 `success(res)` 里按
+ * `res.code` 取会永远得到 undefined，表现为「扫码进来停在登录页、且没有任何报错」。
+ * 这里直接调 `my.getAuthCode` 并用 `authCode` 取值，只走一条确定路径。
+ *
+ * scopes 用 auth_base（静默、不弹授权框、只换 user_id），符合「扫码即建档」的
+ * 竞品口径；需要手机号时再走短信登录（支付宝的 getPhoneNumber 需企业主体单独申请）。
+ */
+function alipayAuthCode(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const myApi = globalThis as unknown as {
+      my?: {
+        getAuthCode?: (options: {
+          scopes?: string;
+          success?: (res: { authCode?: string }) => void;
+          fail?: () => void;
+        }) => void;
+      };
+    };
+    const getAuthCode = myApi.my?.getAuthCode;
+    if (typeof getAuthCode !== 'function') {
+      reject(new Error('支付宝授权不可用'));
+      return;
+    }
+    getAuthCode({
+      scopes: 'auth_base',
+      success(res) {
+        const code = res?.authCode;
+        if (code) resolve(code);
+        else reject(new Error('支付宝授权失败'));
+      },
+      fail() {
+        // 同 wxLoginCode：不把平台英文 errMsg 上浮给用户
+        reject(new Error('支付宝授权失败'));
+      }
+    });
+  });
+}
+
 export function markConsumerExplicitLogout() {
   uni.setStorageSync(SKIP_SILENT_AUTH_KEY, '1');
 }
@@ -613,6 +655,19 @@ export async function ensureConsumerAuth(opts?: { force?: boolean }): Promise<bo
   try {
     const code = await wxLoginCode();
     await consumerWxLogin(code);
+    return true;
+  } catch {
+    return false;
+  }
+  // #endif
+  // #ifdef MP-ALIPAY
+  // 支付宝端：静默授权换 user_id 建档（服务端 /auth/alipay/login 走
+  // alipay.system.oauth.token）。🔴 必须排在下面 #ifndef MP-WEIXIN 之前——
+  // 那个块对支付宝同样成立，会把这里变成永不执行的死代码。
+  if (!opts?.force && shouldSkipSilentAuth()) return false;
+  try {
+    const code = await alipayAuthCode();
+    await consumerAlipayLogin(code);
     return true;
   } catch {
     return false;
@@ -713,12 +768,14 @@ export const consumerApi = {
   createRechargePrepay: (
     channel: 'WECHAT' | 'ALIPAY',
     amountCents: number,
-    idempotencyKey: string
+    idempotencyKey: string,
+    /** 支付宝小程序内支付必须显式声明：服务端据此走 alipay.trade.create 而非 wap 表单 */
+    payScene?: RechargePayScene
   ) =>
     request<import('@aicabinet/shared-types').RechargePrepayResponse>(
       ConsumerEndpoints.rechargePrepay,
       'POST',
-      buildRechargePrepayBody({ channel, amountCents, idempotencyKey })
+      buildRechargePrepayBody({ channel, amountCents, idempotencyKey, payScene })
     ),
   getRechargeOrder: (orderId: string) =>
     request<import('@aicabinet/shared-types').RechargeOrderDto>(

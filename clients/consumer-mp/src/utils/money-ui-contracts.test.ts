@@ -132,6 +132,33 @@ describe('money-ui-contracts · 充值 / 余额退', () => {
     ).toEqual({ channel: 'WECHAT', amountCents: 2000, idempotencyKey: 'k1' });
   });
 
+  it('支付宝小程序支付体带 payScene=MINI_APP', () => {
+    // 服务端只认这个字段来区分「trade.create + my.tradePay」与 wap 表单：
+    // 漏掉 ⇒ 支付宝小程序里拿到 HTML 表单，收银台永远拉不起来（且没有报错）。
+    expect(
+      buildRechargePrepayBody({
+        channel: 'ALIPAY',
+        amountCents: 2000,
+        idempotencyKey: 'k2',
+        payScene: 'MINI_APP'
+      })
+    ).toEqual({
+      channel: 'ALIPAY',
+      amountCents: 2000,
+      idempotencyKey: 'k2',
+      payScene: 'MINI_APP'
+    });
+  });
+
+  it('未声明 payScene 时体里不得出现该键（H5/微信口径）', () => {
+    const body = buildRechargePrepayBody({
+      channel: 'ALIPAY',
+      amountCents: 2000,
+      idempotencyKey: 'k3'
+    });
+    expect(Object.prototype.hasOwnProperty.call(body, 'payScene')).toBe(false);
+  });
+
   it('余额退申请体 + 默认原因', () => {
     expect(buildBalanceRefundBody({ amountCents: 500 })).toEqual({
       amountCents: 500,
