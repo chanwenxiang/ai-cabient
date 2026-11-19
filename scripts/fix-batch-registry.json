@@ -2286,6 +2286,26 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "abc5cdf9",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-365",
+          "files": [
+            "docs/module-audit/ISSUES.md",
+            "infra/docker-compose.full.yml",
+            "infra/docker-compose.yml",
+            "infra/gateway/mp-verify/859bd3a9053ea8be5fbfae876b4a709f.html",
+            "infra/gateway/mp-verify/README.md",
+            "infra/gateway/mp-verify/aHNmrbOhxm.txt",
+            "infra/gateway/nginx-full.conf",
+            "infra/gateway/nginx.conf"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
