@@ -2169,6 +2169,42 @@
      ]
     }
    ]
+  },
+  {
+   "commit": "7b558e86",
+   "report": "docs/module-audit/ISSUES.md",
+   "totalItems": 2,
+   "items": [
+    {
+     "id": "MA-360",
+     "files": [
+      "services/trade-service/src/main/java/com/aicabinet/trade/wechat/WeChatMiniAppClient.java",
+      "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceQrService.java",
+      "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminDashboardController.java",
+      "clients/admin-vue/src/api/endpoints.ts",
+      "clients/admin-vue/src/views/devices/DeviceDetailView.vue",
+      "services/trade-service/src/test/java/com/aicabinet/trade/service/DeviceQrServiceTest.java",
+      "services/trade-service/src/test/java/com/aicabinet/trade/wechat/WeChatMiniAppClientWxaCodeTest.java",
+      "scripts/check-admin-qr-uses-wxacode.mjs",
+      "scripts/check-admin-qr-uses-wxacode.test.mjs",
+      "packages/shared-types/src/generated/openapi.ts",
+      "services/trade-service/src/main/resources/static/admin/index.html"
+     ]
+    },
+    {
+     "id": "MA-361",
+     "files": [
+      "clients/consumer-mp/package.json",
+      "clients/merchant-mp/package.json",
+      "scripts/inject-miniapp-env.mjs",
+      "scripts/check-mp-release-bundle.mjs",
+      "scripts/check-mp-release-bundle.test.mjs",
+      "scripts/mark-mp-build-kind.mjs",
+      "package.json"
+     ]
+    }
+   ],
+   "notAdopted": []
   }
  ],
  "unregisteredAllowlist": [
