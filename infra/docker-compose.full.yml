@@ -591,10 +591,14 @@ services:
       - -c
       - |
         set -e
-        for k in SMTP_HOST SMTP_PORT SMTP_USER SMTP_FROM SMTP_TO SMTP_PASS; do
-          eval "v=\$$k"
-          if [ -z "$v" ]; then echo "alertmanager: 缺 $k，拒绝启动（告警链路不可用）" >&2; exit 1; fi
-        done
+        # 🔴 每个美元符必须写两遍：compose 会把单个当自己的变量插值（实测把空值判断
+        #    整段替换成恒真的写法，容器起来即自退）。
+        : "$${SMTP_HOST:?alertmanager: 缺 SMTP_HOST，告警链路不可用}"
+        : "$${SMTP_PORT:?alertmanager: 缺 SMTP_PORT，告警链路不可用}"
+        : "$${SMTP_USER:?alertmanager: 缺 SMTP_USER，告警链路不可用}"
+        : "$${SMTP_FROM:?alertmanager: 缺 SMTP_FROM，告警链路不可用}"
+        : "$${SMTP_TO:?alertmanager: 缺 SMTP_TO，告警链路不可用}"
+        : "$${SMTP_PASS:?alertmanager: 缺 SMTP_PASS，告警链路不可用}"
         sed -e "s|__SMTP_HOST__|$$SMTP_HOST|g" \
             -e "s|__SMTP_PORT__|$$SMTP_PORT|g" \
             -e "s|__SMTP_USER__|$$SMTP_USER|g" \
