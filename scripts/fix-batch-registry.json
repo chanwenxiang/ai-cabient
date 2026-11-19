@@ -2205,6 +2205,27 @@
     }
    ],
    "notAdopted": []
+  },
+  {
+   "commit": "4a103279",
+   "report": "docs/module-audit/ISSUES.md",
+   "totalItems": 1,
+   "items": [
+    {
+     "id": "MA-362",
+     "files": [
+      "clients/admin-vue/src/views/devices/DeviceDetailView.vue",
+      "infra/docker-compose.production.yml",
+      "scripts/check-admin-qr-uses-wxacode.mjs",
+      "scripts/check-admin-qr-uses-wxacode.test.mjs",
+      "services/trade-service/src/main/java/com/aicabinet/trade/api/CabinetOpenLandingController.java",
+      "services/trade-service/src/main/java/com/aicabinet/trade/config/QrProperties.java",
+      "services/trade-service/src/test/java/com/aicabinet/trade/service/DeviceQrServiceTest.java",
+      "services/trade-service/src/main/resources/static/admin/index.html",
+      "docs/module-audit/ISSUES.md"
+     ]
+    }
+   ]
   }
  ],
  "unregisteredAllowlist": [
