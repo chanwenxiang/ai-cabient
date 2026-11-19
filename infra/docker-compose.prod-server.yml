@@ -20,6 +20,10 @@ services:
     volumes:
       - ./gateway/nginx-full.conf:/etc/nginx/conf.d/default.conf:ro
       - ../services/trade-service/src/main/resources/static/admin:/usr/share/nginx/html/admin:ro
+      # 微信/支付宝「普通链接二维码」校验文件（2026-11-19）：平台要求
+      # https://{域名}/o/{文件名} 与 https://{域名}/{文件名} 都能 200 直出。
+      # 必须持久挂载——此前 docker cp 进容器，一重建就丢 ⇒ 校验恒 404（MA-362/MA-365）。
+      - ./gateway/mp-verify:/usr/share/nginx/html/o:ro
   minio-init:
     stop_grace_period: 10s
     # R19-16（2026-11-12）：原值 `minio/mc:server-pin` 不是真实镜像 tag（"跟服务端 pin 一致"
