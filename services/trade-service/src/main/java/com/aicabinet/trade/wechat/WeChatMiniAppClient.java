@@ -21,6 +21,9 @@ import java.util.concurrent.atomic.AtomicReference;
 public class WeChatMiniAppClient {
     private static final String ERRCODE = "errcode";
 
+    /** getwxacodeunlimit 的 scene 上限：微信文档为 32 字符，超出会 41030 拒码。 */
+    private static final int WXA_SCENE_MAX_LEN = 32;
+
 
     private static final Logger log = LoggerFactory.getLogger(WeChatMiniAppClient.class);
     private static final String CODE2SESSION_URL =
@@ -33,6 +36,8 @@ public class WeChatMiniAppClient {
             "https://api.weixin.qq.com/wxa/generate_urllink?access_token={token}";
     private static final String GET_USER_PHONE_NUMBER_URL =
             "https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token={token}";
+    private static final String GET_WXA_CODE_UNLIMITED_URL =
+            "https://api.weixin.qq.com/wxa/getwxacodeunlimit?access_token={token}";
 
     private final AtomicReference<CachedToken> cachedConsumerToken = new AtomicReference<>();
     private final AtomicReference<CachedToken> cachedMerchantToken = new AtomicReference<>();
@@ -214,7 +219,71 @@ public class WeChatMiniAppClient {
     }
 
     /**
- * 取小程序 {@code access_token}（带内存缓存，提前 120s 过期）。
+     * 生成小程序码（{@code wxa/getwxacodeunlimit}），用于柜门贴码。
+     *
+     * <p>成因（2026-11-19）：柜门码原先只有「普通链接二维码」一条路——内容为
+     * {@code https://<host>/o/<deviceId>}，微信扫它要靠公众平台
+     * 「扫普通链接二维码打开小程序」的<b>前缀规则 + 校验文件</b>才肯拉起小程序。
+     * 校验文件放在 gateway 容器内（{@code docker cp}），一重建就丢，实测
+     * {@code /o/aHNmrbOhxm.txt} 已 404 ⇒ 后台下载的码扫了只落到 302 短链，
+     * 运营却以为贴上去就能用。小程序码不依赖任何域名规则，故设备详情页改走本方法。
+     *
+     * <p>失败返回 empty（调用方应<b>明确报错</b>，不要静默降级回普通二维码——
+     * 静默降级正是本次缺陷的成因）。
+     *
+     * @param scene      场景值，≤32 字符，此处放 deviceId
+     * @param page       落点页面，勿带前导 /
+     * @param envVersion release / trial / develop
+     */
+    public java.util.Optional<byte[]> getWxaCodeUnlimited(String scene, String page, String envVersion,
+                                                          MiniAppTarget target) {
+        if (!properties.isConfigured(target)) {
+            log.warn("getwxacodeunlimit skipped: miniapp not configured target={}", target);
+            return java.util.Optional.empty();
+        }
+        String safeScene = scene == null ? "" : scene.trim();
+        if (safeScene.isEmpty() || safeScene.length() > WXA_SCENE_MAX_LEN) {
+            log.warn("getwxacodeunlimit invalid scene len={} (max {})", safeScene.length(), WXA_SCENE_MAX_LEN);
+            return java.util.Optional.empty();
+        }
+        try {
+            String token = accessToken(target);
+            String cleanPage = page == null ? "" : page.trim();
+            if (cleanPage.startsWith("/")) {
+                cleanPage = cleanPage.substring(1);
+            }
+            String env = (envVersion == null || envVersion.isBlank()) ? "release" : envVersion.trim();
+            Map<String, Object> body = new java.util.LinkedHashMap<>();
+            body.put("scene", safeScene);
+            body.put("page", cleanPage);
+            // check_path=false：体验版/尚未发布的页面也能出码（审核期贴码场景）
+            body.put("check_path", false);
+            body.put("env_version", env);
+            body.put("width", 512);
+            byte[] bytes = restClient.post()
+                    .uri(GET_WXA_CODE_UNLIMITED_URL, token)
+                    .body(body)
+                    .retrieve()
+                    .body(byte[].class);
+            if (bytes == null || bytes.length == 0) {
+                log.warn("getwxacodeunlimit empty body scene={}", safeScene);
+                return java.util.Optional.empty();
+            }
+            // 微信失败时返回 JSON 而不是图片：首字节 '{' 即错误体
+            if (bytes[0] == '{') {
+                log.warn("getwxacodeunlimit rejected scene={} body={}", safeScene,
+                        new String(bytes, java.nio.charset.StandardCharsets.UTF_8));
+                return java.util.Optional.empty();
+            }
+            return java.util.Optional.of(bytes);
+        } catch (Exception e) {
+            log.warn("getwxacodeunlimit error scene={}", safeScene, e);
+            return java.util.Optional.empty();
+        }
+    }
+
+    /**
+     * 取小程序 {@code access_token}（带内存缓存，提前 120s 过期）。
  *
  * <p>V310：由private 提升为 **public** —— 广告收益对账（{@code publisher/stat}）
  * 需要同一个 token。刻意<b>不新建第二个 token 管理器</b>：

@@ -352,26 +352,28 @@
           <div class="page-card-head">
             <div class="page-card-head__meta">
               <div class="page-card-head__title">
-                <span class="title">柜机二维码</span>
+                <span class="title">柜机小程序码</span>
               </div>
             </div>
             <div class="qr-actions">
               <el-button size="small" :loading="qrLoading" @click="loadQr">刷新</el-button>
-              <el-button size="small" :disabled="!qrUrl" @click="copyQrLink">复制链接</el-button>
+              <el-button size="small" :disabled="!qrUrl" @click="copyQrLink"
+                >复制落地页链接</el-button
+              >
               <el-button
                 type="primary"
                 size="small"
-                :disabled="!qrUrl"
+                :disabled="!qrPreviewUrl"
                 :loading="qrDownloading"
                 @click="downloadQr"
-                >下载 PNG</el-button
+                >下载小程序码</el-button
               >
             </div>
           </div>
         </template>
         <div class="qr-body">
           <div v-if="qrPreviewUrl" class="qr-preview">
-            <img :src="qrPreviewUrl" alt="柜机二维码" />
+            <img :src="qrPreviewUrl" alt="柜机小程序码" />
           </div>
           <div v-else class="qr-empty" :class="{ 'is-loading': !qrHydrated || qrLoading }">
             <template v-if="!qrHydrated || qrLoading">
@@ -386,7 +388,11 @@
           </div>
           <div class="qr-tips">
             <p>消费者微信扫码即可开门购物；打印后贴于柜门显眼位置。</p>
-            <p>链接变更或柜机换码后，请重新下载打印；也可用「复制链接」发给现场同事。</p>
+            <p>本码为小程序码：微信扫一扫直达小程序，不依赖域名校验文件。</p>
+            <p>
+              柜机换码或小程序重新发布后请重新下载打印；「复制落地页链接」得到的是 H5
+              地址，仅用于现场分享，不适合贴柜门。
+            </p>
           </div>
         </div>
       </el-card>
@@ -1289,6 +1295,8 @@ function revokeQrPreview() {
 async function loadQr() {
   qrLoading.value = true;
   try {
+    // qrUrl 仅供「复制落地页链接」，预览图必须是小程序码：
+    // 普通链接二维码要靠公众平台域名规则 + 校验文件才能拉起小程序，文件一丢就贴出废码。
     const link = await api.request<{ deviceId: string; url: string }>(
       AdminEndpoints.deviceQrLink(deviceId),
       'GET'
@@ -1296,16 +1304,16 @@ async function loadQr() {
     qrUrl.value = link.url || '';
     revokeQrPreview();
     const res = await authFetch(
-      `${(import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin}${AdminEndpoints.deviceQrPng(deviceId)}`
+      `${(import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin}${AdminEndpoints.deviceWxaCode(deviceId)}`
     );
-    if (!res.ok) throw new Error('二维码图片加载失败');
+    if (!res.ok) throw new Error(`小程序码生成失败（HTTP ${res.status}）`);
     const blob = await res.blob();
     qrObjectUrl = URL.createObjectURL(blob);
     qrPreviewUrl.value = qrObjectUrl;
   } catch (e) {
     qrUrl.value = '';
     revokeQrPreview();
-    ElMessage.error(errorMessage(e, '加载二维码失败'));
+    ElMessage.error(errorMessage(e, '加载小程序码失败'));
   } finally {
     qrHydrated.value = true;
     qrLoading.value = false;
@@ -1325,7 +1333,7 @@ async function copyQrLink() {
 async function downloadQr() {
   qrDownloading.value = true;
   try {
-    await downloadAuthFile(AdminEndpoints.deviceQrPng(deviceId), `${deviceId}-qr.png`);
+    await downloadAuthFile(AdminEndpoints.deviceWxaCode(deviceId), `${deviceId}-wxacode.jpg`);
   } catch (e) {
     ElMessage.error(errorMessage(e, '下载失败'));
   } finally {

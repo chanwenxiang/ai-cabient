@@ -94,10 +94,20 @@ if (mode === 'dev' && !appId) {
   console.warn('[inject-miniapp-env] dev 未提供 appid，产物回落为 touristappid（试玩号）。');
 }
 
-const targets = [
-  join(packageDir, 'dist', 'dev', 'mp-weixin'),
-  join(packageDir, 'dist', 'build', 'mp-weixin')
-];
+/**
+ * 🔴 只改**本次构建真正产出的那个目录**：
+ *   - release 构建（`uni build`）产出 `dist/build/mp-weixin`；
+ *   - dev 场景产出 `dist/dev/mp-weixin`（watcher）或 `dist/build/mp-weixin`
+ *     （`build:mp-weixin:dev` 用 --mode development 写 build 目录，属已知共用目录）。
+ *
+ * 2026-11-19 修复：原实现**两个目录一起改**，于是每次 release 构建都会把
+ * `dist/dev` 的 urlCheck 翻成 true，开发者工具拿 dev 产物连本机后端时被域名校验拦死；
+ * 反向也一样（dev 注入把待上传的 build 翻成 false）。两边互相污染，且日志看起来"正常"。
+ */
+const targets =
+  mode === 'release'
+    ? [join(packageDir, 'dist', 'build', 'mp-weixin')]
+    : [join(packageDir, 'dist', 'dev', 'mp-weixin'), join(packageDir, 'dist', 'build', 'mp-weixin')];
 let patched = 0;
 let skipped = 0;
 

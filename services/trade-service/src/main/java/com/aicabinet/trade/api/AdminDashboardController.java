@@ -195,6 +195,30 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.getDevice(operatorId(request), deviceId));
     }
 
+    /**
+     * 柜门贴码（小程序码）：微信扫一扫直接拉起消费者小程序。
+     *
+     * <p>与 {@code /qr.png}（普通链接二维码）的区别见 {@code DeviceQrService#wxacodeFor}：
+     * 普通码依赖公众平台的域名规则 + 校验文件，文件丢失即失效；设备详情页的
+     * 预览与下载都应走本接口。生成失败<b>不降级</b>，直接 503 让运营看见。
+     */
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/wxacode.jpg")
+    public ResponseEntity<byte[]> deviceWxaCode(
+            HttpServletRequest request,
+            @PathVariable("deviceId") String deviceId) {
+        operatorId(request);
+        byte[] jpeg = support.deviceQrService().wxacodeFor(deviceId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.SERVICE_UNAVAILABLE,
+                        "小程序码生成失败：请检查消费者小程序 appId/secret 配置与微信侧额度"));
+        String filename = deviceId + "-wxacode.jpg";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.IMAGE_JPEG)
+                .body(jpeg);
+    }
+
     @RequiresPermissions("ops:device:list")
     @GetMapping("/devices/{deviceId}/qr-link")
     public ApiResponse<DeviceQrLinkDto> deviceQrLink(

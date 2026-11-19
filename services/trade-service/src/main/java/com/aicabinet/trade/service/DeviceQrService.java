@@ -4,6 +4,8 @@ import com.aicabinet.common.dto.DeviceQrLinkDto;
 import com.aicabinet.trade.config.QrProperties;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.wechat.MiniAppTarget;
+import com.aicabinet.trade.wechat.WeChatMiniAppClient;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.EncodeHintType;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
@@ -25,10 +27,13 @@ public class DeviceQrService {
 
     private final DeviceInfoMapper deviceInfoMapper;
     private final QrProperties qrProperties;
+    private final WeChatMiniAppClient weChatMiniAppClient;
 
-    public DeviceQrService(DeviceInfoMapper deviceInfoMapper, QrProperties qrProperties) {
+    public DeviceQrService(DeviceInfoMapper deviceInfoMapper, QrProperties qrProperties,
+                           WeChatMiniAppClient weChatMiniAppClient) {
         this.deviceInfoMapper = deviceInfoMapper;
         this.qrProperties = qrProperties;
+        this.weChatMiniAppClient = weChatMiniAppClient;
     }
 
     public DeviceQrLinkDto linkFor(String rawDeviceId) {
@@ -36,6 +41,24 @@ public class DeviceQrService {
         return new DeviceQrLinkDto(deviceId, buildOpenUrl(deviceId));
     }
 
+    /**
+     * 柜门贴码：生成<b>小程序码</b>（微信扫一扫直接拉起消费者小程序）。
+     *
+     * <p>不用 {@link #pngFor} 的普通链接二维码——那需要公众平台
+     * 「扫普通链接二维码打开小程序」前缀规则 + 校验文件，文件一丢码就废
+     * （2026-11-19 实测校验文件 404）。这里空 Optional 表示微信侧失败，
+     * 调用方必须明确报错，不得静默降级回普通二维码。
+     */
+    public java.util.Optional<byte[]> wxacodeFor(String rawDeviceId) {
+        String deviceId = requireDevice(rawDeviceId).getDeviceId();
+        return weChatMiniAppClient.getWxaCodeUnlimited(
+                deviceId,
+                qrProperties.wechatPath(),
+                qrProperties.wechatEnvVersion(),
+                MiniAppTarget.CONSUMER);
+    }
+
+    /** 落地页地址（普通链接，H5 兜底 / 现场分享用；<b>不要</b>作为柜门贴码）。 */
     public byte[] pngFor(String rawDeviceId) {
         DeviceQrLinkDto link = linkFor(rawDeviceId);
         try {
