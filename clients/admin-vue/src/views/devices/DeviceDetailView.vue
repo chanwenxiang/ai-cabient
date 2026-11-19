@@ -357,16 +357,7 @@
             </div>
             <div class="qr-actions">
               <el-button size="small" :loading="qrLoading" @click="loadQr">刷新</el-button>
-              <el-button size="small" :disabled="!qrUrl" @click="copyQrLink"
-                >复制落地页链接</el-button
-              >
-              <el-button
-                size="small"
-                :disabled="!qrPreviewUrl"
-                :loading="qrWxaDownloading"
-                @click="downloadWxaCode"
-                >微信小程序码</el-button
-              >
+              <el-button size="small" :disabled="!qrUrl" @click="copyQrLink">复制链接</el-button>
               <el-button
                 type="primary"
                 size="small"
@@ -393,13 +384,16 @@
               <span class="qr-empty-hint">生成或刷新后可在此预览并下载</span>
             </template>
           </div>
-          <div class="qr-tips">
-            <p>本码为普通二维码（内容即下方落地页链接），微信、支付宝扫一扫都认。</p>
-            <p>微信扫码直达小程序；支付宝扫码进入 H5 消费页。打印后贴于柜门显眼位置。</p>
-            <p>
-              「微信小程序码」只有微信能扫，仅供微信生态内分享，
-              <strong>不要贴柜门</strong>（支付宝用户扫不出来）。
-            </p>
+          <div class="qr-side">
+            <div class="qr-link-row">
+              <span class="qr-link-label">落地页</span>
+              <code class="qr-link" :title="qrUrl">{{ qrUrl || '—' }}</code>
+            </div>
+            <ul class="qr-tips">
+              <li>微信扫码直达小程序；未登记「扫普通链接二维码打开小程序」时会多一步确认。</li>
+              <li>支付宝扫码进入引导页——消费者 H5 尚未部署，当前提示改用微信扫码。</li>
+              <li>打印后贴于柜门显眼位置；一码两用，不要另贴微信小程序码（支付宝扫不出来）。</li>
+            </ul>
           </div>
         </div>
       </el-card>
@@ -1043,7 +1037,6 @@ const qrPreviewUrl = ref('');
 const qrLoading = ref(true);
 const qrHydrated = ref(false);
 const qrDownloading = ref(false);
-const qrWxaDownloading = ref(false);
 let qrObjectUrl: string | null = null;
 
 // ===== 图1 对照（叮当小柜，2026-10-15）：卡片墙 / 单柜上限 / 缺货阈值 / 排序 / 重置价格 =====
@@ -1351,18 +1344,13 @@ async function downloadQr() {
   }
 }
 
-/** 微信渠道专用：小程序码只有微信能扫，不可作为柜门主码。 */
-async function downloadWxaCode() {
-  qrWxaDownloading.value = true;
-  try {
-    await downloadAuthFile(AdminEndpoints.deviceWxaCode(deviceId), `${deviceId}-wxacode.jpg`);
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '下载失败'));
-  } finally {
-    qrWxaDownloading.value = false;
-  }
-}
-
+/**
+ * 2026-11-19 用户定夺：柜门贴码只保留普通二维码一个出口，「微信小程序码」按钮下线。
+ * 理由：柜门是公用入口，小程序码支付宝扫不出来；微信直跳要靠公众平台
+ * 「扫普通链接二维码打开小程序」规则实现（配好后同一张普通码两个平台都能扫）。
+ * 后端 GET /devices/{id}/wxacode.jpg 保留（运营在微信群/朋友圈分享时可单独取用），
+ * 只是后台不再作为柜门码出口。
+ */
 async function loadLifecycleEvents() {
   try {
     lifecycleEvents.value = await softFallback(
@@ -1613,11 +1601,12 @@ onActivated(() => {
 .kpi-grid .stat-tile {
   margin-bottom: 0;
 }
-/* 二维码卡拉伸到与左侧概览等高：card 与 body 都走纵向 flex，
-   body 占满剩余高度，二维码 + 提示整体垂直居中 */
+/* 2026-11-19：不再拉伸到与左侧概览等高——内容只有一码一链接，撑满整列后
+   下方留一大块空白反而像「加载失败」。改为按内容高度贴顶。 */
 .hero-qr {
   display: flex;
   flex-direction: column;
+  align-self: start;
 }
 .hero-qr :deep(.el-card__body) {
   flex: 1;
@@ -1655,20 +1644,48 @@ onActivated(() => {
   flex-wrap: wrap;
 }
 .qr-body {
-  flex: 1;
+  /* 左码右信息：柜门码是「看一眼 + 下载」的动作，不需要整块竖向留白 */
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 4px 0 0;
+}
+.qr-side {
+  flex: 1 1 260px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  text-align: center;
-  padding: 8px 0 4px;
-  /* A01′：首屏/弱网时避免卡片相对内容区塌陷过矮 */
-  min-height: 240px;
+  gap: 12px;
+  padding-top: 4px;
+}
+.qr-link-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.qr-link-label {
+  flex: none;
+  font-size: var(--admin-font-size-sm);
+  color: var(--el-text-color-secondary);
+}
+.qr-link {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-regular);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: var(--admin-font-size-sm);
+  line-height: 1.5;
+  word-break: break-all;
 }
 .qr-preview {
-  width: 200px;
-  height: 200px;
+  flex: none;
+  width: 168px;
+  height: 168px;
   border: 1px solid var(--el-border-color);
   border-radius: 8px;
   overflow: hidden;
@@ -1681,8 +1698,9 @@ onActivated(() => {
   display: block;
 }
 .qr-empty {
-  width: 200px;
-  height: 200px;
+  flex: none;
+  width: 168px;
+  height: 168px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1736,16 +1754,16 @@ onActivated(() => {
   line-height: 1.4;
 }
 .qr-tips {
-  max-width: 420px;
   margin: 0;
+  padding-left: 18px;
   color: var(--el-text-color-secondary);
   font-size: var(--admin-font-size-table);
   line-height: 1.6;
 }
-.qr-tips p {
-  margin: 0 0 6px;
+.qr-tips li {
+  margin-bottom: 4px;
 }
-.qr-tips p:last-child {
+.qr-tips li:last-child {
   margin-bottom: 0;
 }
 .stat-tile {
