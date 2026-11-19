@@ -107,7 +107,10 @@ if (mode === 'dev' && !appId) {
 const targets =
   mode === 'release'
     ? [join(packageDir, 'dist', 'build', 'mp-weixin')]
-    : [join(packageDir, 'dist', 'dev', 'mp-weixin'), join(packageDir, 'dist', 'build', 'mp-weixin')];
+    : [
+        join(packageDir, 'dist', 'dev', 'mp-weixin'),
+        join(packageDir, 'dist', 'build', 'mp-weixin')
+      ];
 let patched = 0;
 let skipped = 0;
 

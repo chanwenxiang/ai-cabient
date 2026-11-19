@@ -128,8 +128,7 @@ export const AdminEndpoints = {
   deviceCommands: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/commands`,
   deviceQrLink: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/qr-link`,
   // 柜门贴码：小程序码（微信扫一扫直达小程序，不依赖「扫普通链接二维码」域名规则）
-  deviceWxaCode: (deviceId: string) =>
-    `${ops}/devices/${encodeURIComponent(deviceId)}/wxacode.jpg`,
+  deviceWxaCode: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/wxacode.jpg`,
   // 普通链接二维码：仅 H5 落地页兜底，不可作为柜门贴码
   deviceQrPng: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/qr.png`,
   deviceTempPlan: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/temp-plan`,
