@@ -29,6 +29,19 @@ public record QrProperties(
         return host;
     }
 
+    /**
+     * 是否显式配置了消费者 H5 落点。
+     *
+     * <p>未配置（空/auto）时 {@link #normalizedConsumerH5Base()} 兜底成
+     * 「publicHost 同主机 + :3002」——那是本机 uni dev server 端口，生产不存在。
+     * 生产照此 302，支付宝用户看到的是「无法打开网页」（2026-11-19 实测）。
+     * 调用方应据此降级为引导页，而不是跳到死地址。
+     */
+    public boolean hasConsumerH5() {
+        String base = consumerH5Base == null ? "" : consumerH5Base.trim();
+        return !base.isEmpty() && !"auto".equalsIgnoreCase(base);
+    }
+
     public String normalizedConsumerH5Base() {
         String base = consumerH5Base == null ? "" : consumerH5Base.trim();
         if (base.isEmpty() || "auto".equalsIgnoreCase(base)) {

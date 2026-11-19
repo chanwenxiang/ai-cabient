@@ -352,7 +352,7 @@
           <div class="page-card-head">
             <div class="page-card-head__meta">
               <div class="page-card-head__title">
-                <span class="title">柜机小程序码</span>
+                <span class="title">柜门贴码</span>
               </div>
             </div>
             <div class="qr-actions">
@@ -361,19 +361,26 @@
                 >复制落地页链接</el-button
               >
               <el-button
+                size="small"
+                :disabled="!qrPreviewUrl"
+                :loading="qrWxaDownloading"
+                @click="downloadWxaCode"
+                >微信小程序码</el-button
+              >
+              <el-button
                 type="primary"
                 size="small"
                 :disabled="!qrPreviewUrl"
                 :loading="qrDownloading"
                 @click="downloadQr"
-                >下载小程序码</el-button
+                >下载柜门码</el-button
               >
             </div>
           </div>
         </template>
         <div class="qr-body">
           <div v-if="qrPreviewUrl" class="qr-preview">
-            <img :src="qrPreviewUrl" alt="柜机小程序码" />
+            <img :src="qrPreviewUrl" alt="柜门二维码" />
           </div>
           <div v-else class="qr-empty" :class="{ 'is-loading': !qrHydrated || qrLoading }">
             <template v-if="!qrHydrated || qrLoading">
@@ -387,11 +394,11 @@
             </template>
           </div>
           <div class="qr-tips">
-            <p>消费者微信扫码即可开门购物；打印后贴于柜门显眼位置。</p>
-            <p>本码为小程序码：微信扫一扫直达小程序，不依赖域名校验文件。</p>
+            <p>本码为普通二维码（内容即下方落地页链接），微信、支付宝扫一扫都认。</p>
+            <p>微信扫码直达小程序；支付宝扫码进入 H5 消费页。打印后贴于柜门显眼位置。</p>
             <p>
-              柜机换码或小程序重新发布后请重新下载打印；「复制落地页链接」得到的是 H5
-              地址，仅用于现场分享，不适合贴柜门。
+              「微信小程序码」只有微信能扫，仅供微信生态内分享，
+              <strong>不要贴柜门</strong>（支付宝用户扫不出来）。
             </p>
           </div>
         </div>
@@ -1036,6 +1043,7 @@ const qrPreviewUrl = ref('');
 const qrLoading = ref(true);
 const qrHydrated = ref(false);
 const qrDownloading = ref(false);
+const qrWxaDownloading = ref(false);
 let qrObjectUrl: string | null = null;
 
 // ===== 图1 对照（叮当小柜，2026-10-15）：卡片墙 / 单柜上限 / 缺货阈值 / 排序 / 重置价格 =====
@@ -1295,8 +1303,10 @@ function revokeQrPreview() {
 async function loadQr() {
   qrLoading.value = true;
   try {
-    // qrUrl 仅供「复制落地页链接」，预览图必须是小程序码：
-    // 普通链接二维码要靠公众平台域名规则 + 校验文件才能拉起小程序，文件一丢就贴出废码。
+    // 预览图必须是普通链接二维码，不能用小程序码当主码：
+    // 小程序码只有微信扫得出，支付宝用户扫到的是「无法识别二维码」——
+    // 柜门是公用入口，换成微信专属码等于把支付宝渠道关掉（2026-08-05
+    // 柜门码设计决策已明确列为非目标）。普通码 + 服务端按 UA 分流才是一码两用。
     const link = await api.request<{ deviceId: string; url: string }>(
       AdminEndpoints.deviceQrLink(deviceId),
       'GET'
@@ -1304,16 +1314,16 @@ async function loadQr() {
     qrUrl.value = link.url || '';
     revokeQrPreview();
     const res = await authFetch(
-      `${(import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin}${AdminEndpoints.deviceWxaCode(deviceId)}`
+      `${(import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin}${AdminEndpoints.deviceQrPng(deviceId)}`
     );
-    if (!res.ok) throw new Error(`小程序码生成失败（HTTP ${res.status}）`);
+    if (!res.ok) throw new Error(`二维码生成失败（HTTP ${res.status}）`);
     const blob = await res.blob();
     qrObjectUrl = URL.createObjectURL(blob);
     qrPreviewUrl.value = qrObjectUrl;
   } catch (e) {
     qrUrl.value = '';
     revokeQrPreview();
-    ElMessage.error(errorMessage(e, '加载小程序码失败'));
+    ElMessage.error(errorMessage(e, '加载二维码失败'));
   } finally {
     qrHydrated.value = true;
     qrLoading.value = false;
@@ -1333,11 +1343,23 @@ async function copyQrLink() {
 async function downloadQr() {
   qrDownloading.value = true;
   try {
-    await downloadAuthFile(AdminEndpoints.deviceWxaCode(deviceId), `${deviceId}-wxacode.jpg`);
+    await downloadAuthFile(AdminEndpoints.deviceQrPng(deviceId), `${deviceId}-qr.png`);
   } catch (e) {
     ElMessage.error(errorMessage(e, '下载失败'));
   } finally {
     qrDownloading.value = false;
+  }
+}
+
+/** 微信渠道专用：小程序码只有微信能扫，不可作为柜门主码。 */
+async function downloadWxaCode() {
+  qrWxaDownloading.value = true;
+  try {
+    await downloadAuthFile(AdminEndpoints.deviceWxaCode(deviceId), `${deviceId}-wxacode.jpg`);
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '下载失败'));
+  } finally {
+    qrWxaDownloading.value = false;
   }
 }
 

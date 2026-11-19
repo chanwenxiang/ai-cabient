@@ -14,6 +14,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -45,6 +46,25 @@ class DeviceQrServiceTest {
     void consumerH5Base_autoUsesPort3002OnSameHost() {
         QrProperties props = new QrProperties("http://192.168.1.8", "auto", "", "", "release");
         assertEquals("http://192.168.1.8:3002/", props.normalizedConsumerH5Base());
+    }
+
+    /**
+     * 生产未部署消费者 H5 时必须能被识别出来，否则落地页会 302 到
+     * 「同主机 + :3002」这个本机开发端口，支付宝用户看到「无法打开网页」
+     * （2026-11-19 生产实测）。空值/auto 一律视为未配置。
+     */
+    @Test
+    void hasConsumerH5_falseWhenUnsetOrAuto() {
+        assertFalse(new QrProperties("https://x", null, "", "", "release").hasConsumerH5());
+        assertFalse(new QrProperties("https://x", "", "", "", "release").hasConsumerH5());
+        assertFalse(new QrProperties("https://x", "auto", "", "", "release").hasConsumerH5());
+    }
+
+    @Test
+    void hasConsumerH5_trueWhenExplicitBaseConfigured() {
+        assertTrue(
+                new QrProperties("https://x", "https://cabinet.easygovm.com/h5/", "", "", "release")
+                        .hasConsumerH5());
     }
 
     @Test

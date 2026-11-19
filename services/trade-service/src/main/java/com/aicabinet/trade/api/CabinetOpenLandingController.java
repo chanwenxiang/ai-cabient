@@ -69,6 +69,14 @@ public class CabinetOpenLandingController {
                     .contentType(MediaType.TEXT_HTML)
                     .body(guidePage(id, openUrl));
         }
+        // 支付宝支：消费者 H5 未部署时不能 302——normalizedConsumerH5Base() 会兜底成
+        // 「同主机 + :3002」，那是本机 uni dev server，生产上连不上，用户只看到
+        // 「无法打开网页」。没落点就给明确引导（2026-11-19 实锤生产 302 到 :3002）。
+        if (CabinetConstants.PAY_CHANNEL_ALIPAY.equals(channel) && !qrProperties.hasConsumerH5()) {
+            return ResponseEntity.ok()
+                    .contentType(MediaType.TEXT_HTML)
+                    .body(alipayUnavailablePage(id));
+        }
         String target = resolveTargetUrl(id, channel);
         return ResponseEntity.status(HttpStatus.FOUND)
                 .header("Location", target)
@@ -168,6 +176,27 @@ public class CabinetOpenLandingController {
                 <code>%s</code>
                 </div></body></html>
                 """.formatted(safeId, safeId, safeUrl);
+    }
+
+    /** 支付宝支无落点时的引导页：比 302 到死端口诚实（用户至少知道该怎么做）。 */
+    private static String alipayUnavailablePage(String deviceId) {
+        String safeId = HtmlUtils.htmlEscape(deviceId);
+        return """
+                <!DOCTYPE html><html lang="zh-CN"><head>
+                <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+                <title>请用微信扫码 · %s</title>
+                <style>
+                body{font-family:system-ui,sans-serif;margin:0;padding:48px 24px;background:#0b1220;color:#e8eef7;text-align:center}
+                .card{max-width:420px;margin:0 auto;padding:28px 22px;border-radius:16px;background:#121a2b;border:1px solid #243049}
+                h1{font-size:22px;margin:0 0 12px}p{color:#9db0c9;line-height:1.6;margin:8px 0}
+                code{display:block;margin-top:16px;padding:10px;border-radius:8px;background:#0b1220;color:#7dd3c7;font-size:12px;word-break:break-all}
+                </style></head>
+                <body><div class="card">
+                <h1>请用微信扫码</h1>
+                <p>本柜暂未开通支付宝入口，微信扫一扫可直接开门取货。</p>
+                <p>当前柜机 <strong>%s</strong></p>
+                </div></body></html>
+                """.formatted(safeId, safeId);
     }
 
     private static String enc(String v) {

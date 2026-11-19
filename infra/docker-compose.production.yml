@@ -60,6 +60,13 @@ services:
       # 🔴 此前生产链从未映射本键（只在 full.yml 有）⇒ Spring auto 探测容器内网 IP
       #    （2026-10-21 实证 http://172.19.0.8，Docker bridge）⇒ 柜门码全坏。生产必须显式设。
       QR_PUBLIC_HOST: ${QR_PUBLIC_HOST:-}
+      # 支付宝支落点（CabinetOpenLanding 对 AlipayClient 的 302 目标）。
+      # 🔴 此前生产链同样没映射本键：QrProperties.normalizedConsumerH5Base() 的兜底是
+      #    「QR_PUBLIC_HOST 同主机 + :3002」——生产没有 :3002 服务，实测支付宝扫码
+      #    302 到 https://<域名>:3002/ 直接连不上（2026-11-19 实锤）。
+      #    键名以 application.yml 的 ${CONSUMER_H5_BASE:auto} 为准（带 QR_ 前缀不生效）。
+      #    值必须是真部署了消费者 H5 的地址，形如 https://<域名>/h5/
+      CONSUMER_H5_BASE: ${CONSUMER_H5_BASE:-}
     logging:
       driver: json-file
       options:
