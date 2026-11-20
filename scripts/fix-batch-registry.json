@@ -2343,6 +2343,22 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "a0faf8d5",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-376",
+          "files": [
+            "clients/admin-vue/src/views/vision/VisionMappingView.vue",
+            "package.json",
+            "scripts/check-jiangyi-review-quantity-recovery.mjs",
+            "scripts/check-jiangyi-review-quantity-recovery.test.mjs"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
