@@ -2375,6 +2375,23 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "8c0dc926",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-379",
+          "files": [
+            "docs/module-audit/ISSUES.md",
+            "scripts/check-merchant-daily-report.mjs",
+            "scripts/check-merchant-daily-report.test.mjs",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantDailyIncomeNotifyScheduler.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/MerchantDailyIncomeNotifySchedulerTest.java"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
