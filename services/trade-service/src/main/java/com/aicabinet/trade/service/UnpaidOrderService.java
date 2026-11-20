@@ -151,7 +151,9 @@ public class UnpaidOrderService {
         if (user == null || user.getWxOpenId() == null || user.getWxOpenId().isBlank()) {
             message = "用户未绑定微信，已记催付审计（请线下触达）";
         } else {
-            String templateId = weChatMiniAppProperties.subscribeTemplateId();
+            // 🔴 MA-375：消费者催付必须用**消费者**模板；此处原用 subscribeTemplateId()（商户模板），
+            // 两端模板不一致时微信回 400（template_id 与接收人不匹配）⇒ 催付静默失败只留一条审计。
+            String templateId = weChatMiniAppProperties.resolveConsumerTemplateId();
             if (templateId == null || templateId.isBlank()) {
                 templateId = "mock-unpaid-template";
             }

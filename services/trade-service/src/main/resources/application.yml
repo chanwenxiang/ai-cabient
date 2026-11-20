@@ -210,6 +210,10 @@ aicabinet:
     notify-page: pages/alerts/alerts
     consumer-subscribe-template-id: ${WECHAT_CONSUMER_SUBSCRIBE_TEMPLATE:}
     consumer-notify-page: pages/messages/messages
+    # 订阅消息点开后落到哪个小程序版本：formal(线上)/trial(体验)/developer(开发)。
+    # 🔴 MA-372：曾硬编码 developer ⇒ 生产用户点开跳开发版、根本打不开。
+    # 默认 formal；体验版验收期用 WECHAT_MINIPROGRAM_STATE=trial 临时覆盖，验收完改回。
+    miniprogram-state: ${WECHAT_MINIPROGRAM_STATE:formal}
   notify:
     # 🔴 sms-enabled 是**欠款短信催缴的总闸**（V326）：开着才可能发催缴短信。
     #    三道门全开才有短信：① 本开关 ② 模板 channels 含 SMS（V325 已 seed）③ 短信通道已配置

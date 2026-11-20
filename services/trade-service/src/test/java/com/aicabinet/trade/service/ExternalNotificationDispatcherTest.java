@@ -47,7 +47,7 @@ class ExternalNotificationDispatcherTest {
 
     private static final WeChatMiniAppProperties WECHAT_PROPS =
             new WeChatMiniAppProperties(false, null, null, "merchant-tpl", "pages/alerts/alerts",
-                    "consumer-tpl", "pages/messages/messages", null, null, null, null);
+                    "consumer-tpl", "pages/messages/messages", null, null, null, null, "formal");
 
     private ExternalNotificationDispatcher dispatcher(boolean wechat, boolean sms) {
         return new ExternalNotificationDispatcher(logRepository, userInfoRepository, templateRepository,

@@ -34,7 +34,8 @@ class WeChatMiniAppClientWxaCodeTest {
                 appId,
                 appSecret,
                 "",
-                "");
+                "",
+                "formal");
         // SecurityProperties 在构造器里只被赋值；本类用例走不到 mock 分支
         return new WeChatMiniAppClient(props, new SecurityProperties(false), new ObjectMapper());
     }

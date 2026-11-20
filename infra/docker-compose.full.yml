@@ -301,6 +301,8 @@ services:
       WECHAT_CONSUMER_SUBSCRIBE_TEMPLATE: ${WECHAT_CONSUMER_SUBSCRIBE_TEMPLATE:-}
       # S1 后续：商家订阅模板（此前漏传，商家端订阅提醒永远未配置）
       WECHAT_MERCHANT_SUBSCRIBE_TEMPLATE: ${WECHAT_MERCHANT_SUBSCRIBE_TEMPLATE:-}
+      # 订阅消息点开落地版本（formal/trial/developer）：🔴 MA-372，默认 formal，缺省不得为 developer
+      WECHAT_MINIPROGRAM_STATE: ${WECHAT_MINIPROGRAM_STATE:-formal}
       # 2026-10-20：通知渠道开关透传（此前从未映射，.env 改了也不生效）；NOTIFY_SMS_ENABLED=欠款催缴总闸（V326）
       NOTIFY_WECHAT_ENABLED: ${NOTIFY_WECHAT_ENABLED:-false}
       NOTIFY_SMS_ENABLED: ${NOTIFY_SMS_ENABLED:-false}

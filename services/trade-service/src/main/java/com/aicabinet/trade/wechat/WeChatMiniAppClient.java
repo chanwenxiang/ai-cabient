@@ -141,15 +141,7 @@ public class WeChatMiniAppClient {
         }
         try {
             String token = accessToken(target);
-            Map<String, Object> data = new java.util.LinkedHashMap<>();
-            dataFields.forEach((k, v) -> data.put(k, Map.of("value", truncate(v, 20))));
-            Map<String, Object> body = Map.of(
-                    "touser", openId,
-                    "template_id", templateId,
-                    "page", page != null ? page : properties.resolveNotifyPage(),
-                    "data", data,
-                    "miniprogram_state", "developer"
-            );
+            Map<String, Object> body = buildSubscribeBody(openId, templateId, page, dataFields, target);
             String response = restClient.post()
                     .uri(SUBSCRIBE_SEND_URL, token)
                     .body(body)
@@ -167,6 +159,34 @@ public class WeChatMiniAppClient {
             log.warn("subscribe send error openId={}", openId, e);
             return false;
         }
+    }
+
+    /**
+     * 组装 subscribe/send 请求体。包级可见，供单测直接钉住 {@code miniprogram_state} 口径。
+     *
+     * <p>🔥 MA-372：该项曾硬编码 {@code "developer"}（生产用户点开跳开发版、无权限打开），
+     * 现由 {@link WeChatMiniAppProperties#resolveMiniprogramState()} 提供，默认 {@code formal}。
+     * 用 LinkedHashMap 而非 Map.of：既保证 body 字段顺序稳定（便于日志/抓包比对），
+     * 也避免 Map.of 对 null 值的硬拒绝把整条消息炸掉。
+     *
+     * <p>page 缺省按 target 分端回落：消费者消息必须落消费者页，不能因调用方漏传 page
+     * 就把消费者带到商户告警页（两端页面栈互不相通）。
+     */
+    Map<String, Object> buildSubscribeBody(String openId, String templateId, String page,
+                                           Map<String, String> dataFields, MiniAppTarget target) {
+        Map<String, Object> data = new java.util.LinkedHashMap<>();
+        dataFields.forEach((k, v) -> data.put(k, Map.of("value", truncate(v, 20))));
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("touser", openId);
+        body.put("template_id", templateId);
+        body.put("page", page != null
+                ? page
+                : (target == MiniAppTarget.CONSUMER
+                        ? properties.resolveConsumerNotifyPage()
+                        : properties.resolveNotifyPage()));
+        body.put("data", data);
+        body.put("miniprogram_state", properties.resolveMiniprogramState());
+        return body;
     }
 
     /**

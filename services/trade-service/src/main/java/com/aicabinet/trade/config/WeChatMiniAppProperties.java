@@ -26,8 +26,13 @@ public record WeChatMiniAppProperties(
         String consumerAppId,
         String consumerAppSecret,
         String merchantAppId,
-        String merchantAppSecret
+        String merchantAppSecret,
+        String miniprogramState
 ) {
+    /** subscribe/send 的 miniprogram_state 合法值（微信文档：developer / trial / formal）。 */
+    private static final java.util.Set<String> MINIPROGRAM_STATES =
+            java.util.Set.of("developer", "trial", "formal");
+
     private static String firstNonBlank(String preferred, String fallback) {
         return preferred != null && !preferred.isBlank() ? preferred : fallback;
     }
@@ -82,5 +87,21 @@ public record WeChatMiniAppProperties(
     public String resolveConsumerNotifyPage() {
         return consumerNotifyPage != null && !consumerNotifyPage.isBlank()
                 ? consumerNotifyPage : "pages/messages/messages";
+    }
+
+    /**
+     * 订阅消息点开后落到哪个小程序版本（微信 subscribe/send 的 {@code miniprogram_state}）。
+     *
+     * <p>🔴 MA-372：此前该值在 {@code WeChatMiniAppClient} 里**写死 "developer"**，生产用户收到
+     * 催付/告警消息点开跳开发版——普通微信用户根本打不开，等于消息白发。改动前**无法**用任何
+     * 环境变量覆盖，属配置缺失而非误配。
+     *
+     * <p>默认 {@code formal}（线上版）：发给真实用户的消息必须能打开。体验版验收期可配
+     * {@code trial}，本地开发可配 {@code developer}。非法值一律回落 {@code formal}——宁可按线上版
+     * 落地，也不能落到用户打不开的版本；配置写错不该静默生成废消息。
+     */
+    public String resolveMiniprogramState() {
+        String value = miniprogramState == null ? "" : miniprogramState.trim().toLowerCase(java.util.Locale.ROOT);
+        return MINIPROGRAM_STATES.contains(value) ? value : "formal";
     }
 }

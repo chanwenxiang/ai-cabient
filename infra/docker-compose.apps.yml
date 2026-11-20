@@ -163,6 +163,9 @@ services:
       WECHAT_MERCHANT_APP_SECRET: ${WECHAT_MERCHANT_APP_SECRET:-}
       WECHAT_CONSUMER_SUBSCRIBE_TEMPLATE: ${WECHAT_CONSUMER_SUBSCRIBE_TEMPLATE:-}
       WECHAT_MERCHANT_SUBSCRIBE_TEMPLATE: ${WECHAT_MERCHANT_SUBSCRIBE_TEMPLATE:-}
+      # 订阅消息点开落地版本（formal/trial/developer）：application.yml 消费 ${WECHAT_MINIPROGRAM_STATE:formal}
+      # 🔴 MA-372：不透传也仍默认 formal；透传是为了体验版验收期能切 trial 而不用改镜像
+      WECHAT_MINIPROGRAM_STATE: ${WECHAT_MINIPROGRAM_STATE:-formal}
       # 2026-10-23 支付宝（网页应用 2021007112617393，手机网站支付 wap.pay）：application.yml:255-264
       # 消费 ${ALIPAY_*}，此前未透传 ⇒ 与 466930d7/双 appid 同型坑（.env 改了容器 env 恒空）。
       # PRIVATE_KEY=应用私钥(PKCS8 单行)；PUBLIC_KEY=支付宝公钥（平台回显，非应用公钥）。
