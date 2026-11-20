@@ -2314,6 +2314,10 @@
       "why": "真机验收当日 5 条缺陷的合并修复（MA-366 告警文案、MA-367 购物条布局、MA-368 积分只读事务 500、MA-369 订阅横幅、MA-370 会员等级规则缺失），每条已在 docs/module-audit/ISSUES.md 按单条登记（含证据/定性/采纳结论），并各带同轮门禁；不属任何审计报告批次，无法按「条目→文件 + totalItems」对账，故入白名单带理由"
     },
     {
+      "commit": "bf102034",
+      "why": "真机验收遗留缺陷 MA-371（一键授权手机号在既有 openid 账号上被丢弃）的单条修复：已在 docs/module-audit/ISSUES.md 按单条登记（含成因、生产库 7 账号全占位符的证据、边界决策与门禁），并带同轮 check-wx-phone-bind 门禁 + 4 条单测；属真机验收缺陷而不属任何审计报告批次，无法按「条目→文件 + totalItems」对账，故入白名单带理由"
+    },
+    {
       "commit": "3229e914",
       "why": "并行会话提交的生成物顺序对齐（fix(types): AccountDto 按 CI 重生成顺序后移，内容不变，修 openapi-types 假红）：仅动 packages/shared-types/src/generated/openapi.ts 的重生成顺序，零业务代码、零业务审计条目，与 e8981f32 / 52549bac / 86aa27b7 同型；登记以解除全仓 fix-batch 门禁阻塞，若后续确认需正式入批可改判"
     },
