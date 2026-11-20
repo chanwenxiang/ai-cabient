@@ -2513,6 +2513,10 @@
     {
       "commit": "6141f123",
       "why": "MA-376 的接线补丁（并行会话补 `pnpm check:jiangyi-review-quantity-recovery` 进 check:audit-gates 聚合链）：只动 package.json 一处链引用、判据未改，条目本体已在 MA-376 按单条登记并随 a0faf8d5 入批（items 已含 package.json）；本笔不构成新的审计条目，无法再按「条目→文件 + totalItems」对账，故入白名单带理由（与 86aa27b7 / c481a5ad 的「命令串接线」同型）"
+    },
+    {
+      "commit": "e1f7f629",
+      "why": "MA-377 的推送时点修正（同日 fc7bba83 引入）：上一版把微信发送放进 00:20 日结循环，等于半夜给商户弹系统通知。本笔只拆时点（新增 07:30 独立任务 merchant-daily-report + 七处注册），条目本体仍是 MA-377、已在 ISSUES.md 按单条登记并随 fc7bba83 入批；不构成新的审计条目，无法再按「条目→文件 + totalItems」对账，故入白名单带理由"
     }
   ]
 }
