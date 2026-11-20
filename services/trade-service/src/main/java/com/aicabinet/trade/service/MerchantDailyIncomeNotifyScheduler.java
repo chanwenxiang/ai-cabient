@@ -193,7 +193,7 @@ public class MerchantDailyIncomeNotifyScheduler {
         List<OrderRevenueSplit> splits = splitRepository.selectList(Wrappers.<OrderRevenueSplit>lambdaQuery()
                 .ge(OrderRevenueSplit::getCreatedAt, from)
                 .lt(OrderRevenueSplit::getCreatedAt, to));
-        Map<String, DailySales> salesByMerchant = aggregateSales(splits);
+        Map<String, DailySales> salesByMerchant = mergeDeviceMerchants(aggregateSales(splits));
         if (salesByMerchant.isEmpty()) {
             return 0;
         }
@@ -221,7 +221,7 @@ public class MerchantDailyIncomeNotifyScheduler {
         List<OrderRevenueSplit> splits = splitRepository.selectList(Wrappers.<OrderRevenueSplit>lambdaQuery()
                 .ge(OrderRevenueSplit::getCreatedAt, from)
                 .lt(OrderRevenueSplit::getCreatedAt, to));
-        Map<String, DailySales> salesByMerchant = aggregateSales(splits);
+        Map<String, DailySales> salesByMerchant = mergeDeviceMerchants(aggregateSales(splits));
         if (salesByMerchant.isEmpty()) {
             // 审计 T4（2026-10-15）：early-return 只对「通知发送」生效——费用日扣与欠费检查
             // （chargeAndCheckAllMerchants，CB-041）必须照跑，否则全员零销售的日子整批
@@ -288,6 +288,42 @@ public class MerchantDailyIncomeNotifyScheduler {
     }
 
     /**
+     * 名下有柜机的商户集合（去重、保序）。柜机是费用的载体，也是「经营日报该发给谁」的边界：
+     * 没柜的商户收日报全是 0，纯噪音。
+     */
+    private java.util.Set<String> merchantIdsWithDevices() {
+        java.util.Set<String> ids = new java.util.LinkedHashSet<>();
+        for (DeviceInfo d : deviceRepository.selectList(Wrappers.<DeviceInfo>lambdaQuery())) {
+            String mid = d.getMerchantId();
+            if (mid != null && !mid.isBlank()) {
+                ids.add(mid);
+            }
+        }
+        return ids;
+    }
+
+    /**
+     * 把「昨日有销售」的聚合结果扩成「日报该覆盖的商户集合」：有柜机但昨日零成交的商户补一条
+     * 0 销售额 / 0 笔的日报。
+     *
+     * <p><b>为什么改判</b>：2026-10-14 拍板「0.00 不发」（见 {@link #aggregateSales}），出发点是
+     * 别拿 0 元打扰人；但那一版的直接后果是——商户没成交的日子什么都收不到，于是分不清
+     * 「今天确实没生意」和「通知坏了/没生效」。2026-11-20 用户改判：<b>有柜机的商户每天都要收到</b>，
+     * 0 也要收到，这也是竞品早间经营报告的通行做法。范围仍限「名下有柜机」，
+     * 不给无柜商户发 0 元。
+     *
+     * <p>{@link #aggregateSales} 本身口径不变（仍只保留合计 &gt;0 的商户），它是「有成交」的视图，
+     * 扩集合只发生在调度器这一层，免得影响其它调用点与既有单测。
+     */
+    private Map<String, DailySales> mergeDeviceMerchants(Map<String, DailySales> salesByMerchant) {
+        Map<String, DailySales> merged = new java.util.LinkedHashMap<>(salesByMerchant);
+        for (String merchantId : merchantIdsWithDevices()) {
+            merged.putIfAbsent(merchantId, new DailySales(0L, 0));
+        }
+        return merged;
+    }
+
+    /**
      * 全商户费用日扣 + 欠费检查（CB-041）。商户集合 = 昨日有收入商户 ∪ 名下有柜机的商户
      * （欠费源于柜机费用，故按设备表枚举；费用全为 0/未配置的商户不扣钱也不写行，
      * 余额为负仍会走催缴）。income 商户在上面循环里已扣过费——幂等（refId=日期）重复调用跳过。
@@ -296,12 +332,7 @@ public class MerchantDailyIncomeNotifyScheduler {
      */
     long chargeAndCheckAllMerchants(LocalDate yesterday, java.util.Set<String> incomeMerchantIds) {
         java.util.Set<String> merchantIds = new java.util.LinkedHashSet<>(incomeMerchantIds);
-        for (DeviceInfo d : deviceRepository.selectList(Wrappers.<DeviceInfo>lambdaQuery())) {
-            String mid = d.getMerchantId();
-            if (mid != null && !mid.isBlank()) {
-                merchantIds.add(mid);
-            }
-        }
+        merchantIds.addAll(merchantIdsWithDevices());
         long chargedTotal = 0L;
         for (String merchantId : merchantIds) {
             try {
@@ -682,6 +713,11 @@ public class MerchantDailyIncomeNotifyScheduler {
      * <p>笔数口径 = 参与聚合的非冲正分账行数（{@code order_revenue_split} 一单一行），
      * 含 0 元行：那是一笔真实成交、只是分给商户的部分为 0，漏掉它会让客单价虚高。
      * 只有合计 &gt;0 的商户才进结果集（0.00 不发，2026-10-14 拍板）。
+     *
+     * <p>⚠️ 「0.00 不发」只决定<b>本方法</b>保留谁；调度器另用
+     * {@code mergeDeviceMerchants} 给「名下有柜机但昨日零成交」的商户补 0 元日报
+     * （2026-11-20 改判：商户每天都要收到，0 也要收到，否则分不清「没生意」和「通知坏了」）。
+     * 改这一行口径前先看那个方法的注释，别把两层判据合成一层。
      */
     static Map<String, DailySales> aggregateSales(List<OrderRevenueSplit> splits) {
         Map<String, long[]> acc = new java.util.LinkedHashMap<>();

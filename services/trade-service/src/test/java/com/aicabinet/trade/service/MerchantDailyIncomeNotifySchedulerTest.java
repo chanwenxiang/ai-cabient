@@ -554,6 +554,85 @@ class MerchantDailyIncomeNotifySchedulerTest {
         assertEquals("2026年10月15日", captured.get().period());
     }
 
+    // ---------- 2026-11-20 改判：有柜机的商户每天都要收到，0 元也收到 ----------
+
+    @Test
+    void zeroSalesMerchantWithCabinetStillGetsZeroReport() {
+        // 生产长期 0 单：若坚持「有成交才发」，商户永远收不到任何东西，分不清
+        // 「今天确实没生意」和「通知坏了」。故有柜机的商户零成交也要发一条 0.00。
+        var splitRepo = mock(com.aicabinet.trade.mapper.OrderRevenueSplitMapper.class);
+        when(splitRepo.selectList(any())).thenReturn(List.of());
+        var feeLedger = mock(com.aicabinet.trade.mapper.MerchantFeeLedgerMapper.class);
+        when(feeLedger.selectList(any())).thenReturn(List.of());
+        var wallet = mock(com.aicabinet.trade.service.MerchantWalletService.class);
+        when(wallet.debitedCentsByRef(anyString(), anyString(), anyString())).thenReturn(0L);
+        var notify = capturedNotify();
+        var notifyLog = mock(com.aicabinet.trade.mapper.NotificationLogMapper.class);
+        when(notifyLog.selectCount(any())).thenReturn(0L);
+        var dailyReport = mock(com.aicabinet.trade.service.MerchantDailyReportNotifier.class);
+        var svc = schedulerWith(splitRepo, feeLedger, wallet, notify, notifyLog, dailyReport);
+
+        var outcome = svc.sendDailyIncomeNotify(java.time.LocalDate.of(2026, 10, 15));
+
+        assertEquals(1, outcome.sent(), "名下有柜机 = 每天必发（含零成交）");
+        assertEquals("0.00", lastParams.get().get("amount"));
+        assertEquals("0", lastParams.get().get("orders"));
+        assertEquals("0.00", lastParams.get().get("avg"), "0 笔时客单价回落 0，不得除零");
+        verify(dailyReport, never()).send(any());
+    }
+
+    @Test
+    void zeroSalesMerchantWithoutCabinetGetsNothing() {
+        // 边界：没柜的商户收 0 元日报纯噪音——扩集合只按设备表枚举
+        var splitRepo = mock(com.aicabinet.trade.mapper.OrderRevenueSplitMapper.class);
+        when(splitRepo.selectList(any())).thenReturn(List.of());
+        var feeLedger = mock(com.aicabinet.trade.mapper.MerchantFeeLedgerMapper.class);
+        when(feeLedger.selectList(any())).thenReturn(List.of());
+        var notify = mock(com.aicabinet.trade.service.NotificationService.class);
+        var dailyReport = mock(com.aicabinet.trade.service.MerchantDailyReportNotifier.class);
+        var svc = new MerchantDailyIncomeNotifyScheduler(
+                mock(com.aicabinet.trade.mapper.MerchantMapper.class), splitRepo, notify,
+                mock(com.aicabinet.trade.mapper.NotificationLogMapper.class),
+                mock(com.aicabinet.trade.service.ScheduledTaskService.class),
+                deviceRepoWith(), feeLedger,
+                mock(com.aicabinet.trade.service.MerchantWalletService.class), configWithLockDays("7"),
+                mock(com.aicabinet.trade.service.DeviceSalesLockService.class),
+                walletArrearsService(), dailyReport);
+
+        var outcome = svc.sendDailyIncomeNotify(java.time.LocalDate.of(2026, 10, 15));
+
+        assertEquals(0, outcome.sent());
+        verify(notify, never()).notifyMerchant(anyString(), anyString(), any(), anyString(), anyString());
+        verify(dailyReport, never()).send(any());
+    }
+
+    @Test
+    void morningWechatReportCoversZeroSalesMerchantWithCabinet() {
+        // 07:30 的微信侧必须与 00:20 的站内信同集合，否则「站内信有、微信没有」又是一笔对不上
+        var splitRepo = mock(com.aicabinet.trade.mapper.OrderRevenueSplitMapper.class);
+        when(splitRepo.selectList(any())).thenReturn(List.of());
+        var dailyReport = mock(com.aicabinet.trade.service.MerchantDailyReportNotifier.class);
+        java.util.concurrent.atomic.AtomicReference<
+                com.aicabinet.trade.service.MerchantDailyReportNotifier.MerchantDailyReport> captured =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        when(dailyReport.send(any())).thenAnswer(inv -> {
+            captured.set(inv.getArgument(0));
+            return 1;
+        });
+        var svc = schedulerWith(splitRepo,
+                mock(com.aicabinet.trade.mapper.MerchantFeeLedgerMapper.class),
+                mock(com.aicabinet.trade.service.MerchantWalletService.class),
+                mock(com.aicabinet.trade.service.NotificationService.class),
+                mock(com.aicabinet.trade.mapper.NotificationLogMapper.class), dailyReport);
+
+        int sent = svc.sendWechatReportsOnly(java.time.LocalDate.of(2026, 10, 15));
+
+        assertEquals(1, sent);
+        assertEquals(0L, captured.get().salesCents());
+        assertEquals(0, captured.get().orderCount());
+        assertEquals(0L, captured.get().avgCents());
+    }
+
     private MerchantDailyIncomeNotifyScheduler schedulerWith(
             com.aicabinet.trade.mapper.OrderRevenueSplitMapper splitRepo,
             com.aicabinet.trade.mapper.MerchantFeeLedgerMapper feeLedger,

@@ -94,4 +94,36 @@ assert(
   '注释里的旧代码被误判为红'
 );
 
-console.log(`${TAG} OK：${checks} 项断言全过（真树绿 / 六种注入红 / 注释不误判）`);
+// ⑧ 站内信侧把「零成交有柜商户」的扩集合摘掉 —— 商户没成交就什么都收不到
+const inAppNoMerge = real.scheduler.replace(
+  'Map<String, DailySales> salesByMerchant = mergeDeviceMerchants(aggregateSales(splits));\n        if (salesByMerchant.isEmpty()) {\n            // 审计 T4',
+  'Map<String, DailySales> salesByMerchant = aggregateSales(splits);\n        if (salesByMerchant.isEmpty()) {\n            // 审计 T4'
+);
+assert(inAppNoMerge !== real.scheduler, '注入⑧锚点（00:20 扩集合）找不到');
+inject({ scheduler: inAppNoMerge }, '注入⑧站内信只发有成交的', '00:20 站内信');
+
+// ⑨ 微信侧摘掉扩集合 —— 站内信有、微信没有，两条通道又对不上
+const wechatNoMerge = real.scheduler.replace(
+  'Map<String, DailySales> salesByMerchant = mergeDeviceMerchants(aggregateSales(splits));\n        if (salesByMerchant.isEmpty()) {\n            return 0;',
+  'Map<String, DailySales> salesByMerchant = aggregateSales(splits);\n        if (salesByMerchant.isEmpty()) {\n            return 0;'
+);
+assert(wechatNoMerge !== real.scheduler, '注入⑨锚点（07:30 扩集合）找不到');
+inject({ scheduler: wechatNoMerge }, '注入⑨微信只发有成交的', '07:30 微信');
+
+// ⑩ 「有柜机的商户」不再按设备表枚举（改成凭空造集合）—— 覆盖范围就没有依据了
+const noDeviceEnum = real.scheduler.replace(
+  'for (DeviceInfo d : deviceRepository.selectList(Wrappers.<DeviceInfo>lambdaQuery())) {',
+  'for (DeviceInfo d : java.util.List.<DeviceInfo>of()) {'
+);
+assert(noDeviceEnum !== real.scheduler, '注入⑩锚点 deviceRepository.selectList 找不到');
+inject({ scheduler: noDeviceEnum }, '注入⑩覆盖范围无依据', '设备表枚举');
+
+// ⑪ 扩集合空转（还在调 mergeDeviceMerchants，但不往里补零成交商户）—— 等于白扩
+const emptyMerge = real.scheduler.replace(
+  'merged.putIfAbsent(merchantId, new DailySales(0L, 0));',
+  'merged.remove(merchantId);'
+);
+assert(emptyMerge !== real.scheduler, '注入⑪锚点 putIfAbsent 找不到');
+inject({ scheduler: emptyMerge }, '注入⑪扩集合空转', '空转');
+
+console.log(`${TAG} OK：${checks} 项断言全过（真树绿 / 八种注入红 / 注释不误判）`);

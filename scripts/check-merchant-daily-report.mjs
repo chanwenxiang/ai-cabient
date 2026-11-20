@@ -21,6 +21,9 @@
  *   F 站内信与微信同源：调度器必须用 aggregateSales 的产物构造日报对象
  *   G 模板占位符闭环：V499 文案里的每个 {x} 都必须在调度器里有同名参数
  *   H 凌晨不许弹微信：00:20 的日结方法里不得调日报发送（站内信静默、微信是弹窗）
+ *   I 零销售日也要发：两个任务的商户集合都必须过 mergeDeviceMerchants（有柜机但昨日零成交
+ *     补一条 0 元），且该集合只能来自设备表枚举——「有成交才发」等于商户没成交的日子
+ *     什么都收不到，分不清「没生意」和「通知坏了」（2026-11-20 改判）
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -70,6 +73,18 @@ export function settlementCopyPlaceholders() {
 /** SQL 行注释（--）脱敏；字符串里的 -- 不在本文件出现，按行首判断即可。 */
 function maskSqlComments(sql) {
   return sql.replace(/^\s*--[^\n]*$/gm, (m) => ' '.repeat(m.length));
+}
+
+/**
+ * 取一个方法的方法体（签名行到下一个 4 空格缩进的声明之间）。
+ * javadoc 已被 {@link maskComments} 抹成空格，不能当边界锚点，故按「4 空格缩进的下一行声明」判。
+ * 返回 null 表示源码里找不到该签名（调用方据此跳过，避免用失效锚点判红）。
+ */
+export function methodBody(source, signature) {
+  const start = source.indexOf(signature);
+  if (start < 0) return null;
+  const rel = source.slice(start + 1).search(/\n {4}(?=[^\s}])/);
+  return source.slice(start, rel < 0 ? source.length : start + 1 + rel);
 }
 
 export function merchantDailyReportProblems({ notifier, scheduler, placeholders }) {
@@ -151,21 +166,49 @@ export function merchantDailyReportProblems({ notifier, scheduler, placeholders 
   // H 凌晨不许弹微信：00:20 的日结只做扣费+站内信，微信日报在 07:30 的独立任务里发。
   //   站内信是静默入库、微信是真弹窗——混在一起等于半夜叫醒商户，结局是对方关掉提醒。
   //   方法边界按「4 空格缩进的下一行声明」判断（javadoc 已被脱敏成空格，不能当锚点）。
-  const inAppStart = s.indexOf('NotifyOutcome sendDailyIncomeNotify');
-  let inAppEnd = -1;
-  if (inAppStart >= 0) {
-    const rel = s.slice(inAppStart + 1).search(/\n {4}(?=[^\s}])/);
-    inAppEnd = rel < 0 ? s.length : inAppStart + 1 + rel;
-  }
-  if (inAppStart < 0) {
+  const inAppBody = methodBody(s, 'NotifyOutcome sendDailyIncomeNotify');
+  if (inAppBody === null) {
     problems.push('调度器里找不到日结方法 sendDailyIncomeNotify（判据锚点失效，先核对实现）');
-  } else if (/dailyReportNotifier\s*\.\s*send\s*\(/.test(s.slice(inAppStart, inAppEnd))) {
+  } else if (/dailyReportNotifier\s*\.\s*send\s*\(/.test(inAppBody)) {
     problems.push(
       '00:20 的日结方法里调用了微信日报发送：会在凌晨弹通知，应只在 07:30 的 notifyYesterdayReport 里发'
     );
   }
   if (!/int sendWechatReportsOnly\s*\(/.test(s) || !/notifyYesterdayReport\s*\(/.test(s)) {
     problems.push('调度器里没有早间日报任务（sendWechatReportsOnly / notifyYesterdayReport 缺失）');
+  }
+
+  // I 零销售日也要发（2026-11-20 改判）。生产长期 0 单时，「有成交才发」= 商户永远收不到
+  //   任何东西，分不清「没生意」和「通知坏了」。覆盖范围只按设备表枚举（没柜的商户发 0 元=噪音）。
+  const deviceScope = methodBody(s, 'merchantIdsWithDevices() {');
+  if (deviceScope === null) {
+    problems.push('调度器没有 merchantIdsWithDevices()：零销售商户的覆盖范围无从判定');
+  } else if (!/deviceRepository\s*\.\s*selectList\s*\(/.test(deviceScope)) {
+    problems.push('merchantIdsWithDevices 没有按设备表枚举（「有柜机的商户」来路不明）');
+  }
+  const mergeBody = methodBody(s, 'mergeDeviceMerchants(Map<String, DailySales>');
+  if (mergeBody === null) {
+    problems.push('调度器没有 mergeDeviceMerchants()：零成交的有柜商户不会被补进日报');
+  } else {
+    if (!/putIfAbsent\s*\(/.test(mergeBody)) {
+      problems.push('mergeDeviceMerchants 没有补齐零成交商户（扩集合空转，等于只发有成交的）');
+    }
+    if (!/new\s+DailySales\s*\(\s*0L\s*,\s*0\s*\)/.test(mergeBody)) {
+      problems.push('零成交商户补的不是「0 销售额 / 0 笔」：日报数字会凭空冒出来');
+    }
+  }
+  for (const [signature, label] of [
+    ['NotifyOutcome sendDailyIncomeNotify', '00:20 站内信'],
+    ['int sendWechatReportsOnly', '07:30 微信']
+  ]) {
+    const body = methodBody(s, signature);
+    // 缺失由 H 段判红；这里只判「扩集合有没有被摘掉」
+    if (body === null) continue;
+    if (!/mergeDeviceMerchants\s*\(/.test(body)) {
+      problems.push(
+        `${label}的商户集合没过 mergeDeviceMerchants：昨日零成交的有柜商户收不到日报（只发有成交的）`
+      );
+    }
   }
 
   return problems;
@@ -182,5 +225,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     for (const p of problems) console.error(`  - ${p}`);
     process.exit(1);
   }
-  console.log(`${TAG} PASS：模板/键名全部来自配置，端=MERCHANT，按人×日期幂等，文案占位符闭环`);
+  console.log(
+    `${TAG} PASS：模板/键名全部来自配置，端=MERCHANT，按人×日期幂等，文案占位符闭环，零成交有柜商户照发`
+  );
 }
