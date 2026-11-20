@@ -37,7 +37,9 @@ public final class DisputeConsumerCopy {
     public static ReviewCopy reviewCopy(String status, String reason,
                                         Integer billedAmountCents, Integer refundedAmountCents) {
         String s = status == null ? "" : status.trim().toUpperCase();
-        String raw = reason == null ? "" : reason.trim();
+        // 🔴 设备原文是给运营排障的尾巴（JiangyiRecognitionTimeoutService 拼进 reason），
+        //    不属于消费者文案。完整 reason 仍留在 DTO.reason 供争议详情/后台查，这里只剥派生副本。
+        String raw = stripVendorDetail(reason == null ? "" : reason.trim());
         if ("RESOLVED".equals(s) || "CLOSED".equals(s)) {
             return new ReviewCopy("✓", "人工审核已完成",
                     resolvedDetail(raw, billedAmountCents, refundedAmountCents), "success");
@@ -116,6 +118,12 @@ public final class DisputeConsumerCopy {
             return reason;
         }
         return "已结案：未产生扣款，可在订单中查看账单。";
+    }
+
+    /** 与 C 端 dispute-copy.ts 同口径：剥「｜设备原文：」及之后内容。 */
+    private static String stripVendorDetail(String value) {
+        int i = value.indexOf("｜设备原文：");
+        return i >= 0 ? value.substring(0, i) : value;
     }
 
     private static String blankTo(String value, String fallback) {

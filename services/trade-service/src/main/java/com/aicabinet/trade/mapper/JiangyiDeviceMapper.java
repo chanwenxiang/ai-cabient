@@ -77,6 +77,18 @@ public interface JiangyiDeviceMapper extends BaseTradeMapper<JiangyiDevice> {
     }
 
     /**
+     * 记录设备自报的当前模型 classes.txt 地址（V498）：开机回执每次报回即覆盖。
+     * <p>与 {@link #updateModelInfo} 分开：那条在「模型下发确认」时写，要求 classesVersion
+     * 已计算好；本列只记设备事实地址，出厂预置模型（我方无下发记录）也要能写。</p>
+     */
+    default int markCurrentTxtUrl(String deviceId, String currentTxtUrl, Instant at) {
+        return update(null, Wrappers.<JiangyiDevice>lambdaUpdate()
+                .set(JiangyiDevice::getCurrentTxtUrl, currentTxtUrl)
+                .set(JiangyiDevice::getUpdatedAt, at)
+                .eq(JiangyiDevice::getDeviceId, deviceId));
+    }
+
+    /**
      * 认领柜机当前模型版本（V400）：仅在 classes_version 未知（历史厂商直推、我方无下发记录）时写入，
      * 已有版本不覆盖——已知版本与审阅版本不符必须走人工确认，不能让一次重算顺手改掉版本。
      */

@@ -48,7 +48,7 @@ function resolvedConsumerDetail(
   if (refunded > 0) {
     return `已结案：已退款 ${fmtMoney(refunded)}`;
   }
-  const reason = localizeDisputeReason(ticket.reason);
+  const reason = stripVendorTail(localizeDisputeReason(ticket.reason));
   if (reason && !/暂未扣款|审核完成后会生成账单/i.test(reason)) {
     return reason;
   }
@@ -57,7 +57,7 @@ function resolvedConsumerDetail(
 
 /** 将后端/测试 reason 转成消费者可读中文，避免露出内部/英文话术 */
 export function localizeConsumerDisputeReason(reason?: string | null): string {
-  return localizeDisputeReason(reason);
+  return stripVendorTail(localizeDisputeReason(reason));
 }
 
 /**
@@ -65,9 +65,10 @@ export function localizeConsumerDisputeReason(reason?: string | null): string {
  * 优先使用后端派生字段（consumerReview*），旧响应回退本地拼装。
  */
 /**
- * C 端降噪（UI 统一 Phase 2.1，2026-11-03）：后端 reason 会拼「｜设备原文：<vendor>」
- * 供运营排查（cam=1、classId 列表等）；对消费者这是无意义的技术噪音。
- * 本函数剥掉该段——完整记录在争议详情/运营后台仍可见。
+ * C 端降噪（UI 统一 Phase 2.1，2026-11-03；2026-11-20 扩到派生字段）：
+ * 后端 reason 会拼「｜设备原文：<vendor>」供运营排查（cam=1、classesVersion 等），
+ * 该尾巴会随 consumerReviewDetail 一起下发；对消费者是无意义的技术噪音。
+ * 本函数剥掉该段——完整 reason 仍在争议详情/运营后台可见。
  */
 function stripVendorTail(s: string): string {
   const i = s.indexOf('｜设备原文：');
@@ -86,17 +87,21 @@ export function consumerDisputeReviewCopy(
   > | null
 ): ConsumerDisputeReviewCopy {
   if (ticket?.consumerReviewTitle && ticket?.consumerReviewDetail) {
+    // 后端派生字段仍可能带「｜设备原文：」尾巴（2026-11-20 真机实证），这里再剥一道；
+    // 完整 reason 保留在 DTO.reason 供争议详情/运营后台查，不在这里抹掉源数据。
+    const derivedTitle = stripVendorTail(ticket.consumerReviewTitle);
+    const derivedDetail = stripVendorTail(ticket.consumerReviewDetail);
     const s = (ticket.status || '').toUpperCase();
     const tone: ConsumerDisputeReviewCopy['tone'] =
       s === 'RESOLVED' || s === 'CLOSED'
         ? 'success'
-        : /识别服务暂不可用|vision/i.test(ticket.consumerReviewTitle + ticket.consumerReviewDetail)
+        : /识别服务暂不可用|vision/i.test(derivedTitle + derivedDetail)
           ? 'warn'
           : 'wait';
     return {
       icon: tone === 'success' ? '✓' : '!',
-      title: ticket.consumerReviewTitle,
-      detail: ticket.consumerReviewDetail,
+      title: derivedTitle,
+      detail: derivedDetail,
       tone
     };
   }

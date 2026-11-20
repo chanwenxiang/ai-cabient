@@ -46,4 +46,21 @@ describe('consumerDisputeReviewCopy 设备原文剥离', () => {
     expect(copy.title).toBe('账单审核中');
     expect(copy.detail).toBe('工作人员正在核对，完成后会通知你');
   });
+
+  it('🔴 后端派生字段带设备原文尾巴时也必须剥掉（订单页真机回归）', () => {
+    const copy = consumerDisputeReviewCopy({
+      reason: 'whatever',
+      status: 'OPEN',
+      billedAmountCents: 0,
+      refundedAmountCents: 0,
+      consumerReviewTitle: '账单审核中',
+      consumerReviewDetail:
+        '识别超时（映射未按柜机当前模型人工复核，暂停结算），已转人工审核，本次暂未扣款｜设备原文：classesVersion=null verifiedVersion=null'
+    } as never);
+    expect(copy.title).toBe('账单审核中');
+    expect(copy.detail).not.toContain('设备原文');
+    expect(copy.detail).not.toContain('classesVersion');
+    expect(copy.detail).not.toContain('verifiedVersion');
+    expect(copy.detail).toContain('识别超时');
+  });
 });

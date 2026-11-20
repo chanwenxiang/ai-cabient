@@ -713,7 +713,8 @@ public class AdminJiangyiController {
 
     private static JiangyiDeviceDto toDto(JiangyiDevice d) {
         return new JiangyiDeviceDto(d.getDeviceId(), d.getDeviceSn(), d.getIdentifier(),
-                d.getModelName(), d.getIndustrialControlModel(), d.getClassesVersion(), d.getStatus(),
+                d.getModelName(), d.getIndustrialControlModel(), d.getClassesVersion(),
+                d.getCurrentTxtUrl(), d.getStatus(),
                 d.getTokenVersion(), d.getTokenIssuedAt(), d.getLastWsOnlineAt(), d.getCreatedAt(),
                 d.getUpdatedAt(), Boolean.TRUE.equals(d.getAuthEnabled()));
     }

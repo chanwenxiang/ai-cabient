@@ -12455,6 +12455,7 @@ export interface components {
             modelName?: string;
             industrialControlModel?: string;
             classesVersion?: string;
+            currentTxtUrl?: string;
             status?: string;
             /** Format: int64 */
             tokenVersion?: number;
@@ -12930,6 +12931,7 @@ export interface components {
             deviceSn?: string;
             identifier?: string;
             modelName?: string;
+            currentTxtUrl?: string;
             classesVersion?: string;
             mappingVerifiedVersion?: string;
             /** Format: date-time */

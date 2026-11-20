@@ -471,6 +471,17 @@ public class JiangyiModelSyncService {
             return null;
         }
         String reported = txtUrl.trim();
+        // 2026-11-20（V498）：先无条件落库「设备当前在跑的 classes 地址」。
+        // 出厂预置模型永远命中不到 SENT（我方从未下发），而后台「复核（结算闸口）」恰恰
+        // 要靠这个地址：厂商模型库 getModelFileByApi 对预置模型返回空，运营无从抄写。
+        // 落库失败不阻断确认闭环（确认是旁路），但会让复核退回手填 ⇒ 留 warn 便于排查。
+        try {
+            jiangyiDeviceMapper.markCurrentTxtUrl(
+                    deviceId, absoluteTxtUrl(modelTxtBaseUrl, reported), Instant.now());
+        } catch (Exception e) {
+            log.warn("jiangyi receiveCurrentTxtUrl persist current_txt_url failed deviceId={} txtUrl={}: {}",
+                    deviceId, reported, e.getMessage());
+        }
         JiangyiModelDeployment match = deploymentMapper.listByDevice(deviceId).stream()
                 .filter(d -> "SENT".equals(d.getStatus()))
                 .filter(d -> txtUrlMatches(d.getClassesTextUrl(), reported))
@@ -570,6 +581,35 @@ public class JiangyiModelSyncService {
     @org.springframework.beans.factory.annotation.Value(
             "${aicabinet.jiangyi.model-sync.allowed-hosts:hunanjysmart.com}")
     private java.util.List<String> allowedModelHosts = java.util.List.of("hunanjysmart.com");
+
+    /**
+     * classes.txt 的 OSS base（V498）：设备开机回执只报相对路径（{@code model/xxx.txt}），
+     * 而厂商把 classes 放在 OSS 桶上、桶域名与 API 域不同。落库/回填时用它拼绝对地址，
+     * 换桶只改部署配置，不动代码。
+     * <p>默认值来自 2026-11-20 生产实查（该柜 report 的 txtUrl 在此桶可取，HTTP 200）。</p>
+     */
+    @org.springframework.beans.factory.annotation.Value(
+            "${aicabinet.jiangyi.model-sync.txt-base-url:https://jianyidev.oss-cn-chengdu.aliyuncs.com}")
+    private String modelTxtBaseUrl = "https://jianyidev.oss-cn-chengdu.aliyuncs.com";
+
+    /** 设备报相对路径（{@code model/xxx.txt}）⇒ 拼成 OSS 绝对地址；已是 http(s) 的原样返回。 */
+    static String absoluteTxtUrl(String base, String reported) {
+        String url = reported == null ? "" : reported.trim();
+        if (url.isEmpty()) {
+            return null;
+        }
+        if (url.startsWith("http://") || url.startsWith("https://")) {
+            return url;
+        }
+        String root = base == null ? "" : base.trim();
+        while (root.endsWith("/")) {
+            root = root.substring(0, root.length() - 1);
+        }
+        while (url.startsWith("/")) {
+            url = url.substring(1);
+        }
+        return root.isEmpty() ? url : root + "/" + url;
+    }
 
     private JiangyiClassesParser.ParsedClasses parseClasses(JiangyiModelFile model, int classIdBase) {
         return parseClasses(model.modelTextUrl(), model.quantity(), classIdBase);

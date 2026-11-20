@@ -34,6 +34,16 @@ public class JiangyiDevice {
 
     private String modelName;
 
+    /**
+     * 设备开机回执（{@code receiveCurrentTxtUrl}）报回的当前模型 classes.txt 地址（V498）。
+     * <p>此前只打日志不落库：厂商模型库 {@code getModelFileByApi} 对出厂预置模型返回空数组，
+     * 后台「复核（结算闸口）」的 classes 地址便只能人工手抄，运营既无候选也无从得知 ⇒
+     * 闸口实际走不通。落库后由绑定视图带出，运营选柜即得。</p>
+     * <p>🔴 本列是设备自报的<b>事实</b>，不参与结算判据（闸口仍看
+     * {@code classes_version == mapping_verified_version}）。</p>
+     */
+    private String currentTxtUrl;
+
     /** 模型 classes 版本（二期模型同步回填）。 */
     private String classesVersion;
 

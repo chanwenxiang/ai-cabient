@@ -691,6 +691,8 @@ interface JiangyiBindingInfo {
   modelName: string | null;
   industrialControlModel: string | null;
   classesVersion: string | null;
+  /** 设备开机回执自报的当前模型 classes.txt 绝对地址（V498）；未上报过则为空。 */
+  currentTxtUrl: string | null;
   status: string;
   lastWsOnlineAt: string | null;
 }
@@ -993,9 +995,28 @@ async function load() {
   modelPreviews.value = [];
   selectedModel.value = '';
   deployments.value = [];
+  // 换柜必须清空复核表单：模型名与 classes 地址都是**逐柜**的（设备开机回执上报），
+  // 残留上一台柜的值会让复核戳到错的模型标记 / 去拉别的柜的 classes。
+  reviewForm.value.modelName = '';
+  reviewForm.value.textUrl = '';
   if (!deviceId.value) return;
   await crud.load({ resetPage: true });
   loaded.value = true;
+  // 复核表单默认带出柜机正在跑的模型名（2026-11-20）：
+  // 厂商模型库（getModelFileByApi）为空时下拉无候选，而这串名字带训练时间戳
+  // （如 hysxr20260930120329732_..._3_50_3576.rknn），要求运营手抄既反人类又必然抄错。
+  // 唯一可靠来源就是设备上报的 model_name —— 页面顶部「当前生效模型」显示的就是它。
+  // 只做兜底：运营从下拉/手填过的值不覆盖。（binding 刚在上面显式置 null，
+  // TS 控制流会把它收窄成 never，故这里显式断言回联合类型。）
+  const bound = binding.value as JiangyiBindingInfo | null;
+  if (bound?.modelName && !reviewForm.value.modelName.trim()) {
+    reviewForm.value.modelName = bound.modelName;
+  }
+  // classes 地址同理（V498）：厂商模型库对出厂预置模型返回空数组，下拉无候选；
+  // 设备开机回执自报的 current_txt_url 是唯一可靠来源。为空则保留手填通道。
+  if (bound?.currentTxtUrl && !reviewForm.value.textUrl.trim()) {
+    reviewForm.value.textUrl = bound.currentTxtUrl;
+  }
   void loadDeployments();
   void loadReviewStatus();
   // 已接入设备进页即拉模型，避免运营以为「没有可预生成的模型」；失败只落页内提示，不弹 toast

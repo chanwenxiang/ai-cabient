@@ -8,7 +8,9 @@ import java.time.Instant;
  * <p>三元组：我方 device_id ↔ 将邑 device_sn（工控机 SN）↔ identifier（将邑签发编码）。
  * status：UNBOUND（已登记未绑定）/ BOUND（可路由）/ RETIRED（退役拒绝一切路由）。
  * tokenVersion/tokenIssuedAt 供运维诊断 token 吊销状态；lastWsOnlineAt 即设备最近在线时刻。
- * industrialControlModel 存将邑原值（"76"/"88"），模型下发按字符串相等校验。</p>
+ * industrialControlModel 存将邑原值（"76"/"88"），模型下发按字符串相等校验。
+ * currentTxtUrl 是设备开机回执自报的当前模型 classes.txt 绝对地址（V498），仅供后台复核默认填，
+ * 不参与结算判据。</p>
  */
 public record JiangyiDeviceDto(
         String deviceId,
@@ -17,6 +19,7 @@ public record JiangyiDeviceDto(
         String modelName,
         String industrialControlModel,
         String classesVersion,
+        String currentTxtUrl,
         String status,
         Long tokenVersion,
         Instant tokenIssuedAt,

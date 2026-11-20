@@ -28,6 +28,18 @@ class DisputeConsumerCopyTest {
     }
 
     @Test
+    void reviewCopy_consumerDetailStripsVendorTail() {
+        String reason = "识别超时（映射未按柜机当前模型人工复核，暂停结算），已转人工审核，本次暂未扣款"
+                + "｜设备原文：classesVersion=null verifiedVersion=null";
+        var copy = DisputeConsumerCopy.reviewCopy("OPEN", reason, 0, 0);
+        assertEquals("账单审核中", copy.title());
+        assertTrue(copy.detail().contains("识别超时"), copy.detail());
+        assertTrue(!copy.detail().contains("设备原文"), copy.detail());
+        assertTrue(!copy.detail().contains("classesVersion"), copy.detail());
+        assertTrue(!copy.detail().contains("verifiedVersion"), copy.detail());
+    }
+
+    @Test
     void amountDiffNote_withMemberAndCoupon() {
         String note = DisputeConsumerCopy.amountDiffNote(1000, 700, 200, 100);
         assertEquals("识别参考 ¥10.00，实扣 ¥7.00（会员优惠 ¥2.00 + 优惠券 ¥1.00）", note);

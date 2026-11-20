@@ -380,6 +380,53 @@ class JiangyiModelSyncServiceTest {
         verify(jiangyiDeviceMapper, org.mockito.Mockito.never()).clearMappingVerification(anyString(), any());
     }
 
+    /**
+     * 🔴 V498（2026-11-20）：开机回执必须把设备自报的 classes 地址落库，且**命中不到 SENT 也要落**。
+     * 成因：出厂预置模型（我方从未下发）永远命中不到 SENT，而后台「复核（结算闸口）」的
+     * classes 地址唯一可靠来源就是这里——厂商模型库 {@code getModelFileByApi} 对它返回空数组，
+     * 运营只能手抄。此前这段只打日志 ⇒ 闸口实际走不通。
+     */
+    @Test
+    void confirmModelByTxtUrl_persistsDeviceReportedTxtUrlAsAbsoluteEvenWithoutSent() {
+        when(deploymentMapper.listByDevice(DEVICE_ID)).thenReturn(List.of());
+
+        assertNull(service().confirmModelByTxtUrl(DEVICE_ID, "model/hysxr_3.txt"));
+
+        // 设备报的是相对路径 ⇒ 落库必须是可直接拉取的绝对地址（默认 OSS base，见 V498 头注释）
+        verify(jiangyiDeviceMapper).markCurrentTxtUrl(
+                eq(DEVICE_ID),
+                eq("https://jianyidev.oss-cn-chengdu.aliyuncs.com/model/hysxr_3.txt"),
+                any());
+    }
+
+    /** 落库失败不得破坏确认闭环：确认是开机旁路，DB 抖动不该让 SENT 永远停在进行中。 */
+    @Test
+    void confirmModelByTxtUrl_persistFailureDoesNotBreakConfirm() {
+        JiangyiModelDeployment sent = sentWithTxtUrl("https://oss/model/hysxr_3.txt");
+        when(deploymentMapper.listByDevice(DEVICE_ID)).thenReturn(List.of(sent));
+        when(deploymentMapper.selectById(55L)).thenReturn(sent);
+        when(deploymentMapper.findLatestSent(DEVICE_ID, MODEL_NAME)).thenReturn(Optional.of(sent));
+        doThrow(new RuntimeException("db down")).when(jiangyiDeviceMapper)
+                .markCurrentTxtUrl(anyString(), anyString(), any());
+
+        assertEquals(sent, service().confirmModelByTxtUrl(DEVICE_ID, "model/hysxr_3.txt"));
+
+        verify(deploymentMapper).confirm(eq(55L), eq("ab12cd34ef56"), any());
+    }
+
+    @Test
+    void absoluteTxtUrlJoinsBaseAndKeepsAlreadyAbsolute() {
+        assertEquals("https://oss.bucket/model/x.txt",
+                JiangyiModelSyncService.absoluteTxtUrl("https://oss.bucket", "model/x.txt"));
+        assertEquals("https://oss.bucket/model/x.txt",
+                JiangyiModelSyncService.absoluteTxtUrl("https://oss.bucket/", "/model/x.txt"));
+        // 设备万一下次直接报全 URL（换固件）⇒ 原样保留，不重复拼
+        assertEquals("https://other/model/x.txt",
+                JiangyiModelSyncService.absoluteTxtUrl("https://oss.bucket", "https://other/model/x.txt"));
+        assertNull(JiangyiModelSyncService.absoluteTxtUrl("https://oss.bucket", "   "));
+        assertNull(JiangyiModelSyncService.absoluteTxtUrl("https://oss.bucket", null));
+    }
+
     /** 路径边界：othermodel/x.txt 不得误命中 model/x.txt（leading-slash 后缀判据）。 */
     @Test
     void confirmModelByTxtUrl_pathBoundaryPreventsSubstringMisMatch() {
