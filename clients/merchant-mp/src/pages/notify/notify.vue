@@ -12,6 +12,11 @@
           <text class="field-label">微信绑定</text>
           <text class="status-val">{{ bindLabel }}</text>
         </view>
+        <!-- MA-377：日报是独立模板，「已绑定」不代表日报能收到，必须单独把状态说清楚 -->
+        <view class="status-row">
+          <text class="field-label">经营日报</text>
+          <text class="status-val">{{ dailyReportLabel }}</text>
+        </view>
         <view v-if="isMpWeixin && subscribeReady" class="actions bind-actions">
           <app-button
             variant="soft"
@@ -65,7 +70,11 @@ import {
 } from '@/utils/notify';
 import { isMerchantLoggedIn, merchantApi } from '@/utils/merchant-api';
 import { seedMerchantMeDisplayCache, useMerchantMe } from '@/composables/useMerchantMe';
-import { loadMerchantFlags, merchantSubscribeTemplateId } from '@/utils/merchant-config';
+import {
+  loadMerchantFlags,
+  merchantDailyReportTemplateId,
+  merchantSubscribeTemplateId
+} from '@/utils/merchant-config';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const notifyBusy = ref(false);
@@ -73,23 +82,31 @@ const wxBound = ref(false);
 const enabledTypes = ref<string[]>([]);
 const alertTypeOptions = MERCHANT_ALERT_TYPES;
 const runtimeSubscribeTmplId = ref('');
-const subscribeReady = computed(() =>
-  hasSubscribeTemplates(runtimeSubscribeTmplId.value ? [runtimeSubscribeTmplId.value] : [])
-);
+/** MA-377：每日经营日报是**独立模板**（金额/笔数键，与待办提醒的 thing 键不通用）。 */
+const runtimeDailyReportTmplId = ref('');
+const subscribeReady = computed(() => hasSubscribeTemplates(subscribeTmplIds()));
 /** 编译期平台判定，替代已弃用的 getSystemInfoSync().uniPlatform 运行时探测。 */
 let isMpWeixin = false;
 // #ifdef MP-WEIXIN
 isMpWeixin = true;
 // #endif
 const bindLabel = computed(() => (wxBound.value ? '已绑定' : '未绑定'));
+const dailyReportLabel = computed(() =>
+  runtimeDailyReportTmplId.value ? '每日推送（昨日销售额/笔数/客单价）' : '未开通'
+);
 const introDesc = computed(() => {
   if (!isMpWeixin) return '柜机离线、缺货、争议等可发到微信。请在微信小程序中开启。';
   if (!subscribeReady.value) return '当前未配置订阅模板，暂不能向微信推送。';
-  return '开启后可接收柜机与订单提醒。勾选要收的类型后保存。';
+  return '开启后可接收柜机与订单提醒，以及每日经营日报（昨日销售额、成交笔数、客单价）。点「开启提醒」时会一次性请求这两类模板的授权。';
 });
 
 function subscribeTmplIds(): string[] {
-  return runtimeSubscribeTmplId.value ? [runtimeSubscribeTmplId.value] : [];
+  // 一次 requestSubscribeMessage 同时请求待办提醒 + 经营日报（微信单次上限 3 个模板）。
+  // 只请求一个的话，另一个模板永远拿不到授权额度 ⇒ 日报发不出去且商户端毫无提示。
+  const ids = [runtimeSubscribeTmplId.value, runtimeDailyReportTmplId.value]
+    .map((v) => (v || '').trim())
+    .filter(Boolean);
+  return [...new Set(ids)];
 }
 
 function onToggleType(type: string, on: boolean) {
@@ -167,6 +184,7 @@ onShow(async () => {
   }
   await loadMerchantFlags({ refresh: true });
   runtimeSubscribeTmplId.value = merchantSubscribeTemplateId();
+  runtimeDailyReportTmplId.value = merchantDailyReportTemplateId();
   try {
     const prefs = await merchantApi.notifyPrefs();
     wxBound.value = !!prefs.wxBound;

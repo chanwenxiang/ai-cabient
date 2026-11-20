@@ -61,6 +61,17 @@ export function merchantSubscribeTemplateId(): string {
   return typeof raw === 'string' ? raw.trim() : '';
 }
 
+/**
+ * 每日经营日报模板 ID（MA-377，公开配置下发，空串表示未配）。
+ *
+ * 日报是**独立模板**：它的 data 键是金额/笔数（amount/number），与待办提醒模板的
+ * thing1/thing2/time3 完全不同，不能共用一个 id——共用只会让微信回 400 且商户端无感。
+ */
+export function merchantDailyReportTemplateId(): string {
+  const raw = cache?.wechatDailyReportTemplateId;
+  return typeof raw === 'string' ? raw.trim() : '';
+}
+
 /** 后端是否已配齐小程序凭据 + 商户订阅模板（能真正下发推送）。 */
 export function merchantSubscribeEnabled(): boolean {
   return enabled(cache?.wechatSubscribeEnabled);

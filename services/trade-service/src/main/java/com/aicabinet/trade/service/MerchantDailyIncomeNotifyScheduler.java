@@ -22,7 +22,6 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -34,8 +33,10 @@ import java.util.Map;
  * 不计——口径与 {@link MerchantSettlementBillService} 一致），发给**昨日有收入
  * （合计 &gt;0）的商户**；0.00 不发（用户拍板，与老系统全量推送有意不同）。
  *
- * <p>渠道：站内信（merchant-mp 消息中心）。三字段对齐老系统：
- * 商户名称 / 结算周期（昨日日期）/ 收入金额。模板 {@code merchant_settlement}（V351）。
+ * <p>渠道：站内信（merchant-mp 消息中心）+ 微信订阅消息（MA-377，商户端「每日经营日报」）。
+ * 字段：商户名称 / 结算周期 / 销售额 / 成交笔数 / 客单价 / 费用 / 净入账，模板
+ * {@code merchant_settlement}（V351，V499 改口径）。两个渠道**各自幂等**（站内信按商户、
+ * 微信按「操作员 × 日期」）：任一侧当日成功，重跑只补发另一侧，互不阻塞。
  *
  * <p>幂等：{@code biz_id=昨日日期}，发送前按 template_code+merchant_id+biz_type+biz_id
  * 查重，调度重跑不重发。本项目收益是「下单即入钱包、商户自行提现」——本通知只是
@@ -72,6 +73,8 @@ public class MerchantDailyIncomeNotifyScheduler {
     private final DeviceSalesLockService salesLockService;
     /** CB-086：钱包欠款账龄探针（只读，结果拼进日结执行记录 + 一条聚合群告警）。 */
     private final MerchantWalletArrearsService walletArrearsService;
+    /** MA-377：微信日报投递（按商户反查操作员；站内信之外的独立渠道）。 */
+    private final MerchantDailyReportNotifier dailyReportNotifier;
 
     public MerchantDailyIncomeNotifyScheduler(MerchantMapper merchantRepository,
                                               OrderRevenueSplitMapper splitRepository,
@@ -83,7 +86,8 @@ public class MerchantDailyIncomeNotifyScheduler {
                                               MerchantWalletService walletService,
                                               SystemConfigService configService,
                                               DeviceSalesLockService salesLockService,
-                                              MerchantWalletArrearsService walletArrearsService) {
+                                              MerchantWalletArrearsService walletArrearsService,
+                                              MerchantDailyReportNotifier dailyReportNotifier) {
         this.merchantRepository = merchantRepository;
         this.splitRepository = splitRepository;
         this.notificationService = notificationService;
@@ -95,6 +99,7 @@ public class MerchantDailyIncomeNotifyScheduler {
         this.configService = configService;
         this.salesLockService = salesLockService;
         this.walletArrearsService = walletArrearsService;
+        this.dailyReportNotifier = dailyReportNotifier;
     }
 
     @Scheduled(
@@ -111,6 +116,8 @@ public class MerchantDailyIncomeNotifyScheduler {
             LocalDate yesterday = LocalDate.now(ScheduleZones.ZONE).minusDays(1);
             NotifyOutcome outcome = sendDailyIncomeNotify(yesterday);
             summary = "昨日(" + yesterday + ")日结通知发送 " + outcome.sent() + " 商户"
+                    // MA-377：微信日报单独计数——站内信写了不等于商户看到了（商户不一定点开小程序）
+                    + "、微信日报 " + outcome.wechatSent() + " 人"
                     // F-5（2026-10-17）：扣费失败不再只在日志里静默——写进运营台执行记录，
                     // 否则商户收到的通知里 fee=0.00 没人知道那是「没扣成」而不是「免费」
                     + (outcome.feeChargeFailed() > 0
@@ -132,10 +139,11 @@ public class MerchantDailyIncomeNotifyScheduler {
     }
 
     /**
-     * 日结通知结果：{@code sent}=实际发送数，{@code feeChargeFailed}=昨日日扣失败商户数
-     * （F-5：失败数必须冒泡到运营台执行记录，不许只在日志里静默）。
+     * 日结通知结果：{@code sent}=站内信实际发送商户数，{@code wechatSent}=微信日报送达人数，
+     * {@code feeChargeFailed}=昨日日扣失败商户数（F-5：失败数必须冒泡到运营台执行记录，
+     * 不许只在日志里静默）。
      */
-    record NotifyOutcome(int sent, int feeChargeFailed) {
+    record NotifyOutcome(int sent, int wechatSent, int feeChargeFailed) {
     }
 
     /** 发送昨日日结通知。包级可见供单测钉住口径。 */
@@ -145,20 +153,30 @@ public class MerchantDailyIncomeNotifyScheduler {
         List<OrderRevenueSplit> splits = splitRepository.selectList(Wrappers.<OrderRevenueSplit>lambdaQuery()
                 .ge(OrderRevenueSplit::getCreatedAt, from)
                 .lt(OrderRevenueSplit::getCreatedAt, to));
-        Map<String, Long> incomeByMerchant = aggregateIncome(splits);
-        if (incomeByMerchant.isEmpty()) {
+        Map<String, DailySales> salesByMerchant = aggregateSales(splits);
+        if (salesByMerchant.isEmpty()) {
             // 审计 T4（2026-10-15）：early-return 只对「通知发送」生效——费用日扣与欠费检查
             // （chargeAndCheckAllMerchants，CB-041）必须照跑，否则全员零销售的日子整批
             // 费用不出账、欠费不催缴、误锁不解锁（固定租金是合同义务，与销售脱钩）。
             chargeAndCheckAllMerchants(yesterday, java.util.Set.of());
-            return new NotifyOutcome(0, 0);
+            return new NotifyOutcome(0, 0, 0);
         }
         String bizId = yesterday.format(ISO_FMT);
+        String period = yesterday.format(PERIOD_FMT);
+        // 先把「昨日经营数据」物化成日报对象：站内信与微信两条通道共用同一份数字，
+        // 避免两条链路各自取数导致「站内信 1901.23、微信 1901.2」这种对不上账的情况。
+        List<MerchantDailyReportNotifier.MerchantDailyReport> reports = new java.util.ArrayList<>();
+        for (Map.Entry<String, DailySales> e : salesByMerchant.entrySet()) {
+            reports.add(new MerchantDailyReportNotifier.MerchantDailyReport(
+                    e.getKey(), bizId, period, e.getValue().salesCents(), e.getValue().orderCount()));
+        }
         int sent = 0;
         int feeChargeFailed = 0;
-        for (Map.Entry<String, Long> entry : incomeByMerchant.entrySet()) {
-            String merchantId = entry.getKey();
-            if (alreadySent(merchantId, bizId)) {
+        for (MerchantDailyReportNotifier.MerchantDailyReport report : reports) {
+            String merchantId = report.merchantId();
+            if (alreadySentInApp(merchantId, bizId)) {
+                // 站内信已发：不再扣费（扣费幂等靠这条判断，重复扣费比重复通知严重得多）、
+                // 也不再写第二条站内信。微信侧走下面的独立循环补发。
                 continue;
             }
             String merchantName = merchantRepository.findById(merchantId)
@@ -178,22 +196,31 @@ public class MerchantDailyIncomeNotifyScheduler {
             // ② 当天已由运营重跑扣过（幂等跳过，重算值再展示一遍=同一笔费用展示两次）。
             // 流水是唯一真相：扣到多少展示多少，没扣到就是 0（配合 summary 里的失败数不静默）。
             long feeCents = walletService.debitedCentsByRef(merchantId, FEE_REF_TYPE, bizId);
-            long incomeCents = entry.getValue();
+            long incomeCents = report.salesCents();
             long netCents = incomeCents - feeCents;
             notificationService.notifyMerchant(merchantId, TEMPLATE_CODE,
                     Map.of("merchantName", merchantName,
-                            "period", yesterday.format(PERIOD_FMT),
+                            "period", period,
                             "amount", BigDecimal.valueOf(incomeCents, 2).toPlainString(),
+                            // MA-377：商户要的是「今天卖了多少」，只有金额看不出单量大小
+                            "orders", String.valueOf(report.orderCount()),
+                            "avg", BigDecimal.valueOf(report.avgCents(), 2).toPlainString(),
                             "fee", BigDecimal.valueOf(feeCents, 2).toPlainString(),
                             "net", BigDecimal.valueOf(netCents, 2).toPlainString()),
                     BIZ_TYPE, bizId);
             sent++;
         }
+        // MA-377：微信日报独立通道。与站内信分开幂等（按「操作员 × 日期」），
+        // 所以运营台按日期重跑时，站内信已发的人不会重复打扰，而昨天没收到微信的人能补上。
+        int wechatSent = 0;
+        for (MerchantDailyReportNotifier.MerchantDailyReport report : reports) {
+            wechatSent += dailyReportNotifier.send(report);
+        }
         // CB-041（2026-10-14 拍板：费用摊销与销售脱钩——固定租金是合同义务，零销售照摊；
         // 免费投放本来费用为 0 不受影响）：日扣与欠费检查覆盖**全部有柜商户**，
         // 不再只扫昨日有收入商户（否则零销售商户费用永远不出账、欠费永远不催缴）。
-        chargeAndCheckAllMerchants(yesterday, incomeByMerchant.keySet());
-        return new NotifyOutcome(sent, feeChargeFailed);
+        chargeAndCheckAllMerchants(yesterday, salesByMerchant.keySet());
+        return new NotifyOutcome(sent, wechatSent, feeChargeFailed);
     }
 
     /**
@@ -581,17 +608,42 @@ public class MerchantDailyIncomeNotifyScheduler {
      * 纯函数：按商户聚合昨日入账（分），只保留 &gt;0 的商户（0.00 不发，用户拍板）。
      * 冲正单排除（口径对齐 {@link MerchantSettlementBillService#isReversed}）。
      */
-    static Map<String, Long> aggregateIncome(List<OrderRevenueSplit> splits) {
-        Map<String, Long> byMerchant = new HashMap<>();
+    /** 当日单个商户的经营数据：销售额（分）+ 成交笔数。 */
+    record DailySales(long salesCents, int orderCount) {
+    }
+
+    /**
+     * 按商户聚合「昨日销售额 + 成交笔数」（冲正单不计、空商户不计、负数按 0）。
+     *
+     * <p>笔数口径 = 参与聚合的非冲正分账行数（{@code order_revenue_split} 一单一行），
+     * 含 0 元行：那是一笔真实成交、只是分给商户的部分为 0，漏掉它会让客单价虚高。
+     * 只有合计 &gt;0 的商户才进结果集（0.00 不发，2026-10-14 拍板）。
+     */
+    static Map<String, DailySales> aggregateSales(List<OrderRevenueSplit> splits) {
+        Map<String, long[]> acc = new java.util.LinkedHashMap<>();
         for (OrderRevenueSplit s : splits) {
             String merchantId = s.getMerchantId();
             if (merchantId == null || merchantId.isBlank()
                     || MerchantSettlementBillService.isReversed(s.getStatus())) {
                 continue;
             }
-            byMerchant.merge(merchantId, Math.max(0L, s.getMerchantCents()), Long::sum);
+            long[] v = acc.computeIfAbsent(merchantId, k -> new long[2]);
+            v[0] += Math.max(0L, s.getMerchantCents());
+            v[1] += 1;
         }
-        byMerchant.values().removeIf(v -> v <= 0);
+        Map<String, DailySales> byMerchant = new java.util.LinkedHashMap<>();
+        acc.forEach((merchantId, v) -> {
+            if (v[0] > 0) {
+                byMerchant.put(merchantId, new DailySales(v[0], (int) v[1]));
+            }
+        });
+        return byMerchant;
+    }
+
+    /** 仅金额视图（既有单测与调用点保留）；口径与 {@link #aggregateSales} 完全一致。 */
+    static Map<String, Long> aggregateIncome(List<OrderRevenueSplit> splits) {
+        Map<String, Long> byMerchant = new java.util.LinkedHashMap<>();
+        aggregateSales(splits).forEach((merchantId, sales) -> byMerchant.put(merchantId, sales.salesCents()));
         return byMerchant;
     }
 
@@ -608,9 +660,17 @@ public class MerchantDailyIncomeNotifyScheduler {
         return c != null && c > 0;
     }
 
-    private boolean alreadySent(String merchantId, String bizId) {
+    /**
+     * 站内信是否已发（**只认 IN_APP 渠道**）。
+     *
+     * <p>MA-377：加 channel 条件前，微信日报（同 template_code / audience / merchantId / bizId）
+     * 的日志行会让本判断误命中，导致「只补发了微信」的商户被当成已发站内信而漏发。
+     * 两个渠道各有各的幂等，日志必须按渠道区分。
+     */
+    private boolean alreadySentInApp(String merchantId, String bizId) {
         Long c = notificationLogRepository.selectCount(Wrappers.<NotificationLog>lambdaQuery()
                 .eq(NotificationLog::getTemplateCode, TEMPLATE_CODE)
+                .eq(NotificationLog::getChannel, "IN_APP")
                 .eq(NotificationLog::getAudience, "MERCHANT")
                 .eq(NotificationLog::getMerchantId, merchantId)
                 .eq(NotificationLog::getBizType, BIZ_TYPE)

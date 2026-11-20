@@ -45,6 +45,7 @@ class SystemConfigConcurrencyTest {
                 new WeChatWebProperties(false, "", ""),
                 new WeChatMiniAppProperties(false, "", "", "", "", "", "", "", "", "", "", "formal"),
                 new QrProperties("", "", "", "", ""),
+                com.aicabinet.trade.config.MerchantDailyReportProperties.disabled(),
                 distributedLockService,
                 null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);

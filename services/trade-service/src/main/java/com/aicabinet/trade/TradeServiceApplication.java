@@ -29,6 +29,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableConfigurationProperties({WeChatPayProperties.class, WeChatMiniAppProperties.class, WeChatWebProperties.class,
         MinioProperties.class, SecurityProperties.class, StagingProperties.class,
         CheckoutProperties.class,
+        // MA-377：商户每日经营日报（微信订阅消息）——模板 id/落地页/关键词名独立成组
+        com.aicabinet.trade.config.MerchantDailyReportProperties.class,
         OpsMonitoringProperties.class,
         com.aicabinet.trade.config.SessionExpireProperties.class,
         InternalApiProperties.class, AuthProperties.class, CorsProperties.class,

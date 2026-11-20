@@ -214,6 +214,19 @@ aicabinet:
     # 🔴 MA-372：曾硬编码 developer ⇒ 生产用户点开跳开发版、根本打不开。
     # 默认 formal；体验版验收期用 WECHAT_MINIPROGRAM_STATE=trial 临时覆盖，验收完改回。
     miniprogram-state: ${WECHAT_MINIPROGRAM_STATE:formal}
+  # MA-377：商户「每日经营日报」微信订阅消息（T+1 00:20 随日结发）。
+  # 此前 merchant_settlement 只在站内信可见——商户不点开小程序就永远不知道昨天卖了多少。
+  merchant-daily-report:
+    enabled: ${MERCHANT_DAILY_REPORT_ENABLED:true}
+    # 商户小程序后台「订阅消息」里选定模板的 id；留空 = 不发微信（站内信照旧，不报错）
+    template-id: ${WECHAT_MERCHANT_DAILY_REPORT_TEMPLATE:}
+    # 点开落地页：商户端首页（第一屏就是今日营收 / 今日订单）
+    page: ${WECHAT_MERCHANT_DAILY_REPORT_PAGE:pages/home/home}
+    # 🔴 三个关键词名取自后台模板（如 amount1/number2/amount3），与模板不一致微信回 400；
+    #    默认值只是常见「经营数据」模板的键名，实际以后台看到的为准，改 env 即生效。
+    sales-key: ${WECHAT_MERCHANT_DAILY_REPORT_SALES_KEY:amount1}
+    orders-key: ${WECHAT_MERCHANT_DAILY_REPORT_ORDERS_KEY:number2}
+    avg-key: ${WECHAT_MERCHANT_DAILY_REPORT_AVG_KEY:amount3}
   notify:
     # 🔴 sms-enabled 是**欠款短信催缴的总闸**（V326）：开着才可能发催缴短信。
     #    三道门全开才有短信：① 本开关 ② 模板 channels 含 SMS（V325 已 seed）③ 短信通道已配置

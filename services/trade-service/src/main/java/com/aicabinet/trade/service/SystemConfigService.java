@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.OpsBrandDto;
 import com.aicabinet.common.dto.SystemConfigDto;
 import com.aicabinet.common.dto.UpsertSystemConfigRequest;
 import com.aicabinet.trade.config.AlipayProperties;
+import com.aicabinet.trade.config.MerchantDailyReportProperties;
 import com.aicabinet.trade.config.PayScoreProperties;
 import com.aicabinet.trade.config.QrProperties;
 import com.aicabinet.trade.config.SecurityProperties;
@@ -577,6 +578,7 @@ public class SystemConfigService {
     private final WeChatWebProperties weChatWebProperties;
     private final WeChatMiniAppProperties weChatMiniAppProperties;
     private final QrProperties qrProperties;
+    private final MerchantDailyReportProperties merchantDailyReportProperties;
     private final DistributedLockService distributedLockService;
     private final SystemConfigService self;
 
@@ -610,6 +612,8 @@ public class SystemConfigService {
                                WeChatWebProperties weChatWebProperties,
                                WeChatMiniAppProperties weChatMiniAppProperties,
                                QrProperties qrProperties,
+                               // MA-377：商户每日经营日报模板 id 随 public config 下发
+                               MerchantDailyReportProperties merchantDailyReportProperties,
                                DistributedLockService distributedLockService,
                                @Lazy SystemConfigService self) {
         this.repository = repository;
@@ -622,6 +626,7 @@ public class SystemConfigService {
         this.weChatWebProperties = weChatWebProperties;
         this.weChatMiniAppProperties = weChatMiniAppProperties;
         this.qrProperties = qrProperties;
+        this.merchantDailyReportProperties = merchantDailyReportProperties;
         this.distributedLockService = distributedLockService;
         this.self = self;
     }
@@ -799,6 +804,11 @@ public class SystemConfigService {
         map.put("wechatSubscribeEnabled",
                 String.valueOf(weChatMiniAppProperties.subscribeConfigured()));
         map.put("wechatSubscribeTemplateId", tmplOk ? merchantTmpl.trim() : "");
+        // MA-377：日报模板 id 也下发——商户端「开启提醒」要一次性请求多个模板
+        // （微信单次最多 3 个），少了这个 id 商户就永远授不了日报的权，页面却显示「已开启」。
+        String dailyReportTmpl = merchantDailyReportProperties.configured()
+                ? merchantDailyReportProperties.resolveTemplateId() : "";
+        map.put("wechatDailyReportTemplateId", dailyReportTmpl);
         return map;
     }
 

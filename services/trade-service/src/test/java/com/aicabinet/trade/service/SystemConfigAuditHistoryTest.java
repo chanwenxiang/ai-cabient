@@ -75,6 +75,7 @@ class SystemConfigAuditHistoryTest {
                 new WeChatWebProperties(false, "", ""),
                 new WeChatMiniAppProperties(false, "", "", "", "", "", "", "", "", "", "", "formal"),
                 new QrProperties("", "", "", "", ""),
+                com.aicabinet.trade.config.MerchantDailyReportProperties.disabled(),
                 distributedLockService,
                 null);
         ReflectionTestUtils.setField(service, "self", service);

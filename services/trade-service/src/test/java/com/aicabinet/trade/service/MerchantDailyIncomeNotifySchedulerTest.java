@@ -91,7 +91,8 @@ class MerchantDailyIncomeNotifySchedulerTest {
                 walletService,
                 configService,
                 salesLockService,
-                walletArrearsService());
+                walletArrearsService(),
+                mock(com.aicabinet.trade.service.MerchantDailyReportNotifier.class));
     }
 
     /** CB-086：欠款探针与本类用例无关，默认返回空串（不污染日结摘要断言）。 */
@@ -402,7 +403,8 @@ class MerchantDailyIncomeNotifySchedulerTest {
                 mock(com.aicabinet.trade.service.ScheduledTaskService.class), deviceRepo, feeLedger,
                 wallet, configWithLockDays("7"),
                 mock(com.aicabinet.trade.service.DeviceSalesLockService.class),
-                walletArrearsService());
+                walletArrearsService(),
+                mock(com.aicabinet.trade.service.MerchantDailyReportNotifier.class));
     }
 
     @Test
@@ -475,5 +477,64 @@ class MerchantDailyIncomeNotifySchedulerTest {
                 "幂等跳过不该再算一次「本次实扣」");
         assertEquals(1, rows.size(), "跳过扣款仍要留当日费用行，台账才与钱包流水对上");
         assertEquals("DATA", rows.get(0).getFeeType());
+    }
+
+    // ---------- MA-377：日报要带「卖了多少」而不只是「到账多少」 ----------
+
+    @Test
+    void aggregateSales_countsOrdersIncludingZeroRevenueRows() {
+        // 0 元分账行也是真实成交的一单：漏算它客单价会虚高（1901.23 / 292 ≠ / 293）
+        Map<String, MerchantDailyIncomeNotifyScheduler.DailySales> m =
+                MerchantDailyIncomeNotifyScheduler.aggregateSales(List.of(
+                        split("M1", "ACCRUED", 500),
+                        split("M1", "ACCRUED", 0),
+                        split("M1", "ACCRUED", 260),
+                        split("M1", "VOIDED", 900),      // 冲正：金额与笔数都不算
+                        split("M2", "ACCRUED", 0)));      // 全额 0：不进结果集（0.00 不发）
+        assertEquals(760L, m.get("M1").salesCents());
+        assertEquals(3, m.get("M1").orderCount(), "含 0 元行共 3 笔，冲正单不计");
+        assertFalse(m.containsKey("M2"));
+    }
+
+    @Test
+    void dailyReportCarriesSameNumbersAsInApp_andCountsWechatSent() {
+        // 站内信与微信必须同源：此前微信日报根本不存在，商户只能靠点开小程序才看得到数
+        var splitRepo = mock(com.aicabinet.trade.mapper.OrderRevenueSplitMapper.class);
+        when(splitRepo.selectList(any())).thenReturn(List.of(
+                split("M1", "ACCRUED", 150_000L),
+                split("M1", "ACCRUED", 40_123L),
+                split("M1", "ACCRUED", 0L)));
+        var feeLedger = mock(com.aicabinet.trade.mapper.MerchantFeeLedgerMapper.class);
+        when(feeLedger.selectList(any())).thenReturn(List.of());
+        var wallet = mock(com.aicabinet.trade.service.MerchantWalletService.class);
+        when(wallet.debitedCentsByRef(anyString(), anyString(), anyString())).thenReturn(0L);
+        var notify = capturedNotify();
+        var notifyLog = mock(com.aicabinet.trade.mapper.NotificationLogMapper.class);
+        when(notifyLog.selectCount(any())).thenReturn(0L);
+        var dailyReport = mock(com.aicabinet.trade.service.MerchantDailyReportNotifier.class);
+        java.util.concurrent.atomic.AtomicReference<
+                com.aicabinet.trade.service.MerchantDailyReportNotifier.MerchantDailyReport> captured =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        when(dailyReport.send(any())).thenAnswer(inv -> {
+            captured.set(inv.getArgument(0));
+            return 1;
+        });
+        var svc = new MerchantDailyIncomeNotifyScheduler(
+                mock(com.aicabinet.trade.mapper.MerchantMapper.class), splitRepo, notify, notifyLog,
+                mock(com.aicabinet.trade.service.ScheduledTaskService.class),
+                deviceRepoWith(device("PURCHASE", null, 0L)), feeLedger, wallet, configWithLockDays("7"),
+                mock(com.aicabinet.trade.service.DeviceSalesLockService.class),
+                walletArrearsService(), dailyReport);
+
+        var outcome = svc.sendDailyIncomeNotify(java.time.LocalDate.of(2026, 10, 15));
+
+        assertEquals(1, outcome.wechatSent(), "送达人数要冒泡到运营台执行记录");
+        assertEquals(190_123L, captured.get().salesCents());
+        assertEquals(3, captured.get().orderCount());
+        assertEquals(63_374L, captured.get().avgCents(), "客单价四舍五入到分（1901.23/3）");
+        assertEquals("2026-10-15", captured.get().bizId(), "微信与站内信同幂等键（日期）");
+        assertEquals("2026年10月15日", captured.get().period());
+        assertEquals("3", lastParams.get().get("orders"), "站内信文案也要带笔数（V499）");
+        assertEquals("633.74", lastParams.get().get("avg"));
     }
 }

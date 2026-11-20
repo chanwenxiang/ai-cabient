@@ -49,6 +49,8 @@ class MerchantWalletArrearsLockTest {
     @Mock private SystemConfigService configService;
     @Mock private DeviceSalesLockService salesLockService;
     @Mock private MerchantWalletArrearsService walletArrearsService;
+    /** MA-377：日报通道与本用例无关，mock 掉即可（不干扰扣款/锁柜口径）。 */
+    @Mock private MerchantDailyReportNotifier dailyReportNotifier;
 
     private MerchantDailyIncomeNotifyScheduler scheduler;
 
@@ -57,7 +59,7 @@ class MerchantWalletArrearsLockTest {
         scheduler = new MerchantDailyIncomeNotifyScheduler(
                 merchantRepository, splitRepository, notificationService, notificationLogRepository,
                 taskService, deviceRepository, feeLedgerRepository, walletService, configService,
-                salesLockService, walletArrearsService);
+                salesLockService, walletArrearsService, dailyReportNotifier);
         when(feeLedgerRepository.selectList(any())).thenReturn(List.of());
     }
 

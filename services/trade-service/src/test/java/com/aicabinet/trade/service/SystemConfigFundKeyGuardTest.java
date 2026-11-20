@@ -61,6 +61,7 @@ class SystemConfigFundKeyGuardTest {
                 new WeChatWebProperties(false, "", ""),
                 new WeChatMiniAppProperties(false, "", "", "", "", "", "", "", "", "", "", "formal"),
                 new QrProperties("", "", "", "", ""),
+                com.aicabinet.trade.config.MerchantDailyReportProperties.disabled(),
                 distributedLockService, null);
         ReflectionTestUtils.setField(service, "self", service);
         lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
