@@ -295,15 +295,16 @@ public class AuthService {
     public LoginResponse loginOrCreateByOpenId(String openId, String phoneNumber) {
         return runWithWxOpenIdLock(openId, () -> {
             var byOpenId = userInfoRepository.findByWxOpenId(openId);
-            if (byOpenId.isPresent()) {
-                requireLoginable(byOpenId.get());
-                return tokenFor(byOpenId.get());
-            }
             String phone = phoneNumber != null ? normalizePhone(phoneNumber) : "";
+            if (!phone.isBlank() && !phone.matches(V_1_D_10)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
+            }
+            if (byOpenId.isPresent()) {
+                UserInfo byOpenIdUser = byOpenId.get();
+                requireLoginable(byOpenIdUser);
+                return tokenFor(bindAuthorizedPhone(byOpenIdUser, phone));
+            }
             if (!phone.isBlank()) {
-                if (!phone.matches(V_1_D_10)) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
-                }
                 UserInfo user = requireExistingUser(phone);
                 UserInfo locked = userInfoRepository.findByIdForUpdate(user.getUserId())
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
@@ -314,6 +315,56 @@ public class AuthService {
             }
             return tokenFor(createWxConsumer(openId));
         });
+    }
+
+    /**
+     * MA-371（2026-11-20 真机验收）：既有 openid 账号 + 本次一键授权手机号 ⇒ 补绑。
+     *
+     * <p>缺陷成因：{@link #loginOrCreateByOpenId} 在 openid 已存在时直接 {@code tokenFor} 返回，
+     * 而 {@link #resolveWxPhoneNumber} 已用 phoneCode 向微信换出了真实手机号——该值被整段丢弃，
+     * 于是用户「登录时点了手机号授权」，进个人中心依旧显示「登录手机号未绑定」
+     *（库里仍是游客占位符 {@code wx{userId}}，前端按非 11 位手机号判未绑定）。
+     *
+     * <p>边界（不做静默账号合并）：
+     * <ul>
+     *   <li>未授权手机号 ⇒ 原样返回；</li>
+     *   <li>已有真实手机号且与本次相同 ⇒ 幂等返回；</li>
+     *   <li>已有真实手机号但与本次不同 ⇒ <b>不换绑</b>（换绑=账号所有权变更，须独立入口+风控）；</li>
+     *   <li>本次手机号已被其他 userId 占用 ⇒ 409，禁止抢占（否则撞 idx_user_phone 或产生双账号歧义）；</li>
+     *   <li>仅 {@code wx{id}}/{@code ali{id}} 占位符 ⇒ 覆盖为真实手机号并落 phone_verify_log。</li>
+     * </ul>
+     *
+     * <p>注：不透传 {@code verified}——该字段是实名二要素结果（见 AccountService#doVerifyIdentity），
+     * 手机号授权不等于实名认证。
+     */
+    private UserInfo bindAuthorizedPhone(UserInfo bound, String phone) {
+        if (phone.isBlank() || phone.equals(bound.getPhoneNumber())) {
+            return bound;
+        }
+        if (isRealPhoneNumber(bound.getPhoneNumber())) {
+            // 已有真实手机号：不静默换绑，仅本次登录照常放行
+            return bound;
+        }
+        var owner = userInfoRepository.findByPhoneNumber(phone);
+        if (owner.isPresent() && !owner.get().getUserId().equals(bound.getUserId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "该手机号已绑定其他账号，请用手机号登录");
+        }
+        UserInfo locked = userInfoRepository.findByIdForUpdate(bound.getUserId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+        // 并发补齐：拿到行锁后复判，避免两个 openid 账号同时抢占同一手机号
+        if (isRealPhoneNumber(locked.getPhoneNumber())) {
+            return locked;
+        }
+        locked.setPhoneNumber(phone);
+        userInfoRepository.save(locked);
+        // channel 取值口径见 V224：SMS|SMS_RESET|WECHAT|ALIPAY
+        auditPhoneVerify(locked.getUserId(), phone, "WECHAT");
+        return locked;
+    }
+
+    /** 真实手机号（11 位、1 开头）；wx{id}/ali{id} 游客占位符一律为 false。 */
+    private static boolean isRealPhoneNumber(String phone) {
+        return phone != null && phone.matches(V_1_D_10);
     }
 
     private UserInfo createWxConsumer(String openId) {

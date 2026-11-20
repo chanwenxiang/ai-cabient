@@ -265,6 +265,101 @@ class AuthServicePhoneAndTwoFactorTest {
         verify(jwtService, never()).createToken(anyLong(), anyString());
     }
 
+    // ---- MA-371（2026-11-20 真机验收）：既有 openid 账号 + 一键授权手机号必须补绑 ----
+
+    private UserInfo guestByOpenId() {
+        UserInfo user = new UserInfo();
+        user.setUserId(100L);
+        user.setAccountType(CabinetConstants.ACCOUNT_TYPE_CONSUMER);
+        // 游客占位符：createWxConsumer 落库值
+        user.setPhoneNumber("wx100");
+        user.setWxOpenId(OPEN_ID);
+        user.setStatus("ACTIVE");
+        return user;
+    }
+
+    private void stubExistingOpenIdAccount(UserInfo user) {
+        when(distributedLockService.tryLock(AuthService.wxOpenIdLockKey(OPEN_ID), 60L, 5L)).thenReturn(true);
+        when(userInfoRepository.findByWxOpenId(OPEN_ID)).thenReturn(Optional.of(user));
+    }
+
+    private void stubTokenFor(UserInfo user) {
+        when(jwtService.createToken(user.getUserId(), CabinetConstants.ACCOUNT_TYPE_CONSUMER)).thenReturn("token");
+        when(jwtService.getExpirationSeconds()).thenReturn(3600L);
+    }
+
+    @Test
+    void wxLogin_existingOpenIdAccount_bindsAuthorizedPhone_ma371() {
+        // 缺陷复现：老账号（openid 已存在、手机号还是 wx{id} 占位）走一键授权，手机号必须落库
+        UserInfo user = guestByOpenId();
+        stubExistingOpenIdAccount(user);
+        stubTokenFor(user);
+        when(userInfoRepository.findByIdForUpdate(user.getUserId())).thenReturn(Optional.of(user));
+        when(weChatMiniAppClient.code2Session("wx-code", MiniAppTarget.CONSUMER))
+                .thenReturn(new WeChatMiniAppClient.Code2SessionResult(OPEN_ID, "sess"));
+        when(weChatMiniAppClient.getPhoneNumber("phone-code", MiniAppTarget.CONSUMER)).thenReturn(PHONE);
+        when(userInfoRepository.findByPhoneNumber(PHONE)).thenReturn(Optional.empty());
+
+        LoginResponse response = service.wxLogin(new WxLoginRequest("wx-code", null, "phone-code"));
+
+        assertEquals(user.getUserId(), response.userId());
+        assertEquals(PHONE, user.getPhoneNumber());
+        verify(userInfoRepository).save(user);
+        verify(phoneVerifyLogMapper).insert(any());
+    }
+
+    @Test
+    void wxLogin_existingOpenIdAccountWithoutPhoneCode_keepsPlaceholder_ma371() {
+        // 反向钉住：没授权手机号的普通登录不得改动账号手机号
+        UserInfo user = guestByOpenId();
+        stubExistingOpenIdAccount(user);
+        stubTokenFor(user);
+        when(weChatMiniAppClient.code2Session("wx-code", MiniAppTarget.CONSUMER))
+                .thenReturn(new WeChatMiniAppClient.Code2SessionResult(OPEN_ID, "sess"));
+
+        service.wxLogin(new WxLoginRequest("wx-code", null, null));
+
+        assertEquals("wx100", user.getPhoneNumber());
+        verify(userInfoRepository, never()).save(user);
+    }
+
+    @Test
+    void wxLogin_existingOpenIdAccountWithRealPhone_doesNotRebind_ma371() {
+        // 已有真实手机号：不静默换绑（换绑属账号所有权变更，需独立入口）
+        UserInfo user = guestByOpenId();
+        user.setPhoneNumber(PHONE);
+        stubExistingOpenIdAccount(user);
+        stubTokenFor(user);
+        when(weChatMiniAppClient.code2Session("wx-code", MiniAppTarget.CONSUMER))
+                .thenReturn(new WeChatMiniAppClient.Code2SessionResult(OPEN_ID, "sess"));
+        when(weChatMiniAppClient.getPhoneNumber("phone-code", MiniAppTarget.CONSUMER)).thenReturn("13900139000");
+
+        service.wxLogin(new WxLoginRequest("wx-code", null, "phone-code"));
+
+        assertEquals(PHONE, user.getPhoneNumber());
+        verify(userInfoRepository, never()).save(user);
+    }
+
+    @Test
+    void wxLogin_authorizedPhoneOwnedByAnotherAccount_conflict_ma371() {
+        // 授权手机号已被别的账号占用 ⇒ 409 拒绝抢占，且不写库
+        UserInfo user = guestByOpenId();
+        stubExistingOpenIdAccount(user);
+        UserInfo owner = consumerUser();
+        owner.setUserId(200L);
+        when(weChatMiniAppClient.code2Session("wx-code", MiniAppTarget.CONSUMER))
+                .thenReturn(new WeChatMiniAppClient.Code2SessionResult(OPEN_ID, "sess"));
+        when(weChatMiniAppClient.getPhoneNumber("phone-code", MiniAppTarget.CONSUMER)).thenReturn(PHONE);
+        when(userInfoRepository.findByPhoneNumber(PHONE)).thenReturn(Optional.of(owner));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.wxLogin(new WxLoginRequest("wx-code", null, "phone-code")));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        assertEquals("wx100", user.getPhoneNumber());
+        verify(userInfoRepository, never()).save(user);
+    }
+
     private UserInfo operatorUser() {
         UserInfo user = new UserInfo();
         user.setUserId(CabinetConstants.OPERATOR_USER_ID_START);
