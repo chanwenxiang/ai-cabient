@@ -22,10 +22,12 @@ const TAG = '[check-wx-phone-bind]';
 
 /** 注释替换成等长空格：既不误判注释里的样例代码，也不破坏后续报错定位。 */
 export function maskComments(raw) {
-  return raw
-    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
-    // `//` 只在前置空白后成立，避免把 "https://..." 字符串当注释
-    .replace(/(^|[ \t])\/\/[^\n]*/gm, (m, lead) => lead + ' '.repeat(m.length - lead.length));
+  return (
+    raw
+      .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+      // `//` 只在前置空白后成立，避免把 "https://..." 字符串当注释
+      .replace(/(^|[ \t])\/\/[^\n]*/gm, (m, lead) => lead + ' '.repeat(m.length - lead.length))
+  );
 }
 
 /** 取 `signature` 起的方法体（大括号配平），找不到返回 null。 */
@@ -55,7 +57,9 @@ export function wxPhoneBindProblems(raw) {
     problems.push('找不到 loginOrCreateByOpenId（结构已变，门禁失去判别力）');
   } else {
     if (!/bindAuthorizedPhone\s*\(/.test(login)) {
-      problems.push('openid 命中分支必须调用 bindAuthorizedPhone（否则 phoneCode 换出的手机号被丢弃）');
+      problems.push(
+        'openid 命中分支必须调用 bindAuthorizedPhone（否则 phoneCode 换出的手机号被丢弃）'
+      );
     }
     // 旧实炸形态：命中既有账号直接签发 token
     if (/tokenFor\s*\(\s*byOpenId\.get\(\)\s*\)/.test(login)) {
@@ -67,7 +71,9 @@ export function wxPhoneBindProblems(raw) {
   const wxLogin = methodBody(src, 'public LoginResponse wxLogin(');
   if (!wxLogin) {
     problems.push('找不到 wxLogin（结构已变）');
-  } else if (!/loginOrCreateByOpenId\s*\(\s*session\.openId\(\)\s*,\s*resolveWxPhoneNumber/.test(wxLogin)) {
+  } else if (
+    !/loginOrCreateByOpenId\s*\(\s*session\.openId\(\)\s*,\s*resolveWxPhoneNumber/.test(wxLogin)
+  ) {
     problems.push('wxLogin 必须把 resolveWxPhoneNumber(request) 传给 loginOrCreateByOpenId');
   }
 

@@ -15,7 +15,10 @@ assert(real.length > 5000, '真实 AuthService.java 读取失败');
 assert(wxPhoneBindProblems(real).length === 0, '真实仓面必须绿');
 
 // ① 还原旧实炸形态：命中既有账号直接签发 token
-const dropBind = real.replace(/return tokenFor\(bindAuthorizedPhone\(byOpenIdUser, phone\)\);/, 'return tokenFor(byOpenIdUser);');
+const dropBind = real.replace(
+  /return tokenFor\(bindAuthorizedPhone\(byOpenIdUser, phone\)\);/,
+  'return tokenFor(byOpenIdUser);'
+);
 assert(dropBind !== real, '注入锚点 bindAuthorizedPhone 调用找不到');
 assert(
   wxPhoneBindProblems(dropBind).some((p) => p.includes('必须调用 bindAuthorizedPhone')),
@@ -34,7 +37,10 @@ assert(
 );
 
 // ③ 去掉「已有真实手机号不换绑」护栏
-const noRebindGuard = real.replace(/if \(isRealPhoneNumber\(bound\.getPhoneNumber\(\)\)\) \{/, 'if (false) {');
+const noRebindGuard = real.replace(
+  /if \(isRealPhoneNumber\(bound\.getPhoneNumber\(\)\)\) \{/,
+  'if (false) {'
+);
 assert(noRebindGuard !== real, '注入锚点 isRealPhoneNumber(bound...) 找不到');
 assert(
   wxPhoneBindProblems(noRebindGuard).some((p) => p.includes('不静默换绑')),
@@ -42,7 +48,10 @@ assert(
 );
 
 // ④ 去掉他人占用 409 护栏
-const noConflict = real.replace(/throw new ResponseStatusException\(HttpStatus\.CONFLICT, "该手机号已绑定其他账号，请用手机号登录"\);/, '');
+const noConflict = real.replace(
+  /throw new ResponseStatusException\(HttpStatus\.CONFLICT, "该手机号已绑定其他账号，请用手机号登录"\);/,
+  ''
+);
 assert(noConflict !== real, '注入锚点 409 抛错找不到');
 assert(
   wxPhoneBindProblems(noConflict).some((p) => p.includes('409')),
@@ -50,7 +59,10 @@ assert(
 );
 
 // ⑤ 去掉行锁
-const noLock = real.replace(/UserInfo locked = userInfoRepository\.findByIdForUpdate\(bound\.getUserId\(\)\)/, 'UserInfo locked = bound;');
+const noLock = real.replace(
+  /UserInfo locked = userInfoRepository\.findByIdForUpdate\(bound\.getUserId\(\)\)/,
+  'UserInfo locked = bound;'
+);
 assert(noLock !== real, '注入锚点 findByIdForUpdate 找不到');
 assert(
   wxPhoneBindProblems(noLock).some((p) => p.includes('行锁')),
