@@ -62,6 +62,8 @@ public final class ScheduleZones {
             Map.entry("warehouse-monthly-close", "0 10 2 * * ?"),
             // 2026-10-14 日结/月度三任务（V352/V356/V360）
             Map.entry("merchant-daily-income-notify", "0 20 0 * * ?"),
+            // MA-377：早间微信经营日报（只推微信，不扣费不写站内信）
+            Map.entry("merchant-daily-report", "0 30 7 * * ?"),
             Map.entry("machine-payee-bill", "0 10 1 1 * ?"),
             Map.entry("deposit-monthly-refund", "0 30 1 1 * ?"),
             // 营销
@@ -118,6 +120,7 @@ public final class ScheduleZones {
             Map.entry("device-rental-daily", Duration.ofHours(26)),            // 日 08:20 + 2h
             // 2026-10-14 日结/月度三任务（V352/V356/V360）
             Map.entry("merchant-daily-income-notify", Duration.ofHours(26)),   // 日 00:20 + 2h
+            Map.entry("merchant-daily-report", Duration.ofHours(26)),          // 日 07:30 + 2h
             Map.entry("machine-payee-bill", Duration.ofDays(32)),              // 月 1 日 01:10 + 1 天
             Map.entry("deposit-monthly-refund", Duration.ofDays(32)),          // 月 1 日 01:30 + 1 天
             // 营销

@@ -51,6 +51,8 @@ import java.util.Map;
 public class MerchantDailyIncomeNotifyScheduler {
     private static final Logger log = LoggerFactory.getLogger(MerchantDailyIncomeNotifyScheduler.class);
     private static final String PROCESS = "merchant-daily-income-notify";
+    /** MA-377：早间微信日报是**独立任务**（各自 tryBegin、各自留执行记录）。 */
+    static final String REPORT_PROCESS = "merchant-daily-report";
     private static final String TEMPLATE_CODE = "merchant_settlement";
     private static final String BIZ_TYPE = "DAILY_INCOME";
     static final String FEE_OVERDUE_LOCK_PREFIX = "费用欠缴锁柜";
@@ -116,8 +118,6 @@ public class MerchantDailyIncomeNotifyScheduler {
             LocalDate yesterday = LocalDate.now(ScheduleZones.ZONE).minusDays(1);
             NotifyOutcome outcome = sendDailyIncomeNotify(yesterday);
             summary = "昨日(" + yesterday + ")日结通知发送 " + outcome.sent() + " 商户"
-                    // MA-377：微信日报单独计数——站内信写了不等于商户看到了（商户不一定点开小程序）
-                    + "、微信日报 " + outcome.wechatSent() + " 人"
                     // F-5（2026-10-17）：扣费失败不再只在日志里静默——写进运营台执行记录，
                     // 否则商户收到的通知里 fee=0.00 没人知道那是「没扣成」而不是「免费」
                     + (outcome.feeChargeFailed() > 0
@@ -139,11 +139,70 @@ public class MerchantDailyIncomeNotifyScheduler {
     }
 
     /**
-     * 日结通知结果：{@code sent}=站内信实际发送商户数，{@code wechatSent}=微信日报送达人数，
-     * {@code feeChargeFailed}=昨日日扣失败商户数（F-5：失败数必须冒泡到运营台执行记录，
-     * 不许只在日志里静默）。
+     * 微信经营日报（MA-377）：早上 07:30 单独推送「昨日销售额 / 笔数 / 客单价」。
+     *
+     * <p><b>为什么不跟 00:20 的日结一起发</b>：00:20 的站内信是**静默**入库（商户不点开就
+     * 不知道），微信订阅消息却会真弹一条通知——半夜弹窗只会换来商户关掉提醒。竞品
+     * （友宝/丰e足食一类）也都是早间推前一日经营报告。故：凌晨只做「扣费 + 站内信」，
+     * 早上单独推微信；两个任务各自 tryBegin、各自留执行记录。
      */
-    record NotifyOutcome(int sent, int wechatSent, int feeChargeFailed) {
+    @Scheduled(
+            cron = "${aicabinet.merchant-daily-report.scheduled-cron:0 30 7 * * *}",
+            zone = "${aicabinet.schedule.zone:Asia/Shanghai}")
+    public void notifyYesterdayReport() {
+        long start = System.nanoTime();
+        if (!taskService.tryBegin(REPORT_PROCESS, 600)) {
+            return;
+        }
+        boolean failed = false;
+        String summary = "经营日报未执行";
+        try {
+            LocalDate yesterday = LocalDate.now(ScheduleZones.ZONE).minusDays(1);
+            int sent = sendWechatReportsOnly(yesterday);
+            summary = "昨日(" + yesterday + ")经营日报微信送达 " + sent + " 人";
+            log.info("scheduled merchant daily report completed: {}", summary);
+        } catch (Exception e) {
+            failed = true;
+            taskService.finish(REPORT_PROCESS, "FAILED", e.getMessage(), start);
+            log.error("scheduled merchant daily report failed", e);
+        } finally {
+            if (!failed) {
+                taskService.finish(REPORT_PROCESS, "SUCCESS", summary, start);
+            }
+        }
+    }
+
+    /**
+     * 只发微信日报：不扣费、不写站内信（扣费与站内信属 00:20 的日结任务，两件事不能混）。
+     * 幂等由 {@link MerchantDailyReportNotifier} 按「操作员 × 日期」保证，重跑只补发未收到的。
+     *
+     * @return 送达人数
+     */
+    int sendWechatReportsOnly(LocalDate yesterday) {
+        Instant from = yesterday.atStartOfDay(ScheduleZones.ZONE).toInstant();
+        Instant to = yesterday.plusDays(1).atStartOfDay(ScheduleZones.ZONE).toInstant();
+        List<OrderRevenueSplit> splits = splitRepository.selectList(Wrappers.<OrderRevenueSplit>lambdaQuery()
+                .ge(OrderRevenueSplit::getCreatedAt, from)
+                .lt(OrderRevenueSplit::getCreatedAt, to));
+        Map<String, DailySales> salesByMerchant = aggregateSales(splits);
+        if (salesByMerchant.isEmpty()) {
+            return 0;
+        }
+        String bizId = yesterday.format(ISO_FMT);
+        String period = yesterday.format(PERIOD_FMT);
+        int sent = 0;
+        for (Map.Entry<String, DailySales> e : salesByMerchant.entrySet()) {
+            sent += dailyReportNotifier.send(new MerchantDailyReportNotifier.MerchantDailyReport(
+                    e.getKey(), bizId, period, e.getValue().salesCents(), e.getValue().orderCount()));
+        }
+        return sent;
+    }
+
+    /**
+     * 日结通知结果：{@code sent}=站内信实际发送商户数，{@code feeChargeFailed}=昨日日扣失败
+     * 商户数（F-5：失败数必须冒泡到运营台执行记录，不许只在日志里静默）。
+     */
+    record NotifyOutcome(int sent, int feeChargeFailed) {
     }
 
     /** 发送昨日日结通知。包级可见供单测钉住口径。 */
@@ -159,7 +218,7 @@ public class MerchantDailyIncomeNotifyScheduler {
             // （chargeAndCheckAllMerchants，CB-041）必须照跑，否则全员零销售的日子整批
             // 费用不出账、欠费不催缴、误锁不解锁（固定租金是合同义务，与销售脱钩）。
             chargeAndCheckAllMerchants(yesterday, java.util.Set.of());
-            return new NotifyOutcome(0, 0, 0);
+            return new NotifyOutcome(0, 0);
         }
         String bizId = yesterday.format(ISO_FMT);
         String period = yesterday.format(PERIOD_FMT);
@@ -210,17 +269,13 @@ public class MerchantDailyIncomeNotifyScheduler {
                     BIZ_TYPE, bizId);
             sent++;
         }
-        // MA-377：微信日报独立通道。与站内信分开幂等（按「操作员 × 日期」），
-        // 所以运营台按日期重跑时，站内信已发的人不会重复打扰，而昨天没收到微信的人能补上。
-        int wechatSent = 0;
-        for (MerchantDailyReportNotifier.MerchantDailyReport report : reports) {
-            wechatSent += dailyReportNotifier.send(report);
-        }
+        // MA-377：微信日报**不在这里发**——00:20 弹微信通知会吵到商户（站内信是静默入库，
+        // 微信是真弹窗）。微信侧由 07:30 的 notifyYesterdayReport 单独推，两件事不混。
         // CB-041（2026-10-14 拍板：费用摊销与销售脱钩——固定租金是合同义务，零销售照摊；
         // 免费投放本来费用为 0 不受影响）：日扣与欠费检查覆盖**全部有柜商户**，
         // 不再只扫昨日有收入商户（否则零销售商户费用永远不出账、欠费永远不催缴）。
         chargeAndCheckAllMerchants(yesterday, salesByMerchant.keySet());
-        return new NotifyOutcome(sent, wechatSent, feeChargeFailed);
+        return new NotifyOutcome(sent, feeChargeFailed);
     }
 
     /**

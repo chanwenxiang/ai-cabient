@@ -497,8 +497,8 @@ class MerchantDailyIncomeNotifySchedulerTest {
     }
 
     @Test
-    void dailyReportCarriesSameNumbersAsInApp_andCountsWechatSent() {
-        // 站内信与微信必须同源：此前微信日报根本不存在，商户只能靠点开小程序才看得到数
+    void dailyInAppMessageCarriesOrdersAndAvg_andDoesNotPushWechatAtMidnight() {
+        // 00:20 只做「扣费 + 站内信」：站内信是静默入库，微信是真弹窗 ⇒ 凌晨不许推微信
         var splitRepo = mock(com.aicabinet.trade.mapper.OrderRevenueSplitMapper.class);
         when(splitRepo.selectList(any())).thenReturn(List.of(
                 split("M1", "ACCRUED", 150_000L),
@@ -512,6 +512,25 @@ class MerchantDailyIncomeNotifySchedulerTest {
         var notifyLog = mock(com.aicabinet.trade.mapper.NotificationLogMapper.class);
         when(notifyLog.selectCount(any())).thenReturn(0L);
         var dailyReport = mock(com.aicabinet.trade.service.MerchantDailyReportNotifier.class);
+        var svc = schedulerWith(splitRepo, feeLedger, wallet, notify, notifyLog, dailyReport);
+
+        var outcome = svc.sendDailyIncomeNotify(java.time.LocalDate.of(2026, 10, 15));
+
+        assertEquals(1, outcome.sent());
+        assertEquals("3", lastParams.get().get("orders"), "站内信文案要带笔数（V499）");
+        assertEquals("633.74", lastParams.get().get("avg"), "客单价两位小数");
+        verify(dailyReport, never()).send(any());
+    }
+
+    @Test
+    void morningReportPushesWechatWithSameNumbers() {
+        // 07:30 独立任务：只推微信，数字与站内信同源（同一份 aggregateSales 产物）
+        var splitRepo = mock(com.aicabinet.trade.mapper.OrderRevenueSplitMapper.class);
+        when(splitRepo.selectList(any())).thenReturn(List.of(
+                split("M1", "ACCRUED", 150_000L),
+                split("M1", "ACCRUED", 40_123L),
+                split("M1", "ACCRUED", 0L)));
+        var dailyReport = mock(com.aicabinet.trade.service.MerchantDailyReportNotifier.class);
         java.util.concurrent.atomic.AtomicReference<
                 com.aicabinet.trade.service.MerchantDailyReportNotifier.MerchantDailyReport> captured =
                 new java.util.concurrent.atomic.AtomicReference<>();
@@ -519,22 +538,34 @@ class MerchantDailyIncomeNotifySchedulerTest {
             captured.set(inv.getArgument(0));
             return 1;
         });
-        var svc = new MerchantDailyIncomeNotifyScheduler(
+        var svc = schedulerWith(splitRepo,
+                mock(com.aicabinet.trade.mapper.MerchantFeeLedgerMapper.class),
+                mock(com.aicabinet.trade.service.MerchantWalletService.class),
+                mock(com.aicabinet.trade.service.NotificationService.class),
+                mock(com.aicabinet.trade.mapper.NotificationLogMapper.class), dailyReport);
+
+        int sent = svc.sendWechatReportsOnly(java.time.LocalDate.of(2026, 10, 15));
+
+        assertEquals(1, sent, "送达人数要进运营台执行记录");
+        assertEquals(190_123L, captured.get().salesCents());
+        assertEquals(3, captured.get().orderCount());
+        assertEquals(63_374L, captured.get().avgCents(), "客单价四舍五入到分（1901.23/3）");
+        assertEquals("2026-10-15", captured.get().bizId(), "与站内信同幂等键（日期）");
+        assertEquals("2026年10月15日", captured.get().period());
+    }
+
+    private MerchantDailyIncomeNotifyScheduler schedulerWith(
+            com.aicabinet.trade.mapper.OrderRevenueSplitMapper splitRepo,
+            com.aicabinet.trade.mapper.MerchantFeeLedgerMapper feeLedger,
+            com.aicabinet.trade.service.MerchantWalletService wallet,
+            com.aicabinet.trade.service.NotificationService notify,
+            com.aicabinet.trade.mapper.NotificationLogMapper notifyLog,
+            com.aicabinet.trade.service.MerchantDailyReportNotifier dailyReport) {
+        return new MerchantDailyIncomeNotifyScheduler(
                 mock(com.aicabinet.trade.mapper.MerchantMapper.class), splitRepo, notify, notifyLog,
                 mock(com.aicabinet.trade.service.ScheduledTaskService.class),
                 deviceRepoWith(device("PURCHASE", null, 0L)), feeLedger, wallet, configWithLockDays("7"),
                 mock(com.aicabinet.trade.service.DeviceSalesLockService.class),
                 walletArrearsService(), dailyReport);
-
-        var outcome = svc.sendDailyIncomeNotify(java.time.LocalDate.of(2026, 10, 15));
-
-        assertEquals(1, outcome.wechatSent(), "送达人数要冒泡到运营台执行记录");
-        assertEquals(190_123L, captured.get().salesCents());
-        assertEquals(3, captured.get().orderCount());
-        assertEquals(63_374L, captured.get().avgCents(), "客单价四舍五入到分（1901.23/3）");
-        assertEquals("2026-10-15", captured.get().bizId(), "微信与站内信同幂等键（日期）");
-        assertEquals("2026年10月15日", captured.get().period());
-        assertEquals("3", lastParams.get().get("orders"), "站内信文案也要带笔数（V499）");
-        assertEquals("633.74", lastParams.get().get("avg"));
     }
 }

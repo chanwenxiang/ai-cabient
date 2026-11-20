@@ -180,6 +180,11 @@ public class ScheduledTaskRegistry {
         register("merchant-daily-income-notify", "商户日结通知（T+1）", FINANCE,
                 ScheduleZones.desc("每日 00:20"), 1800,
                 merchantDailyIncomeNotifyScheduler::notifyYesterdayIncome);
+        // MA-377：早间微信经营日报（昨日销售额/笔数/客单价）。与 00:20 日结分开，
+        // 因为站内信静默、微信是真弹窗——凌晨弹窗只会让商户关掉提醒。
+        register("merchant-daily-report", "商户经营日报（微信）", FINANCE,
+                ScheduleZones.desc("每日 07:30"), 600,
+                merchantDailyIncomeNotifyScheduler::notifyYesterdayReport);
         register("machine-payee-bill", "机器账单出账（付场地方）", FINANCE,
                 ScheduleZones.desc("每月 1 日 01:10"), 1800,
                 machinePayeeBillJob::generateMonthlyBills);

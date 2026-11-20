@@ -218,6 +218,8 @@ aicabinet:
   # 此前 merchant_settlement 只在站内信可见——商户不点开小程序就永远不知道昨天卖了多少。
   merchant-daily-report:
     enabled: ${MERCHANT_DAILY_REPORT_ENABLED:true}
+    # 推送时点：默认 07:30（与 00:20 的日结分开发——站内信静默、微信是弹窗，别在半夜弹）
+    scheduled-cron: ${MERCHANT_DAILY_REPORT_CRON:0 30 7 * * *}
     # 商户小程序后台「订阅消息」里选定模板的 id；留空 = 不发微信（站内信照旧，不报错）
     template-id: ${WECHAT_MERCHANT_DAILY_REPORT_TEMPLATE:}
     # 点开落地页：商户端首页（第一屏就是今日营收 / 今日订单）

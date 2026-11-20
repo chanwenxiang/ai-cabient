@@ -74,16 +74,24 @@ const noOrders = real.scheduler.replace('"orders", String.valueOf(report.orderCo
 assert(noOrders !== real.scheduler, '注入⑤锚点 orders 参数找不到');
 inject({ scheduler: noOrders }, '注入⑤占位符闭环', 'orders');
 
-// ⑥ 注释里的历史写法不得误判（否则删注释会假红）
+// ⑥ 微信日报被塞回 00:20 的日结里 —— 会在凌晨弹窗，商户直接关提醒
+const midnightPush = real.scheduler.replace(
+  'chargeAndCheckAllMerchants(yesterday, salesByMerchant.keySet());',
+  'dailyReportNotifier.send(null);\n        chargeAndCheckAllMerchants(yesterday, salesByMerchant.keySet());'
+);
+assert(midnightPush !== real.scheduler, '注入⑥锚点日结方法体找不到');
+inject({ scheduler: midnightPush }, '注入⑥凌晨弹微信', '凌晨弹通知');
+
+// ⑦ 注释里的历史写法不得误判（否则删注释会假红）
 const commented = real.notifier.replace(
   'Map<String, String> data = new LinkedHashMap<>();',
   '// 历史写法（错的，勿恢复）：data.put("amount1", ...); weChatMiniAppProperties.subscribeTemplateId()\n' +
     '        Map<String, String> data = new LinkedHashMap<>();'
 );
-assert(commented !== real.notifier, '注入⑥锚点 buildFields 找不到');
+assert(commented !== real.notifier, '注入⑦锚点 buildFields 找不到');
 assert(
   merchantDailyReportProblems({ ...real, notifier: commented }).length === 0,
   '注释里的旧代码被误判为红'
 );
 
-console.log(`${TAG} OK：${checks} 项断言全过（真树绿 / 五种注入红 / 注释不误判）`);
+console.log(`${TAG} OK：${checks} 项断言全过（真树绿 / 六种注入红 / 注释不误判）`);

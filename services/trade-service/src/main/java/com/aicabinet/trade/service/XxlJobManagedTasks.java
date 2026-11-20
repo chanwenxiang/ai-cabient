@@ -68,6 +68,8 @@ public final class XxlJobManagedTasks {
             "warehouse-monthly-close",
             // 2026-10-14 日结/月度三任务（V352/V356/V360）
             "merchant-daily-income-notify",
+            // MA-377：早间微信经营日报
+            "merchant-daily-report",
             "machine-payee-bill",
             "deposit-monthly-refund",
             // 营销

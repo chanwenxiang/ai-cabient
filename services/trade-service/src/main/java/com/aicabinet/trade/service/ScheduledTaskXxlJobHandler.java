@@ -51,6 +51,12 @@ public class ScheduledTaskXxlJobHandler {
         runKey("merchant-daily-income-notify");
     }
 
+    /** MA-377：早间微信经营日报（与日结任务分开，避免凌晨弹窗）。 */
+    @XxlJob("merchantDailyReportJob")
+    public void merchantDailyReportJob() {
+        runKey("merchant-daily-report");
+    }
+
     @XxlJob("machinePayeeBillJob")
     public void machinePayeeBillJob() {
         runKey("machine-payee-bill");

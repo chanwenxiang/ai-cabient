@@ -165,7 +165,13 @@ INSERT INTO `xxl_job_info`(
 -- 刚结束账期(26~25)无草稿则生成；只算差异不扣款，财务线下核对
 (135, 10, '仓库月结草稿生成', now(), now(), 'aicabinet', '',
  'CRON', '0 10 2 * * ?', 'DO_NOTHING', 'FAILOVER',
- 'warehouseMonthlyCloseJob', '', 'SERIAL_EXECUTION', 1800, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0)
+ 'warehouseMonthlyCloseJob', '', 'SERIAL_EXECUTION', 1800, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),
+-- MA-377 商户经营日报（微信）：07:30 单独推昨日销售额/笔数/客单价。
+-- 与 00:20 的「商户日结通知（T+1）」分开排期——站内信静默入库、微信是真弹窗，
+-- 混在一起的结局是半夜把商户叫醒，然后对方关掉提醒。
+(145, 10, '商户经营日报（微信）', now(), now(), 'aicabinet', '',
+ 'CRON', '0 30 7 * * ?', 'DO_NOTHING', 'FAILOVER',
+ 'merchantDailyReportJob', '', 'SERIAL_EXECUTION', 600, 0, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0)
 ON DUPLICATE KEY UPDATE
   `job_desc`=VALUES(`job_desc`),
   `schedule_conf`=VALUES(`schedule_conf`),

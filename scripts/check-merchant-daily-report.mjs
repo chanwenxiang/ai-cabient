@@ -20,6 +20,7 @@
  *   E 未配模板必须显式跳过（configured() + return 0），不许「发一条空消息」
  *   F 站内信与微信同源：调度器必须用 aggregateSales 的产物构造日报对象
  *   G 模板占位符闭环：V499 文案里的每个 {x} 都必须在调度器里有同名参数
+ *   H 凌晨不许弹微信：00:20 的日结方法里不得调日报发送（站内信静默、微信是弹窗）
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -145,6 +146,26 @@ export function merchantDailyReportProblems({ notifier, scheduler, placeholders 
         `V 迁移文案占位符 {${p}} 在调度器渲染参数里没有同名键（商户会看到字面量 {${p}}）`
       );
     }
+  }
+
+  // H 凌晨不许弹微信：00:20 的日结只做扣费+站内信，微信日报在 07:30 的独立任务里发。
+  //   站内信是静默入库、微信是真弹窗——混在一起等于半夜叫醒商户，结局是对方关掉提醒。
+  //   方法边界按「4 空格缩进的下一行声明」判断（javadoc 已被脱敏成空格，不能当锚点）。
+  const inAppStart = s.indexOf('NotifyOutcome sendDailyIncomeNotify');
+  let inAppEnd = -1;
+  if (inAppStart >= 0) {
+    const rel = s.slice(inAppStart + 1).search(/\n {4}(?=[^\s}])/);
+    inAppEnd = rel < 0 ? s.length : inAppStart + 1 + rel;
+  }
+  if (inAppStart < 0) {
+    problems.push('调度器里找不到日结方法 sendDailyIncomeNotify（判据锚点失效，先核对实现）');
+  } else if (/dailyReportNotifier\s*\.\s*send\s*\(/.test(s.slice(inAppStart, inAppEnd))) {
+    problems.push(
+      '00:20 的日结方法里调用了微信日报发送：会在凌晨弹通知，应只在 07:30 的 notifyYesterdayReport 里发'
+    );
+  }
+  if (!/int sendWechatReportsOnly\s*\(/.test(s) || !/notifyYesterdayReport\s*\(/.test(s)) {
+    problems.push('调度器里没有早间日报任务（sendWechatReportsOnly / notifyYesterdayReport 缺失）');
   }
 
   return problems;
