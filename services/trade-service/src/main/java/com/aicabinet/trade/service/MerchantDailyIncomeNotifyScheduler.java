@@ -115,7 +115,7 @@ public class MerchantDailyIncomeNotifyScheduler {
         boolean failed = false;
         String summary = "日结通知未执行";
         try {
-            LocalDate yesterday = LocalDate.now(ScheduleZones.ZONE).minusDays(1);
+            LocalDate yesterday = yesterdayOf();
             NotifyOutcome outcome = sendDailyIncomeNotify(yesterday);
             summary = "昨日(" + yesterday + ")日结通知发送 " + outcome.sent() + " 商户"
                     // F-5（2026-10-17）：扣费失败不再只在日志里静默——写进运营台执行记录，
@@ -139,6 +139,15 @@ public class MerchantDailyIncomeNotifyScheduler {
     }
 
     /**
+     * 「昨日」的唯一口径（两个任务共用）：00:20 与 07:30 都按 Asia/Shanghai 的日历日回退一天。
+     * 抽成一处是刻意的——两个任务各算一遍「今天减一天」，就会有「跨零点那两秒
+     * 两个任务算出不同日期」的窗口，也躲开 check-window-limit-honesty 的重复登记。
+     */
+    private static LocalDate yesterdayOf() {
+        return LocalDate.now(ScheduleZones.ZONE).minusDays(1);
+    }
+
+    /**
      * 微信经营日报（MA-377）：早上 07:30 单独推送「昨日销售额 / 笔数 / 客单价」。
      *
      * <p><b>为什么不跟 00:20 的日结一起发</b>：00:20 的站内信是**静默**入库（商户不点开就
@@ -157,7 +166,7 @@ public class MerchantDailyIncomeNotifyScheduler {
         boolean failed = false;
         String summary = "经营日报未执行";
         try {
-            LocalDate yesterday = LocalDate.now(ScheduleZones.ZONE).minusDays(1);
+            LocalDate yesterday = yesterdayOf();
             int sent = sendWechatReportsOnly(yesterday);
             summary = "昨日(" + yesterday + ")经营日报微信送达 " + sent + " 人";
             log.info("scheduled merchant daily report completed: {}", summary);
