@@ -1232,6 +1232,21 @@ function onModelPicked() {
   if (p.modelTextUrl) reviewForm.value.textUrl = p.modelTextUrl;
 }
 
+/** 只读拉差异；quantity 由调用方给，行数校验仍由后端判定（行数 ≠ quantity 即拒）。 */
+async function requestReviewPlan(quantity: number): Promise<RebuildPlan> {
+  const f = reviewForm.value;
+  const q = new URLSearchParams({
+    modelName: f.modelName.trim(),
+    textUrl: f.textUrl.trim(),
+    quantity: String(quantity),
+    classIdBase: String(f.classIdBase)
+  });
+  return api.request<RebuildPlan>(
+    `${AdminEndpoints.deviceJiangyiMappingRebuild(deviceId.value)}?${q.toString()}`,
+    'GET'
+  );
+}
+
 async function loadReviewPlan() {
   if (!deviceId.value) return;
   const f = reviewForm.value;
@@ -1244,19 +1259,33 @@ async function loadReviewPlan() {
   }
   reviewPlanning.value = true;
   try {
-    const q = new URLSearchParams({
-      modelName: f.modelName.trim(),
-      textUrl: f.textUrl.trim(),
-      quantity: String(f.quantity),
-      classIdBase: String(f.classIdBase)
-    });
-    reviewPlan.value = await api.request<RebuildPlan>(
-      `${AdminEndpoints.deviceJiangyiMappingRebuild(deviceId.value)}?${q.toString()}`,
-      'GET'
-    );
+    reviewPlan.value = await requestReviewPlan(f.quantity);
     reviewVisible.value = true;
   } catch (e) {
-    ElMessage.error(errorMessage(e, '拉取差异失败'));
+    // 厂商模型档案的类目数常是脏数据（实测某柜声明 1 类、其 classes 文件却有 69 行），
+    // 而进页兜底与「从模型带出」都按档案填 ⇒ 运营看到表单「都填好了」直接点，必然撞行数
+    // 校验，且只有去数文件行数才知道该填几。后端已把真实行数算在报错里，据此校正后自动
+    // 重跑一次（只读 GET，无副作用）；判据仍是后端「行数 == quantity」，这里只把真值送进
+    // 输入框，不放宽校验。
+    const declared = f.quantity;
+    const msg = errorMessage(e, '拉取差异失败');
+    const matched = /classes\s*行数\s*(\d+)/.exec(msg);
+    const actual = matched ? Number(matched[1]) : 0;
+    if (actual > 0 && actual !== declared) {
+      f.quantity = actual;
+      try {
+        reviewPlan.value = await requestReviewPlan(actual);
+        reviewVisible.value = true;
+        ElMessage.warning(
+          `classes 文件实有 ${actual} 行，类目数已按文件校正（原填 ${declared}），请核对差异后再确认`
+        );
+        return;
+      } catch (retryError) {
+        ElMessage.error(errorMessage(retryError, '拉取差异失败'));
+        return;
+      }
+    }
+    ElMessage.error(msg);
   } finally {
     reviewPlanning.value = false;
   }
