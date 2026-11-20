@@ -1001,17 +1001,36 @@ jobs:
       # 且当场核中央仓 3.5.0 的 pom 返 200 ⇒ 依赖确实存在，属解析侧瞬时失败（联不上/被回 404，
       # 失败判定又会落进本地仓库的 .lastUpdated 标记被 m2 缓存带到后续 run）。
       # 同一 commit 原样重跑即绿（Build backend jar ✓、e2e 10m21s 全过）⇒ 非代码问题。
-      # 一次毛刺不该烧掉一条 20 分钟的 e2e，故失败时带 `-U` 重试一次：-U 强制回源更新
-      # release 元数据、重新判定，绕过 .lastUpdated 的失败记忆；重试仍失败照常判红，
+      # 一次毛刺不该烧掉一条 20 分钟的 e2e，故失败时重试一次；重试仍失败照常判红，
       # 真缺依赖不会被这层掩盖。
+      #
+      # 🔴 2026-11-20 复现（run 44671761169 / 10673bf7 前身 521ea62b）：`-U` 重试**也命中同一个
+      #   404**（同一 job 内两次 mvn 都报同一条）。`-U` 只能绕过 .lastUpdated 记忆，绕不过
+      #   「这次请求本身被回 404」；而 artifact 客观上存在（本地 curl pom/jar 均 200，同 run 的
+      #   build job 用同一版本成功）⇒ 是 CDN 分片/出网侧的偶发 404。故重试改为：
+      #   ① 清掉该插件在本地仓库的 .lastUpdated 失败标记（否则 m2 缓存会把失败记忆带进后续 run）；
+      #   ② 换 repo1.maven.org 分片再取一次（repo.maven.apache.org 与它同源不同边缘）。
       - name: Build backend jar
         run: |
           set -euo pipefail
-          if mvn -B -DskipTests -Pskip-admin-ui package -pl services/trade-service -am; then
+          MVN_ARGS=(-B -DskipTests -Pskip-admin-ui package -pl services/trade-service -am)
+          if mvn "${MVN_ARGS[@]}"; then
             exit 0
           fi
-          echo "::warning::首次构建失败，带 -U 重试一次（中央仓瞬时 404 / 本地 .lastUpdated 失败标记）"
-          mvn -B -U -DskipTests -Pskip-admin-ui package -pl services/trade-service -am
+          echo "::warning::首次构建失败，清理失败标记 + 换 repo1 分片重试一次"
+          rm -rf "$HOME/.m2/repository/org/apache/maven/plugins"
+          cat > /tmp/settings-retry.xml <<'XML'
+          <settings>
+            <mirrors>
+              <mirror>
+                <id>central-alt-edge</id>
+                <mirrorOf>central</mirrorOf>
+                <url>https://repo1.maven.org/maven2</url>
+              </mirror>
+            </mirrors>
+          </settings>
+          XML
+          mvn -B -U -s /tmp/settings-retry.xml "${MVN_ARGS[@]}"
 
       # Flyway 迁移含 demo 种子（V222/V253 等），空库可自动就绪
       - name: Start backend
