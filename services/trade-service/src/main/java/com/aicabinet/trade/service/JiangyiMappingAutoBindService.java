@@ -4,6 +4,7 @@ import com.aicabinet.trade.client.JiangyiGatherClient;
 import com.aicabinet.trade.domain.JiangyiClassMapping;
 import com.aicabinet.trade.domain.JiangyiDevice;
 import com.aicabinet.trade.domain.JiangyiSkuJiangyiLink;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiStdSku;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.LearnableProduct;
 import com.aicabinet.trade.mapper.JiangyiClassMappingMapper;
 import com.aicabinet.trade.mapper.JiangyiDeviceMapper;
@@ -106,12 +107,16 @@ public class JiangyiMappingAutoBindService {
             }
         }
         if (textName == null) {
-            return Result.noTextName("该商品在将邑侧还没有识别名（采集未成档），"
-                    + "柜机暂时无法与识别类目对位；采集审核通过后再点一次挂接即可");
+            // 🔴 这条路径静默返回不写日志，运营侧只能靠 message 知道「一行都没动」——
+            // 所以必须把「下一步做什么」写全：能换挂同款另一条、能手工挂、也能找厂商加类目。
+            return Result.noTextName("这条厂商商品在标准库里没有识别类目名（未训练进柜机模型），"
+                    + "柜机认不出来。同款在厂商库若有多条，换识别名有值的那条挂；"
+                    + "确实没有则需厂商把该商品加进模型重新训练（也可先到「识别映射」页按编号手工挂 SKU）");
         }
 
         final String effectiveTextName = textName;
         List<DeviceNote> notes = new ArrayList<>();
+        List<String> missingDeviceIds = new ArrayList<>();
         int bound = 0;
         int already = 0;
         int pendingManual = 0;
@@ -124,9 +129,11 @@ public class JiangyiMappingAutoBindService {
                     .filter(m -> effectiveTextName.equals(normalize(m.getTextName())))
                     .toList();
             if (hits.isEmpty()) {
-                // 该柜模型里没有这个识别名：通常还没同步新模型。逐柜记账会把几十台柜刷屏，
-                // 只计「需要人工处理」的柜数，明细靠日志回溯。
+                // 该柜模型里没有这个识别名：要么还没同步新模型，要么（更常见）挂错了同款里的另一条——
+                // 厂商库同款常有多条且识别名各不相同，只有一条落在模型里。逐柜刷屏没意义，
+                // 收齐后汇总成一条明细，并把识别名写进去——运营看到那串拼音才对得上自己挂的是哪条。
                 pendingManual++;
+                missingDeviceIds.add(deviceId);
                 log.info("jiangyi auto-bind: no such textName deviceId={} textName={}", deviceId, textName);
                 continue;
             }
@@ -163,23 +170,37 @@ public class JiangyiMappingAutoBindService {
                     deviceId, skuId, row.getClassId(), textName, wasDisabled);
         }
 
+        if (!missingDeviceIds.isEmpty()) {
+            notes.add(new DeviceNote(missingDeviceIds.get(0), STATUS_SKIPPED, null,
+                    "识别名 " + textName + " 不在这台柜的模型里"
+                            + (missingDeviceIds.size() > 1 ? "（共 " + missingDeviceIds.size() + " 台同因）" : "")
+                            + "；同款在厂商库若有多条，请改挂识别名落在模型里的那一条"));
+        }
+
         // 明细按「已生效优先」排，前端直接照序展示
         notes.sort(Comparator.comparing((DeviceNote n) -> STATUS_BOUND.equals(n.status()) ? 0 : 1)
                 .thenComparing(DeviceNote::deviceId));
-        String message = buildMessage(bound, already, pendingManual);
+        String message = buildMessage(bound, already, pendingManual, textName, missingDeviceIds.size());
         auditService.appendLog(operatorId, "JIANGYI_SKU_LINK_AUTOBIND", "SKU_CATALOG", skuId,
                 "productId=" + productId + ",textName=" + textName + ",bound=" + bound
                         + ",already=" + already + ",pendingManual=" + pendingManual);
         return new Result(textName, bound, already, List.copyOf(notes), pendingManual, message);
     }
 
-    private static String buildMessage(int bound, int already, int pendingManual) {
+    private static String buildMessage(int bound, int already, int pendingManual,
+                                       String textName, int missingDevices) {
         if (bound == 0 && already == 0) {
-            return pendingManual == 0
-                    ? "没有已接入的柜机需要挂接"
-                    : "没有柜机自动挂上：" + pendingManual + " 台需人工处理"
-                            + "（多数是该柜模型里还没有这个识别名，需先同步/复核新模型；"
-                            + "冲突或已被其它 SKU 占用的见下方明细）";
+            if (pendingManual == 0) {
+                return "没有已接入的柜机需要挂接";
+            }
+            if (missingDevices > 0 && missingDevices == pendingManual) {
+                // 全部柜都「没这个识别名」是最容易误判成「系统坏了」的一种：必须点明是模型里没有，
+                // 并给出两条真实出路（换挂同款另一条 / 让厂商加类目），否则运营只会反复重点。
+                return "没有柜机能挂上：识别名 " + textName + " 不在这 " + missingDevices
+                        + " 台柜的模型里。柜机只认模型训练过的类目——同款在厂商库若有多条（识别名各不同），"
+                        + "请改挂识别名落在模型里的那一条；若确实没有，需厂商把该商品加进模型重新训练";
+            }
+            return "没有柜机自动挂上：" + pendingManual + " 台需人工处理（明细见下）";
         }
         StringBuilder sb = new StringBuilder();
         sb.append("已挂到 ").append(bound).append(" 台柜机");
@@ -193,14 +214,67 @@ public class JiangyiMappingAutoBindService {
     }
 
     /**
-     * 识别名来源与人工上架同口径：§4.4.2 {@code learnableProducts} 里该商品 id 的 textName。
-     * 厂商读面不可用只降级成「本次不自动挂」，不能让挂接整体失败。
+     * 识别名来源：<b>厂商标准商品库</b>（§4.1.2 {@code stdSku/getList}）里 {@code id == productId}
+     * 那条的 {@code textName}。
+     *
+     * <p>🔴 <b>2026-11-20 生产实锤，修掉本类首版取错数据源的缺陷</b>：首版照抄 §4.4.2
+     * {@code learnableProducts}（{@code getPageData + gatherStatus=training}）。那份名单只含
+     * 「走过扫码采集流程」的条目，而运营在商品页挂的多是人工建档/标准库既有商品——
+     * 于是生产上每次挂接都返回「还没有识别名」，一行都挂不上，看起来像厂商数据缺失。
+     * 实测真相：{@code stdSku/getList} 回包<b>本来就有 textName</b>，只是早先没解析
+     * （见 {@code JiangyiStdSku#textName}）；同一接口按 {@code barCode} 精确查还能唯一命中。</p>
+     *
+     * <p>取数顺序：① 按挂接行条码精确查（厂商侧唯一，最可信）；② 按挂接行名称模糊查后
+     * 用 id 精确命中（条码为空或与厂商不一致时的兜底）；③ 才退回可学习名单（采集刚成档、
+     * 尚未进标准库的过渡态）。任一源不可用只降级成「本次不自动挂」，不能让挂接整体失败。</p>
      */
     private String resolveTextName(String productId) {
         String pid = normalize(productId);
         if (pid == null) {
             return null;
         }
+        JiangyiSkuJiangyiLink link = linkMapper.byProduct(pid).orElse(null);
+        String barCode = link == null ? null : normalize(link.getBarCode());
+        String name = link == null ? null : normalize(link.getJiangyiName());
+
+        String byBarCode = lookupStdSkuTextName(pid, null, barCode);
+        if (byBarCode != null) {
+            return byBarCode;
+        }
+        String byName = lookupStdSkuTextName(pid, name, null);
+        if (byName != null) {
+            return byName;
+        }
+        return fromLearnableProducts(pid);
+    }
+
+    /**
+     * 标准商品库按条码/名称查，再用 {@code id} 精确命中。
+     *
+     * <p>⚠️ 两个参数不能都空：{@code getList} 无查询词时返回全库分页前若干条，会拿错行。
+     * 命中后用 id 比对而不是只取第一条——同条码在厂商库里可能有多条（同款不同包装）。</p>
+     */
+    private String lookupStdSkuTextName(String pid, String name, String barCode) {
+        if (normalize(name) == null && normalize(barCode) == null) {
+            return null;
+        }
+        try {
+            return gatherClient.stdSkuList(name, barCode).stream()
+                    .filter(s -> pid.equals(String.valueOf(s.id())))
+                    .map(JiangyiStdSku::textName)
+                    .map(JiangyiMappingAutoBindService::normalize)
+                    .filter(t -> t != null)
+                    .findFirst()
+                    .orElse(null);
+        } catch (RuntimeException e) {
+            log.warn("jiangyi auto-bind: stdSkuList unavailable productId={} barCode={} err={}",
+                    pid, barCode, e.getMessage());
+            return null;
+        }
+    }
+
+    /** 兜底：采集流程刚成档、还没落到标准商品库时的过渡态。 */
+    private String fromLearnableProducts(String pid) {
         try {
             return gatherClient.learnableProducts().stream()
                     .filter(p -> pid.equals(String.valueOf(p.id())))

@@ -41,6 +41,8 @@ interface StdSkuView {
   barCodeSource: string | null;
   matchLevel: 'EXACT_BARCODE' | 'SAME_SPEC' | 'UNVERIFIED' | 'RELATED' | 'SUSPECT' | 'UNKNOWN';
   mismatchReasons: string[];
+  /** 识别类目名（柜机模型 classes.txt 行原文）。空 = 没训练进模型，挂了也识别不到。 */
+  textName: string | null;
 }
 
 interface StdSkuSearchResult {
@@ -327,7 +329,9 @@ async function search() {
       ...item,
       barCodeSource: item.barCodeSource ?? null,
       matchLevel: item.matchLevel ?? 'UNKNOWN',
-      mismatchReasons: item.mismatchReasons ?? []
+      mismatchReasons: item.mismatchReasons ?? [],
+      // 旧 jar 不带该字段；没有就按「无识别名」显示，不要伪造成有
+      textName: item.textName ?? null
     }));
     scored.value = !Array.isArray(response);
     searchTotal.value = Array.isArray(response)
@@ -371,9 +375,15 @@ async function confirmBind() {
     );
     applyBindResponse(response);
     const synced = autoBind.value;
-    ElMessage.success(
-      synced && (synced.bound > 0 || synced.already > 0) ? `已挂接；${synced.message}` : '已挂接'
-    );
+    // 🔴 一行都没挂上时不能说「已挂接」就完事：那是「挂接关系已存、柜机侧一行没动」，
+    // 运营会以为识别结算已通。分级提示把后端给的原因原样带出来。
+    if (synced && (synced.bound > 0 || synced.already > 0)) {
+      ElMessage.success(`已挂接；${synced.message}`);
+    } else if (synced && synced.message) {
+      ElMessage.warning(`挂接已保存，但柜机映射未同步：${synced.message}`);
+    } else {
+      ElMessage.success('已挂接');
+    }
     confirmVisible.value = false;
     emit('changed');
     await Promise.all([load(), search()]);
@@ -421,7 +431,14 @@ async function createInJiangyi() {
       }
     );
     applyBindResponse(response);
-    ElMessage.success('已在将邑新建商品并挂接');
+    const synced = autoBind.value;
+    if (synced && (synced.bound > 0 || synced.already > 0)) {
+      ElMessage.success(`已在将邑新建商品并挂接；${synced.message}`);
+    } else if (synced && synced.message) {
+      ElMessage.warning(`已在将邑新建商品并挂接，但柜机映射未同步：${synced.message}`);
+    } else {
+      ElMessage.success('已在将邑新建商品并挂接');
+    }
     emit('changed'); // R5-A2：该路径同样产生挂接关系，父页状态列必须刷新
     await load();
   } catch (e) {
@@ -537,10 +554,13 @@ defineExpose({ open });
             {{ autoBind.message }}
           </span>
         </div>
-        <div class="jy-auto-bind-hint">
+        <div v-if="autoBind.textName" class="jy-auto-bind-hint">
           按识别名
-          <span class="jy-link-mono">{{ autoBind.textName || '—' }}</span>
+          <span class="jy-link-mono">{{ autoBind.textName }}</span>
           在各柜机当前模型里对位，对位成功即挂好该编号（结算仍以「识别映射 → 复核」通过为前提）。
+        </div>
+        <div v-else class="jy-auto-bind-hint">
+          没有识别名可对位，柜机侧这一次一行都没动：挂接关系已保存，但柜机的补货表里仍不会有这个编号。
         </div>
         <div
           v-for="note in autoBind.notes"
@@ -715,7 +735,9 @@ defineExpose({ open });
             </div>
             <div class="jy-link-card-line">{{ item.name }}</div>
             <div class="jy-link-card-sub">
-              条码：{{ item.barCode || '—' }}｜规格：{{ item.specs || '—' }}
+              条码：{{ item.barCode || '—' }}｜规格：{{ item.specs || '—' }}｜识别名：
+              <span v-if="item.textName" class="jy-link-mono">{{ item.textName }}</span>
+              <span v-else class="jy-link-card-note-miss">无（未训练进模型，挂了也认不出）</span>
             </div>
             <div v-if="item.mismatchReasons.length" class="jy-link-card-warn">
               {{ item.mismatchReasons.join('；') }}
@@ -1046,6 +1068,10 @@ defineExpose({ open });
   font-size: 12px;
   color: var(--color-text-tertiary);
   margin-top: 2px;
+}
+/* 无识别名是「挂了也不生效」的硬信息，不能混在灰字里 */
+.jy-link-card-note-miss {
+  color: var(--el-color-danger);
 }
 .jy-link-card-actions {
   flex-shrink: 0;

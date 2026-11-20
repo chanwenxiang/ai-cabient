@@ -15,9 +15,20 @@ public final class JiangyiGatherDtos {
      * 将邑商品库标准商品（采集文档 §4.1.2.4；name 语义以 PDF 原文「标准商品名称」为准）。
      * barCodeSource 原值 app（扫码）/manual（手填，不可靠）/null（未登记）。
      */
+    /**
+     * 将邑标准商品（§4.1.2 /merchant/stdSku/getList）。
+     *
+     * <p>🔴 {@code textName} 是<b>识别类目名</b>，即柜机模型 classes.txt 里那一行的原文
+     * （如 {@code kkkl_xb_qsnmw_pttz_330ml}）。2026-11-20 生产实测该字段在 getList 回包里就有，
+     * 只是早期没解析——它才是「商品 ↔ 识别编号」的唯一可靠桥梁。</p>
+     *
+     * <p>⚠️ 同一个实物在厂商库里可能有多条，<b>识别名各不相同</b>，其中只有一条落在柜机当前模型里。
+     * 生产实证（雪碧 330ml）：1018「普通听装330ml」→ {@code kkkl_xb_qsnmw_pttz_330ml}（模型第 29 行），
+     * 2211「清爽柠檬味汽水」→ {@code xb_xbqsnmwqs_330ml}（模型里没有）。挂错那条永远对不上号。</p>
+     */
     public record JiangyiStdSku(long id, String name, String barCode, String specs,
                                 String brandName, String category, String mainImg, String stdSkuCode,
-                                String barCodeSource) {}
+                                String barCodeSource, String textName) {}
 
     /**
      * 将邑待采集商品（§4.3.2.4 waitGatherProduct）：已进将邑、但还没采集学习过的条目。

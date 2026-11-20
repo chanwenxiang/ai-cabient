@@ -352,9 +352,9 @@ class SkuJiangyiLinkServiceTest {
     void search_marksLinkedProductsAndPutsUnlinkedFirst() {
         when(jiangyiGatherClient.stdSkuList("农夫山泉", null)).thenReturn(List.of(
                 new JiangyiStdSku(88L, "农夫山泉 550ml", "6901234567890", "550ml",
-                        "农夫山泉", "bottle", "http://img/1.png", "STD-001", "app"),
+                        "农夫山泉", "bottle", "http://img/1.png", "STD-001", "app", null),
                 new JiangyiStdSku(99L, "可口可乐 330ml", "6901111111111", "330ml",
-                        "可口可乐", "bottle", "http://img/2.png", "STD-002", "app")));
+                        "可口可乐", "bottle", "http://img/2.png", "STD-002", "app", null)));
         when(linkMapper.listBoundProductIds(anyList())).thenReturn(List.of("88"));
 
         SkuJiangyiLinkService.StdSkuSearchResult result =
@@ -376,11 +376,11 @@ class SkuJiangyiLinkServiceTest {
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(s);
         when(jiangyiGatherClient.stdSkuList("雪碧", null)).thenReturn(List.of(
                 new JiangyiStdSku(2014L, "雪碧", "6928804010220", "500ml",
-                        "雪碧", "bottle", null, null, "manual"),
+                        "雪碧", "bottle", null, null, "manual", null),
                 new JiangyiStdSku(2211L, "雪碧", "6954767437583", "330ml",
-                        "雪碧", "bottle", null, null, "app"),
+                        "雪碧", "bottle", null, null, "app", null),
                 new JiangyiStdSku(100013L, "雪碧", "6928804010145", "330ml",
-                        "雪碧", "bottle", null, null, "app")));
+                        "雪碧", "bottle", null, null, "app", null)));
         when(linkMapper.listBoundProductIds(anyList())).thenReturn(List.of());
 
         SkuJiangyiLinkService.StdSkuSearchResult filtered =
@@ -412,9 +412,9 @@ class SkuJiangyiLinkServiceTest {
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(s);
         when(jiangyiGatherClient.stdSkuList("雪碧", null)).thenReturn(List.of(
                 new JiangyiStdSku(2137L, "雪碧零卡", "6928804014686", "330ml",
-                        "雪碧", "bottle", null, null, "app"),
+                        "雪碧", "bottle", null, null, "app", null),
                 new JiangyiStdSku(2211L, "雪碧", "6954767437583", "330ml",
-                        "雪碧", "bottle", null, null, "app")));
+                        "雪碧", "bottle", null, null, "app", null)));
         when(linkMapper.listBoundProductIds(anyList())).thenReturn(List.of("2211"));
 
         SkuJiangyiLinkService.StdSkuSearchResult result =
@@ -435,7 +435,7 @@ class SkuJiangyiLinkServiceTest {
         s.setSpec("1.5L");
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(s);
         when(jiangyiGatherClient.stdSkuList("雪碧", null)).thenReturn(List.of(
-                new JiangyiStdSku(1L, "雪碧", null, "1500ml", "雪碧", "bottle", null, null, null)));
+                new JiangyiStdSku(1L, "雪碧", null, "1500ml", "雪碧", "bottle", null, null, null, null)));
 
         SkuJiangyiLinkService.StdSkuSearchResult result =
                 service().searchJiangyiProducts("雪碧", null, SKU_ID, false);
@@ -454,9 +454,9 @@ class SkuJiangyiLinkServiceTest {
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(s);
         when(jiangyiGatherClient.stdSkuList("康师傅", null)).thenReturn(List.of(
                 new JiangyiStdSku(128L, "康师傅冰红茶柠檬口味茶饮品", "6922456805012", "500hs",
-                        "康师傅", "bottle", null, null, "app"),
+                        "康师傅", "bottle", null, null, "app", null),
                 new JiangyiStdSku(1473L, "康师傅陈皮酸梅汤", "6973870135001", "500ml",
-                        "康师傅", "bottle", null, null, "app")));
+                        "康师傅", "bottle", null, null, "app", null)));
         when(linkMapper.listBoundProductIds(anyList())).thenReturn(List.of());
 
         SkuJiangyiLinkService.StdSkuSearchResult filtered =
@@ -479,9 +479,9 @@ class SkuJiangyiLinkServiceTest {
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(s);
         when(jiangyiGatherClient.stdSkuList("康师傅", null)).thenReturn(List.of(
                 new JiangyiStdSku(128L, "康师傅冰红茶柠檬口味茶饮品", "6922456805012", "1s",
-                        "康师傅", "bottle", null, null, "app"),
+                        "康师傅", "bottle", null, null, "app", null),
                 new JiangyiStdSku(1413L, "康师傅大红袍红茶", "6973870132925", "dt",
-                        "康师傅", "bottle", null, null, "app")));
+                        "康师傅", "bottle", null, null, "app", null)));
         when(linkMapper.listBoundProductIds(anyList())).thenReturn(List.of());
 
         SkuJiangyiLinkService.StdSkuSearchResult result =
@@ -501,7 +501,7 @@ class SkuJiangyiLinkServiceTest {
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(s);
         when(jiangyiGatherClient.stdSkuList("康师傅", null)).thenReturn(List.of(
                 new JiangyiStdSku(140L, "康师傅红烧牛肉面桶装107g", "6920208900770", "107g",
-                        "康师傅", "bowl", null, null, "manual")));
+                        "康师傅", "bowl", null, null, "manual", null)));
         when(linkMapper.listBoundProductIds(anyList())).thenReturn(List.of());
 
         SkuJiangyiLinkService.StdSkuSearchResult result =
@@ -515,9 +515,9 @@ class SkuJiangyiLinkServiceTest {
     void search_withoutSkuIdDoesNotFilterOrScore() {
         when(jiangyiGatherClient.stdSkuList("雪碧", null)).thenReturn(List.of(
                 new JiangyiStdSku(1L, "雪碧 500ml", "6901234567890", "500ml",
-                        "雪碧", "bottle", null, null, "manual"),
+                        "雪碧", "bottle", null, null, "manual", null),
                 new JiangyiStdSku(2L, "雪碧零卡 330ml", "6901111111111", "330ml",
-                        "雪碧", "bottle", null, null, "app")));
+                        "雪碧", "bottle", null, null, "app", null)));
         when(linkMapper.listBoundProductIds(anyList())).thenReturn(List.of());
 
         SkuJiangyiLinkService.StdSkuSearchResult result =

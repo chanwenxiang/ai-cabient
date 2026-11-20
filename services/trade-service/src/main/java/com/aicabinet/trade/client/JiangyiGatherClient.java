@@ -85,7 +85,10 @@ public class JiangyiGatherClient {
                         text(n, "category"),
                         text(n, "mainImg"),
                         text(n, "stdSkuCode"),
-                        text(n, "barCodeSource")));
+                        text(n, "barCodeSource"),
+                        // 识别类目名（模型 classes.txt 行原文）：2026-11-20 生产实测回包里本来就有，
+                        // 早期漏解析导致「挂接后取不到识别名」，白走了一圈等待采集名单。
+                        text(n, "textName")));
             }
         }
         return out;

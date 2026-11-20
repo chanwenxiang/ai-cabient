@@ -578,7 +578,7 @@ public class SkuJiangyiLinkService {
         StdSkuView toView() {
             return new StdSkuView(sku.id(), sku.name(), sku.barCode(), sku.specs(), sku.brandName(),
                     sku.category(), sku.mainImg(), sku.stdSkuCode(), linked,
-                    sku.barCodeSource(), match.level(), match.mismatchReasons());
+                    sku.barCodeSource(), match.level(), match.mismatchReasons(), sku.textName());
         }
     }
 
@@ -589,7 +589,10 @@ public class SkuJiangyiLinkService {
      */
     public record StdSkuView(long id, String name, String barCode, String specs, String brandName,
                              String category, String mainImg, String stdSkuCode, boolean linked,
-                             String barCodeSource, String matchLevel, List<String> mismatchReasons) {}
+                             String barCodeSource, String matchLevel, List<String> mismatchReasons,
+                             // 识别类目名（模型 classes.txt 行的原文）：挂接后靠它把 SKU 对到柜机编号。
+                            // 空 = 这条厂商商品没训练进模型，挂了也识别不了——必须让运营当场看见。
+                             String textName) {}
 
     /** items=当前返回项；total=将邑原始条数；hidden=被隐藏的明显不符条数（includeAll 时 0）。 */
     public record StdSkuSearchResult(List<StdSkuView> items, int total, int hidden) {}

@@ -17971,6 +17971,7 @@ export interface components {
             barCodeSource?: string;
             matchLevel?: string;
             mismatchReasons?: string[];
+            textName?: string;
         };
         ApiResponseListJiangyiCategory: {
             /** Format: int32 */

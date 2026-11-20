@@ -3,6 +3,8 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.client.JiangyiGatherClient;
 import com.aicabinet.trade.domain.JiangyiClassMapping;
 import com.aicabinet.trade.domain.JiangyiDevice;
+import com.aicabinet.trade.domain.JiangyiSkuJiangyiLink;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiStdSku;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.LearnableProduct;
 import com.aicabinet.trade.mapper.JiangyiClassMappingMapper;
 import com.aicabinet.trade.mapper.JiangyiDeviceMapper;
@@ -14,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -193,7 +196,7 @@ class JiangyiMappingAutoBindServiceTest {
         assertEquals(DEV_A, result.notes().get(0).deviceId());
     }
 
-    /** 该商品在将邑侧还没有识别名 → 一行都不动，并说清下一步。 */
+    /** 标准库里这条商品没有识别名 → 一行都不动，并说清下一步。 */
     @Test
     void reportsMissingTextNameWithoutTouchingAnything() {
         when(gatherClient.learnableProducts()).thenReturn(List.of());
@@ -202,7 +205,7 @@ class JiangyiMappingAutoBindServiceTest {
 
         assertFalse(result.touched());
         assertEquals(null, result.textName());
-        assertTrue(result.message().contains("还没有识别名"));
+        assertTrue(result.message().contains("没有识别类目名"));
         verifyNoInteractions(deviceMapper, mappingMapper);
     }
 
@@ -214,7 +217,7 @@ class JiangyiMappingAutoBindServiceTest {
         JiangyiMappingAutoBindService.Result result = service().autoBind(7L, SKU_ID, PID, null);
 
         assertFalse(result.touched());
-        assertTrue(result.message().contains("还没有识别名"));
+        assertTrue(result.message().contains("没有识别类目名"));
         verify(mappingMapper, never()).upsert(any());
     }
 
@@ -228,5 +231,87 @@ class JiangyiMappingAutoBindServiceTest {
         assertFalse(result.touched());
         assertEquals(0, result.pendingManual());
         assertTrue(result.message().contains("没有已接入的柜机"));
+    }
+
+    // ---------- 识别名数据源（2026-11-20 生产实锤后的回归钉） ----------
+
+    private static JiangyiStdSku stdSku(String id, String textName, String barCode) {
+        return new JiangyiStdSku(Long.parseLong(id), "雪碧清爽柠檬味汽水普通听装330ml", barCode, "330ml",
+                "雪碧", "饮料", null, null, "scan", textName);
+    }
+
+    /** 挂接行（bind 已落库的形态）：标准商品库按这两个字段反查识别名。 */
+    private void linked(String barCode, String name) {
+        JiangyiSkuJiangyiLink link = new JiangyiSkuJiangyiLink();
+        link.setId(1L);
+        link.setSkuId(SKU_ID);
+        link.setJiangyiProductId(PID);
+        link.setJiangyiName(name);
+        link.setBarCode(barCode);
+        link.setSyncStatus("BOUND");
+        when(linkMapper.byProduct(PID)).thenReturn(Optional.of(link));
+    }
+
+    /**
+     * 🔴 生产首版缺陷的回归钉：识别名取自标准商品库 {@code stdSku/getList} 的 textName
+     * （按挂接行条码精确命中），而不是「待采集训练」名单——那份名单对人工建档商品恒为空，
+     * 导致生产上每次挂接都报「还没有识别名」。
+     */
+    @Test
+    void resolvesTextNameFromStdSkuByBarcode() {
+        linked("6954767430386", "雪碧清爽柠檬味汽水普通听装330ml");
+        when(gatherClient.stdSkuList(null, "6954767430386"))
+                .thenReturn(List.of(stdSku(PID, TEXT_NAME, "6954767430386")));
+        when(deviceMapper.listBound()).thenReturn(List.of(device(DEV_A)));
+        when(mappingMapper.listByDevice(DEV_A))
+                .thenReturn(List.of(row(DEV_A, 29, TEXT_NAME, null, "DISABLED")));
+
+        JiangyiMappingAutoBindService.Result result = service().autoBind(7L, SKU_ID, PID, null);
+
+        assertEquals(1, result.bound());
+        assertEquals(TEXT_NAME, result.textName());
+        // 可学习名单只作兜底：标准库命中就不该再打它（省一次外部调用，也避免被空名单误导）
+        verify(gatherClient, never()).learnableProducts();
+    }
+
+    /** 条码与厂商不一致时（生产实测 100009 即如此），按名称查再用 id 精确命中，不能取第一条。 */
+    @Test
+    void fallsBackToNameLookupWhenBarcodeMisses() {
+        linked("6928804010145", "雪碧清爽柠檬味汽水普通听装330ml");
+        when(gatherClient.stdSkuList(null, "6928804010145")).thenReturn(List.of());
+        when(gatherClient.stdSkuList("雪碧清爽柠檬味汽水普通听装330ml", null))
+                .thenReturn(List.of(
+                        stdSku("9999", "xblk_330mlxblknmwqs_330ml", "6928804014686"),
+                        stdSku(PID, TEXT_NAME, "6954767430386")));
+        when(deviceMapper.listBound()).thenReturn(List.of(device(DEV_A)));
+        when(mappingMapper.listByDevice(DEV_A))
+                .thenReturn(List.of(row(DEV_A, 29, TEXT_NAME, null, "DISABLED")));
+
+        JiangyiMappingAutoBindService.Result result = service().autoBind(7L, SKU_ID, PID, null);
+
+        assertEquals(1, result.bound());
+        assertEquals(TEXT_NAME, result.textName());
+        verify(mappingMapper).upsert(any());
+    }
+
+    /**
+     * 识别名拿到了、但柜机模型里没有那一行 → 必须把识别名原样回给运营。
+     * 生产实证：同款雪碧有两条（1018→第29行 / 2211→模型里没有），挂错那条只会看到「没挂上」，
+     * 不说清识别名就等于让人反复重点。
+     */
+    @Test
+    void explainsWhenTextNameNotInDeviceModel() {
+        when(deviceMapper.listBound()).thenReturn(List.of(device(DEV_A)));
+        when(mappingMapper.listByDevice(DEV_A))
+                .thenReturn(List.of(row(DEV_A, 29, TEXT_NAME, null, "DISABLED")));
+
+        JiangyiMappingAutoBindService.Result result =
+                service().autoBind(7L, SKU_ID, PID, "xb_xbqsnmwqs_330ml");
+
+        assertEquals(0, result.bound());
+        assertTrue(result.message().contains("xb_xbqsnmwqs_330ml"));
+        assertTrue(result.message().contains("改挂"));
+        assertTrue(result.notes().get(0).reason().contains("不在这台柜的模型里"));
+        verify(mappingMapper, never()).upsert(any());
     }
 }
