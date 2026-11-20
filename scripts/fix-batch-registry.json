@@ -2359,6 +2359,22 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "c5b9cbf9",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-378",
+          "files": [
+            "clients/admin-vue/src/views/skus/SkuJiangyiLinkDialog.vue",
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminJiangyiCatalogController.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiMappingAutoBindService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/JiangyiMappingAutoBindServiceTest.java"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
