@@ -2509,6 +2509,10 @@
     {
       "commit": "cd5a3050",
       "why": "真机验收轮的服务号/订阅消息排查产物（MA-374/375）：两条均已在 docs/module-audit/ISSUES.md 按单条登记（含证据/定性/采纳结论），各带同轮门禁 check-wx-subscribe-state；不属任何审计报告批次，无法按「条目→文件 + totalItems」对账，故入白名单带理由"
+    },
+    {
+      "commit": "6141f123",
+      "why": "MA-376 的接线补丁（并行会话补 `pnpm check:jiangyi-review-quantity-recovery` 进 check:audit-gates 聚合链）：只动 package.json 一处链引用、判据未改，条目本体已在 MA-376 按单条登记并随 a0faf8d5 入批（items 已含 package.json）；本笔不构成新的审计条目，无法再按「条目→文件 + totalItems」对账，故入白名单带理由（与 86aa27b7 / c481a5ad 的「命令串接线」同型）"
     }
   ]
 }
