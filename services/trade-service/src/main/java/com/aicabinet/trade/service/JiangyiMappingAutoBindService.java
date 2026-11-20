@@ -180,15 +180,24 @@ public class JiangyiMappingAutoBindService {
         // 明细按「已生效优先」排，前端直接照序展示
         notes.sort(Comparator.comparing((DeviceNote n) -> STATUS_BOUND.equals(n.status()) ? 0 : 1)
                 .thenComparing(DeviceNote::deviceId));
-        String message = buildMessage(bound, already, pendingManual, textName, missingDeviceIds.size());
+        String message = buildMessage(bound, already, pendingManual, textName, missingDeviceIds.size(),
+                notes);
         auditService.appendLog(operatorId, "JIANGYI_SKU_LINK_AUTOBIND", "SKU_CATALOG", skuId,
                 "productId=" + productId + ",textName=" + textName + ",bound=" + bound
                         + ",already=" + already + ",pendingManual=" + pendingManual);
         return new Result(textName, bound, already, List.copyOf(notes), pendingManual, message);
     }
 
+    /**
+     * 汇总文案。
+     *
+     * <p>🔴 「已挂到 X 台」必须把 {@code already} 一起算进去：运营手工先挂过一行（第 29 行就是这种）
+     * 再来点挂接，旧口径会输出「已挂到 0 台柜机，另有 1 台原本已生效」——读起来像没挂上，于是被
+     * 反复重点。台数 = 本次新挂 + 原本已生效，并直接带上识别编号：运营要认的就是「哪台柜的哪个号」。</p>
+     */
     private static String buildMessage(int bound, int already, int pendingManual,
-                                       String textName, int missingDevices) {
+                                       String textName, int missingDevices,
+                                       List<DeviceNote> notes) {
         if (bound == 0 && already == 0) {
             if (pendingManual == 0) {
                 return "没有已接入的柜机需要挂接";
@@ -202,10 +211,25 @@ public class JiangyiMappingAutoBindService {
             }
             return "没有柜机自动挂上：" + pendingManual + " 台需人工处理（明细见下）";
         }
+        List<Integer> classIds = notes.stream()
+                .filter(n -> STATUS_BOUND.equals(n.status()) || STATUS_ALREADY.equals(n.status()))
+                .map(DeviceNote::classId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .sorted()
+                .toList();
         StringBuilder sb = new StringBuilder();
-        sb.append("已挂到 ").append(bound).append(" 台柜机");
+        sb.append("已挂到 ").append(bound + already).append(" 台柜机");
+        if (!classIds.isEmpty()) {
+            // 单个编号说「，编号 29」，多个说「（编号 5、26）」，都是给运营照着认的口径
+            sb.append(classIds.size() == 1 ? "，编号 " : "（编号 ");
+            sb.append(String.join("、", classIds.stream().map(String::valueOf).toList()));
+            if (classIds.size() > 1) {
+                sb.append("）");
+            }
+        }
         if (already > 0) {
-            sb.append("，另有 ").append(already).append(" 台原本已生效");
+            sb.append(bound > 0 ? "，其中 " + already + " 台原本已生效" : "，原本已生效");
         }
         if (pendingManual > 0) {
             sb.append("；").append(pendingManual).append(" 台需人工处理（明细见下）");

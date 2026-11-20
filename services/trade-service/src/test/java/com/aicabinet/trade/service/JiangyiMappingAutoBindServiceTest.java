@@ -196,6 +196,24 @@ class JiangyiMappingAutoBindServiceTest {
         assertEquals(DEV_A, result.notes().get(0).deviceId());
     }
 
+    /**
+     * 运营已手工挂好（第 29 行 ACTIVE + 本 SKU）再来点挂接：旧文案输出「已挂到 0 台柜机，另有 1 台
+     * 原本已生效」，读起来像没挂上，被反复重点（2026-11-20 生产现场）。台数须并入 already，并带编号。
+     */
+    @Test
+    void countsAlreadyEffectiveRowsAsLinkedAndNamesClassId() {
+        when(deviceMapper.listBound()).thenReturn(List.of(device(DEV_A)));
+        when(mappingMapper.listByDevice(DEV_A))
+                .thenReturn(List.of(row(DEV_A, 29, TEXT_NAME, SKU_ID, "ACTIVE")));
+
+        JiangyiMappingAutoBindService.Result result = service().autoBind(7L, SKU_ID, PID, TEXT_NAME);
+
+        assertEquals(0, result.bound());
+        assertEquals(1, result.already());
+        verify(mappingMapper, never()).upsert(any());
+        assertEquals("已挂到 1 台柜机，编号 29，原本已生效", result.message());
+    }
+
     /** 标准库里这条商品没有识别名 → 一行都不动，并说清下一步。 */
     @Test
     void reportsMissingTextNameWithoutTouchingAnything() {
