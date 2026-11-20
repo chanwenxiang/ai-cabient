@@ -995,8 +995,23 @@ jobs:
           CI: true
 
       # -Pskip-admin-ui：admin 产物已提交在 static/admin，无需在 e2e 里重建
+      # 2026-11-19 实炸（run 44574233201，commit 9a242038，仅改文档）：本步报
+      #   Could not find artifact ...maven-resources-plugin:jar:3.5.0 in central
+      # 但同一次 run 的 build job（同镜像 / 同 setup-java 缓存键）用同一插件 `mvn verify` 成功，
+      # 且当场核中央仓 3.5.0 的 pom 返 200 ⇒ 依赖确实存在，属解析侧瞬时失败（联不上/被回 404，
+      # 失败判定又会落进本地仓库的 .lastUpdated 标记被 m2 缓存带到后续 run）。
+      # 同一 commit 原样重跑即绿（Build backend jar ✓、e2e 10m21s 全过）⇒ 非代码问题。
+      # 一次毛刺不该烧掉一条 20 分钟的 e2e，故失败时带 `-U` 重试一次：-U 强制回源更新
+      # release 元数据、重新判定，绕过 .lastUpdated 的失败记忆；重试仍失败照常判红，
+      # 真缺依赖不会被这层掩盖。
       - name: Build backend jar
-        run: mvn -B -DskipTests -Pskip-admin-ui package -pl services/trade-service -am
+        run: |
+          set -euo pipefail
+          if mvn -B -DskipTests -Pskip-admin-ui package -pl services/trade-service -am; then
+            exit 0
+          fi
+          echo "::warning::首次构建失败，带 -U 重试一次（中央仓瞬时 404 / 本地 .lastUpdated 失败标记）"
+          mvn -B -U -DskipTests -Pskip-admin-ui package -pl services/trade-service -am
 
       # Flyway 迁移含 demo 种子（V222/V253 等），空库可自动就绪
       - name: Start backend
