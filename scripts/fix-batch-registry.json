@@ -2306,6 +2306,43 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "a647aca2",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "MA-372",
+          "files": [
+            "clients/admin-vue/src/views/vision/VisionMappingView.vue",
+            "docs/JIANGYI_INTERFACE_CHECKLIST.md",
+            "package.json",
+            "packages/shared-types/src/generated/openapi.ts",
+            "scripts/check-jiangyi-txt-url-default.mjs",
+            "scripts/check-jiangyi-txt-url-default.test.mjs",
+            "services/common/common-core/src/main/java/com/aicabinet/common/dto/JiangyiDeviceDto.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminJiangyiController.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/domain/JiangyiDevice.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/JiangyiDeviceMapper.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiModelSyncService.java",
+            "services/trade-service/src/main/resources/db/migration/V498__jiangyi_device_current_txt_url.sql",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/JiangyiModelSyncServiceTest.java"
+          ]
+        },
+        {
+          "id": "MA-373",
+          "files": [
+            "clients/consumer-mp/src/utils/dispute-copy.test.ts",
+            "clients/consumer-mp/src/utils/dispute-copy.ts",
+            "docs/engineering/lessons-learned.md",
+            "scripts/check-dispute-vendor-tail.mjs",
+            "scripts/check-dispute-vendor-tail.test.mjs",
+            "services/common/common-core/src/main/java/com/aicabinet/common/util/DisputeConsumerCopy.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/support/DisputeConsumerCopyTest.java"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
