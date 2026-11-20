@@ -2505,6 +2505,10 @@
     {
       "commit": "622ad811",
       "why": "4683c5d7（监控告警改 SMTP 邮件）的生产落地修正：compose command 里裸 $ 被 compose 插值，导致 alertmanager 容器启动即自退（日志只剩「缺 ，拒绝启动」）。只动两个 compose 文件的启动校验写法，零业务代码、零审计条目；实测依据见提交信息与 2026-11-19 生产容器日志"
+    },
+    {
+      "commit": "cd5a3050",
+      "why": "真机验收轮的服务号/订阅消息排查产物（MA-374/375）：两条均已在 docs/module-audit/ISSUES.md 按单条登记（含证据/定性/采纳结论），各带同轮门禁 check-wx-subscribe-state；不属任何审计报告批次，无法按「条目→文件 + totalItems」对账，故入白名单带理由"
     }
   ]
 }
