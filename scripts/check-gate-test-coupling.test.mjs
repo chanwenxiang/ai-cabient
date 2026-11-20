@@ -4,7 +4,7 @@
  *
  *   node scripts/check-gate-test-coupling.test.mjs
  */
-import { evaluateCoupling } from './check-gate-test-coupling.mjs';
+import { evaluateCoupling, isSelfTestGateSource } from './check-gate-test-coupling.mjs';
 
 const TAG = '[check-gate-test-coupling.test]';
 let checks = 0;
@@ -95,6 +95,28 @@ const REG = {
     testExists: (n) => n === 'check-foo.test.mjs'
   });
   assert(p.length === 1 && p[0].includes('销'), `debt 补夹具后须红催销账：${p.join('|')}`);
+}
+
+// 12) 自检开关两种拼法都识别（`--selftest` 形态不得被误判「无夹具」）
+{
+  const withHyphen =
+    'function selfTest() {}\nif (process.argv.includes("--self-test")) return selfTest();';
+  const noHyphen =
+    'function selfTest() {}\nif (process.argv.includes("--selftest")) return selfTest();';
+  assert(isSelfTestGateSource(withHyphen), '`--self-test` 拼法应识别');
+  assert(isSelfTestGateSource(noHyphen), '`--selftest` 拼法应识别（VERIFY-EXT2 实测漏判形态）');
+}
+
+// 13) 只有函数没有开关 / 只在注释里出现 ⇒ 不算自检夹具（否则「改判据」可凭空豁免）
+{
+  assert(
+    !isSelfTestGateSource('function selfTest() {}'),
+    '只有 selfTest() 无自检开关不算夹具（否则豁免可凭空成立）'
+  );
+  assert(
+    !isSelfTestGateSource('// 跑 --self-test 时执行\nfunction other() {}'),
+    '注释里的自检开关不算（剥注释后须仍有开关）'
+  );
 }
 
 console.log(`${TAG} OK：${checks} 项断言全过`);

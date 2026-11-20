@@ -1643,21 +1643,34 @@ onActivated(() => {
   gap: 8px;
   flex-wrap: wrap;
 }
+/* 2026-11-20 用户定夺：本卡在 >1280 时固定落在 340px 右列，横向「左码右信息」永远放不下
+   （168 码 + 24 间距 + 260 信息 > 内容宽），排版会退化成「码贴左上、文字另起一行」，
+   视觉上像没对齐。改为竖向居中堆叠：码居中作为主体，链接与提示占满整行左对齐
+   （长句居中对齐反而难读）。≤1280 时首屏回落单列、卡片变宽，再恢复横排。 */
 .qr-body {
-  /* 左码右信息：柜门码是「看一眼 + 下载」的动作，不需要整块竖向留白 */
   display: flex;
-  align-items: flex-start;
-  gap: 24px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
   padding: 4px 0 0;
 }
 .qr-side {
-  flex: 1 1 260px;
+  width: 100%;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding-top: 4px;
+}
+@media (max-width: 1280px) {
+  .qr-body {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 24px;
+  }
+  .qr-side {
+    width: auto;
+    flex: 1 1 260px;
+  }
 }
 .qr-link-row {
   display: flex;

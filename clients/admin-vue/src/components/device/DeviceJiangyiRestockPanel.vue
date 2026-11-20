@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onUnmounted, ref } from 'vue';
+import { computed, onUnmounted, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
@@ -45,6 +45,14 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 // MA-225：轮询代际守卫（MA-173 admin 侧同族）——stopPoll/doSubmit 开新一代，
 // 迟到的旧响应一律丢弃，不得覆盖新 historyNo 的进度或误停新单轮询。
 let pollGeneration = 0;
+
+/** 参数下发进度：阶段文案之外再给一条可读进度条（total=0 时不显示 100%）。 */
+const progressPercent = computed(() => {
+  const total = progress.value?.total || 0;
+  if (!total) return 0;
+  const applied = progress.value?.applied || 0;
+  return Math.min(100, Math.max(0, Math.round((applied / total) * 100)));
+});
 
 async function loadPreview() {
   loading.value = true;
@@ -144,72 +152,211 @@ onUnmounted(stopPoll);
 </script>
 
 <template>
-  <div class="jy-restock">
-    <div class="jy-section-label">补货上架 · 同步到将邑</div>
+  <div class="jy-panel">
+    <div class="jy-panel-head">
+      <div class="jy-panel-title">补货上架 · 同步到将邑</div>
+      <span class="jy-panel-hint">改库存/售价不会自动重推，需重新提交一次</span>
+    </div>
+
     <el-alert
       type="warning"
       :closable="false"
       show-icon
-      title="一次提交 = 该层最终库存：未列出的商品会被下架。清单来自柜内库存+挂接条码+我方售价；无挂接的 SKU 已跳过。"
+      class="jy-panel-alert"
+      title="一次提交 = 该层最终库存，未列出的商品会被下架"
+      description="清单来自柜内库存 + 挂接条码 + 我方售价；无挂接的 SKU 已跳过。"
     />
-    <div style="margin: 12px 0; display: flex; gap: 12px; align-items: center">
-      <span>层号</span>
-      <el-input-number v-model="floorNum" :min="1" :max="10" />
+
+    <div class="jy-toolbar">
+      <span class="jy-toolbar-label">层号</span>
+      <el-input-number
+        v-model="floorNum"
+        class="jy-floor-input"
+        :min="1"
+        :max="10"
+        controls-position="right"
+      />
       <el-button :loading="loading" @click="loadPreview">加载清单</el-button>
+      <span v-if="rows.length" class="jy-toolbar-hint">
+        第 {{ floorNum }} 层 · {{ rows.length }} 个商品
+      </span>
     </div>
 
     <el-table v-if="rows.length" :data="rows" border size="small">
-      <el-table-column prop="skuName" label="商品" min-width="160" />
-      <el-table-column prop="barCode" label="条码" min-width="140" />
-      <el-table-column label="库存" width="120">
-        <template #default="{ row }"
-          ><el-input-number v-model="row.stockNum" :min="0" :disabled="!canEdit"
-        /></template>
+      <!-- 截断提示走全局 installTableCellNativeTitle 的原生 title（不用 EP 溢出浮层，会盖邻列） -->
+      <el-table-column prop="skuName" label="商品" min-width="200" />
+      <el-table-column label="条码" min-width="150">
+        <template #default="{ row }">
+          <span class="jy-mono">{{ row.barCode }}</span>
+        </template>
       </el-table-column>
-      <el-table-column label="售价(元)" width="120">
-        <template #default="{ row }"
-          ><el-input v-model="row.priceYuan" :disabled="!canEdit"
-        /></template>
+      <el-table-column label="库存" width="140">
+        <template #default="{ row }">
+          <el-input-number
+            v-model="row.stockNum"
+            class="jy-cell-input"
+            :min="0"
+            :disabled="!canEdit"
+            size="small"
+            controls-position="right"
+          />
+        </template>
+      </el-table-column>
+      <el-table-column label="售价(元)" width="140">
+        <template #default="{ row }">
+          <el-input
+            v-model="row.priceYuan"
+            class="jy-cell-input"
+            :disabled="!canEdit"
+            size="small"
+          />
+        </template>
       </el-table-column>
     </el-table>
-    <el-empty v-else description="点「加载清单」获取该柜可上架商品" :image-size="60" />
-
-    <div v-if="preview && preview.skippedSkus.length" style="margin-top: 8px">
-      <el-tag type="info"
-        >跳过（无挂接/无条码，请先在「将邑商品」建档挂接）：{{
-          preview.skippedSkus.join('、')
-        }}</el-tag
-      >
+    <div v-else class="jy-empty-hint">
+      点「加载清单」获取该柜可上架商品：清单 = 柜内库存 + 挂接条码 + 我方售价。
     </div>
 
-    <div style="margin-top: 12px; display: flex; gap: 12px; align-items: center">
-      <el-checkbox v-model="confirmDelist" :disabled="!canEdit"
-        >确认覆盖该层清单（未列出即下架）</el-checkbox
-      >
-      <el-button type="primary" :disabled="!canEdit" :loading="submitting" @click="doSubmit"
+    <div v-if="preview && preview.skippedSkus.length" class="jy-skipped">
+      <el-tag type="info" size="small">
+        跳过（无挂接/无条码，请先在「将邑商品」建档挂接）：{{ preview.skippedSkus.join('、') }}
+      </el-tag>
+    </div>
+
+    <div class="jy-submit-bar">
+      <el-checkbox v-model="confirmDelist" :disabled="!canEdit">
+        确认覆盖该层清单（未列出即下架）
+      </el-checkbox>
+      <el-button
+        type="primary"
+        :disabled="!canEdit || !rows.length"
+        :loading="submitting"
+        @click="doSubmit"
         >同步上架到将邑</el-button
       >
     </div>
 
-    <el-descriptions v-if="progress" :column="2" border style="margin-top: 12px">
-      <el-descriptions-item label="historyNo">{{ historyNo }}</el-descriptions-item>
-      <el-descriptions-item label="阶段">{{
-        jiangyiStageText(progress.stage)
-      }}</el-descriptions-item>
-      <el-descriptions-item label="进度"
-        >{{ progress.applied }} / {{ progress.total }}</el-descriptions-item
-      >
-      <el-descriptions-item label="可购物">
-        <el-tag :type="progress.ready ? 'success' : 'warning'">{{
-          progress.ready ? '是' : '否（参数应用中）'
+    <div v-if="progress" class="jy-progress">
+      <div class="jy-progress-head">
+        <span class="jy-progress-label">参数下发进度</span>
+        <el-tag size="small" :type="progress.ready ? 'success' : 'warning'">{{
+          progress.ready ? '可购物' : '参数应用中'
         }}</el-tag>
-      </el-descriptions-item>
-    </el-descriptions>
+        <span class="jy-progress-meta">
+          {{ jiangyiStageText(progress.stage) }} · {{ progress.applied }}/{{ progress.total }} 项 ·
+          historyNo <code class="jy-mono">{{ historyNo }}</code>
+        </span>
+      </div>
+      <el-progress
+        :percentage="progressPercent"
+        :stroke-width="8"
+        :status="progress.ready ? 'success' : ''"
+      />
+    </div>
   </div>
 </template>
 
 <style scoped>
-.jy-restock {
+.jy-panel {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+.jy-panel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.jy-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+.jy-panel-title::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--el-color-primary);
+}
+.jy-panel-hint {
+  font-size: var(--admin-font-size-sm);
+  color: var(--el-text-color-secondary);
+}
+.jy-panel-alert :deep(.el-alert__description) {
+  margin-top: 2px;
+  line-height: 1.5;
+}
+.jy-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.jy-toolbar-label {
+  font-size: var(--admin-font-size-table);
+  color: var(--el-text-color-regular);
+}
+.jy-floor-input {
+  width: 120px;
+}
+.jy-toolbar-hint {
+  font-size: var(--admin-font-size-sm);
+  color: var(--el-text-color-secondary);
+}
+/* 单元格内控件填满列宽，避免「列很宽、控件缩在左边」 */
+.jy-cell-input {
+  width: 100%;
+}
+.jy-skipped {
   margin-top: 8px;
+}
+.jy-empty-hint {
+  padding: 10px 12px;
+  border: 1px dashed var(--el-border-color);
+  border-radius: 8px;
+  font-size: var(--admin-font-size-sm);
+  line-height: 1.6;
+  color: var(--el-text-color-secondary);
+}
+.jy-submit-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.jy-progress {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--el-fill-color-light);
+}
+.jy-progress-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.jy-progress-label {
+  font-size: var(--admin-font-size-table);
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+.jy-progress-meta {
+  font-size: var(--admin-font-size-sm);
+  color: var(--el-text-color-secondary);
+}
+.jy-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
 }
 </style>

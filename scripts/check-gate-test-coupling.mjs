@@ -29,6 +29,19 @@ const REGISTRY_PATH = join('scripts', 'gate-fixture-registry.json');
 const GATE_RE = /(^|\/)check-[A-Za-z0-9_.-]+\.mjs$/;
 
 /**
+ * 自检夹具识别（与 MA-282 元判据同口径）：剥 JS 注释后同时出现 `selfTest(` 与自检开关。
+ * 开关**两种拼法都认**：本仓历史上 5 个门禁写成 `--selftest`（无连字符，
+ * admin-artifact-pairing / door-cabinet-slot-copy / mp-emoji-icon / mp-touch-target-ratchet /
+ * stocktake-chain），只认 `--self-test` 会把「夹具与判据同文件共存」误判成「无夹具」，
+ * 逼人给已有夹具的门禁再补一个 sibling test（VERIFY-EXT2 §P1-2 实测）。
+ * @param {string} src 门禁源码
+ */
+export function isSelfTestGateSource(src) {
+  const stripped = src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+  return /\bselfTest\s*\(/.test(stripped) && /--self-?test/.test(stripped);
+}
+
+/**
  * 纯判定：改动文件集里「改了判据的门禁」是否都有同批夹具改动。
  *
  * 两类不算违规（opts）：
@@ -126,14 +139,10 @@ async function main() {
     return;
   }
 
-  // selfTest 识别与 wiring 规则 6 同款：剥注释后同时出现 selfTest( 与 --self-test
-  const stripJsComments = (src) =>
-    src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+  // selfTest 识别与 wiring 规则 6 同款：剥注释后同时出现 selfTest( 与自检开关（两种拼法）
   const selfTestGate = (base) => {
     const p = join(ROOT, 'scripts', base);
-    if (!existsSync(p)) return false;
-    const src = stripJsComments(readFileSync(p, 'utf8'));
-    return /\bselfTest\s*\(/.test(src) && src.includes('--self-test');
+    return existsSync(p) && isSelfTestGateSource(readFileSync(p, 'utf8'));
   };
   const debt = {};
   for (const e of registry.couplingDebt || []) debt[e.gate] = e.why;
