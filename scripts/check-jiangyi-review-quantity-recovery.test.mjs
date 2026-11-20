@@ -5,7 +5,11 @@
  */
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { VIEW_FILE, reviewLoaderBody, viewProblems } from './check-jiangyi-review-quantity-recovery.mjs';
+import {
+  VIEW_FILE,
+  reviewLoaderBody,
+  viewProblems
+} from './check-jiangyi-review-quantity-recovery.mjs';
 
 const TAG = '[check-jiangyi-review-quantity-recovery.test]';
 let checks = 0;
@@ -62,7 +66,10 @@ assert(
 );
 
 // ⑤ 函数重命名 → 锚点漂移必须判红，不能静默通过
-const renamed = view.replace('async function loadReviewPlan()', 'async function loadReviewPlanV2()');
+const renamed = view.replace(
+  'async function loadReviewPlan()',
+  'async function loadReviewPlanV2()'
+);
 assert(renamed !== view, '注入锚点函数名找不到');
 assert(
   viewProblems(renamed).some((p) => p.includes('函数体定位失败')),
@@ -70,6 +77,4 @@ assert(
 );
 
 assert(md5(VIEW_FILE) === before, '真树被写入污染');
-console.log(
-  `${TAG} OK：${checks} 项断言全过（真树绿 / 五种注入红 / md5 零污染）`
-);
+console.log(`${TAG} OK：${checks} 项断言全过（真树绿 / 五种注入红 / md5 零污染）`);
