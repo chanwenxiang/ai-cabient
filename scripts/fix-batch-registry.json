@@ -2392,6 +2392,27 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "9efd3f08",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-380",
+          "files": [
+            "clients/admin-vue/src/views/skus/SkuJiangyiLinkDialog.vue",
+            "docs/module-audit/ISSUES.md",
+            "packages/shared-types/src/generated/openapi.ts",
+            "services/trade-service/src/main/java/com/aicabinet/trade/client/JiangyiGatherClient.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/dto/JiangyiGatherDtos.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiMappingAutoBindService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SkuJiangyiLinkService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/JiangyiMappingAutoBindServiceTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SkuJiangyiLinkServiceTest.java"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
