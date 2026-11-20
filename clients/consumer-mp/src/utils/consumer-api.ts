@@ -810,12 +810,6 @@ export const consumerApi = {
         import('@aicabinet/shared-types').BalanceTransactionDto
       >
     >(ConsumerEndpoints.accountTransactions(page, size)),
-  verifyIdentity: (body: import('@aicabinet/shared-types').VerifyIdentityRequest) =>
-    request<import('@aicabinet/shared-types').AccountDto>(
-      ConsumerEndpoints.accountVerify,
-      'POST',
-      body
-    ),
   signPayScore: () =>
     request<import('@aicabinet/shared-types').PayContractDto>(
       ConsumerEndpoints.payscoreSign,

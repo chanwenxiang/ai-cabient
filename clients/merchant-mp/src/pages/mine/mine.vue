@@ -213,6 +213,15 @@
     </view>
 
     <view class="menu-list">
+      <!-- 2026-11-20：实名采集归位商户端；购物不需要实名，消费者端不再出现该入口。 -->
+      <view role="button" class="menu-cell" aria-label="实名认证" @click="goRealname">
+        <image class="menu-icon" :src="menuIcon('member')" mode="aspectFit" />
+        <view class="menu-text">
+          <text class="menu-title">实名认证</text>
+          <text class="menu-desc">提现打款合规校验，仅合作方需要</text>
+        </view>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
+      </view>
       <view role="button" class="menu-cell" @click="goPasswordChange">
         <image class="menu-icon" :src="menuIcon('member')" mode="aspectFit" />
         <view class="menu-text">
@@ -410,6 +419,11 @@ const orgSwitchDesc = computed(() =>
 
 function goPasswordChange() {
   uni.navigateTo({ url: '/pages/password-change/password-change' });
+}
+
+/** 提现打款合规实名（与消费者购物无关，2026-11-20 从消费者端迁回）。 */
+function goRealname() {
+  uni.navigateTo({ url: '/pages/realname/realname' });
 }
 
 function onAbout() {

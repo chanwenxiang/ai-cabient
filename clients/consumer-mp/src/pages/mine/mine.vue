@@ -15,18 +15,7 @@
         <text class="hello">{{ authed ? displayName : '未登录' }}</text>
         <text class="hello-sub">{{ profileSub }}</text>
         <view v-if="authed" class="tags">
-          <!--
-            2026-10-20：实名恢复自助入口（独立页 pages/realname/realname）。
-            实名唯一用途=提现打款合规（V326 已把实名从开门流程摘除）⇒
-            未实名时标签可点直达；已实名纯展示不可点。
-          -->
-          <text
-            class="tag"
-            :class="verified ? 'ok' : 'warn'"
-            :role="verified ? undefined : 'button'"
-            @click="!verified && goRealname()"
-            >{{ verified ? '已实名' : '待实名 >' }}</text
-          >
+          <!-- 2026-11-20：实名采集已归位商户端；消费者购物无需实名，「待实名」标签一并撤除。 -->
           <text class="tag" :class="payReady ? 'ok' : 'warn'">{{
             payReady ? '可开门' : '待开通支付'
           }}</text>
@@ -397,14 +386,11 @@ const preauthCents = computed(() =>
   resolveClientPreauthCents({ configPreauthCents: configPreauthCents.value })
 );
 const frozenYuan = computed(() => fmtMoney(Math.max(0, account.value?.frozenCents || 0)));
-const verified = computed(() => !!account.value?.verified);
 const payReady = computed(() => isPayReady(account.value, null, preauthCents.value));
 /**
- * 🔴 2026-10-20：needsSetup 去掉 !verified 条件。
- * 成因：V326（CB-014）后实名**不是开门前提**（开门只看免密就绪），
- * 但旧条件让「已开通免密、未实名」的用户看到「完成开门准备」横幅 +
- * 「完成实名并开通免密支付后即可开门」文案——把人误导去实名，
- * 实际上他们已经可以开门。实名入口由「待实名 >」标签承担。
+ * 🔴 2026-11-20：消费者端实名入口整体撤除（实名采集归位商户端）。
+ * 2026-10-20 已去掉 !verified 条件；这次连标签也删掉——普通顾客不该看到「待实名」，
+ * 开门只看免密/余额（V326/CB-014），没有任何消费者侧步骤依赖 user.verified。
  */
 const needsSetup = computed(() => !payReady.value);
 const displayName = computed(
@@ -460,15 +446,9 @@ function onProfileTap() {
 }
 /** G9：是否已有生效的免密代扣（任一渠道）——决定是否显示「关闭免密支付」。 */
 const passwordFreeReady = computed(() => !!account.value?.passwordFreeReady);
-// 🔴 2026-10-20：删掉 !verified 分支的「完成实名并开通免密支付后即可开门」——
-// V326 后开门不看实名，该文案误导用户去实名。横幅只在 !payReady 时出现
-//（needsSetup 已同步收窄），提示语统一走 payReadyHint。
+// 🔴 2026-11-20：实名入口归位商户端，消费者端只保留支付开通提示。
+// 横幅只在 !payReady 时出现（needsSetup 已同步收窄），提示语统一走 payReadyHint。
 const setupHint = computed(() => payReadyHint(account.value, null, preauthCents.value));
-
-/** 待实名标签 → 独立实名页（提现打款合规用途，与开门无关）。 */
-function goRealname() {
-  uni.navigateTo({ url: '/pages/realname/realname' });
-}
 
 /**
  * G9：用户主动解约（关闭免密代扣）。

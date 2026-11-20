@@ -123,7 +123,7 @@ class WithdrawEligibilityServiceTest {
     }
 
     @Test
-    @DisplayName("🔴 提示语必须给出**能去的地方**（原实现只说「去『我的』」，那是C 端页面，商户管理员未必有）")
+    @DisplayName("🔴 提示语指路商户端实名入口 + 保留换账号通道，不再把人指去消费者小程序")
     void unverifiedMessage_pointsSomewhereReachable() {
         when(merchantRepository.findById("MCH-A")).thenReturn(Optional.of(qualifiedMerchant()));
         when(userInfoRepository.findById(1001L)).thenReturn(Optional.of(user(false)));
@@ -133,6 +133,10 @@ class WithdrawEligibilityServiceTest {
         // 必须提到「换账号」这条路 —— 否则商户管理员只能反复点同一句错。
         assertTrue(e.getReason().contains("账号"),
                 "应提示可改用已实名账号发起：" + e.getReason());
+        assertTrue(e.getReason().contains("商户小程序"),
+                "应把申请人指引到商户端实名入口：" + e.getReason());
+        assertTrue(!e.getReason().contains("消费者小程序"),
+                "不应再把提现申请人指引到与购物无关的消费者端：" + e.getReason());
     }
 
     @Test

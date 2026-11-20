@@ -41,6 +41,14 @@
         "navigationStyle": "custom",
         "backgroundColor": "#ededed"
       }
+    },
+    {
+      "path": "pages/realname/realname",
+      "style": {
+        "navigationBarTitleText": "实名认证",
+        "navigationStyle": "custom",
+        "backgroundColor": "#ededed"
+      }
     }
   ],
   "subPackages": [

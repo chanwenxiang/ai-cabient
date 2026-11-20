@@ -39,9 +39,8 @@ export const AuthEndpoints = {
 export const ConsumerEndpoints = {
   /** 运行时字典 */
   dictsRuntime: `${API_PREFIX}/dicts/runtime`,
-  /** 账户 / 充值 */
+  /** 账户 / 充值（实名采集 2026-11-20 归位商户端，C 端不再调用 /account/verify） */
   account: `${API_PREFIX}/account`,
-  accountVerify: `${API_PREFIX}/account/verify`,
   accountNickname: `${API_PREFIX}/account/nickname`,
   accountTransactions: (page: number, size: number) =>
     `${API_PREFIX}/account/transactions?page=${page}&size=${size}`,

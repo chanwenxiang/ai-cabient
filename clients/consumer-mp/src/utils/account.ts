@@ -131,7 +131,7 @@ export function payReadyHint(
 ): string {
   if (!acc) return '请先登录';
   // 🔴 2026-10-20：删除旧版「未实名 ⇒ 需先完成实名认证」分支——V326（CB-014）后
-  // 实名不是开门/开通前提（提现合规实名走「我的→待实名」独立入口），
+  // 实名不是开门/开通前提（提现合规实名 2026-11-20 归位商户端「我的→实名认证」），
   // 旧分支会把免密未就绪的未实名用户误导去实名。
   const needYuan = preauthYuanLabel(preauthCents);
   const channel = normalizeEntryChannel(entryChannel);

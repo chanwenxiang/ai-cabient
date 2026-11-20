@@ -686,6 +686,23 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-20（将邑复核闸口：设备自报 classes 地址落库，运营不再手抄）
+
+- **现场**：模拟生产 `EG858564255060` 的 `getModelFileByApi` 返回空数组（柜上跑出厂预置模型，厂商没挂到我方商户租户），而「识别映射 → 复核（结算闸口）」的表单要求填 classes 地址。设备开机回执 `receiveCurrentTxtUrl` 一直在报这个地址，但服务端**只打日志不落库** ⇒ 运营既无候选也无从得知，闸口事实上走不通（不是点错）。
+- **落地**：V498 给 `jiangyi_device` 加 `current_txt_url`（可空、metadata-only，不参与结算判据）；`confirmModelByTxtUrl` **先无条件落库**（命中不到 SENT 也写——出厂预置模型永远命中不到），写入前经 `absoluteTxtUrl` 把设备相对路径 `model/xxx.txt` 拼成绝对地址（base 走 `aicabinet.jiangyi.model-sync.txt-base-url`，默认 `jianyidev` 桶）；落库失败只 warn，不阻断 SENT→CONFIRMED 闭环。
+- **透出**：`JiangyiDeviceDto.currentTxtUrl` → 绑定视图 → `VisionMappingView` 进页用 `bound.currentTxtUrl` 兜底填「classes 地址」；判据带「输入框为空」，不覆盖运营手填，换柜清空（模型名/地址都是逐柜事实）。
+- **配置**：生产 `AICABINET_JIANGYI_MODEL_SYNC_ALLOWED_HOSTS` 追加 `https://jianyidev.oss-cn-chengdu.aliyuncs.com` —— classes 在厂商 OSS 桶，SSRF 白名单只有 `hunanjysmart.com` 时复核必 400。
+- **门禁**：新增 `check-jiangyi-txt-url-default`（迁移列/实体/DTO/映射/前端兜底 + 绝对地址包装，6 种注入红、23 断言），已接 `check:audit-gates`；同轮补回漏接的 `check:dispute-vendor-tail`（上一轮只写了脚本没进链）。
+- **验证**：`JiangyiModelSyncServiceTest` 40/40（+3，含「落库失败不破坏确认」）；admin `vue-tsc` 绿；V498 由容器启动时 Flyway 应用（已应用版本禁重写，沿用铁律 50）。
+
+### 2026-11-20（实名采集入口归位商户端；消费者端证件表单清零）
+- **用户提问**：消费者小程序为何出现「实名认证」（文案写的是商户/线长打款合规）？结论：**购物确实不需要**，但原先唯一的自助采集页挂在 C 端，普通顾客也被显示「待实名」标签，属入口错置而非业务规则错误。
+- **落地**：`merchant-mp` 新增 `pages/realname/realname` +「我的 → 实名认证」入口，商户/线长钱包显示实名状态与「去实名」；复用 `POST /api/v2/account/verify`（同一 `user_info.userId`），不新增后端端点、不存证件号。消费者端删除 `pages/realname`、移除「待实名」标签与 `consumerApi.verifyIdentity` 封装。
+- **文案**：提现 403 从「去消费者小程序『我的』」改为「商户小程序「我的 → 实名认证」」，保留「换已实名账号」通道；钱包两处 tip 同步；商户隐私政策补姓名/证件号仅发权威库核验、平台只留结论。
+- **钉测**：`WithdrawEligibilityServiceTest` 断言提示含「商户小程序」且**不含**「消费者小程序」；竞品台账新增 CB-087（微信支付分官方 2.1/2.3 + 友宝 + 美智微，≥2 家开门柜同行）。
+- **不变**：开门准入仍只看免密/余额（V326/CB-014）；`user.verified` 仍是提现资质位；运营侧身份核验（LineManagerView / UserListView）保留作人工兜底。
+- **同日消费者订单页缺陷（真机截图）**：「需要关注」卡把将邑排障尾巴 `｜设备原文：classesVersion=…` 显示给顾客。根因是 `DisputeConsumerCopy.reviewCopy` 直接拿带尾巴的 `reason` 生成 `consumerReviewDetail`，而 C 端 `dispute-copy.ts` 的 `stripVendorTail` 只覆盖 fallback 分支。修复：后端生成侧剥 + 前端派生字段再剥（完整 reason 仍留 `DisputeTicketDto.reason` 供详情/后台）；新增跨语言门禁 `check-dispute-vendor-tail`（12 项断言，三注入红 + md5 零污染）；踩坑总册 #438。
+
 ### 2026-11-17（支付渠道：严格入口 + 删除用户支付偏好）
 
 - **口径（用户拍板）**：① 扫哪个渠道就用哪个渠道的免密 —— 微信入口只认支付分、支付宝入口只认免密协议，渠道不可用一律**余额兜底，不跨渠道回落**；② 删除「用户支付偏好」（设置项无意义，且会与真实入口打架）。

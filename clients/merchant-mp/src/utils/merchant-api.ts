@@ -530,6 +530,14 @@ export async function downloadDisputeEvidence(img: {
 
 export const merchantApi = {
   me: () => request<import('@aicabinet/shared-types').MerchantMe>(MerchantEndpoints.me),
+  /** 提现实名状态（同一 user 账号；运营号段会返回业务错误，调用方需软失败） */
+  account: () => request<import('@aicabinet/shared-types').AccountDto>(MerchantEndpoints.account),
+  verifyIdentity: (body: import('@aicabinet/shared-types').VerifyIdentityRequest) =>
+    request<import('@aicabinet/shared-types').AccountDto>(
+      MerchantEndpoints.accountVerify,
+      'POST',
+      body
+    ),
   stats: () =>
     request<import('@aicabinet/shared-types').OpenApiMerchantDashboardStatsDto>(
       MerchantEndpoints.stats

@@ -61,6 +61,7 @@
 
 consumer-mp：主页 `index/orders/mine/login/verify/realname/result` + 分包 `order-detail, dispute, recharge, balance, marketing, member, points(2), coupons, messages, announcements(2), help, policy, report, feedback`。
 merchant-mp：主页 `login/home/devices/alerts/mine` + 分包 `device-detail, pricing, replenishment, ops-config, self-replenish, warehouse-stocktake, device-stocktake, tally-records, password-change, purchase, business, tax, cabinet-reports, notify, settlements, bills, disputes, orders, order-detail, video, messages, announcements(2), team, splits, wallet, line-wallet, policy, prep-generate, prep-list（备货单，10-31 新增 ⇒ 35 页）`。
+> 2026-11-20 页面归属变更（CB-087）：`realname` 从 consumer-mp 移到 merchant-mp 主页；快照口径变为 consumer 22 页 / merchant 36 页。实名只服务合作方提现，消费者购物不收证件号。
 方法：以小程序页面为审计主体（按钮/交互/样式/文案），每个写面动作到后台点验数据落点正确；R1–R8 已覆盖的后台读面只抽查不重测。
 
 ## R10 三端横切

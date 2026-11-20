@@ -3,18 +3,18 @@
     <app-nav-bar title="隐私政策" home-url="/pages/home/home" />
     <view class="page-body">
       <view class="card">
-        <text class="updated">更新日期：2026-09-13 · 商户端</text>
+        <text class="updated">更新日期：2026-11-20 · 商户端</text>
         <text class="p"
           >本政策说明智能柜商户端（含 H5 /
           小程序）如何收集与使用账号、设备运营与结算相关信息，用于经营工具、补货协作与客服支持。</text
         >
         <text class="h">我们收集的信息</text>
         <text class="p"
-          >登录手机号与身份凭证、设备与库存操作记录、提现与结算相关信息，以及为保障安全所必需的日志。</text
+          >登录手机号与身份凭证、设备与库存操作记录、提现与结算相关信息，以及为保障安全所必需的日志。发起提现的合作方（商户/线长）如需实名，还需提供本人姓名与身份证号。</text
         >
         <text class="h">使用目的</text>
         <text class="p"
-          >提供商户经营功能、排查异常、履行合同与合规义务；未经同意不向无关第三方出售个人信息。</text
+          >提供商户经营功能、排查异常、履行合同与合规义务；姓名与证件号仅提交权威库做二要素核验，平台只保留核验结论、不存储证件号。未经同意不向无关第三方出售个人信息。</text
         >
         <text class="h">您的权利</text>
         <text class="p"

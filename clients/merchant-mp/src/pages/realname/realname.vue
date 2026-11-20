@@ -1,12 +1,12 @@
 <template>
   <view class="page-root">
-    <app-nav-bar title="实名认证" />
+    <app-nav-bar title="实名认证" home-url="/pages/mine/mine" />
     <view class="page-body">
       <!--
-        2026-10-20：恢复独立实名页（V326 删掉的是「消费者开门流程里的实名一步」，
-        不是实名能力本身）。实名唯一用途：商户/线长**提现打款合规**
-        （WithdrawEligibilityService 资质门禁）；开门购物不需要实名。
-        入口：「我的」页「待实名」标签。
+        2026-11-20：实名采集入口从消费者小程序归位到商户端。
+        用途只有提现打款合规（WithdrawEligibilityService），与消费者开门购物无关（V326/CB-014）。
+        提交走与 C 端同源的 /api/v2/account/verify，写的是当前登录用户的 user.verified；
+        姓名 + 完整证件号只发权威库二要素核验，本地不落证件号。
       -->
       <view v-if="verified" class="card done-card">
         <text class="done-icon">✓</text>
@@ -17,8 +17,7 @@
       <view v-else class="card">
         <text class="card-title">实名认证</text>
         <text class="card-desc"
-          >实名用于平台向合作方（商户/线长）打款时的合规校验；开门购物无需实名。
-          信息仅用于权威库核验，不用于其它用途。</text
+          >实名用于平台向合作方（商户/线长）打款时的合规校验；购物无需实名。姓名与证件号仅提交权威库核验，平台不存储证件号。</text
         >
         <text class="field-label">姓名</text>
         <input
@@ -47,36 +46,31 @@
 
 <script setup lang="ts">
 import { onLoad } from '@dcloudio/uni-app';
-import { showSuccess } from '@/utils/notify';
 import { ref } from 'vue';
-import type { AccountDto } from '@aicabinet/shared-types';
-import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
+import { showSuccess } from '@/utils/notify';
+import { merchantApi, handleUnauthorized, isMerchantLoggedIn } from '@/utils/merchant-api';
 
-const account = ref<AccountDto | null>(null);
+const verified = ref(false);
 const realName = ref('');
 const idCard = ref('');
 const submitting = ref(false);
 const err = ref('');
 
-const verified = ref(false);
-
 onLoad(async () => {
-  const ok = await ensureConsumerAuth();
-  if (!ok) {
-    uni.navigateTo({
-      url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/realname/realname')
-    });
+  if (!isMerchantLoggedIn()) {
+    handleUnauthorized();
     return;
   }
   try {
-    account.value = await consumerApi.account();
-    verified.value = !!account.value?.verified;
+    // 运营号段（userId >= 1 亿）走此接口会 400：他们不参与商户提现，软失败即可。
+    const account = await merchantApi.account();
+    verified.value = !!account?.verified;
   } catch (e) {
-    err.value = e instanceof Error ? e.message : '加载账户失败';
+    err.value = e instanceof Error ? e.message : '加载实名状态失败';
   }
 });
 
-/** 18 位身份证（末位 X/x）前端先拦一道，省一次注定失败的往返。 */
+/** 18 位身份证（末位 X/x）前端先拦一道，省一次注定失败的计费核验请求。 */
 function idCardFormatOk(v: string) {
   return /^\d{17}[\dXx]$/.test(v.trim());
 }
@@ -96,15 +90,14 @@ async function onSubmit() {
   submitting.value = true;
   err.value = '';
   try {
-    // ⚠️ PII：身份证号只在请求体里，不写日志、不落本地存储。
-    await consumerApi.verifyIdentity({ realName: name, idCard: id });
-    account.value = await consumerApi.account();
-    verified.value = !!account.value?.verified;
+    // PII：证件号只进请求体，不写日志、不落本地存储。
+    const account = await merchantApi.verifyIdentity({ realName: name, idCard: id });
+    verified.value = !!account?.verified;
     if (verified.value) {
       showSuccess('实名完成');
       setTimeout(() => uni.navigateBack({ delta: 1 }), 800);
     } else {
-      // 后端返回 200 但未标记（mock 环境语义：只记姓名不置位）
+      // mock 环境：只记姓名不置位（资金出口不能因为「假通过」失守）。
       err.value = '实名未生效，请稍后重试或联系客服';
     }
   } catch (e) {
@@ -118,19 +111,18 @@ async function onSubmit() {
 <style scoped>
 .page-root {
   min-height: 100%;
-  background: var(--page-bg, #ededed);
-  padding: 0;
+  background: var(--page-bg);
   box-sizing: border-box;
 }
 .page-body {
-  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .card {
-  background: var(--card-bg, #ffffff);
+  background: var(--card-bg);
   border-radius: var(--radius-card);
   padding: 32rpx;
-  margin: 0;
+  border: 1rpx solid var(--card-border);
 }
 .card-title {
   font-size: var(--font-size-xl);
@@ -140,7 +132,7 @@ async function onSubmit() {
 }
 .card-desc {
   font-size: var(--font-size-body);
-  color: var(--text-subtle, #888);
+  color: var(--text-muted);
   margin: 12rpx 0 28rpx;
   display: block;
   line-height: 1.5;
@@ -148,7 +140,7 @@ async function onSubmit() {
 .field-label {
   display: block;
   font-size: var(--font-size-body);
-  color: var(--text-muted, #666);
+  color: var(--text-muted);
   margin-bottom: 12rpx;
   margin-top: 8rpx;
 }
@@ -157,17 +149,17 @@ async function onSubmit() {
   min-height: 88rpx;
   height: 88rpx;
   line-height: 1.4;
-  background: var(--page-bg, #ededed);
-  border: 1rpx solid var(--card-border, #e8eeeb);
-  border-radius: var(--radius-panel);
-  padding: 0 var(--page-gutter, 24rpx);
+  background: var(--page-bg);
+  border: 1rpx solid var(--card-border);
+  border-radius: var(--radius-card);
+  padding: 0 var(--page-gutter);
   margin-bottom: 16rpx;
   font-size: var(--font-size-lg);
   color: var(--color-text-primary);
   box-sizing: border-box;
 }
 .input-placeholder {
-  color: var(--text-subtle, #aaa);
+  color: var(--text-muted);
 }
 .err {
   color: var(--color-danger);
@@ -182,18 +174,18 @@ async function onSubmit() {
 .done-icon {
   font-size: 88rpx;
   display: block;
-  margin-bottom: 16rpx;
+  margin-bottom: 12rpx;
   color: var(--brand);
 }
 .done-title {
-  font-size: var(--font-size-h3);
+  font-size: var(--font-size-xl);
   font-weight: 600;
   color: var(--color-text-primary);
   display: block;
 }
 .done-desc {
   font-size: var(--font-size-body);
-  color: var(--text-subtle, #888);
+  color: var(--text-muted);
   margin-top: 12rpx;
   display: block;
 }

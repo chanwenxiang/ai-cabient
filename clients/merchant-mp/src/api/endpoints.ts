@@ -38,6 +38,12 @@ export const MerchantEndpoints = {
   publicMerchantConfig: `${API_PREFIX}/public/merchant-config`,
   /** 商户 me / 工作台 */
   me: `${API_PREFIX}/merchant/me`,
+  /**
+   * 提现实名：复用与 C 端同源的 /account（按 token 里的 userId 写 user.verified）。
+   * 2026-11-20 入口归位：采集表单移到商户端，消费者购物不再出现实名页。
+   */
+  account: `${API_PREFIX}/account`,
+  accountVerify: `${API_PREFIX}/account/verify`,
   stats: `${API_PREFIX}/merchant/stats`,
   devices: `${API_PREFIX}/merchant/devices`,
   /** 订单（withQuery 拼分页/筛选） */

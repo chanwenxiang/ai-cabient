@@ -52,6 +52,18 @@
             />
           </view>
           <text v-if="maxWithdrawHint" class="withdraw-hint">{{ maxWithdrawHint }}</text>
+          <!-- 2026-11-20：实名采集入口归位商户端。此处只在「有提现面」时显示状态，
+               未实名给可点入口，避免再让用户去消费者小程序填证件号。 -->
+          <view
+            v-if="identityVerified === false"
+            class="identity-row"
+            role="button"
+            aria-label="去完成实名认证"
+            @click="goRealname"
+          >
+            <text class="identity-warn">尚未实名 · 去实名</text>
+          </view>
+          <text v-else-if="identityVerified === true" class="identity-ok">已实名 · 可发起提现</text>
           <!-- 2026-10-20：实名等后端拒绝原因（约 50 字）用 banner 全文展示——
                toast 会被截断成 19 字，商户/线长看不到「去完成实名」的关键指引 -->
           <view v-if="withdrawError" class="banner-err">
@@ -201,7 +213,7 @@ const cfg = computed(() =>
         emptyTitle: '暂无商户钱包',
         emptyHint: '当前账号未绑定开通经营工具的商户，无法查看可提现余额',
         roleTag: '商户 · 可自主提现',
-        tip: '分账入账后可提现；大额需运营审核，到账以银行/微信回执为准。发起提现前需完成实名认证（未实名请在消费者小程序「我的-待实名」完成）。',
+        tip: '分账入账后可提现；大额需运营审核，到账以银行/微信回执为准。发起提现前需完成实名认证（未实名可在本页或「我的 → 实名认证」完成）。',
         withdrawStatusDict: 'merchant_withdraw_status',
         ledgerEmptyHint: '分账入账与提现变动会显示在这里',
         showLedgerTime: true,
@@ -213,7 +225,7 @@ const cfg = computed(() =>
         emptyTitle: '未绑定线长身份',
         emptyHint: '线长钱包仅对已绑定的线长成员开放。商户主体提现请使用「商户钱包」',
         roleTag: '线长 · 可自主提现',
-        tip: '提交后由运营审核；到账以银行/微信回执为准。发起提现前需完成实名认证（未实名请在消费者小程序「我的-待实名」完成）。',
+        tip: '提交后由运营审核；到账以银行/微信回执为准。发起提现前需完成实名认证（未实名可在本页或「我的 → 实名认证」完成）。',
         withdrawStatusDict: 'line_withdraw_status',
         ledgerEmptyHint: '佣金入账与提现变动会显示在这里',
         showLedgerTime: true,
@@ -224,6 +236,8 @@ const cfg = computed(() =>
 const loading = ref(false);
 const submitting = ref(false);
 const loadError = ref('');
+/** null = 未取到（运营号段/网络异常），不展示实名状态，避免把提现页卡住 */
+const identityVerified = ref<boolean | null>(null);
 /** 提现被拒的全文原因（实名未完成等）——banner 展示，toast 会截断 */
 const withdrawError = ref('');
 const amountYuan = ref('');
@@ -345,9 +359,21 @@ async function load() {
   } catch (e) {
     if (seq !== loadSeq) return;
     loadError.value = e instanceof Error ? e.message : '加载失败';
+  }
+  try {
+    // 实名状态独立取：运营号段 400 / 网络失败只隐藏状态，不阻断钱包展示。
+    const account = await merchantApi.account();
+    if (seq === loadSeq) identityVerified.value = !!account?.verified;
+  } catch {
+    if (seq === loadSeq) identityVerified.value = null;
   } finally {
     if (seq === loadSeq) loading.value = false;
   }
+}
+
+/** 商户端自助实名（提现打款合规），与消费者购物无关。 */
+function goRealname() {
+  uni.navigateTo({ url: '/pages/realname/realname' });
 }
 
 // 提现幂等键状态（接口层审计 H1）：跨提交持久——超时重试复用同键，语义见 submitWithdraw 内注释
@@ -550,6 +576,25 @@ defineExpose({ reload: load });
   font-size: var(--font-size-sm);
   color: var(--text-subtle);
   margin: -6rpx 0 12rpx;
+}
+.identity-row {
+  display: flex;
+  align-items: center;
+  min-height: 88rpx;
+  padding: 0 var(--page-gutter);
+  margin-bottom: 12rpx;
+  border: 1rpx solid var(--card-border);
+  border-radius: var(--radius-card);
+}
+.identity-warn {
+  font-size: var(--font-size-body);
+  color: var(--color-warning);
+}
+.identity-ok {
+  display: block;
+  font-size: var(--font-size-sm);
+  color: var(--color-success);
+  margin-bottom: 12rpx;
 }
 .picker {
   margin-bottom: 16rpx;

@@ -66,7 +66,9 @@ const TOUCH_BASELINE_DEFAULT = 0;
 // ——orders.vue .aux-export 假不可验转可验，连带纠正 HomeCartBar/HomeLanding/device-ad-banner 10 条同族误报。
 // 279→278（2026-11-10 傍晚）：HEAD 实测即 278（补货页重排前后均 278，降 1 来自更早已提交改动，非本次）；
 // replenishment 重排本身净效应为 0（删 hero-secondary 容器，clear-pill 仍有显式尺寸，新增 aux-pill 显式 88×88 可验）。
-const TOUCH_UNVERIFIABLE_BASELINE_DEFAULT = 273;
+// 273→270（2026-11-20）：实名入口归位商户端，consumer-mp 删除 pages/realname（2 个 input + 提交按钮族的不可验项）；
+// 新增的 merchant-mp 实名页只用 app-button / 带 min-height 88rpx 的 input，未引入新的不可验项。
+const TOUCH_UNVERIFIABLE_BASELINE_DEFAULT = 270;
 
 /**
  * E-R3-4：基线环境变量收紧。旧写法 `Number(env || 默认)` 有两个洞：
