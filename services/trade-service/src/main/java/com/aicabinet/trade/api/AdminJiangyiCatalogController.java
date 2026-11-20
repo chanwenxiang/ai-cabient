@@ -8,6 +8,7 @@ import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiCategory;
 import com.aicabinet.trade.dto.JiangyiRestockDtos.PhoneCapturePolicy;
 import com.aicabinet.trade.dto.JiangyiRestockDtos.ProductCreateCommand;
 import com.aicabinet.trade.service.AdminAuditService;
+import com.aicabinet.trade.service.JiangyiMappingAutoBindService;
 import com.aicabinet.trade.service.JiangyiPhoneCaptureService;
 import com.aicabinet.trade.service.JiangyiProductStateService;
 import com.aicabinet.trade.service.SkuJiangyiLinkService;
@@ -44,15 +45,18 @@ public class AdminJiangyiCatalogController {
     private final SkuJiangyiLinkService skuJiangyiLinkService;
     private final JiangyiProductStateService productStateService;
     private final JiangyiPhoneCaptureService phoneCaptureService;
+    private final JiangyiMappingAutoBindService mappingAutoBindService;
     private final AdminAuditService auditService;
 
     public AdminJiangyiCatalogController(SkuJiangyiLinkService skuJiangyiLinkService,
                                          JiangyiProductStateService productStateService,
                                          JiangyiPhoneCaptureService phoneCaptureService,
+                                         JiangyiMappingAutoBindService mappingAutoBindService,
                                          AdminAuditService auditService) {
         this.skuJiangyiLinkService = skuJiangyiLinkService;
         this.productStateService = productStateService;
         this.phoneCaptureService = phoneCaptureService;
+        this.mappingAutoBindService = mappingAutoBindService;
         this.auditService = auditService;
     }
 
@@ -98,26 +102,48 @@ public class AdminJiangyiCatalogController {
         return ApiResponse.ok(skuJiangyiLinkService.listPendingGather(name));
     }
 
-    /** 挂接既有将邑商品（唯一冲突 409；条码不一致仅记日志/前端提示，不阻断）。 */
+    /**
+     * 挂接既有将邑商品（唯一冲突 409；条码不一致仅记日志/前端提示，不阻断）。
+     *
+     * <p>挂接成功后顺手把各柜机的「识别编号 → 本 SKU」映射补齐（{@link BindResult#autoBind}）：
+     * 只写 link 而不补映射行时，柜机下发的补货表里没有这个编号 ⇒ 上报 thirdPid=0 ⇒
+     * 运营还得手工去识别映射页逐行挂 SKU。自动挂接全程按识别名对位、不猜，跳过项原样回传。</p>
+     */
     @RequiresPermissions("ops:sku:edit")
     @PutMapping("/skus/{skuId}/jiangyi-link")
-    public ApiResponse<JiangyiSkuJiangyiLink> bind(HttpServletRequest request,
-                                                   @PathVariable("skuId") String skuId,
-                                                   @Valid @RequestBody BindRequest body) {
-        return ApiResponse.ok(skuJiangyiLinkService.bind(operatorId(request), skuId,
-                body.jiangyiProductId(), body.jiangyiName(), body.barCode()));
+    public ApiResponse<BindResult> bind(HttpServletRequest request,
+                                        @PathVariable("skuId") String skuId,
+                                        @Valid @RequestBody BindRequest body) {
+        Long operatorId = operatorId(request);
+        JiangyiSkuJiangyiLink link = skuJiangyiLinkService.bind(operatorId, skuId,
+                body.jiangyiProductId(), body.jiangyiName(), body.barCode());
+        JiangyiMappingAutoBindService.Result autoBind = mappingAutoBindService.autoBind(
+                operatorId, skuId, String.valueOf(body.jiangyiProductId()),
+                mappingAutoBindService.linkTextName(String.valueOf(body.jiangyiProductId())));
+        return ApiResponse.ok(new BindResult(link, autoBind));
     }
+
+    /** 挂接结果：link 供「当前挂接」区回显，autoBind 说明各柜机映射是否已自动补齐。 */
+    public record BindResult(JiangyiSkuJiangyiLink link,
+                             JiangyiMappingAutoBindService.Result autoBind) {}
 
     /** 我方商品新增到将邑商品库（§4.1.5；成功才落挂接，无半挂态）。 */
     @RequiresPermissions("ops:sku:edit")
     @PostMapping("/skus/{skuId}/jiangyi-link/create")
-    public ApiResponse<JiangyiSkuJiangyiLink> create(HttpServletRequest request,
-                                                     @PathVariable("skuId") String skuId,
-                                                     @Valid @RequestBody CreateRequest body) {
-        return ApiResponse.ok(skuJiangyiLinkService.createInJiangyi(operatorId(request), skuId,
+    public ApiResponse<BindResult> create(HttpServletRequest request,
+                                          @PathVariable("skuId") String skuId,
+                                          @Valid @RequestBody CreateRequest body) {
+        Long operatorId = operatorId(request);
+        JiangyiSkuJiangyiLink link = skuJiangyiLinkService.createInJiangyi(operatorId, skuId,
                 new SkuJiangyiLinkService.ProductCreateSpec(
                         body.name(), body.specs(), body.catId(), body.brandName(), body.purchasePrice(),
-                        body.salePrice(), body.mainImg(), body.color(), body.category(), body.barCode())));
+                        body.salePrice(), body.mainImg(), body.color(), body.category(), body.barCode()));
+        // 新建的商品通常还没采集成档，这一步多半返回「还没有识别名」——照样试一次：
+        // 命中标准库（已有 textName）时能立刻挂上，省掉运营再点一次挂接。
+        String productId = link.getJiangyiProductId();
+        JiangyiMappingAutoBindService.Result autoBind = mappingAutoBindService.autoBind(
+                operatorId, skuId, productId, mappingAutoBindService.linkTextName(productId));
+        return ApiResponse.ok(new BindResult(link, autoBind));
     }
 
     /** 学习完成后按条码回填 text_name（classes 预生成的商品归属依据）。 */

@@ -49,6 +49,28 @@ interface StdSkuSearchResult {
   hidden: number;
 }
 
+/** 挂接成功后各柜机映射的自动补齐结果（后端 BindResult.autoBind）。 */
+interface AutoBindNote {
+  deviceId: string;
+  status: 'BOUND' | 'ALREADY' | 'SKIPPED';
+  classId: number | null;
+  reason: string;
+}
+
+interface AutoBindResult {
+  textName: string | null;
+  bound: number;
+  already: number;
+  pendingManual: number;
+  message: string;
+  notes: AutoBindNote[];
+}
+
+interface BindResponse {
+  link?: unknown;
+  autoBind?: AutoBindResult;
+}
+
 /** 将邑待采集条目（§4.3.2）：已新增进将邑、还没采集学习过，商品库搜索搜不到它们 */
 interface PendingGatherView {
   productId: number;
@@ -91,6 +113,24 @@ const pendingError = ref('');
 const deletingVendor = ref<number | null>(null);
 /** V1.13 §4.1.7 同步主图中 */
 const syncingImage = ref<number | null>(null);
+
+// 挂接即生效（2026-11-20）：挂接成功后后端会按识别名把各柜机的「识别编号→SKU」映射补齐，
+// 这里回显结果——运营不必再去「识别映射」页逐行挂 SKU，但要能看到哪些柜机没自动挂上。
+const autoBind = ref<AutoBindResult | null>(null);
+
+const autoBindTagMeta: Record<AutoBindNote['status'], { label: string; type: TagType }> = {
+  BOUND: { label: '已挂上', type: 'success' },
+  ALREADY: { label: '原本已生效', type: 'info' },
+  SKIPPED: { label: '需人工处理', type: 'warning' }
+};
+
+/**
+ * 解析挂接响应：新后端回 { link, autoBind }，旧 jar 直接回挂接行（过渡期后端未重建）。
+ * 旧结构没有 autoBind 时清空提示，不误报「已同步」。
+ */
+function applyBindResponse(response: BindResponse | null | undefined) {
+  autoBind.value = response?.autoBind ?? null;
+}
 
 // 挂接前并排核对（我方 SKU vs 将邑商品）；无条码一致时不勾选不允许提交
 const confirmItem = ref<StdSkuView | null>(null);
@@ -201,6 +241,8 @@ function open(row: {
   confirmVisible.value = false;
   confirmedSame.value = false;
   pendingName.value = '';
+  // 上一次挂接的柜机结果不能带到下一个商品
+  autoBind.value = null;
   // 换 SKU 必须整表重置：分类/规格/品牌/价格沿用上一个商品会写错将邑档案
   createForm.value = emptyCreateForm();
   // 主图默认取我方商品图（将邑侧必填；后端也会按 SKU 主图兜底，这里预填可核对/可改）
@@ -318,12 +360,20 @@ async function confirmBind() {
   }
   binding.value = true;
   try {
-    await api.request(AdminEndpoints.skuJiangyiLink(skuId.value), 'PUT', {
-      jiangyiProductId: item.id,
-      jiangyiName: item.name,
-      barCode: item.barCode || undefined
-    });
-    ElMessage.success('已挂接');
+    const response = await api.request<BindResponse>(
+      AdminEndpoints.skuJiangyiLink(skuId.value),
+      'PUT',
+      {
+        jiangyiProductId: item.id,
+        jiangyiName: item.name,
+        barCode: item.barCode || undefined
+      }
+    );
+    applyBindResponse(response);
+    const synced = autoBind.value;
+    ElMessage.success(
+      synced && (synced.bound > 0 || synced.already > 0) ? `已挂接；${synced.message}` : '已挂接'
+    );
     confirmVisible.value = false;
     emit('changed');
     await Promise.all([load(), search()]);
@@ -354,18 +404,23 @@ async function createInJiangyi() {
   }
   creating.value = true;
   try {
-    await api.request(AdminEndpoints.skuJiangyiLinkCreate(skuId.value), 'POST', {
-      name: skuName.value,
-      specs: createForm.value.specs.trim() || '标准',
-      catId: createForm.value.catId,
-      brandName: createForm.value.brandName.trim() || '通用',
-      purchasePrice: createForm.value.purchasePrice.trim() || '0',
-      salePrice: createForm.value.salePrice.trim() || '0',
-      mainImg: createForm.value.mainImg.trim() || '',
-      color: createForm.value.color,
-      category: createForm.value.category,
-      barCode: skuBarcode.value.trim() || undefined
-    });
+    const response = await api.request<BindResponse>(
+      AdminEndpoints.skuJiangyiLinkCreate(skuId.value),
+      'POST',
+      {
+        name: skuName.value,
+        specs: createForm.value.specs.trim() || '标准',
+        catId: createForm.value.catId,
+        brandName: createForm.value.brandName.trim() || '通用',
+        purchasePrice: createForm.value.purchasePrice.trim() || '0',
+        salePrice: createForm.value.salePrice.trim() || '0',
+        mainImg: createForm.value.mainImg.trim() || '',
+        color: createForm.value.color,
+        category: createForm.value.category,
+        barCode: skuBarcode.value.trim() || undefined
+      }
+    );
+    applyBindResponse(response);
     ElMessage.success('已在将邑新建商品并挂接');
     emit('changed'); // R5-A2：该路径同样产生挂接关系，父页状态列必须刷新
     await load();
@@ -472,6 +527,37 @@ defineExpose({ open });
     class="dialog-wide"
   >
     <div v-loading="loading">
+      <div v-if="autoBind" class="jy-auto-bind">
+        <div class="jy-auto-bind-head">
+          <span class="jy-auto-bind-title">柜机识别挂接</span>
+          <span
+            class="jy-auto-bind-summary"
+            :class="{ 'jy-auto-bind-summary--warn': !autoBind.bound }"
+          >
+            {{ autoBind.message }}
+          </span>
+        </div>
+        <div class="jy-auto-bind-hint">
+          按识别名
+          <span class="jy-link-mono">{{ autoBind.textName || '—' }}</span>
+          在各柜机当前模型里对位，对位成功即挂好该编号（结算仍以「识别映射 → 复核」通过为前提）。
+        </div>
+        <div
+          v-for="note in autoBind.notes"
+          :key="`${note.deviceId}-${note.classId ?? 'x'}`"
+          class="jy-auto-bind-row"
+        >
+          <span class="jy-link-mono">{{ note.deviceId }}</span>
+          <el-tag size="small" :type="autoBindTagMeta[note.status].type">
+            {{ autoBindTagMeta[note.status].label }}
+          </el-tag>
+          <span v-if="note.classId !== null" class="jy-auto-bind-class"
+            >识别编号 {{ note.classId }}</span
+          >
+          <span class="jy-auto-bind-reason">{{ note.reason }}</span>
+        </div>
+      </div>
+
       <div class="jy-link-section">
         <div class="jy-link-label">当前挂接</div>
         <div v-if="links.length === 0" class="jy-link-empty">未挂接任何将邑商品</div>
@@ -824,6 +910,51 @@ defineExpose({ open });
 </template>
 
 <style scoped>
+.jy-auto-bind {
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--el-color-success);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  background: var(--el-fill-color-lighter, #fafafa);
+}
+.jy-auto-bind-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.jy-auto-bind-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+.jy-auto-bind-summary {
+  font-size: 12px;
+  color: var(--el-color-success);
+}
+.jy-auto-bind-summary--warn {
+  color: var(--el-color-warning);
+}
+.jy-auto-bind-hint {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  margin-top: 4px;
+  line-height: 1.5;
+}
+.jy-auto-bind-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  margin-top: 6px;
+}
+.jy-auto-bind-class {
+  color: var(--color-text-secondary);
+}
+.jy-auto-bind-reason {
+  color: var(--color-text-tertiary);
+}
 .jy-link-section {
   margin-bottom: 16px;
 }

@@ -11722,11 +11722,22 @@ export interface components {
             jiangyiName?: string;
             barCode?: string;
         };
-        ApiResponseJiangyiSkuJiangyiLink: {
+        ApiResponseBindResult: {
             /** Format: int32 */
             code?: number;
             message?: string;
-            data?: components["schemas"]["JiangyiSkuJiangyiLink"];
+            data?: components["schemas"]["BindResult"];
+        };
+        BindResult: {
+            link?: components["schemas"]["JiangyiSkuJiangyiLink"];
+            autoBind?: components["schemas"]["Result"];
+        };
+        DeviceNote: {
+            deviceId?: string;
+            status?: string;
+            /** Format: int32 */
+            classId?: number;
+            reason?: string;
         };
         JiangyiSkuJiangyiLink: {
             /** Format: int64 */
@@ -11748,6 +11759,17 @@ export interface components {
             createdAt?: string;
             /** Format: date-time */
             updatedAt?: string;
+        };
+        Result: {
+            textName?: string;
+            /** Format: int32 */
+            bound?: number;
+            /** Format: int32 */
+            already?: number;
+            notes?: components["schemas"]["DeviceNote"][];
+            /** Format: int32 */
+            pendingManual?: number;
+            message?: string;
         };
         UpsertSiteContractRequest: {
             siteName: string;
@@ -13879,6 +13901,12 @@ export interface components {
             notes?: string;
             /** Format: date-time */
             createdAt?: string;
+        };
+        ApiResponseJiangyiSkuJiangyiLink: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["JiangyiSkuJiangyiLink"];
         };
         CreateRequest: {
             name: string;
@@ -21000,7 +21028,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ApiResponseJiangyiSkuJiangyiLink"];
+                    "*/*": components["schemas"]["ApiResponseBindResult"];
                 };
             };
         };
@@ -25078,7 +25106,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ApiResponseJiangyiSkuJiangyiLink"];
+                    "*/*": components["schemas"]["ApiResponseBindResult"];
                 };
             };
         };
