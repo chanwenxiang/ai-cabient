@@ -119,6 +119,11 @@ const unread = ref(0);
 const prefs = ref<NotifyPrefDto[]>([]);
 const subscribeEnabled = ref(false);
 const subscribeTemplateId = ref('');
+/** 本机已同意过当前模板的订阅授权。微信没有「查询订阅状态」接口，
+ *  唯一能拿到的权威信号就是 requestSubscribeMessage 的 accept 回执，
+ *  故本地按模板 id 记账；拒绝/未选保持 false，横幅继续可点。 */
+const subscribeAcked = ref(false);
+const SUBSCRIBE_ACK_KEY = 'wechat_subscribe_ack_tmpl';
 const subscribing = ref(false);
 const pendingCount = ref(0);
 const loadError = ref('');
@@ -127,8 +132,11 @@ let isMpWeixin = false;
 // #ifdef MP-WEIXIN
 isMpWeixin = true;
 // #endif
+// 2026-11-20 真机反馈：点了「去开启」并授权成功后横幅仍在。原判据只看后台配置开关和模板 id，
+// 不看用户是否已授权，等于永远提示。加本机回执记账后，授权过的模板不再重复劝开；
+// 换模板 id（后台换订阅模板）自动恢复提示。—— 无产品规格，具体记忆周期属自己的设计判断。
 const showSubscribeBanner = computed(
-  () => isMpWeixin && subscribeEnabled.value && !!subscribeTemplateId.value
+  () => isMpWeixin && subscribeEnabled.value && !!subscribeTemplateId.value && !subscribeAcked.value
 );
 type MsgFilter =
   'all' | 'unread' | 'ORDER' | 'DISPUTE' | 'COUPON' | 'POINTS' | 'RECHARGE' | 'OTHER';
@@ -240,6 +248,7 @@ async function load() {
     prefs.value = prefList;
     subscribeEnabled.value = cfg?.wechatSubscribeEnabled === 'true';
     subscribeTemplateId.value = String(cfg?.wechatSubscribeTemplateId || '');
+    subscribeAcked.value = readSubscribeAck(subscribeTemplateId.value);
     pendingCount.value = Math.max(0, Number(pending?.count || 0));
   } catch (e) {
     if (seq !== loadSeq) return;
@@ -269,6 +278,23 @@ function goPendingOrders() {
   goOrdersTab(true);
 }
 
+function readSubscribeAck(tmplId: string): boolean {
+  if (!tmplId) return false;
+  try {
+    return String(uni.getStorageSync(SUBSCRIBE_ACK_KEY) || '') === tmplId;
+  } catch {
+    return false;
+  }
+}
+
+function markSubscribeAck(tmplId: string): void {
+  try {
+    uni.setStorageSync(SUBSCRIBE_ACK_KEY, tmplId);
+  } catch {
+    /* 存储不可用只影响本次会话，不阻断授权成功提示 */
+  }
+}
+
 function onSubscribe() {
   if (!isMpWeixin) {
     showError('请在微信小程序中开启提醒');
@@ -281,8 +307,13 @@ function onSubscribe() {
     success: (res) => {
       const status = Reflect.get(res as object, subscribeTemplateId.value);
       const accept = status === 'accept';
-      if (accept) showSuccess('已开启，消息将及时送达');
-      else showError('未开启，可在设置中打开');
+      if (accept) {
+        subscribeAcked.value = true;
+        markSubscribeAck(subscribeTemplateId.value);
+        showSuccess('已开启，消息将及时送达');
+      } else {
+        showError('未开启，可在设置中打开');
+      }
     },
     fail: () => {
       showError('当前环境不支持订阅授权');

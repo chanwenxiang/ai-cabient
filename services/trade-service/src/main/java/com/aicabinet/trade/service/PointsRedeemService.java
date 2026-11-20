@@ -56,7 +56,12 @@ public class PointsRedeemService {
         this.auditService = auditService;
     }
 
-    @Transactional(readOnly = true)
+    // 🔴 2026-11-20 生产实炸（追踪号 046be09544ac）：本方法在无会员行时会
+    // orElseGet(createMember)，而 createMember 内 `SELECT … FOR UPDATE` 在只读事务里
+    // 直接 PSQLException「cannot execute SELECT FOR UPDATE in a read-only transaction」，
+    // 积分页两个接口一起 500。与 ConsumerMemberFacade.profile 同构——那里本来就是可写事务。
+    // 保持「按需建档」的既有语义，故这里必须是可写事务，不能标 readOnly。
+    @Transactional
     public MemberPointsSummaryDto summary(Long userId) {
         Member member = memberService.getMemberByUserId(userId)
                 .orElseGet(() -> memberService.createMember(userId));
@@ -84,7 +89,8 @@ public class PointsRedeemService {
         );
     }
 
-    @Transactional(readOnly = true)
+    // 同 summary：缺会员行时会建档并持锁，不能用只读事务（同上追踪号）。
+    @Transactional
     public List<MemberPointsLogDto> pointsLog(Long userId, int limit) {
         Member member = memberService.getMemberByUserId(userId)
                 .orElseGet(() -> memberService.createMember(userId));

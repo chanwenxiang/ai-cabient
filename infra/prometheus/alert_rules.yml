@@ -118,8 +118,11 @@ groups:
           team: ops
           biz: device
         annotations:
-          summary: "设备离线率超过 20%"
-          description: "在线 {{ $value | humanizePercentage }} 离线，请查看设备运维"
+          # $value 是 (总数-在线数)/总数 = **离线率**（阈值 0.2），不是在线率；
+          # 且恢复邮件复用同一 summary/description，文案不能只在「触发」时读得通。
+          # 2026-11-20 实收邮件「在线 100% 离线」即此处把离线率写成在线导致的。
+          summary: "设备离线率过高（阈值 20%）"
+          description: "离线率 {{ $value | humanizePercentage }}，请查看设备运维"
 
       - alert: DeviceAllOffline
         expr: cabinet_devices_count > 0 and cabinet_devices_online == 0

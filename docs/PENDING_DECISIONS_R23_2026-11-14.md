@@ -181,10 +181,10 @@
 - **本轮不修的原因**：把它改成红会挡掉之后每一个 PR；要真绿得在 CI 里编排 EMQX + device-simulator + 识别回传（或在 jiangyi-gateway 加一条「测试专用假识别回调」端点——那是**新增可达面**，按铁律不能为测试便利开）。GitHub Actions 也没有「skipped 且不算失败」的原生语义，warning + exit 0 已是显式降级。
 - **✅ 已拍板 2026-11-17（用户选 A）**：维持现状——争议 UI 由本地 UAT 覆盖，CI 只保证脚本执行且不崩溃；不开 test-profile 假识别回调写面。若后续要 CI 真断言，再按 B 重走拍板。
 
-### ⑱ 备份「异地副本」实为同机 MinIO
-- **现状**：`scripts/backup-postgres.sh` 的 offsite 腿是 `docker exec ai-cabinet-minio-1`（同机不同卷），脚本自身已 warn「单机故障即备份全失」；`BACKUP_REMOTE_CMD` 钩子存在但未配。
-- **本轮不修的原因**：需要外部对象存储/异地主机凭据（用户已拍板过「同机非异地」，见 MEMORY 备份演练条目）；我不会自己新建云资源或写别人的桶。
-- **复审时点/触发条件**：真要上线前配一条 `BACKUP_REMOTE_CMD`（对象存储或第二台机器），并把「点位恢复丢多少数据」写进事故预案（与 MA-318 的 C 档回滚是同一条链）。
+### ⑱ 备份「异地副本」实为同机 MinIO —— ✅ 2026-11-18 已闭环
+- **当时现状**：`scripts/backup-postgres.sh` 的 offsite 腿是 `docker exec ai-cabinet-minio-1`（同机不同卷），脚本自身 warn「单机故障即备份全失」；`BACKUP_REMOTE_CMD` 存在但未配。
+- **结论（已解决，不再是待决项）**：生产已配 `BACKUP_REMOTE_CMD` 走外部 OSS `ai-cabinet-by/backups/aicabinet/*`，RAM 只授该前缀 Put/Get/Delete、子账号 AssumeRole 换 STS 临时凭据、内网 endpoint；本地 1,214,016B = 远端 `Content-Length 1214016`（17:58:12 实测），每日 02:10 cron 双份落地。部署侧 `check-prod-env-secrets` 已改 fail-closed（MA-357/358/359，证据 `docs/module-audit/R23/EVIDENCE-F7-2026-11-18.md` §3）。
+- **保留风险（非本项）**：MinIO 与 PG 仍同机，异地只是**备份副本**，不是故障切换；「点位恢复丢多少数据」的事故预案仍按 MA-318 C 档回滚另案跟踪。
 
 ### ⑲ device-simulator 镜像以 root 运行 + `deploy-prod.sh` 默认 root/公网 IP
 - **现状**：`edge/device-simulator/Dockerfile` 无 `USER`；`deploy-prod.sh:25/26` 的 `PROD_HOST=120.25.246.179` / `PROD_USER=root` 是**可 env 覆盖的默认值**。

@@ -182,9 +182,9 @@
 |---|---|
 | `deploy-prod.sh:135,166` | compose 链补 `-f infra/docker-compose.xxljob.yml`（现在缺，换机重建=38 任务停摆） |
 | 迁移 drift | 部署日先 `flyway-drift-check`；库 474 → 仓 487 的 13 个迁移逐个确认；V494 低峰执行，回滚前先清同号行 |
-| 备份 | `BACKUP_REMOTE_CMD` 落外部 OSS；PITR 需拍板（托管 PG 或 WAL 归档） |
-| ECS 通道 | 22/80 超时先恢复；恢复前不安排上线 |
-| admin 产物 | 发布用「源码 commit == 产物 commit」的 SHA；中间 commit 不切镜像 |
+| 备份 | ✅ 2026-11-18 `BACKUP_REMOTE_CMD` 已落外部 OSS 并实测字节一致（MA-359）；PITR 仍按 MA-318 C 档回滚另案跟踪 |
+| ECS 通道 | ✅ 2026-11-18 SSH 22 正常、HTTP 80 机内/公网均 404（gateway 在监听） |
+| admin 产物 | ✅ 2026-11-18 线上 `static/admin/index.html` 命中 `e61502d5`，源码==产物逐字节一致 |
 
 **配套门禁**：`scripts/check-deploy-compose-chain.mjs`
 - 断言 `deploy-prod.sh` 的 `-f` 集合 = 期望集合（含 xxljob）
@@ -375,7 +375,7 @@ Wave 4（发布前）          F7 部署可复现
 - 失败语义：ValidateCheck 补 `System.exit(1)`；deploy-staging 的 check-env 前移 + 健康超时 exit 1。
 - 共享产物：「未跟踪」与「显式 gitignore」分开判，新增 `check:shared-dist-tracked`，堵住 `tracked.length===0 → continue` 的假绿。
 
-**F7 仍待取证（不是代码能修的）**：目标库 `flyway-drift-check` PASS 证据、`BACKUP_REMOTE_CMD` 落外部 OSS、ECS 22/80 通道恢复、admin 发布 SHA「源码==产物」核对。这三项运维动作按 DoD 第 1/4 条留证，不靠改代码闭环。
+**F7 取证已于 2026-11-18 完成**（结果见下文「F7 取证结果」）：目标库 drift-check PASS、ECS 22/80 通道、admin 发布 SHA、异地备份四项均有证据，**不再列为待取证**。文中其余「仍待」表述以该节为准。
 
 ---
 

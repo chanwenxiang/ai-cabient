@@ -13,7 +13,7 @@
 > 支付宝新号余额 0 且无免密签约 ⇒ **开门直接被 412 拦**（连开门都测不了，不只是不能充值）。
 >
 > 开通前的唯一可用路径：**运营在后台给支付宝测试账号人工调账**
-> （`POST /api/v2/ops/admin/users/{userId}/balance`，body `{deltaCents, idempotencyKey}`，
+> （`POST /api/v2/ops/admin/users/{userId}/balance`，body `{deltaCents, reason, idempotencyKey}`，
 > 记 `ADMIN_ADJUST` 台账）⇒ 除「充值」外全链路可验。结论：支付产品开通前只做白名单内部试用，不对外放量。
 
 ## 一、代码侧已完成（可复核）
@@ -116,15 +116,19 @@ pnpm --filter @aicabinet/consumer-mp build:mp-alipay   # 产物 dist/build/mp-al
 | 校验文件公网可达 | `https://cabinet.easygovm.com/o/<32位hash>.html` → 200 | 已验证（本机实测 200 text/html 32B） |
 | 服务端支付宝登录可用 | `/api/v2/auth/alipay/login` 存在（旧镜像已有，无需重部署） | 已验证 |
 
-> 🔴 **WS 空闲超时 90 秒**（`WebSocketConfig.setMaxSessionIdleTimeout(90_000)`）。柜机必须每 90 秒内有上行流量，
-> 否则被踢下线、开门 503。上电后要盯一次连接时长，若将邑固件心跳间隔 > 90s 需调该值（否则投放后批量掉线）。
+> 🔴 **WS 空闲超时 90 秒**（`WebSocketConfig.setMaxSessionIdleTimeout(90_000)`）：柜机必须每 90 秒内有上行流量，否则被踢下线、开门 503。
+> ✅ **2026-11-20 生产实测通过，不改超时**：09:37:55 最后一条 `jiangyi ws connected`，此后约 35 分钟无人碰柜机，
+> `jiangyi ws online reported deviceId=EG858564255060` 每 60–70 秒一条、**零 disconnected**；Prometheus `cabinet_devices_online=1 / count=1`。
+> 说明固件心跳 < 90s（上报节流 60s），该项从待验转为已验。仅当以后换固件/换柜型时重新盯日志。
 
 ### 步骤
 
 1. 支付宝扫柜门码 → **直接进小程序**（关联规则生效时不经过 `/o/` 服务端），**不停在登录页**。
 2. 首次进入自动建档（`user_info.alipay_user_id` 有值、`phone_number = ali<userId>`），无需填手机号。
 3. **给该账号人工调账**（开通支付产品前的替代充值）：
-   `POST /api/v2/ops/admin/users/{userId}/balance`，body `{"deltaCents": 5000, "idempotencyKey": "<唯一串>"}`
+   `POST /api/v2/ops/admin/users/{userId}/balance`，body
+   `{"deltaCents": 5000, "reason": "真机验收调账", "idempotencyKey": "<唯一串>"}`
+   （🔴 `reason` 是 `AdjustBalanceRequest` 的 `@NotBlank` 必填字段，漏了直接 400；需运营后台登录态/权限 `ops:user:balance`）
    → `user_account.balance_cents` 变 5000，`balance_ledger` 记 `ADMIN_ADJUST`。
    **金额要 ≥ 预授权冻结额**：生产实测 `system_config.checkout.preauth_cents = 2000`（¥20），
    该柜 `device_info.deposit_cents` 未配（NULL）⇒ 按全局 ¥20 冻结，**建议调 ¥50** 留出取货余量

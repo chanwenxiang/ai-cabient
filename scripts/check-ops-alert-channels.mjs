@@ -51,6 +51,11 @@
  *      port 是它的容器端口。否则就是「规则会评估、无人被通知」。
  *   R13 起得来：两个服务都得挂在 `alerting` profile 下（避免本机资源有限时被默认拉起）、
  *      alertmanager 得 `depends_on` 桥、两者挂载的文件路径必须存在。
+ *   R14e 告警文案语义（2026-11-20 实收邮件「在线 100% 离线」）：Prometheus 注解里的
+ *      `$value` 是**该表达式的值**，不是指标名。DeviceOfflineRateHigh 的表达式是
+ *      (总数-在线数)/总数 = 离线率，description 必须写「离线率 {{ $value … }}」；
+ *      summary 也不能写死「超过 X%」——恢复邮件复用同一注解，会读成「恢复：超过 20%」。
+ *      判据脱敏注释后按告警块扫描，避免把解释性注释当文案。
  *
  * 防「恒真 / 恒假」：解析出的渠道数、告警键数、分组数、展示键数、compose 服务数任一项低于下限 ⇒ 红
  * （锚点漂了就是失去判别力，不能假绿）。负向对照（分支逐个真注入漂移 → 必红）见
@@ -160,6 +165,15 @@ function member(name, source) {
   if (start < 0) return null;
   const end = source.indexOf('\n    }', start);
   return end < 0 ? source.slice(start) : source.slice(start, end);
+}
+
+/** 等长注释脱敏（保行号）：判据只认代码，不认注释。
+ *  2026-11-20 负向验证暴露：probeChannels 里循环被改成空集合，但后续注释
+ *  「邮件渠道没有 URL，不在 CHANNELS 里」仍有 CHANNELS 字样 ⇒ R7 假绿。 */
+function maskComments(src) {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/\/\/[^\n]*/g, (m) => m.replace(/[^\n]/g, ' '));
 }
 
 /** 抽出 Python 里某个顶层函数的整块源码（到下一个顶层 def/class 为止）。 */
@@ -313,7 +327,7 @@ if (!probe) {
   problems.push(
     'OpsAlertDispatcher 缺少 probeChannels ⇒ 渠道配错时运营无从自查（HTTP 200 + 业务码）'
   );
-} else if (!/\bCHANNELS\b/.test(probe)) {
+} else if (!/\bCHANNELS\b/.test(maskComments(probe))) {
   problems.push('probeChannels 未遍历 CHANNELS ⇒ 新增渠道不会被试发覆盖');
 }
 
@@ -644,6 +658,45 @@ if (existsSync(GF_ALERTING_DIR)) {
           `Grafana 规则文件 ${rf} 的 title「${m[1]}」与 prometheus/alert_rules.yml 同名 ⇒ 同一条件被两条通道各投递一次（飞书群出现重复告警、阈值还会分叉）`
         );
       }
+    }
+  }
+}
+
+// R14e：告警注解的 $value 语义必须与表达式一致（邮件恢复通知复用同一份注解）。
+// 逐块扫，避免上一条的 description 误配到下一条 alert；先脱敏注释，防止说明文字被当文案。
+const alertBlocks = [];
+let currentBlock = null;
+for (const line of readFileSync(PROM_ALERT_RULES, 'utf8').split(/\r?\n/)) {
+  const m = /^\s*-\s*alert:\s*([A-Za-z0-9_]+)/.exec(line);
+  if (m) {
+    currentBlock = { name: m[1], lines: [] };
+    alertBlocks.push(currentBlock);
+  }
+  if (currentBlock) currentBlock.lines.push(line.replace(/^\s*#.*$/, ''));
+}
+if (
+  !alertBlocks.length ||
+  !alertBlocks.some((b) => b.lines.some((l) => /^\s*annotations:/.test(l)))
+) {
+  fail('alert_rules.yml 解析不到带 annotations 的告警块（R14e 会失去判别力）');
+}
+for (const block of alertBlocks) {
+  const body = block.lines.join('\n');
+  if (/description:.*在线\s*\{\{\s*\$value/.test(body)) {
+    problems.push(
+      `告警 ${block.name} 的 description 把 $value 写成「在线 X%」——$value 是表达式值，语义反了（触发/恢复邮件都会误读）`
+    );
+  }
+  if (block.name === 'DeviceOfflineRateHigh') {
+    if (!/description:.*离线率\s*\{\{\s*\$value\s*\|\s*humanizePercentage\s*\}\}/.test(body)) {
+      problems.push(
+        'DeviceOfflineRateHigh 的 description 必须写「离线率 {{ $value | humanizePercentage }}」（表达式是 (总数-在线数)/总数）'
+      );
+    }
+    if (/summary:.*超过\s*20%/.test(body)) {
+      problems.push(
+        'DeviceOfflineRateHigh 的 summary 不得写死「超过 20%」——恢复邮件复用同一文案，会读成「恢复：超过 20%」'
+      );
     }
   }
 }

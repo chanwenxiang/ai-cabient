@@ -18,13 +18,17 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -237,6 +241,19 @@ class PointsRedeemServiceTest {
     void adminUpsert_missingCouponDef_rejected400() {
         when(couponDefinitionRepository.findById(2L)).thenReturn(Optional.empty());
         assertRedeemRejected("券模板不存在：2", redeemDto("券", 100, 2L, 10, 1, "ACTIVE"));
+    }
+
+    /** 2026-11-20 追踪号 046be09544ac：积分页两个 GET 在无会员行时会建档并 FOR UPDATE，
+     *  只读事务下 PG 直接拒绝。钉住事务属性，防止有人「优化」成 readOnly 再炸一次。 */
+    @Test
+    void lazyMemberCreatingReadsMustNotUseReadOnlyTransaction() throws Exception {
+        Method summary = PointsRedeemService.class.getMethod("summary", Long.class);
+        Method pointsLog = PointsRedeemService.class.getMethod("pointsLog", Long.class, int.class);
+        for (Method m : List.of(summary, pointsLog)) {
+            Transactional tx = m.getAnnotation(Transactional.class);
+            assertNotNull(tx, m.getName() + " 必须显式声明事务");
+            assertFalse(tx.readOnly(), m.getName() + " 缺会员时会 createMember/FOR UPDATE，禁用只读事务");
+        }
     }
 
     @Test

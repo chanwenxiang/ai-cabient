@@ -259,14 +259,26 @@ export default {
   color: var(--brand);
   border: 1rpx solid var(--brand-mist, #a7f3d0);
 }
+/* 2026-11-20 真机反馈「按钮布局有问题」：原来 max-width:58% + flex-wrap:wrap，
+   三个控件被挤成「请关门/刷新状态」一行、「未出账单?」单独掉到第二行且右对齐，
+   看起来像漏排的第三个主按钮。改为不换行、取消宽度上限，并给主/次操作明确层级：
+   请关门=状态 chip、刷新状态=实心按钮、未出账单?=弱化文字链（仍保留 88rpx 热区）。 */
 .live-door-actions {
   display: flex;
   align-items: center;
-  gap: 12rpx;
+  gap: 8rpx;
   flex-shrink: 0;
-  max-width: 58%;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
+}
+.live-door-actions .cart-status-chip {
+  padding: 0 20rpx;
+  height: 88rpx;
+  line-height: 88rpx;
+  font-size: var(--font-size-sm);
+}
+.live-door-actions .cart-help-btn {
+  padding: 0 18rpx;
 }
 .cart-help-btn {
   margin: 0;
@@ -288,6 +300,15 @@ export default {
   background: transparent;
   color: var(--brand, #0d9488);
   border: 1rpx solid var(--brand-mist, #a7f3d0);
+}
+.live-door-actions .cart-help-btn.ghost {
+  padding: 0 10rpx;
+  border: 0;
+  background: transparent;
+  color: var(--brand-deep, #115e59);
+  font-size: var(--font-size-caption);
+  font-weight: 500;
+  text-decoration: underline;
 }
 .cart-help-btn::after {
   border: none;

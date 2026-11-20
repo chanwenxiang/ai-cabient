@@ -47,6 +47,9 @@
      37. webhook 路径改成桥不接受的                   → 「只接受」
      38. policies 的 receiver 悬空                    → 「在 contact-points.yml 里不存在」
      39. 注入与 Prometheus 同名的 Grafana 规则        → 「与 prometheus/alert_rules.yml 同名」
+  R14e 42. description 改回「在线 {{ $value }} 离线」   → 「写成「在线 X%」」（实收邮件形态）
+     43. summary 改回「超过 20%」                     → 「不得写死」（恢复邮件文案）
+     44. 注释里写旧错文案                              → **必须仍绿**（扫描前脱敏注释）
   反向 29. CHANNELS 里把 FEISHU 挪到最后一位          → **必须仍绿**（不绑顺序）
      30. feishuPayload 多写一个无关字段              → **必须仍绿**（不绑整块文本）
      31. receiver URL 用单引号包裹                  → **必须仍绿**（不绑引号）
@@ -121,6 +124,7 @@ GF_ALERTING_DIR = ROOT / "infra" / "monitoring" / "grafana" / "provisioning" / "
 GF_CONTACT_POINTS = GF_ALERTING_DIR / "contact-points.yml"
 GF_POLICIES = GF_ALERTING_DIR / "policies.yml"
 INJECTED_GF_RULES = GF_ALERTING_DIR / "alert-rules.yml"
+PROM_ALERT_RULES = ROOT / "infra" / "prometheus" / "alert_rules.yml"
 
 # 有些用例会**新建**文件（注入一份 Grafana 规则），`originals` 的还原覆盖不到它 ⇒
 # 必须单独删掉，否则会污染后续用例（例如让「不重名」那条反向用例撞上上一例残留）。
@@ -214,6 +218,20 @@ def replace_tokens(path: Path, pairs: list[tuple[bytes, bytes]]):
                 )
             data = data.replace(needle, new.replace(b"\n", eol))
         write(path, data)
+
+    return _mutate
+
+
+def replace_text(path: Path, pairs: list[tuple[str, str]]):
+    """按 UTF-8 文本替换（中文文案用；字节片段里的 \\n 不会误折行尾）。"""
+
+    def _mutate() -> None:
+        data = read(path).decode("utf-8")
+        for old, new in pairs:
+            if old not in data:
+                raise AssertionError(f"{path.name} 里找不到待替换文案 {old!r} —— 门禁锚点已漂移")
+            data = data.replace(old, new)
+        write(path, data.encode("utf-8"))
 
     return _mutate
 
@@ -398,10 +416,12 @@ CASES = [
         "compose 的 alertmanager 从 alerting profile 里摘掉",
         True,
         "会被默认栈拉起",
+        # 2026-11-20 修锚点：11-19 改 SMTP 启动脚本后 alertmanager 多了
+        # entrypoint/multiline command，旧锚点找不到片段 ⇒ 本用例从未跑到（假验证）。
         replace_tokens(FULL_COMPOSE, [(b'    profiles: ["alerting"]\n    restart: unless-stopped\n'
-                                       b'    command:\n      - "--config.file',
+                                       b'    entrypoint: /bin/sh\n',
                                        b'    restart: unless-stopped\n'
-                                       b'    command:\n      - "--config.file')]),
+                                       b'    entrypoint: /bin/sh\n')]),
     ),
     Case(
         "compose 的 alertmanager 不再 depends_on 桥",
@@ -571,6 +591,41 @@ CASES = [
             b"      - uid: extra-1\n        title: GrafanaOnlySomethingNew\n"
         ),
     ),
+    # ---------- R14e 告警文案语义（2026-11-20 实收「在线 100% 离线」） ----------
+    Case(
+        "告警 description 把离线率写成在线率（实收邮件形态）",
+        True,
+        "写成「在线 X%」",
+        replace_text(
+            PROM_ALERT_RULES,
+            [(
+                "离线率 {{ $value | humanizePercentage }}，请查看设备运维",
+                "在线 {{ $value | humanizePercentage }} 离线，请查看设备运维",
+            )],
+        ),
+    ),
+    Case(
+        "告警 summary 写死「超过 20%」（恢复邮件读成「恢复：超过 20%」）",
+        True,
+        "不得写死",
+        replace_text(
+            PROM_ALERT_RULES,
+            [("设备离线率过高（阈值 20%）", "设备离线率超过 20%")],
+        ),
+    ),
+    Case(
+        "注释里出现旧错文案应仍绿（扫描前先脱敏注释）",
+        False,
+        "",
+        replace_text(
+            PROM_ALERT_RULES,
+            [(
+                "          # $value 是 (总数-在线数)/总数",
+                "          # 历史错文案：在线 {{ $value | humanizePercentage }} 离线\n"
+                "          # $value 是 (总数-在线数)/总数",
+            )],
+        ),
+    ),
     Case("全部还原后回绿", False, "", lambda: None),
 ]
 
@@ -587,6 +642,7 @@ TARGETS = [
     PROM_FULL,
     GF_CONTACT_POINTS,
     GF_POLICIES,
+    PROM_ALERT_RULES,
 ]
 
 

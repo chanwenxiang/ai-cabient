@@ -19,7 +19,8 @@
           <text class="spent-unit">累计消费</text>
         </view>
       </view>
-      <view class="progress-block">
+      <!-- 档位未配置时 nextLevelName 也是 null，若照常渲染会谎称「已达最高等级」 -->
+      <view v-if="levelsConfigured" class="progress-block">
         <view class="progress-track">
           <view class="progress-fill" :style="{ width: progressWidth }" />
         </view>
@@ -97,7 +98,7 @@
       </view>
     </view>
 
-    <view class="section">
+    <view v-if="levelsConfigured" class="section">
       <text class="section-title">等级说明</text>
       <view
         v-for="lv in profile?.levels || []"
@@ -142,6 +143,8 @@ const currentLevel = computed(() => {
   const code = profile.value?.levelCode;
   return (profile.value?.levels || []).find((x) => x.levelCode === code) || null;
 });
+/** 后台是否配了档位规则；未配置时「已达最高等级」「等级说明」都是假信息，直接不渲染。 */
+const levelsConfigured = computed(() => (profile.value?.levels || []).length > 0);
 const currentLevelRate = computed(() => currentLevel.value?.pointsRate ?? null);
 
 /** 权益文案由当前档位规则生成（积分倍率 / 会员折扣 / 升级进度），不再写死营销话术。 */
@@ -168,7 +171,7 @@ const benefits = computed(() => {
       title: '消费升级',
       desc: `距${profile.value.nextLevelName}还差约 ${formatYuan(Number(profile.value.spentToNextLevel || 0))} 累计消费`
     });
-  } else {
+  } else if (levelsConfigured.value) {
     rows.push({
       mark: 'hot',
       title: '最高档位',

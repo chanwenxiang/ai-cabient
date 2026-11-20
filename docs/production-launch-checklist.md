@@ -10,8 +10,8 @@
 - 完成至少 1,000 次真实拿取/放回组合测试，分别统计商品、数量和组合订单准确率。
 - 配置真实微信/支付宝支付商户号、证书、回调域名和退款权限。
 - 关闭所有 mock 支付、mock 短信、mock 识别和测试余额入口。
-- 完成生产数据库、Redis、对象存储和消息系统的高可用、备份与恢复演练。（**2026-11-02 部分完成**：PG 做了 pg_dump→临时库恢复演练，179 张表与抽样行数一致、恢复 2s；已装 `scripts/backup-postgres.sh` 每日 02:30 cron：本机 7 天 + 流式上传 MinIO `db-backups` 保留 30 天；⚠️ MinIO 与 PG 仍同机，**真异地**需再把桶同步到外部 OSS（待凭据）；Redis/MinIO/EMQX 恢复演练已完成：Redis AOF 快照起临时实例复现探针键、MinIO 备份对象回读 sha256 一致、EMQX 重启后 2 个客户端自动重连；EMQX `--force-recreate` 已演练：认证数据在命名卷、重建后 2 个客户端自动重连；⚠️ bootstrap 对已存在用户跳过（改 CSV 密码不生效），轮换须更新 authn DB 或删卷）
-- [ ] **真异地备份（⑱，2026-11-17）**：本机 MinIO 副本不是异地（单机故障同失）。生产须在 `infra/.env.production.example` 的 `BACKUP_REMOTE_CMD` 配好外部 OSS/第二台机器并**演练一次恢复**；未配之前不得把「备份与恢复」勾为完成。
+- 完成生产数据库、Redis、对象存储和消息系统的高可用、备份与恢复演练。（**2026-11-02 部分完成**：PG 做了 pg_dump→临时库恢复演练，179 张表与抽样行数一致、恢复 2s；已装 `scripts/backup-postgres.sh` 每日 02:30 cron：本机 7 天 + 流式上传 MinIO `db-backups` 保留 30 天；✅ **真异地已于 2026-11-18 闭环**：`BACKUP_REMOTE_CMD` 上传外部 OSS `ai-cabinet-by/backups/aicabinet/*`（STS 临时凭据、内网 endpoint），本地 1,214,016B = 远端 `Content-Length 1214016`，每日 02:10 cron 双份落地（证据 `docs/module-audit/R23/EVIDENCE-F7-2026-11-18.md` §3、MA-359；2026-11-19 同步进 `infra/.env.production` 过部署门禁）。MinIO 与 PG 仍同机，但**不再只有同机副本**；Redis/MinIO/EMQX 恢复演练已完成：Redis AOF 快照起临时实例复现探针键、MinIO 备份对象回读 sha256 一致、EMQX 重启后 2 个客户端自动重连；EMQX `--force-recreate` 已演练：认证数据在命名卷、重建后 2 个客户端自动重连；⚠️ bootstrap 对已存在用户跳过（改 CSV 密码不生效），轮换须更新 authn DB 或删卷）
+- ✅ **真异地备份（⑱，2026-11-17 → 2026-11-18 闭环）**：生产 `BACKUP_REMOTE_CMD` 已指向外部 OSS `ai-cabinet-by/backups/aicabinet/*`（RAM 仅授该前缀 Put/Get/Delete，子账号 AssumeRole 换临时凭据），实测本地与远端字节数一致（1,214,016B），每日 02:10 cron 双份落地；部署侧已 fail-closed（MA-357/358/359、`EVIDENCE-F7-2026-11-18.md` §3）。**仍非高可用**：MinIO 与 PG 同机，异地只是备份副本，不是故障切换。
 - 所有密钥改用密钥管理服务或部署平台 Secret，不得保留仓库默认密钥（**2026-11-02 已加部署期校验**：`scripts/check-prod-env-secrets.sh` 在 `deploy-prod.sh` build 前运行，缺项/仍是 `aicabinet`·`devredis`·`minioadmin`·`dev-*`·`ci-*` 等开发默认值即中止，只输出键名）。
 - 完成资金账本、订单、库存、退款和分账的日终对账。
 - Testcontainers 集成测试必须在 CI 中全部执行，不能保留跳过状态。
@@ -29,7 +29,7 @@
 - 完成消费者、商户和运营后台商用 UI 设计与真机适配。
 - 至少覆盖常见 iPhone、Android、微信版本和弱网环境。
 - 完成用户协议、隐私政策、退款规则、客服入口和消费者账单说明。
-- ✅ 微信小程序管理后台「客服」功能已开通（**2026-10-21 用户确认**）；仍须确认：①已绑定 ≥1 名客服人员（【功能】→【客服】→【客服管理】→ 添加客服微信号，对方微信确认）②已打开「在官方客服工作台收发消息」开关；③未因【开发】→【开发设置】→【消息推送】配置导致客服消息被劫持转发到回调（代码入口 `open-type="contact"` 已就绪，无需改码）。
+- ✅ 微信小程序管理后台「客服」配置已就绪（**2026-10-21 用户确认**）：已绑定 1 名客服人员（客服管理员，luqu***0524）；新版 MP 后台「在官方客服工作台收发消息」开关**仅在配置了【开发】→【开发设置】→【消息推送】服务器地址后才显示**——本项目未配推送，客服消息默认进官方工作台（`mpkf.weixin.qq.com` / 客服小助手），故**无需该开关、也不存在被回调劫持**。代码入口 `open-type="contact"` 已就绪；仅剩真机发一条消息验证可达。
 - 复核生产 `system_config` 客服联系方式（2026-10-21 已处理）：`consumer.service_phone` / `merchant.service_phone` 已设为 `4000182992`（用户确认真实号）；`ops.support_email` 已置空 ⇒ C 端/商户端「复制邮箱」入口自动隐藏，不显示邮箱。
 
 ## P2：正式规模化运营前完成
@@ -69,12 +69,12 @@
 
 代码侧已就绪且闭环打通，无需改码，仅剩运营/配置动作：
 
-- **微信客服后台开通**：`open-type="contact"` 入口已分布 help / order-detail / index / dispute 等页；**2026-10-21 用户确认已开通客服功能**，仍须确认：①绑定客服人员微信号；②打开「在官方客服工作台收发消息」开关。
+- **微信客服后台开通**：`open-type="contact"` 入口已分布 help / order-detail / index / dispute 等页；**2026-10-21 用户确认已开通并绑定 1 名客服人员**（luqu***0524）。「在官方客服工作台收发消息」开关在新版后台只随【消息推送】配置出现，本项目未配推送 ⇒ 消息默认进官方工作台，**无需操作**（已实证，勿再当作待办）。
 - **配置生效链路已实证**（前后端 key 严格匹配，`SystemConfigService.java:597/666/598` → 前端 `help.vue:215/220`、`index.vue:1390`、`order-detail.vue:502`、`dispute/detail.vue:315`）：
   - `consumer.service_phone` / `merchant.service_phone` = `4000182992`（用户确认真实号，已 UPDATE 生产库；代码默认值同步改为 `4000182992`，见 `SystemConfigService.java:597`/`:666`）。
   - `ops.support_email` = 空（**2026-10-21 已置空 ⇒ 邮箱入口不显示**；代码默认值 `SystemConfigService.java:598` 同步改为空串，删 key 也不会兜底假邮箱）。
 - 结构化「意见反馈」走自有 `feedback` 后端（`/api/v2/feedback` + admin `ops:feedback`），不受微信客服 48h/5 条限制，与 `open-type="contact"` 原生客服互补。
-- 验证方式：开发者工具体验版进「我的 → 帮助与客服 → 在线客服」应拉起会话；用绑定客服微信号在「客服小助手」或 `mpkf.weixin.qq.com` 看是否收到测试消息。
+- **唯一剩余验收动作**：开发者工具体验版进「我的 → 帮助与客服 → 在线客服」应拉起会话；用绑定客服微信号在「客服小助手」或 `mpkf.weixin.qq.com` 看是否收到测试消息（后台配置侧已闭环）。
 
 ## 柜门码扫码链路（2026-10-21 定版）
 

@@ -61,9 +61,11 @@ public class ConsumerMemberFacade {
                 member.getMemberId(),
                 member.getUserId(),
                 member.getMemberLevel(),
+                // 等级规则表为空时 current 为 null（生产 2026-11-20 实测 0 行），这里若直接回 memberLevel
+                // 就把编码 "NORMAL" 当名字发给前端 ⇒ 会员中心显示英文「NORMAL」。仍走默认中文名映射。
                 current != null
                         ? MemberService.displayLevelName(current.getLevelCode(), current.getLevelName())
-                        : member.getMemberLevel(),
+                        : MemberService.displayLevelName(member.getMemberLevel(), null),
                 member.getTotalSpent() != null ? member.getTotalSpent() : BigDecimal.ZERO,
                 nz(member.getAvailablePoints()),
                 nz(member.getTotalPoints()),
