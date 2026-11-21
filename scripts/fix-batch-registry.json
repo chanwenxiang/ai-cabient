@@ -2456,6 +2456,23 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "bc48d16e",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-384（挂接逐柜复核态回显+上架提示）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiMappingAutoBindService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/JiangyiMappingAutoBindServiceTest.java",
+            "clients/admin-vue/src/views/skus/SkuJiangyiLinkDialog.vue",
+            "scripts/check-jiangyi-autobind-verified-hint.mjs",
+            "scripts/check-jiangyi-autobind-verified-hint.test.mjs"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
