@@ -1,0 +1,1 @@
+import{j as s}from"./ui-vendor-CDMvUi3D.js";import{e as a,U as c}from"./index-Eh0MOcui.js";function k(){const o=s(),n=a();function t(){return c(n)}function e(){o.replace(t())}function u(){var r;if(((r=window.history.state)==null?void 0:r.back)!=null){o.back();return}e()}return{resolveHome:t,goHome:e,goBack:u}}export{k as u};
