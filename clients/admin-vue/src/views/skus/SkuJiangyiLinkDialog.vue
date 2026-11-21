@@ -57,6 +57,8 @@ interface AutoBindNote {
   status: 'BOUND' | 'ALREADY' | 'SKIPPED';
   classId: number | null;
   reason: string;
+  /** 该柜是否已过 V400 复核。false = 映射行挂上也不能结算，须去识别映射页确认。 */
+  mappingVerified?: boolean;
 }
 
 interface AutoBindResult {
@@ -562,6 +564,10 @@ defineExpose({ open });
         <div v-else class="jy-auto-bind-hint">
           没有识别名可对位，柜机侧这一次一行都没动：挂接关系已保存，但柜机的补货表里仍不会有这个编号。
         </div>
+        <div class="jy-auto-bind-hint">
+          请先确认该 SKU 已上架在售：未上架的商品不会进柜机补货表（设备拿不到编号），但 classId
+          兜底仍可能按 SKU 价结算——运营口径是「先上架，再挂接」。
+        </div>
         <div
           v-for="note in autoBind.notes"
           :key="`${note.deviceId}-${note.classId ?? 'x'}`"
@@ -570,6 +576,16 @@ defineExpose({ open });
           <span class="jy-link-mono">{{ note.deviceId }}</span>
           <el-tag size="small" :type="autoBindTagMeta[note.status].type">
             {{ autoBindTagMeta[note.status].label }}
+          </el-tag>
+          <el-tag
+            v-if="
+              (note.status === 'BOUND' || note.status === 'ALREADY') &&
+              note.mappingVerified === false
+            "
+            size="small"
+            type="danger"
+          >
+            待复核
           </el-tag>
           <span v-if="note.classId !== null" class="jy-auto-bind-class"
             >识别编号 {{ note.classId }}</span

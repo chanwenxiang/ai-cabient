@@ -46,10 +46,11 @@ class JiangyiMappingAutoBindServiceTest {
     @Mock private JiangyiSkuJiangyiLinkMapper linkMapper;
     @Mock private JiangyiGatherClient gatherClient;
     @Mock private AdminAuditService auditService;
+    @Mock private JiangyiMappingReviewService mappingReviewService;
 
     private JiangyiMappingAutoBindService service() {
         return new JiangyiMappingAutoBindService(deviceMapper, mappingMapper, linkMapper,
-                gatherClient, auditService);
+                gatherClient, auditService, mappingReviewService);
     }
 
     private static JiangyiDevice device(String deviceId) {
@@ -331,5 +332,47 @@ class JiangyiMappingAutoBindServiceTest {
         assertTrue(result.message().contains("改挂"));
         assertTrue(result.notes().get(0).reason().contains("不在这台柜的模型里"));
         verify(mappingMapper, never()).upsert(any());
+    }
+
+    /**
+     * 逐柜「待复核」标记（MA-384）：挂上映射行 ≠ 能结算——结算侧还有 V400 复核闸。
+     * 未复核柜即使这一行挂上，明细也必须带 mappingVerified=false 供前端显示「待复核」。
+     * 判据与 JiangyiShelfWriter 同源（isVerified），且不影响任何挂接写入。
+     */
+    @Test
+    void marksUnverifiedDeviceInNote() {
+        when(mappingReviewService.isVerified(DEV_A)).thenReturn(false);
+        when(deviceMapper.listBound()).thenReturn(List.of(device(DEV_A)));
+        when(mappingMapper.listByDevice(DEV_A))
+                .thenReturn(List.of(row(DEV_A, 29, TEXT_NAME, null, "DISABLED")));
+
+        JiangyiMappingAutoBindService.Result result = service().autoBind(7L, SKU_ID, PID, TEXT_NAME);
+
+        assertEquals(1, result.bound());
+        assertEquals(1, result.notes().size());
+        assertEquals(DEV_A, result.notes().get(0).deviceId());
+        assertFalse(result.notes().get(0).mappingVerified());
+        verify(mappingMapper).upsert(any());
+    }
+
+    /** 已复核柜不显示「待复核」；且复核态查询失败按未复核处理（fail-closed 展示）。 */
+    @Test
+    void keepsVerifiedDeviceUnmarkedAndFailsClosedOnLookupError() {
+        when(mappingReviewService.isVerified(DEV_A)).thenReturn(true);
+        when(mappingReviewService.isVerified(DEV_B)).thenThrow(new RuntimeException("db down"));
+        when(deviceMapper.listBound()).thenReturn(List.of(device(DEV_A), device(DEV_B)));
+        when(mappingMapper.listByDevice(DEV_A))
+                .thenReturn(List.of(row(DEV_A, 29, TEXT_NAME, null, "DISABLED")));
+        when(mappingMapper.listByDevice(DEV_B))
+                .thenReturn(List.of(row(DEV_B, 30, TEXT_NAME, null, "DISABLED")));
+
+        JiangyiMappingAutoBindService.Result result = service().autoBind(7L, SKU_ID, PID, TEXT_NAME);
+
+        assertEquals(2, result.bound());
+        var byDevice = result.notes().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        JiangyiMappingAutoBindService.DeviceNote::deviceId, n -> n));
+        assertTrue(byDevice.get(DEV_A).mappingVerified());
+        assertFalse(byDevice.get(DEV_B).mappingVerified());
     }
 }

@@ -825,6 +825,10 @@ docker exec -i <pg> psql -U aicabinet -d aicabinet -tA -c `
   **O4** `DeviceUnknownPathController` 头注释同步 10-22 双前缀显式注册（§3 顶部 ⚠️ 闭环）；
   **O5** 12B.8 退场残留收缩：`JiangyiLearningLibraryService` 由 270 行死代码（view() + 6 record，全仓无调用）收缩为仅剩 `isMappingVerified`（`JiangyiFlowSummaryService` 在用），删除只钉 view() 的 `JiangyiLearningLibraryServiceTest`。
   **未拍板未实施**：挂接弹窗「按厂商商品ID直挂」UI（生产已用 SQL 直挂 100009→664 兜底）。🔴 trade 侧三项需重建 trade-service 镜像，gateway 侧 O4 纯注释（下一版随构建带上，无需单独部署）。
+- **2026-11-21 挂接体验补点（MA-384，用户复核前批流程提出）**：
+  **① 逐柜「待复核」标记**——`autoBind` 注入 `JiangyiMappingReviewService.isVerified`（与 `JiangyiShelfWriter:91` 同源判据），`DeviceNote` 加 `mappingVerified`，前端对 BOUND/ALREADY 且 false 显示红色「待复核」tag。成因：挂上映射行 ≠ 能结算，未复核柜仍被结算侧整单转 DISPUTED，原明细只显示「已挂上」误导运营。**纯展示，不动挂接判定与资金逻辑**。
+  **② 上架提示**——弹窗加「先上架，再挂接」：`floor-goods:116` 跳过非在售 SKU（thirdPid 路断），但 classId 兜底仍能按 SKU 价结算（§既有口径），运营流程约束先上架。
+  **③ 🔴 拒绝**（用户提议「autoRebuild 入口从仅认我方 SENT 扩到用设备自报 currentTxtUrl 首次重算+盖戳」）：`autoRebuild` 现用**我方下发时的 classes 指纹**（`expectedClassesVersion`，`JiangyiInternalController:236`）双重确认——我方知道该跑哪版 + 设备回执确认为那一版；设备自报 URL 只是「设备自称在跑什么」，无第二来源交叉验证，且 `autoRebuild` 结尾无条件 `stampMappingVerified`（`:433`）=解除结算闸。换成自报 = 厂商推什么认什么，拆掉 V400 资金闸（H-27 雪碧 65 类 25 号/69 类 29 号错钱实证）。替代方案：保留人工盖戳，把差异预览做成进页用 `currentTxtUrl` 零点击自动带出，省机械动作不省「人看一眼」。
 
 ## 12. 对账结论（2026-10-29，D-4/D-5 + 接口对账）
 

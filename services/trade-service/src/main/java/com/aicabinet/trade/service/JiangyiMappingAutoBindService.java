@@ -58,21 +58,32 @@ public class JiangyiMappingAutoBindService {
     private final JiangyiSkuJiangyiLinkMapper linkMapper;
     private final JiangyiGatherClient gatherClient;
     private final AdminAuditService auditService;
+    private final JiangyiMappingReviewService mappingReviewService;
 
     public JiangyiMappingAutoBindService(JiangyiDeviceMapper deviceMapper,
                                          JiangyiClassMappingMapper mappingMapper,
                                          JiangyiSkuJiangyiLinkMapper linkMapper,
                                          JiangyiGatherClient gatherClient,
-                                         AdminAuditService auditService) {
+                                         AdminAuditService auditService,
+                                         JiangyiMappingReviewService mappingReviewService) {
         this.deviceMapper = deviceMapper;
         this.mappingMapper = mappingMapper;
         this.linkMapper = linkMapper;
         this.gatherClient = gatherClient;
         this.auditService = auditService;
+        this.mappingReviewService = mappingReviewService;
     }
 
-    /** 单柜结果；{@code status} 见本类 STATUS_* 常量。 */
-    public record DeviceNote(String deviceId, String status, Integer classId, String reason) {}
+    /**
+     * 单柜结果；{@code status} 见本类 STATUS_* 常量。
+     *
+     * <p>{@code mappingVerified} 仅用于<b>展示</b>——挂上映射行 ≠ 能结算，结算侧还有 V400
+     * 复核闸（{@link JiangyiMappingReviewService#isVerified}）。与 {@link JiangyiShelfWriter}
+     * 同一判据：未复核柜就算这一行挂上，识别也会被整单转 DISPUTED。运营在弹窗逐柜明细
+     * 看到「待复核」才知道还要去识别映射页确认一次；挂接判定与资金逻辑一概不受影响。</p>
+     */
+    public record DeviceNote(String deviceId, String status, Integer classId, String reason,
+                             boolean mappingVerified) {}
 
     /**
      * @param textName 本次依据的识别名（null/空 = 该商品在将邑侧还没有识别名，一行都没动）
@@ -115,6 +126,8 @@ public class JiangyiMappingAutoBindService {
         }
 
         final String effectiveTextName = textName;
+        // 逐柜复核态缓存：同一柜在 notes 里只出现一次，但保持一次调用一处取值（与 ShelfWriter 同判据）
+        java.util.Map<String, Boolean> verifiedByDevice = new java.util.HashMap<>();
         List<DeviceNote> notes = new ArrayList<>();
         List<String> missingDeviceIds = new ArrayList<>();
         int bound = 0;
@@ -122,6 +135,16 @@ public class JiangyiMappingAutoBindService {
         int pendingManual = 0;
         for (JiangyiDevice device : deviceMapper.listBound()) {
             String deviceId = device.getDeviceId();
+            // 复核态只读、仅用于展示：查库失败按「未复核」显示，绝不当成通过（与结算侧 fail-closed 一致）
+            boolean mappingVerified;
+            try {
+                mappingVerified = mappingReviewService.isVerified(deviceId);
+            } catch (RuntimeException e) {
+                log.warn("jiangyi auto-bind: mapping status unavailable deviceId={} err={}",
+                        deviceId, e.getMessage());
+                mappingVerified = false;
+            }
+            verifiedByDevice.put(deviceId, mappingVerified);
             List<JiangyiClassMapping> hits = mappingMapper.listByDevice(deviceId).stream()
                     // class_id < 0 是复核重算腾位用的负哨兵（V400）：失效行同样带 SKU，
                     // 不过滤就会被一次挂接重新点亮成旧编号的错映射。
@@ -140,7 +163,8 @@ public class JiangyiMappingAutoBindService {
             if (hits.size() > 1) {
                 pendingManual++;
                 notes.add(new DeviceNote(deviceId, STATUS_SKIPPED, null,
-                        "同一识别名对应 " + hits.size() + " 行映射（冲突），需人工合并"));
+                        "同一识别名对应 " + hits.size() + " 行映射（冲突），需人工合并",
+                        verifiedByDevice.getOrDefault(deviceId, true)));
                 continue;
             }
             JiangyiClassMapping row = hits.get(0);
@@ -148,12 +172,14 @@ public class JiangyiMappingAutoBindService {
             if (currentSku != null && !currentSku.equals(skuId)) {
                 pendingManual++;
                 notes.add(new DeviceNote(deviceId, STATUS_SKIPPED, row.getClassId(),
-                        "该识别名已挂其它 SKU（" + currentSku + "），改收款对象须人工处理"));
+                        "该识别名已挂其它 SKU（" + currentSku + "），改收款对象须人工处理",
+                        verifiedByDevice.getOrDefault(deviceId, true)));
                 continue;
             }
             if (skuId.equals(currentSku) && "ACTIVE".equals(row.getStatus())) {
                 already++;
-                notes.add(new DeviceNote(deviceId, STATUS_ALREADY, row.getClassId(), "原本已生效"));
+                notes.add(new DeviceNote(deviceId, STATUS_ALREADY, row.getClassId(), "原本已生效",
+                        verifiedByDevice.getOrDefault(deviceId, true)));
                 continue;
             }
             // 到这里只剩两种：空行（复核预生成的 DISABLED 行）或同 SKU 的停用行。
@@ -165,7 +191,8 @@ public class JiangyiMappingAutoBindService {
             mappingMapper.upsert(row);
             bound++;
             notes.add(new DeviceNote(deviceId, STATUS_BOUND, row.getClassId(),
-                    wasDisabled ? "原停用，已挂 SKU 并启用" : "已挂 SKU 并启用"));
+                    wasDisabled ? "原停用，已挂 SKU 并启用" : "已挂 SKU 并启用",
+                    verifiedByDevice.getOrDefault(deviceId, true)));
             log.info("jiangyi auto-bind: bound deviceId={} skuId={} classId={} textName={} wasDisabled={}",
                     deviceId, skuId, row.getClassId(), textName, wasDisabled);
         }
@@ -174,7 +201,7 @@ public class JiangyiMappingAutoBindService {
             notes.add(new DeviceNote(missingDeviceIds.get(0), STATUS_SKIPPED, null,
                     "识别名 " + textName + " 不在这台柜的模型里"
                             + (missingDeviceIds.size() > 1 ? "（共 " + missingDeviceIds.size() + " 台同因）" : "")
-                            + "；同款在厂商库若有多条，请改挂识别名落在模型里的那一条"));
+                            + "；同款在厂商库若有多条，请改挂识别名落在模型里的那一条", true));
         }
 
         // 明细按「已生效优先」排，前端直接照序展示
