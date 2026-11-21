@@ -2589,6 +2589,10 @@
     {
       "commit": "40882ae4",
       "why": "e1f7f629 的判据收尾（同日、同一改动）：CI 报 check-window-limit-honesty「Days(1) 命中 2 与登记 1 不符」，本笔只把两个任务各自算的「今天减一天」抽成私有方法 yesterdayOf() 共用，行为不变、条目本体仍是 MA-377；未新增审计条目，无法按「条目→文件 + totalItems」对账，故入白名单带理由"
+    },
+    {
+      "commit": "f45fcb9a",
+      "why": "CI/部署基建修复（镜像 apk 源钉阿里云 + deploy timeout 20→40）：2 个 Dockerfile 与 1 个 workflow 文件，零业务代码、零审计条目，与 1045fa5d / 622ad811 同型。实证：生产服务器到 dl-cdn.alpinelinux.org 实测 13KB/s（阿里云源 4MB/s），缓存冷重建 apk add wget 卡死 19 分钟+ 连续打爆两次 deploy job 20 分钟上限，且被取消构建在服务器残留持锁"
     }
   ]
 }
