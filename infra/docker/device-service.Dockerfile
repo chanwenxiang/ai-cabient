@@ -22,14 +22,18 @@ RUN --mount=type=cache,target=/root/.m2,sharing=locked \
     mvn package -DskipTests -pl services/device-service -am -B
 
 FROM eclipse-temurin:17-jre-alpine
-RUN apk add --no-cache tzdata \
+# apk 源钉国内镜像（2026-11-21）：与 trade-service.Dockerfile 同因——官方 CDN 在生产服务器实测
+# 仅 ~13KB/s，缓存冷重建即卡死；阿里云源实测 4MB/s。
+RUN sed -i 's#dl-cdn.alpinelinux.org#mirrors.aliyun.com#g' /etc/apk/repositories \
+    && apk add --no-cache tzdata \
     && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
     && echo "Asia/Shanghai" > /etc/timezone \
     && apk del tzdata
 ENV TZ=Asia/Shanghai
 WORKDIR /app
 
-RUN apk add --no-cache wget
+RUN sed -i 's#dl-cdn.alpinelinux.org#mirrors.aliyun.com#g' /etc/apk/repositories \
+    && apk add --no-cache wget
 RUN addgroup -S app && adduser -S app -G app \
     && mkdir -p /app/data/mqtt-paho /app/logs \
     && chown -R app:app /app

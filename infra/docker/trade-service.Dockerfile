@@ -38,14 +38,18 @@ RUN --mount=type=cache,target=/root/.m2,sharing=locked \
 # 日志时间戳慢 8 小时、裸 LocalDate.now() 凌晨 0-8 点算错日期（用户要求项目日期统一）。
 # 定时任务 cron 仍显式 zone=Asia/Shanghai（aicabinet.schedule.zone），语义一致。
 FROM eclipse-temurin:17-jre-alpine
-RUN apk add --no-cache tzdata \
+# apk 源钉国内镜像（2026-11-21）：生产服务器到 dl-cdn.alpinelinux.org 实测仅 ~13KB/s，
+# 缓存冷重建时 `apk add` 卡死 50 分钟+，把 20 分钟的 deploy job 超时打爆；阿里云源实测 4MB/s。
+RUN sed -i 's#dl-cdn.alpinelinux.org#mirrors.aliyun.com#g' /etc/apk/repositories \
+    && apk add --no-cache tzdata \
     && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
     && echo "Asia/Shanghai" > /etc/timezone \
     && apk del tzdata
 ENV TZ=Asia/Shanghai
 WORKDIR /app
 
-RUN apk add --no-cache wget \
+RUN sed -i 's#dl-cdn.alpinelinux.org#mirrors.aliyun.com#g' /etc/apk/repositories \
+    && apk add --no-cache wget \
     && addgroup -S app && adduser -S app -G app \
     && mkdir -p /app/logs \
     && chown -R app:app /app
