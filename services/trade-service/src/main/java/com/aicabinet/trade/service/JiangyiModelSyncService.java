@@ -461,10 +461,17 @@ public class JiangyiModelSyncService {
      * 当前模型 txt 地址）：仅当报回 txtUrl 命中本设备某条 SENT 的 classesTextUrl 时，复用
      * {@link #confirmModel} 闭环（SENT→CONFIRMED + 回填 model_name/classes_version）。
      *
-     * <p>命中不到则 no-op 返回 null——<b>不</b>调用 confirmModel 去碰它的「未知模型撤销复核」
+     * <p>命中不到则不确认、不动 deployment——<b>不</b>调用 confirmModel 去碰它的「未知模型撤销复核」
      * 分支：那是 downloadModelNotify 显式「新模型到达」的语义，开机例行回执（厂商直推/恢复
-     * 出厂也会发）不该承担撤销复核的后果。设备报相对路径（{@code model/xxx.txt}），我方存
+     * 出厂也会发）不该承担撤销 deployment 的后果。设备报相对路径（{@code model/xxx.txt}），我方存
      * 全 URL，按带路径边界的后缀匹配（防 {@code othermodel/xxx.txt} 误命中 {@code model/xxx.txt}）。</p>
+     *
+     * <p><b>类表漂移检测（2026-11-21，MA-381）</b>：命中不到 SENT 但该柜已复核时，拉回报回地址的
+     * classes 内容算指纹（sha256 前 12 位）与 {@code mapping_verified_version} 比对——不一致即撤复核戳。
+     * 堵的是 H-27 家族的最后一个静默错钱窗口：厂商直推/恢复出厂换掉柜机模型时，设备跑新类表而
+     * 我方复核戳还指旧版 ⇒ classId 映射按旧行号解析新类目＝「认 B 扣 A」。拉取失败（OSS 抖动/
+     * 白名单拒绝）<b>不撤</b>——撤戳只在指纹<b>确认不符</b>时执行，与「已知缺口如实登记、不提前实现」
+     * 的取证纪律同源；拉取失败时复核态保持原样（在售面不受影响），由 warn 留痕。</p>
      */
     public JiangyiModelDeployment confirmModelByTxtUrl(String deviceId, String txtUrl) {
         if (txtUrl == null || txtUrl.isBlank()) {
@@ -488,8 +495,9 @@ public class JiangyiModelSyncService {
                 .findFirst()
                 .orElse(null);
         if (match == null) {
-            log.info("jiangyi receiveCurrentTxtUrl no matching SENT deviceId={} txtUrl={}（不确认、不撤复核）",
+            log.info("jiangyi receiveCurrentTxtUrl no matching SENT deviceId={} txtUrl={}（不确认；漂移检测见后续日志）",
                     deviceId, reported);
+            revokeVerificationIfModelDrifted(deviceId, reported);
             return null;
         }
         // R3-D-R3-3：确认前重读目标行 —— match 与 confirmModel 内部重查之间若被 watchdog
@@ -502,6 +510,60 @@ public class JiangyiModelSyncService {
             return null;
         }
         return confirmModel(deviceId, match.getModelName());
+    }
+
+    /**
+     * 类表漂移检测（MA-381，2026-11-21）：设备开机自报的 classes 地址命中不到任何 SENT 时，
+     * 若该柜已复核，拉取内容算指纹与 {@code mapping_verified_version} 比对；确认不符即撤复核戳
+     * （fail-closed：在售面返空 + 后续识别整单 MAPPING_UNVERIFIED → DISPUTED 不扣款，而不是
+     * 按旧行号解析新类目）。指纹一致/未复核过/拉取失败均不动复核态。仅告警日志，不抛错——
+     * 本方法跑在开机回执旁路，任何异常都不能阻断开机链。
+     */
+    void revokeVerificationIfModelDrifted(String deviceId, String reportedTxtUrl) {
+        try {
+            JiangyiDevice device = jiangyiDeviceMapper.selectById(deviceId);
+            if (device == null) {
+                return;
+            }
+            String verifiedVersion = device.getMappingVerifiedVersion();
+            if (verifiedVersion == null || verifiedVersion.isBlank()) {
+                // 从未复核过 ⇒ 没有可失效的复核戳；在售面本就被复核闸拦着，无漂移可撤
+                return;
+            }
+            String url = absoluteTxtUrl(modelTxtBaseUrl, reportedTxtUrl);
+            String currentVersion;
+            try {
+                currentVersion = parseClassesForReview(url, 0, 0).classesVersion();
+            } catch (Exception fetchEx) {
+                // 拉取失败 ≠ 漂移确认：OSS 抖动/白名单拒绝/临时网络故障都不构成撤戳依据，
+                // 复核态保持原样（宁可漏撤一次由人工复核兜住，不误撤正在正常营业的柜）。
+                log.warn("jiangyi current model drift check skipped deviceId={} url={} : {}",
+                        deviceId, url, rootMessage(fetchEx));
+                return;
+            }
+            if (verifiedVersion.equals(currentVersion)) {
+                log.info("jiangyi current model fingerprint matches verified version deviceId={} "
+                        + "version={}（柜机类表与复核版本一致，复核戳仍有效）", deviceId, currentVersion);
+                return;
+            }
+            Instant now = Instant.now();
+            int cleared = jiangyiDeviceMapper.clearMappingVerification(deviceId, now);
+            log.warn("jiangyi current model DRIFT deviceId={} reported={} verifiedVersion={} currentVersion={} "
+                            + "→ mapping verification revoked rows={} ——柜机在跑的类表已不是已复核版本"
+                            + "（厂商直推/恢复出厂？），识别映射需重新复核后方可售",
+                    deviceId, reportedTxtUrl, verifiedVersion, currentVersion, cleared);
+        } catch (Exception e) {
+            log.warn("jiangyi current model drift check failed deviceId={} txtUrl={}: {}",
+                    deviceId, reportedTxtUrl, rootMessage(e));
+        }
+    }
+
+    private static String rootMessage(Throwable e) {
+        Throwable t = e;
+        while (t.getCause() != null && t.getCause() != t) {
+            t = t.getCause();
+        }
+        return t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
     }
 
     /** 带路径边界的后缀匹配：相等，或一方以「/另一方」结尾（leading slash 防子串误命中）。 */

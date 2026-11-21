@@ -157,7 +157,7 @@
 | `deviceInfo/selfCheckReport` / `reportDeviceStatus` / `reportCameraRealInfo` / `updateTrouble` / `uploadDeviceDataCardNo` | `:214`/`:222`/`:230`/`:239`/`:247` | ✅ `data:null` 只留原始日志 |
 | `floor/getDeviceSellProductClassIds` | `DeviceExtensionController.java:52` | ✅ 真机在售面（`floor/getFloorByDevice` 真机 0 命中，见下） |
 | `floor/getFloorByDevice` | `:106` | 🟡 按文档 §5.5.2/补货语义实现，**真机从未请求过**。🔴 10-22 两次复核纠正：0 命中**不能**只归因于「没跑补货开门」——`GetReplenishGoodsInfo` 对 XY/YP/NO_NET 直接 `onResult("suc")` 不发 HTTP，只有 NORMAL 才 POST（`project-jiangyi-mname-dictvalue-trap` 记忆），而本表 0 命中与「对接版本非 NORMAL」一致。⚠️ 早班写的「唯一自洽解释是 `M_NAME=YP`」**已降级**：真机那 20 次 `/device/pokerOrder/uploadOrderError` 出自六处「字面自带 `/device` + `URL`」的站点（`uploadErrorOther:1247`、`CameraPreviewNew:7184`、`OrderRknnResultDeal:2999`、`UploadIdentifyResult:57095`、`UploadLocalOrder:759`、`UploadInfo2ServerStock:1316`，六处逐个读了门＝NORMAL 即 `return-void`）⇒ 只证到 **`M_NAME ∉ {NORMAL, NO_NET}`，XY 与 YP 现有证据分不开**（`OkhttpUtils.postRequest*` 只拦 NO_NET、不拦 XY）。另按 H-18 把本表注册成裸/`/device` 双拼写（原判「COMMON_URL 多一段 /device」已作废，见 §11）（判据=字面 `"status":200`） |
-| `deviceInfo/receiveCurrentTxtUrl` | `DeviceInfoController.java:177` | ✅ 回设备仍照抄云侧 `666`（2026-10-19 拍板：勿顺手对齐成 200）。🟢 **2026-11-10 升级为模型确认旁路**：真机实证 806 固件应用模型后**不发** §4.2.5 `downloadModelNotify`，改以本开机回执报回当前模型 txt 地址（`model/xxx.txt`）⇒ 现把 txtUrl 转发 trade `model-confirmed-by-txt`（`JiangyiModelSyncService.confirmModelByTxtUrl`：带路径边界后缀命中本设备某条 SENT 的 classesTextUrl 才 `confirmModel` 闭环 SENT→CONFIRMED；命中不到 no-op，**不**触发「未知模型撤销复核」）。fire-and-forget，确认失败只记 warn 不阻断开机 |
+| `deviceInfo/receiveCurrentTxtUrl` | `DeviceInfoController.java:177` | ✅ 回设备仍照抄云侧 `666`（2026-10-19 拍板：勿顺手对齐成 200）。🟢 **2026-11-10 升级为模型确认旁路**：真机实证 806 固件应用模型后**不发** §4.2.5 `downloadModelNotify`，改以本开机回执报回当前模型 txt 地址（`model/xxx.txt`）⇒ 现把 txtUrl 转发 trade `model-confirmed-by-txt`（`JiangyiModelSyncService.confirmModelByTxtUrl`：带路径边界后缀命中本设备某条 SENT 的 classesTextUrl 才 `confirmModel` 闭环 SENT→CONFIRMED）。fire-and-forget，确认失败只记 warn 不阻断开机。🟢 **2026-11-20 补漂移撤戳（O2）**：命中不到 SENT 时不再纯 no-op——`revokeVerificationIfModelDrifted` 拉取上报 txt 算指纹，与 `mapping_verified_version` 不符 ⇒ `clearMappingVerification` + warn `jiangyi current model DRIFT`（防厂商直推/恢复出厂换模型后设备跑新类表而复核戳仍指旧版的静默错钱）；一致 ⇒ info 留痕；拉取失败不撤只 warn（fail-open 保复核戳，撤戳走显式复核） |
 | `deviceInfo/isAutoUploadVideo` | `DeviceReportController.java:410` | ✅ 回 false（拍板：只传异常单视频） |
 | `deviceInfo/uploadDeviceOpenStatus` / `order/uploadOrderLockStatus` / `operationMode/sync` | `:133` / `:80` / `:391` | ✅ 真机补 |
 | `aliYunOss/getTempToken` | `AliyunOssController.java:47` | ✅ 真机变体 |
@@ -174,7 +174,7 @@
 | `deviceInfo/downloadBaseModelNotify` / `downloadBigModelNotify` / `downloadThirdModelNotify` | `DeviceInfoController.java:125-129`（与 §4.2.5 同一 handler） | ✅ **2026-10-21 落码**（原为 catch-all 404）：固件三档模型回执各一条独立路径（log4 行 24231/30621/17847，body 与 §4.2.5 逐字同形 `{identifier,modelName}`）。三档语义**未向厂商核实⇒不区分处理**，错档回执由 trade `confirmModel` 的 modelName 匹配（不匹配 409）挡住，不会伪造 CONFIRMED。判据待真机：开机一轮 4 条 notify 全 200（§G-3） |
 | `pokerOrder/getChessRoomOpenStatus` | catch-all ⇒ **404** | ❌ 🔴 **2026-10-22 18:0x 按 nginx 逐秒重算，旧记「真机每 20s 一次固定轮询」作废**：真机共 **98** 次 okhttp 命中，形态是**事件触发的 burst**（每组 3–6 条、间隔 1–2s，10-22 散布在 03:43/04:44/06:02/06:26/07:03/07:50/08:07/08:30/09:42 UTC；**09:42:06 那条正落在网关 17:38 重建后设备重连的同一秒**）⇒ 触发点像「连上门/状态变化」而非定时器。🔴 **且这 98 次里 401=70、404=28，同一次 burst 内两种码并存**（如 08:30:55–57 三 401 + 一 404）⇒ 该路径有**两个带不同凭据的调用点**，401 那条带的不是我方签发（或缺失）的 token；**它是全表唯一长期吃 401 的路径**（其他路径的 401 全集中在 10-19 无 token 期）⇒ **即便补了 200 路由，3/4 的调用仍然进不来**。语义/云侧响应**未取证**⇒ 禁止照抄猜值；见 §G-7 |
 
-> ⚠️ `DeviceUnknownPathController` 的类注释仍把 `domainConfig/*` 列为「不接管」，与 `DomainConfigController` 已实装相矛盾（显式映射优先于 catch-all，行为正确、注释陈旧）⇒ 顺手项，不紧急。
+> ~~⚠️ `DeviceUnknownPathController` 的类注释陈旧~~ **已闭环（2026-11-20 O4）**：domainConfig 例外 10-20 起已写对；10-22 双前缀显式注册与「资金前缀刻意失败」的表述矛盾也已同步——注释现列全量已实现面（含四拼写 `uploadErrorOrder`、双前缀 `floor/getFloorByDevice`）并明确「资金前缀保护仅指未显式实现的剩余路径」。
 
 ---
 
@@ -819,6 +819,12 @@ docker exec -i <pg> psql -U aicabinet -d aicabinet -tA -c `
   ⑤ 工作区实跑：`mvn -o -B -pl services/jiangyi-gateway verify` **137 单测 + 22 IT 全绿 BUILD SUCCESS**（DeviceCompatRoutingIT 9 条含 10-22 新增 2 条双前缀用例）。
 - **2026-10-26 商品学习库（§9C）验证与 regen 姿势留档**：新增 `GET /api/v2/ops/admin/jiangyi/learning-library` 后 `check-admin-endpoint-paths` 会红（门禁读的是**已提交**的 `packages/shared-types/src/generated/openapi.ts`）⇒ 必须重生成 spec 才能转绿。本次**没有**重建 dev 栈（会烤进并行会话未提交的脏文件），而是：`git worktree add --detach <HEAD>` → **只**把我方改动的 13 个 java + V406 拷进工作树 → `mvn -o -pl services/trade-service -am -Dmaven.test.skip=true package` → 在 dev postgres 建**一次性空库**（Flyway 实跑 403 条到 v406）→ 宿主 `java -jar` 起在 18199（Kafka 指死地址、`--spring.kafka.listener.auto-startup=false`、XXL/stale-monitor/devops/AI/对账等定时全关；🔴 Redisson 启动即连 Redis，dev Redis 有 requirepass ⇒ **必须**注入 `REDIS_PASSWORD`，否则 `NOAUTH` 起不来）→ `curl /v3/api-docs` → `OPENAPI_FILE=… pnpm gen:api-types` → 删库 + 删工作树。
   两个坑：① `OPENAPI_IGNORE_CACHE=1` 会**无视 `OPENAPI_FILE` 去抓 `OPENAPI_URL` 默认的 18080**（现役容器跑的是旧代码）⇒ 会把**旧 spec 反灌**进 `.tmp/live-openapi.json`，正确姿势是只用 `OPENAPI_FILE`、**不加** `IGNORE_CACHE`；② 判绿前先看 `git diff --stat packages/shared-types/`：本次应为**单个文件 +122 行 0 删除**（除新 path 块外无其它 hunk），有别的 hunk 说明抓到了别人代码的 spec。最终门禁：`check-admin-endpoint-paths` **409 条前端引用全命中，后端 638 条 paths，豁免 0**。
+- **2026-11-20 将邑整体流程优化批次（任务：重读新旧对接文档 + 对照代码审计全链路后实施）**：审计结论——设备面/挂接/映射/复核/autoRebuild 与本表一致，落四个优化：
+  **O1** `JiangyiRecognitionTimeoutService.causePhrase`「上报的 classId 未挂到我方 SKU」→「上报的识别结果未命中我方挂接与映射」（thirdPid 优先通路未命中同落此分支，原措辞误导排障方向；保留「识别超时」前缀满足 T7 自动免单门控）；
+  **O2** 漂移撤戳（见上行 receiveCurrentTxtUrl 格）：`revokeVerificationIfModelDrifted` 关闭厂商直推/恢复出厂换模型的静默错钱窗口——命中不到 SENT 的开机回执不再 no-op，指纹不符即撤复核戳；
+  **O4** `DeviceUnknownPathController` 头注释同步 10-22 双前缀显式注册（§3 顶部 ⚠️ 闭环）；
+  **O5** 12B.8 退场残留收缩：`JiangyiLearningLibraryService` 由 270 行死代码（view() + 6 record，全仓无调用）收缩为仅剩 `isMappingVerified`（`JiangyiFlowSummaryService` 在用），删除只钉 view() 的 `JiangyiLearningLibraryServiceTest`。
+  **未拍板未实施**：挂接弹窗「按厂商商品ID直挂」UI（生产已用 SQL 直挂 100009→664 兜底）。🔴 trade 侧三项需重建 trade-service 镜像，gateway 侧 O4 纯注释（下一版随构建带上，无需单独部署）。
 
 ## 12. 对账结论（2026-10-29，D-4/D-5 + 接口对账）
 

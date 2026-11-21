@@ -28,12 +28,18 @@ import java.util.Map;
  *
  * <p>刻意保持失败的几类（理由见 docs/JIANGYI_GATEWAY_DESIGN.md §5）：OTA（{@code deviceApp/*}）、
  * 特征包（{@code feature/*}）、将邑自有桶（{@code token/getAliyunAkToken}）、
- * {@code replenishmentHistoryBatch/uploadOpenMsg}（补货开门消息，非视频上报），以及资金前缀（{@code order/**}、{@code orderProduct/**}、
- * {@code device/pokerOrder/**}）：资金类上报宁可让设备侧看到失败并重试/告警，也不能被我方吞成成功。
+ * {@code replenishmentHistoryBatch/uploadOpenMsg}（补货开门消息，非视频上报），以及资金前缀
+ * （{@code order/**}、{@code orderProduct/**}、{@code device/pokerOrder/**}）中<b>尚未显式实现</b>的剩余路径
+ * ——资金类上报宁可让设备侧看到失败并重试/告警，也不能被我方吞成成功。
  * 已被显式接住的路径不落本 handler（字面量路径恒排在 {@code /jiangyi/api/**} 之前，见 DeviceCompatRoutingIT）：
  * {@code domainConfig/*} 由 {@link DomainConfigController} 自钉（2026-10-20）；
  * {@code order/setOrderNoVideo} 由 {@link DeviceReportController#setOrderNoVideo} 回 200（2026-10-30，
- * 台账 D-4 反转——纯视频记账无资金语义，{@code order/**} 其余路径的保护不变）。</p>
+ * 台账 D-4 反转——纯视频记账无资金语义，前缀保护仅指未实现者）；
+ * 其余已实现面同样各显式注册：{@code order/uploadOrderLockStatus}、{@code order/uploadOrderCloseStatus}、
+ * {@code orderProduct/addRecognitionGoodsToOrder}、四拼写 {@code uploadErrorOrder/uploadOrderError}
+ * （{@code device/pokerOrder}、{@code pokerOrder}、{@code device/order}、{@code order} 前缀，2026-10-22 防御双收）、
+ * {@code order/openDoubleDoorError}、{@code order/uploadFaultOrder}、{@code floor/getDeviceSellProductClassIds}
+ * 与双前缀 {@code floor/getFloorByDevice}。前缀保护名单不代表整段前缀 404，具体以各控制器显式映射为准。</p>
  */
 @RestController
 public class DeviceUnknownPathController {

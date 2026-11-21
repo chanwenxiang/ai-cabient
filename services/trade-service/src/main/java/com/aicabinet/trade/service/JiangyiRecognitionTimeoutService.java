@@ -187,7 +187,10 @@ public class JiangyiRecognitionTimeoutService {
     /** 成因短语（含「识别超时」前缀，自动免单门控判据）。 */
     private static String causePhrase(String cause) {
         return switch (cause) {
-            case CAUSE_CLASS_MAPPING_MISS -> "识别超时（上报的 classId 未挂到我方 SKU）";
+            // 2026-11-21：旧句「上报的 classId 未挂到我方 SKU」有误导——thirdPid 优先通路
+            // （sku_jiangyi_link）未命中同样落这里（真机 2026-11-20 thirdPid=664 实证），
+            // 两条路都该点名，处置指引在 exceptionDetail 的 thirdPidFixHint。
+            case CAUSE_CLASS_MAPPING_MISS -> "识别超时（上报的识别结果未命中我方挂接与映射）";
             case CAUSE_EMPTY_FORMS -> "识别超时（设备回传识别结果为空，未识别到商品）";
             case CAUSE_DEVICE_ERROR_ORDER -> "识别超时（设备上报异常订单）";
             case CAUSE_MAPPING_UNVERIFIED -> "识别超时（映射未按柜机当前模型人工复核，暂停结算）";

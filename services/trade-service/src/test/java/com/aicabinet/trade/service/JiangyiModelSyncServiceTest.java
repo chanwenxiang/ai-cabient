@@ -64,6 +64,15 @@ class JiangyiModelSyncServiceTest {
                 out.write(body);
             }
         });
+        // MA-381：漂移检测用——内容与 /classes.txt 不同 ⇒ 指纹必然不同
+        classesServer.createContext("/drift.txt", exchange -> {
+            byte[] body = "雪碧 330ml\n芬达 330ml".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "text/plain; charset=utf-8");
+            exchange.sendResponseHeaders(200, body.length);
+            try (var out = exchange.getResponseBody()) {
+                out.write(body);
+            }
+        });
         classesServer.start();
         classesUrl = "http://127.0.0.1:" + classesServer.getAddress().getPort() + "/classes.txt";
     }
@@ -355,7 +364,7 @@ class JiangyiModelSyncServiceTest {
         verify(jiangyiDeviceMapper, org.mockito.Mockito.never()).clearMappingVerification(anyString(), any());
     }
 
-    /** 命中不到任何 SENT（厂商直推/恢复出厂的开机例行回执）⇒ no-op，绝不触发撤销复核分支。 */
+    /** 命中不到任何 SENT（厂商直推/恢复出厂的开机例行回执）⇒ 不确认；未复核过的柜无漂移可撤（MA-381 早退分支）。 */
     @Test
     void confirmModelByTxtUrl_noMatchingSentIsNoOpAndNeverRevokes() {
         JiangyiModelDeployment sent = sentWithTxtUrl("https://oss/model/another_3.txt");
@@ -377,6 +386,53 @@ class JiangyiModelSyncServiceTest {
         assertNull(service().confirmModelByTxtUrl(DEVICE_ID, "model/hysxr_3.txt"));
 
         verify(deploymentMapper, org.mockito.Mockito.never()).confirm(anyLong(), anyString(), any());
+        verify(jiangyiDeviceMapper, org.mockito.Mockito.never()).clearMappingVerification(anyString(), any());
+    }
+
+    /** MA-381（O2）：已复核柜自报 classes 指纹与复核戳不符 ⇒ 撤复核戳（厂商直推/恢复出厂换模型的静默错钱窗口）。 */
+    @Test
+    void confirmModelByTxtUrl_driftedModelRevokesMappingVerification() {
+        JiangyiDevice d = boundDevice("rk3576");
+        d.setMappingVerifiedVersion("deadbeef1234");
+        when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(d);
+        when(deploymentMapper.listByDevice(DEVICE_ID)).thenReturn(List.of());
+
+        String driftUrl = "http://127.0.0.1:" + classesServer.getAddress().getPort() + "/drift.txt";
+        assertNull(service().confirmModelByTxtUrl(DEVICE_ID, driftUrl));
+
+        verify(jiangyiDeviceMapper).clearMappingVerification(eq(DEVICE_ID), any());
+        verify(deploymentMapper, org.mockito.Mockito.never()).confirm(anyLong(), anyString(), any());
+    }
+
+    /**
+     * MA-381（O2）：拉取失败 ≠ 漂移确认——OSS 抖动/白名单拒绝不构成撤戳依据，
+     * 宁可漏撤由人工复核兜住，不误撤正在正常营业的柜（fail-open 保复核戳）。
+     */
+    @Test
+    void confirmModelByTxtUrl_fetchFailureKeepsVerification() {
+        JiangyiDevice d = boundDevice("rk3576");
+        d.setMappingVerifiedVersion("deadbeef1234");
+        when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(d);
+        when(deploymentMapper.listByDevice(DEVICE_ID)).thenReturn(List.of());
+
+        // 同一 server 上未注册的路径 ⇒ 404 ⇒ parseClassesForReview 抛错 ⇒ 只 warn 不撤
+        String missingUrl = "http://127.0.0.1:" + classesServer.getAddress().getPort() + "/not-exist.txt";
+        assertNull(service().confirmModelByTxtUrl(DEVICE_ID, missingUrl));
+
+        verify(jiangyiDeviceMapper, org.mockito.Mockito.never()).clearMappingVerification(anyString(), any());
+    }
+
+    /** MA-381（O2）：自报 classes 指纹与复核戳一致 ⇒ 复核态原样保留（厂商确曾推过同模型，留痕即可）。 */
+    @Test
+    void confirmModelByTxtUrl_matchingFingerprintKeepsVerification() {
+        String fingerprint = service().parseClassesForReview(classesUrl, 0, 0).classesVersion();
+        JiangyiDevice d = boundDevice("rk3576");
+        d.setMappingVerifiedVersion(fingerprint);
+        when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(d);
+        when(deploymentMapper.listByDevice(DEVICE_ID)).thenReturn(List.of());
+
+        assertNull(service().confirmModelByTxtUrl(DEVICE_ID, classesUrl));
+
         verify(jiangyiDeviceMapper, org.mockito.Mockito.never()).clearMappingVerification(anyString(), any());
     }
 
