@@ -43,6 +43,32 @@ const BATCH = {
   assert(p.length === 1 && p[0].includes('不存在'), `幽灵文件须红：${p.join('|')}`);
 }
 
+// 3b) 修复批删除钉住已下线功能的用例（铁律 62）——D 状态文件在 diff 里但仓内已无 ⇒ 绿
+{
+  const p = evaluateBatch(
+    BATCH,
+    ['services/a/A.java', 'services/a/AOldTest.java'],
+    (rel) => rel === 'services/a/A.java',
+    new Set(['services/a/AOldTest.java'])
+  );
+  assert(p.length === 0, `D 状态删除文件不应按幽灵文件误报：${p.join('|')}`);
+}
+
+// 3c) 3b 的负向：声称删除但 diff 里没有（既非改也非删）⇒ 仍红
+{
+  const batch = {
+    ...BATCH,
+    items: [{ id: 'X-1', files: ['services/a/A.java', 'services/a/AOldTest.java'] }]
+  };
+  const p = evaluateBatch(
+    batch,
+    ['services/a/A.java'],
+    (rel) => rel === 'services/a/A.java',
+    new Set(['services/a/AOldTest.java'])
+  );
+  assert(p.length === 1 && p[0].includes('A26'), `删除文件不在 diff 仍须红：${p.join('|')}`);
+}
+
 // 4) 覆盖对账不平：totalItems 与 items+notAdopted 不等 ⇒ 红
 {
   const p = evaluateBatch({ ...BATCH, totalItems: 3 }, ['services/a/A.java'], () => true);

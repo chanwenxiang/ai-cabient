@@ -2427,6 +2427,35 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "4f4d1c42",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 3,
+      "items": [
+        {
+          "id": "MA-381（漂移撤戳）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiModelSyncService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/JiangyiModelSyncServiceTest.java"
+          ]
+        },
+        {
+          "id": "MA-382（MISS 归因文案）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiRecognitionTimeoutService.java"
+          ]
+        },
+        {
+          "id": "MA-383（死代码收缩+注释同步）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiLearningLibraryService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/JiangyiLearningLibraryServiceTest.java",
+            "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceUnknownPathController.java",
+            "scripts/composed-literal-registry.json"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [

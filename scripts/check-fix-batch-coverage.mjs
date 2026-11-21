@@ -34,9 +34,12 @@ const REGISTRY_PATH = join('scripts', 'fix-batch-registry.json');
  * @param {object} batch { commit, report, totalItems, items:[{id,files[]}], notAdopted:[{id,why}] }
  * @param {string[]} commitFiles 该 commit diff 里的文件（仓库相对路径，/ 归一）
  * @param {(rel:string)=>boolean} existsFn 仓库文件存在性
+ * @param {Set<string>} [deletedFiles] commit diff 中为删除（D）的文件——修复批删除
+ *   钉住已下线功能的用例属合法登记（铁律 62），不得按「仓内不存在」误报；
+ *   但 diff 包含检查（present.has）对删除文件照常生效
  * @returns {string[]}
  */
-export function evaluateBatch(batch, commitFiles, existsFn) {
+export function evaluateBatch(batch, commitFiles, existsFn, deletedFiles = new Set()) {
   const problems = [];
   const present = new Set(commitFiles);
   const declared = (batch.items || []).length + (batch.notAdopted || []).length;
@@ -55,7 +58,7 @@ export function evaluateBatch(batch, commitFiles, existsFn) {
             `（A26 形态：提交信息声称的条目与 diff 不对应）`
         );
       }
-      if (!existsFn(norm)) {
+      if (!existsFn(norm) && !deletedFiles.has(norm)) {
         problems.push(`${batch.commit} ${item.id}: 登记的文件在仓内不存在：${norm}`);
       }
     }
@@ -144,20 +147,29 @@ async function main() {
       problems.push(`登记的 commit 不存在：${batch.commit}`);
       continue;
     }
-    const show = await gitAsync(['show', '--name-only', '--pretty=format:', batch.commit], {
+    const show = await gitAsync(['show', '--name-status', '--pretty=format:', batch.commit], {
       cwd: ROOT
     });
     if (!show.ok && show.spawnError) {
       fail(`git show 失败（${batch.commit}）：${show.spawnError}`);
     }
-    const files = show.out
-      .split(/\r?\n/)
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const files = [];
+    const deleted = new Set();
+    for (const line of show.out.split(/\r?\n/)) {
+      const s = line.trim();
+      if (!s) continue;
+      // --name-status 形如「M\tpath」「A\tpath」「D\tpath」（R/C 带两列路径，登记不支持，按最后一列取）
+      const parts = s.split(/\t+/);
+      const path = parts[parts.length - 1].trim();
+      files.push(path);
+      if (parts.length === 2 && /^[D]/.test(parts[0])) {
+        deleted.add(path);
+      }
+    }
     if (batch.report && !existsSync(join(ROOT, batch.report))) {
       problems.push(`${batch.commit}: 登记的审计报告不存在：${batch.report}`);
     }
-    problems.push(...evaluateBatch(batch, files, (rel) => existsSync(join(ROOT, rel))));
+    problems.push(...evaluateBatch(batch, files, (rel) => existsSync(join(ROOT, rel)), deleted));
   }
 
   // ③ 增量完备性：cutoff..HEAD 的 fix/perf 提交必须已登记或豁免
