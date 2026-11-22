@@ -28,7 +28,9 @@ jobs:
     runs-on: ubuntu-latest
     # 2026-11-21：20 分钟实测两次被打爆——缓存冷重建（apk 层失效）时镜像构建 19 分钟+；
     # apk 源已钉国内镜像根治，超时留余量防 Maven 冷下载等长尾。
-    timeout-minutes: 40
+    # 2026-11-22：部署链加 jiangyi-gateway 镜像构建（同 Dockerfile.java-service、独立模块），
+    # 与 trade build 同串行跑，余量再放宽 10 分钟。
+    timeout-minutes: 50
     environment: production
     steps:
       - name: Checkout

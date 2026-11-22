@@ -182,6 +182,43 @@ docker logs ai-cabinet-trade-service-1 --tail 30 2>&1
 exit 1
 REMOTE2
 
+echo "── [5b/7] 重建 jiangyi-gateway + recreate gateway（校验文件挂载）──"
+# 2026-11-22 缺口收口：部署链此前只重建 trade-service ⇒
+# ① 生产 jiangyi-gateway 停在 10-23 旧镜像（缺 DeviceCommandController 门磁/关门/重启/音量
+#    端点 ⇒ 后台按钮恒 503，11-19 实证）；
+# ② nginx gateway 从未随 MA-365 的 mp-verify 挂载 recreate（单文件 bind mount 铁律：
+#    必须 force-recreate，reload 无效）⇒ /o/*.txt 校验恒 404，微信定期回查可「取消发布」
+#    已上线扫码规则（production-launch-checklist §巡检项）。
+# 该服务无 healthcheck（apps.yml 未定义），用 running 状态 + §[6/7] HTTP 探针兜住。
+ssh "${SSH_OPTS[@]}" -p "$PROD_PORT" "${SSH_CMD[0]}" bash -s -- "$PROD_DIR" << 'REMOTE4'
+set -euo pipefail
+DIR="$1"
+cd "$DIR"
+C="docker compose -p ai-cabinet --env-file infra/.env.production -f infra/docker-compose.yml -f infra/docker-compose.apps.yml -f infra/docker-compose.production.yml -f infra/docker-compose.prod-server.yml -f infra/docker-compose.xxljob.yml --profile apps"
+# 挂载源自检：校验文件必须真在仓内（目录在但空=404 复发；fail-closed）
+for f in infra/gateway/mp-verify/aHNmrbOhxm.txt infra/gateway/mp-verify/859bd3a9053ea8be5fbfae876b4a709f.html; do
+  [ -f "$f" ] || { echo "❌ 校验文件缺失: $f（mp-verify 未随仓入库？）"; exit 1; }
+done
+$C build jiangyi-gateway 2>&1 | tail -2
+$C up -d --no-deps --force-recreate jiangyi-gateway 2>&1 | tail -1
+# gateway 无 build（nginx 镜像 pinned），recreate 让新 conf + mp-verify 挂载生效
+$C up -d --no-deps --force-recreate gateway 2>&1 | tail -1
+echo "等待 jiangyi-gateway 启动…"
+JGW_ST=missing
+for i in $(seq 1 24); do
+  JGW_ST=$(docker inspect --format '{{.State.Status}}' ai-cabinet-jiangyi-gateway-1 2>/dev/null || echo missing)
+  if [ "$JGW_ST" = "running" ] || [ "$JGW_ST" = "exited" ] || [ "$JGW_ST" = "dead" ]; then break; fi
+  sleep 5
+done
+if [ "$JGW_ST" != "running" ]; then
+  echo "❌ jiangyi-gateway 未转 running（status=$JGW_ST），最近日志："
+  docker logs ai-cabinet-jiangyi-gateway-1 --tail 30 2>&1
+  exit 1
+fi
+echo "✅ jiangyi-gateway running + gateway 已 recreate（新 conf/挂载生效）"
+REMOTE4
+echo "✅ jiangyi-gateway 已重建"
+
 echo "── [6/7] 部署后验证 ──"
 ssh "${SSH_OPTS[@]}" -p "$PROD_PORT" "${SSH_CMD[0]}" bash -s -- << 'REMOTE3'
 set -euo pipefail
@@ -195,9 +232,37 @@ CODE=$(curl -s -o /dev/null -w '%{http_code}' "$GW/admin/assets/$IDX_JS")
 [ "$CODE" = "200" ] || { echo "❌ admin 入口资产 $IDX_JS → $CODE"; exit 1; }
 API=$(curl -s -o /dev/null -w '%{http_code}' "$GW/api/v2/auth/captcha")
 [ "$API" = "200" ] || { echo "❌ 业务 API /auth/captcha → $API"; exit 1; }
-JY=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' "$GW/jiangyi/api/domainConfig/getConfigStatusByIdentifier")
-echo "✅ admin 入口 $IDX_JS = 200；业务 API = 200；domainConfig 探针 = $JY（401=路由通、待设备 token）"
+# 校验文件探针（MA-362/365 巡检项）：/o/ 与根路径都必须 200 直出（404=微信可回查取消发布）
+OTXT=$(curl -s -o /dev/null -w '%{http_code}' "$GW/o/aHNmrbOhxm.txt")
+[ "$OTXT" = "200" ] || { echo "❌ 微信校验文件 /o/aHNmrbOhxm.txt → $OTXT"; exit 1; }
+OHTML=$(curl -s -o /dev/null -w '%{http_code}' "$GW/859bd3a9053ea8be5fbfae876b4a709f.html")
+[ "$OHTML" = "200" ] || { echo "❌ 支付宝校验文件（根路径）→ $OHTML"; exit 1; }
+# jiangyi-gateway 探针带重试（Spring Boot 启动 30-60s；nginx upstream 未就绪=502/504）
+JY=000
+for i in $(seq 1 18); do
+  JY=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' "$GW/jiangyi/api/domainConfig/getConfigStatusByIdentifier" || echo 000)
+  if [ "$JY" != "000" ] && [ "$JY" != "502" ] && [ "$JY" != "504" ]; then break; fi
+  sleep 5
+done
+case "$JY" in
+  200|400|401|403) : ;;  # 401=路由通、待设备 token（历史口径）
+  *) echo "❌ jiangyi-gateway 探针 = $JY，最近日志："
+     docker logs ai-cabinet-jiangyi-gateway-1 --tail 20 2>&1 | tail -10
+     exit 1 ;;
+esac
+echo "✅ admin 入口 $IDX_JS = 200；业务 API = 200；校验文件 /o = $OTXT、根 = $OHTML；jiangyi 探针 = $JY"
 REMOTE3
+
+echo "── [6b/7] 公网端到端探针（宿主 nginx 层，warn-only）──"
+# 宿主 nginx vhost 手写于服务器、不在仓库（2026-11-19 备忘「建议纳入 infra/」）；
+# 该层失败不回滚容器（容器层已验），但要打出来让人工核对 vhost。
+PUB="https://cabinet.easygovm.com"
+PUB_CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$PUB/o/aHNmrbOhxm.txt" || echo 000)
+if [ "$PUB_CODE" = "200" ]; then
+  echo "✅ 公网校验文件 $PUB/o/aHNmrbOhxm.txt = 200"
+else
+  echo "⚠️ 公网 $PUB/o/aHNmrbOhxm.txt → $PUB_CODE（宿主 nginx 层问题，容器层已 200；请人工核对 vhost）"
+fi
 
 echo "── [7/7] 完成 ──"
 echo "✅ 生产已部署 $SHA_SHORT；服务器归档与 .tmp 本地归档可手动清理"
