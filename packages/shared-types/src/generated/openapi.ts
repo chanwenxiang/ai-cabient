@@ -11738,6 +11738,7 @@ export interface components {
             /** Format: int32 */
             classId?: number;
             reason?: string;
+            mappingVerified?: boolean;
         };
         JiangyiSkuJiangyiLink: {
             /** Format: int64 */
