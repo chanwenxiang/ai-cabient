@@ -2512,6 +2512,22 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "4fc5dd09",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-386（日报按在运营柜过滤生命周期）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantDailyIncomeNotifyScheduler.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/MerchantDailyIncomeNotifySchedulerTest.java",
+            "scripts/check-merchant-report-lifecycle.mjs",
+            "scripts/check-merchant-report-lifecycle.test.mjs"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
