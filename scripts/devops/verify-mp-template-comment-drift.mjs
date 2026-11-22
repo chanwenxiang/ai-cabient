@@ -19,7 +19,7 @@
  *
  * 用法：node scripts/devops/verify-mp-template-comment-drift.mjs
  */
-import { copyFileSync, existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -59,6 +59,11 @@ if (!original.includes(ANCHOR)) die('锚点不存在，脚本不能盲注入');
 if (original.includes('注入的违规')) die('目标文件已含注入值，请先手工还原');
 
 // ---- 阶段 1：备份（此后才允许任何写操作）----
+// 🔴 `.tmp` 是 gitignore 的 ⇒ 新检出（CI runner）上根本不存在，copyFileSync 会以
+// `ENOENT: copyfile ... -> .tmp/orders.vue.template-comment-backup` 崩溃（2026-11-22 CI
+// run 45037911316 实测，本机因 .tmp 常驻而恒绿 = 典型「本机绿、CI 红」）。
+// 备份目录必须自建；与本仓其它负向用例（run-audit-gates 落日志时的 mkdirSync）同型。
+mkdirSync(dirname(BACKUP), { recursive: true });
 copyFileSync(TARGET, BACKUP);
 
 function restoreAndAssert(step) {

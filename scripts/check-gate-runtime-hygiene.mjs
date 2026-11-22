@@ -18,9 +18,14 @@
  *   2. `scripts/**`、`package.json`、`.github/workflows/**`、`infra/**` 的可执行/
  *      配置文件里不得出现相对路径的 `--require`（必须以 `/`、盘符或变量开头）。
  *      文档（.md）不扫：那是说明文字，不是会真正执行的命令。
+ *   3. `scripts/devops/verify-*.mjs`（负向验证脚本）写 `.tmp` 前必须 `mkdirSync`
+ *      —— `.tmp` 是 gitignore 的，新检出（CI runner）根本不存在，否则
+ *      `copyFileSync/writeFileSync` 抛 ENOENT；本机因 .tmp 常驻而恒绿 = 「本机绿、CI 红」。
  *
  * 负向验证：在任一 check-*.mjs 里加 `import { spawnSync } from 'node:child_process'`
- * => 红；把某条命令改成 `--require .tmp/tools/nopipe.cjs` => 红。
+ * => 红；把某条命令改成 `--require .tmp/tools/nopipe.cjs` => 红；删掉
+ * `devops/verify-mp-template-comment-drift.mjs` 里 `copyFileSync(TARGET, BACKUP)` 前的
+ * `mkdirSync(dirname(BACKUP), …)` => 红（判据 3，2026-11-22 逐条注入实测）。
  *
  *   node scripts/check-gate-runtime-hygiene.mjs
  */
@@ -119,6 +124,56 @@ for (const file of [...gateFiles.map((f) => join(scriptsDir, f)), ...extraFiles]
   }
 }
 
+// 判据 3：负向验证脚本写 `.tmp` 前必须自建父目录。
+// 成因（2026-11-22 CI run 45037911316 实证）：`.tmp` 是 gitignore 的 ⇒ runner 新检出上
+// **根本不存在**；`devops/verify-mp-template-comment-drift.mjs` 的
+// `copyFileSync(TARGET, BACKUP)`（BACKUP 在 `.tmp/` 下）直接
+// `ENOENT: copyfile ... -> .tmp/orders.vue.template-comment-backup`。
+// 本机因 `.tmp` 常驻而恒绿 —— 典型「本机绿、CI 红」，且报的是 fs 错误、看着像环境抖动。
+// 判据只认「写入目标确实落在 .tmp」（含 `const X = join(root, '.tmp/…')` 这类别名），
+// 不搞「凡写文件都要 mkdir」——那会把写既有目录的正常脚本全判红。
+const WRITE_CALLS =
+  /\b(copyFileSync|cpSync|writeFileSync|appendFileSync|writeFile)\s*\(/g;
+for (const file of walk(join(ROOT, 'scripts', 'devops')).filter((f) =>
+  /verify-.*\.mjs$/.test(f)
+)) {
+  const rel = relative(ROOT, file).replace(/\\/g, '/');
+  let src;
+  try {
+    src = stripComments(readFileSync(file, 'utf8'));
+  } catch (e) {
+    problems.push(`${rel}: 读取失败 ${e.message}`);
+    continue;
+  }
+  // `.tmp` 路径别名：const NAME = …'.tmp'…（单行）
+  const aliases = new Set(
+    [...src.matchAll(/\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*[^;\n]*['"`]\.tmp['"`/\\]/g)].map(
+      (m) => m[1]
+    )
+  );
+  const mkdirAt = src.search(/\bmkdirSync\s*\(/);
+  WRITE_CALLS.lastIndex = 0;
+  let m;
+  while ((m = WRITE_CALLS.exec(src)) !== null) {
+    const rest = src.slice(m.index, m.index + 400);
+    const open = rest.indexOf('(');
+    // 取该调用的实参文本（到行末即可，判据只看目标表达式）
+    const args = rest.slice(open + 1, rest.indexOf('\n', open) === -1 ? rest.length : rest.indexOf('\n', open));
+    const isCopy = m[1] === 'copyFileSync' || m[1] === 'cpSync';
+    const dest = isCopy ? args.split(',').slice(1).join(',') : args;
+    const hitTmp = dest.includes('.tmp') || [...aliases].some((a) => new RegExp(`\\b${a}\\b`).test(dest));
+    if (!hitTmp) continue;
+    if (mkdirAt === -1 || mkdirAt > m.index) {
+      problems.push(
+        `${rel}: 写入 .tmp 的调用 \`${m[1]}(…)\` 之前没有 mkdirSync ——`.concat(
+          '.tmp 是 gitignore 的，新检出（CI runner）不存在 ⇒ ENOENT 假红；先 mkdirSync(dirname(DEST), { recursive: true })'
+        )
+      );
+      break; // 每个文件只报一次，避免刷屏
+    }
+  }
+}
+
 // 相对路径 --require
 const requireScopes = [
   ...walk(join(ROOT, 'scripts')),
@@ -153,5 +208,5 @@ if (problems.length) {
 }
 
 console.log(
-  `${TAG} OK：${gateFiles.length} 个 check-*.mjs 均无同步子进程，scripts/CI 里无相对路径 --require`
+  `${TAG} OK：${gateFiles.length} 个 check-*.mjs 均无同步子进程，scripts/CI 里无相对路径 --require，devops/verify-* 写 .tmp 前均已自建目录`
 );
