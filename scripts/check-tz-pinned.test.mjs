@@ -4,10 +4,10 @@
  *
  *   node scripts/check-tz-pinned.test.mjs
  */
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { evaluateTzPin, findJvmDockerfiles } from './check-tz-pinned.mjs';
+import { evaluateTzPin, findJvmDockerfiles, walkDockerfiles } from './check-tz-pinned.mjs';
 
 const TAG = '[check-tz-pinned.test]';
 let checks = 0;
@@ -72,29 +72,40 @@ assert(evaluateTzPin(OK, []).length === 0, `合规文件应绿：${evaluateTzPin
 }
 
 // 7) 真实仓面：当前 4 个 JVM 容器必须全部合规（R19-17 漏网的 trade/device/simulator 已补齐）
+//    🔴 直接调生产 walkDockerfiles，不在此另写一份 walk（影子实现会让「.tmp 不进扫描面」
+//    这类修复在本用例里永远测不到，且它自己也只跳 4 个目录、同样会踩 .tmp 回收竞态）。
 {
-  const { readdirSync, statSync, existsSync } = await import('node:fs');
-  const { join, relative } = await import('node:path');
-  const walk = (dir, out = []) => {
-    for (const name of readdirSync(dir)) {
-      const full = join(dir, name);
-      const st = statSync(full);
-      if (st.isDirectory()) {
-        if (['node_modules', 'target', '.git', 'dist'].includes(name)) continue;
-        walk(full, out);
-      } else if (/^Dockerfile/i.test(name) || /\.Dockerfile$/i.test(name)) {
-        out.push(relative(ROOT, full).replace(/\\/g, '/'));
-      }
-    }
-    return out;
-  };
   const files = [
-    ...new Set([walk(ROOT), walk(join(ROOT, 'infra')), walk(join(ROOT, 'edge'))].flat())
+    ...new Set(
+      [
+        walkDockerfiles(ROOT),
+        walkDockerfiles(join(ROOT, 'infra')),
+        walkDockerfiles(join(ROOT, 'edge'))
+      ].flat()
+    )
   ].filter((rel) => existsSync(join(ROOT, rel)));
   const jvm = findJvmDockerfiles(files);
   assert(jvm.length >= 4, `JVM 容器数应 ≥4，实际 ${jvm.length}`);
   const bad = jvm.flatMap((f) => evaluateTzPin(f, []));
   assert(bad.length === 0, `真实仓面应全绿：${bad.join('|')}`);
+}
+
+// 8) `.tmp` 不进扫描面（2026-11-22 实证：聚合链里 tz-pinned 走进负向用例正在回收的沙箱
+//    ⇒ statSync ENOENT 崩溃，退出码 1 但报的是 fs 错误而非判据违规 = 假红）
+{
+  const probeDir = join(ROOT, '.tmp', `tzpin-walk-probe-${process.pid}`);
+  mkdirSync(probeDir, { recursive: true });
+  writeFileSync(join(probeDir, 'Dockerfile'), 'FROM eclipse-temurin:21-jre\n');
+  try {
+    const leaked = walkDockerfiles(ROOT).filter((rel) => rel.startsWith('.tmp/'));
+    assert(leaked.length === 0, `.tmp 下的 Dockerfile 不应进扫描面：${leaked.join(',')}`);
+  } finally {
+    try {
+      rmSync(probeDir, { recursive: true, force: true });
+    } catch {
+      /* safe-delete 垫片可能拦（turn 级计数）⇒ 探针目录留在 .tmp 无害，且已被排除出扫描面 */
+    }
+  }
 }
 
 console.log(`${TAG} OK：${checks} 项断言全过`);

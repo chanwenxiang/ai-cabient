@@ -73,13 +73,32 @@ export function evaluateTzPin(f, allowlist) {
   return problems;
 }
 
-function walkDockerfiles(dir, out = []) {
+/**
+ * 🔴 `.tmp` 必须排除（成因注释，铁律 32）：它是本仓「沙箱/克隆」的暂存区——门禁负向用例
+ * （如 devops/verify-ledger-evidence-gate.mjs）在 `.tmp/<name>-<pid>/` 建整树副本，且
+ * 「子进程回收站搬移在退出后仍在飞」⇒ 目录会在本 walk 行进中被删掉。实测 2026-11-22 聚合链：
+ * tz-pinned 走进去 stat 一个正在被删的 `.sql` ⇒ ENOENT 崩溃（退出码 1，与判据无关的假红）。
+ * `.tmp` 下的 Dockerfile 也不是产品面（多为完整 clone 的副本），加进来只会重复计数。
+ * 同理 readdir/stat 两处都容错：条目在 readdir 与 stat 之间消失，视为不可见而非违规。
+ */
+export function walkDockerfiles(dir, out = []) {
   if (!existsSync(dir)) return out;
-  for (const name of readdirSync(dir)) {
+  let names;
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return out; // 目录在遍历窗口内被并发删除（.tmp 沙箱回收）⇒ 不可见
+  }
+  for (const name of names) {
     const full = join(dir, name);
-    const st = statSync(full);
+    let st;
+    try {
+      st = statSync(full);
+    } catch {
+      continue; // 同上：条目在 readdir 与 stat 之间消失
+    }
     if (st.isDirectory()) {
-      if (['node_modules', 'target', '.git', 'dist'].includes(name)) continue;
+      if (['node_modules', 'target', '.git', 'dist', '.tmp'].includes(name)) continue;
       walkDockerfiles(full, out);
     } else if (/^Dockerfile/i.test(name) || /\.Dockerfile$/i.test(name)) {
       out.push(relative(ROOT, full).replace(/\\/g, '/'));
