@@ -2734,6 +2734,10 @@
     {
       "commit": "f45fcb9a",
       "why": "CI/部署基建修复（镜像 apk 源钉阿里云 + deploy timeout 20→40）：2 个 Dockerfile 与 1 个 workflow 文件，零业务代码、零审计条目，与 1045fa5d / 622ad811 同型。实证：生产服务器到 dl-cdn.alpinelinux.org 实测 13KB/s（阿里云源 4MB/s），缓存冷重建 apk add wget 卡死 19 分钟+ 连续打爆两次 deploy job 20 分钟上限，且被取消构建在服务器残留持锁"
+    },
+    {
+      "commit": "c183499f",
+      "why": "部署链基建补齐（feat(deploy)，非审计条目，与 f45fcb9a / 622ad811 同型）：deploy-prod.sh 新增 [5b/7] jiangyi-gateway build+recreate 与 gateway recreate、[6/7] 补 /o 校验文件与 jiangyi 探针断言（原版 domainConfig 只 echo 不判）、[6b/7] 公网探针、workflow timeout 40→50。实证：生产 jiangyi-gateway 停 10-23 旧镜像（门磁/关门/重启/音量端点 0 命中恒 503，11-19 zipfile 复核）+ /o/*.txt 404（MA-362/365 的 mp-verify 挂载从未随容器 recreate 生效，微信回查可取消已发布扫码规则）。零业务代码、零审计条目，无法按「条目→文件+totalItems」对账，故入白名单带理由"
     }
   ]
 }
