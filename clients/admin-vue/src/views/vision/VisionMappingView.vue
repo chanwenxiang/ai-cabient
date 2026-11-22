@@ -987,7 +987,12 @@ async function loadDevices() {
   }
 }
 
-async function load() {
+/**
+ * @param resetForm 是否清空复核表单。仅**换柜**时为 true（模型名/classes 地址逐柜不同，
+ *   残留会让复核戳到错的模型）。筛选栏回车走默认 false，不清运营已选的模型/地址
+ *   （2026-11-21 用户复核 P3-3：原实现 load() 无差别清空，筛选栏回车也把表单清掉）。
+ */
+async function load(resetForm = false) {
   loaded.value = false;
   binding.value = null;
   modelsLoaded.value = false;
@@ -995,10 +1000,10 @@ async function load() {
   modelPreviews.value = [];
   selectedModel.value = '';
   deployments.value = [];
-  // 换柜必须清空复核表单：模型名与 classes 地址都是**逐柜**的（设备开机回执上报），
-  // 残留上一台柜的值会让复核戳到错的模型标记 / 去拉别的柜的 classes。
-  reviewForm.value.modelName = '';
-  reviewForm.value.textUrl = '';
+  if (resetForm) {
+    reviewForm.value.modelName = '';
+    reviewForm.value.textUrl = '';
+  }
   if (!deviceId.value) return;
   await crud.load({ resetPage: true });
   loaded.value = true;
@@ -1431,7 +1436,7 @@ function applyDeviceFromRoute() {
   const fromQuery = typeof route.query.deviceId === 'string' ? route.query.deviceId.trim() : '';
   if (!fromQuery || fromQuery === deviceId.value) return;
   deviceId.value = fromQuery;
-  void load();
+  void load(true);
 }
 
 function onDeviceChange() {
@@ -1439,7 +1444,7 @@ function onDeviceChange() {
   if (deviceId.value) query.deviceId = deviceId.value;
   else delete query.deviceId;
   void router.replace({ query });
-  void load();
+  void load(true);
 }
 
 onMounted(() => {

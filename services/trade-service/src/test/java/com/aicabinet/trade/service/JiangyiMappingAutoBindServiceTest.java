@@ -49,8 +49,11 @@ class JiangyiMappingAutoBindServiceTest {
     @Mock private JiangyiMappingReviewService mappingReviewService;
 
     private JiangyiMappingAutoBindService service() {
+        // 真实 TransactionTemplate + mock 事务管理器：callback 原样执行，无真实连接（同 BalanceLedgerServiceTest）
         return new JiangyiMappingAutoBindService(deviceMapper, mappingMapper, linkMapper,
-                gatherClient, auditService, mappingReviewService);
+                gatherClient, auditService, mappingReviewService,
+                new org.springframework.transaction.support.TransactionTemplate(
+                        org.mockito.Mockito.mock(org.springframework.transaction.PlatformTransactionManager.class)));
     }
 
     private static JiangyiDevice device(String deviceId) {

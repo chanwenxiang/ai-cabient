@@ -86,8 +86,24 @@ public class JiangyiMappingReviewService {
         }
         String classesVersion = blankToNull(device.getClassesVersion());
         String verifiedVersion = blankToNull(device.getMappingVerifiedVersion());
-        boolean verified = classesVersion != null && classesVersion.equals(verifiedVersion);
+        boolean verified = isMappingVerified(device);
         return new MappingStatus(verified, classesVersion, verifiedVersion, device.getMappingVerifiedAt());
+    }
+
+    /**
+     * 复核态判据（唯一权威实现）：classes_version 非空且等于 mapping_verified_version。
+     *
+     * <p>原在 {@code JiangyiLearningLibraryService.isMappingVerified} 有一份重复实现（MA-383 收缩
+     * 后的残留，类名还叫 Service 却是静态工具）；2026-11-21 用户复核 P3-6 后合并至此——复核语义的
+     * 家本就在本服务（status/plan/apply），两处判据各写一遍迟早漂移。</p>
+     */
+    static boolean isMappingVerified(JiangyiDevice device) {
+        if (device == null) {
+            return false;
+        }
+        String classesVersion = blankToNull(device.getClassesVersion());
+        String verifiedVersion = blankToNull(device.getMappingVerifiedVersion());
+        return classesVersion != null && classesVersion.equals(verifiedVersion);
     }
 
     /** 结算/在售面闸口：未复核一律 true（调用方据此 fail-closed）。 */

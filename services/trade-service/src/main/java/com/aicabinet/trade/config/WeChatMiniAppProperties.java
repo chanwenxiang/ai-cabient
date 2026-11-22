@@ -77,11 +77,22 @@ public record WeChatMiniAppProperties(
                 ? notifyPage : "pages/alerts/alerts";
     }
 
-    /** 消费者订阅消息模板：独立配置，缺省回退商户模板。 */
+    /**
+     * 消费者订阅消息模板：🔴 fail-closed（MA-384 复核发现）——旧实现在消费者模板缺失时
+     * 回落到商户模板，但两端是独立 appid、模板 id 不通用，发给 {@code MiniAppTarget.CONSUMER}
+     * 必被微信回 400（invalid template_id）；而生产 example 里消费者模板默认就是空，
+     * 于是「催付」一直静默失败只留审计。宁可不发（调用方走短信兜底并报出未配置），
+     * 也不拿商户模板冒充——回退等于把一个必失败的请求伪装成「已发送」。
+     */
     public String resolveConsumerTemplateId() {
         return consumerSubscribeTemplateId != null && !consumerSubscribeTemplateId.isBlank()
                 ? consumerSubscribeTemplateId
-                : subscribeTemplateId;
+                : null;
+    }
+
+    /** 消费者模板是否可用（调用方据此决定是否跳过微信、走短信兜底并提示运营）。 */
+    public boolean hasConsumerTemplate() {
+        return resolveConsumerTemplateId() != null;
     }
 
     public String resolveConsumerNotifyPage() {

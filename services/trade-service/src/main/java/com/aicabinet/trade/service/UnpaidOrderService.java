@@ -151,24 +151,28 @@ public class UnpaidOrderService {
         if (user == null || user.getWxOpenId() == null || user.getWxOpenId().isBlank()) {
             message = "用户未绑定微信，已记催付审计（请线下触达）";
         } else {
-            // 🔴 MA-375：消费者催付必须用**消费者**模板；此处原用 subscribeTemplateId()（商户模板），
-            // 两端模板不一致时微信回 400（template_id 与接收人不匹配）⇒ 催付静默失败只留一条审计。
+            // 🔴 MA-375/MA-384：消费者催付必须用**消费者**模板，且两端 appid 不同、模板不通用。
+            // 旧实现两处坑：① 用商户模板 subscribeTemplateId() ⇒ 微信 400；② 空模板时塞
+            // "mock-unpaid-template" 假 id ⇒ 照样 400 却记成「已发送」。现统一 fail-closed：
+            // 消费者模板未配置就不发微信（明确写入审计与返回消息），由下方短信兜底触达。
             String templateId = weChatMiniAppProperties.resolveConsumerTemplateId();
             if (templateId == null || templateId.isBlank()) {
-                templateId = "mock-unpaid-template";
+                message = "消费者订阅模板未配置（WECHAT_CONSUMER_SUBSCRIBE_TEMPLATE），微信催付已跳过，改用短信兜底";
+                log.warn("jiangyi/unpaid remind skipped wechat: consumer template missing orderId={}", orderId);
+            } else {
+                String amount = String.format("¥%.2f", order.getTotalAmountCents() / 100.0);
+                sent = weChatMiniAppClient.sendSubscribeMessage(
+                        user.getWxOpenId(),
+                        templateId,
+                        "pages/orders/orders",
+                        Map.of(
+                                "thing1", "待支付订单提醒",
+                                "amount2", amount,
+                                "time3", TIME_FMT.format(Instant.now())
+                        ),
+                        MiniAppTarget.CONSUMER);
+                message = sent ? "催付订阅消息已发送" : "催付发送失败（请检查小程序订阅配置），已记审计";
             }
-            String amount = String.format("¥%.2f", order.getTotalAmountCents() / 100.0);
-            sent = weChatMiniAppClient.sendSubscribeMessage(
-                    user.getWxOpenId(),
-                    templateId,
-                    "pages/orders/orders",
-                    Map.of(
-                            "thing1", "待支付订单提醒",
-                            "amount2", amount,
-                            "time3", TIME_FMT.format(Instant.now())
-                    ),
-                    MiniAppTarget.CONSUMER);
-            message = sent ? "催付订阅消息已发送" : "催付发送失败（请检查小程序订阅配置），已记审计";
         }
         // V325：微信没命中（或用户根本没订阅）时走短信兜底 —— 人工催缴 force=true 跳过 24h 节流
         UnpaidDunningService.DunningResult sms = unpaidDunningService.remindBySms(order, true);

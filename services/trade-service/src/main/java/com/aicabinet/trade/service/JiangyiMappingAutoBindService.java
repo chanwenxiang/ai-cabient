@@ -12,7 +12,7 @@ import com.aicabinet.trade.mapper.JiangyiSkuJiangyiLinkMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -59,19 +59,22 @@ public class JiangyiMappingAutoBindService {
     private final JiangyiGatherClient gatherClient;
     private final AdminAuditService auditService;
     private final JiangyiMappingReviewService mappingReviewService;
+    private final TransactionTemplate txTemplate;
 
     public JiangyiMappingAutoBindService(JiangyiDeviceMapper deviceMapper,
                                          JiangyiClassMappingMapper mappingMapper,
                                          JiangyiSkuJiangyiLinkMapper linkMapper,
                                          JiangyiGatherClient gatherClient,
                                          AdminAuditService auditService,
-                                         JiangyiMappingReviewService mappingReviewService) {
+                                         JiangyiMappingReviewService mappingReviewService,
+                                         TransactionTemplate txTemplate) {
         this.deviceMapper = deviceMapper;
         this.mappingMapper = mappingMapper;
         this.linkMapper = linkMapper;
         this.gatherClient = gatherClient;
         this.auditService = auditService;
         this.mappingReviewService = mappingReviewService;
+        this.txTemplate = txTemplate;
     }
 
     /**
@@ -104,18 +107,19 @@ public class JiangyiMappingAutoBindService {
     /**
      * 按识别名给各柜机补挂映射（幂等）。
      *
+     * <p>🔴 P3-4（2026-11-21 用户复核）：厂商 HTTP 查询不得在事务内进行——原实现整方法
+     * {@code @Transactional}，{@code resolveTextName} 内部走 stdSku/getList / learnableProducts
+     * 公网调用，厂商慢时数据库连接被一直占着。现在先在事务外取识别名（纯读 + HTTP），
+     * 仅把随后的 DB 写入（回填 + 逐柜挂接 + 审计）放进 {@link TransactionTemplate} 短事务。</p>
+     *
      * @param textNameOverride 调用方已知的识别名（如 link 上已回填的 textName）；空则按
      *                         {@code productId} 去厂商可学习名单里取
      */
-    @Transactional
     public Result autoBind(Long operatorId, String skuId, String productId, String textNameOverride) {
         String textName = normalize(textNameOverride);
         if (textName == null) {
+            // 厂商查询在事务外：慢响应只占本线程，不占数据库连接
             textName = resolveTextName(productId);
-            if (textName != null) {
-                // 顺手回填：识别名是 classes 的对位键，留在挂接行上后续复核/排查都要用
-                backfillLinkTextName(productId, textName);
-            }
         }
         if (textName == null) {
             // 🔴 这条路径静默返回不写日志，运营侧只能靠 message 知道「一行都没动」——
@@ -125,6 +129,18 @@ public class JiangyiMappingAutoBindService {
                     + "确实没有则需厂商把该商品加进模型重新训练（也可先到「识别映射」页按编号手工挂 SKU）");
         }
 
+        // 短事务只包 DB 写；循环体抽成独立方法（lambda 内不能用 continue）
+        final boolean shouldBackfill = normalize(textNameOverride) == null;
+        final String resolvedTextName = textName;
+        return txTemplate.execute(tx -> doAutoBind(operatorId, skuId, productId, resolvedTextName,
+                shouldBackfill));
+    }
+
+    private Result doAutoBind(Long operatorId, String skuId, String productId, String textName,
+                              boolean backfill) {
+        if (backfill) {
+            backfillLinkTextName(productId, textName);
+        }
         final String effectiveTextName = textName;
         // 逐柜复核态缓存：同一柜在 notes 里只出现一次，但保持一次调用一处取值（与 ShelfWriter 同判据）
         java.util.Map<String, Boolean> verifiedByDevice = new java.util.HashMap<>();

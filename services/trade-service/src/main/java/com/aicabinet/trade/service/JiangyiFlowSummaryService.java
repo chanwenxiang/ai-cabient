@@ -32,7 +32,7 @@ public class JiangyiFlowSummaryService {
     public FlowSummaryView view() {
         int linkedSkus = linkMapper.listBoundAll().size();
         List<com.aicabinet.trade.domain.JiangyiDevice> bound = deviceMapper.listBound();
-        int verified = (int) bound.stream().filter(JiangyiLearningLibraryService::isMappingVerified).count();
+        int verified = (int) bound.stream().filter(JiangyiMappingReviewService::isMappingVerified).count();
         int activeMappings = mappingMapper.listActiveAll().size();
 
         // 旧 selfhelpGatherProduct/waitGatherProduct 已停用；待采集改读我方挂接快照

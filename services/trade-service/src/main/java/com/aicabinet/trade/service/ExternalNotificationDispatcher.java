@@ -82,9 +82,17 @@ public class ExternalNotificationDispatcher {
         if (user == null || user.getWxOpenId() == null || user.getWxOpenId().isBlank()) {
             return;
         }
+        // MA-384：消费者模板缺失时 fail-closed——旧实现回落商户模板，两个 appid 不通用必 400；
+        // 现在明确跳过并发日志，让运营能从日志/审计看到「不是用户没订阅，是模板没配」。
+        String templateId = weChatMiniAppProperties.resolveConsumerTemplateId();
+        if (templateId == null || templateId.isBlank()) {
+            log.warn("wechat notify skipped: consumer template not configured userId={} templateCode={}",
+                    msg.userId(), msg.templateCode());
+            return;
+        }
         boolean ok = weChatMiniAppClient.sendSubscribeMessage(
                 user.getWxOpenId(),
-                weChatMiniAppProperties.resolveConsumerTemplateId(),
+                templateId,
                 weChatMiniAppProperties.resolveConsumerNotifyPage(),
                 Map.of("thing1", clipToThingLimit(msg.title()), "thing2", clipToThingLimit(msg.body())),
                 MiniAppTarget.CONSUMER);
