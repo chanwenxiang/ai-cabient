@@ -100,8 +100,6 @@ function stripComments(src) {
   return out;
 }
 
-const problems = [];
-
 const SELF = 'check-gate-runtime-hygiene.mjs';
 const scriptsDir = join(ROOT, 'scripts');
 
