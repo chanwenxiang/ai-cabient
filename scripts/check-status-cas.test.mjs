@@ -37,20 +37,35 @@ for (const [file, sig, label] of [
   );
 }
 
-// 铁律 84①（2026-11-22 补）：注释里出现判据 token 不得满足 R3/R4（evaluate 先等长脱敏）
+// 铁律 84①（2026-11-22 补）：注释脱敏的两个方向都要钉——
+// ① 注释里的判据 token 不得**满足**判据（R3：CONFIRMED 只在注释 ⇒ 必须红）；
+// ② 注释里的违禁 token 不得**误报**（R2：touch 方法体注释含 updateById ⇒ 必须仍绿，
+//    旧无脱敏实现会把它当真实无条件写而假红）。
+// （R4 的 PAID/PENDING 是字符串字面量不是注释，无「注释满足」形态，不在此例。）
 {
   const billCommented = base[P + 'MerchantSettlementBillService.java'].replace(
     /private int doRebuildMonth\(M m\)\{/,
     (m) => m + ' // 历史说明：此处曾有 CONFIRMED 判据，注释不应充当判据'
   );
-  const sessionCommented = base[P + 'SessionService.java'].replace(
-    /private SessionDto doForceCancelForOperations\(String id, String r\)\{/,
-    (m) => m + ' /* PAID PENDING DISPUTED CONFLICT 注释里的词不算校验 */'
+  const errsBill = gate.evaluate(
+    read({ [P + 'MerchantSettlementBillService.java']: billCommented })
   );
-  const errs = gate.evaluate(read({ [P + 'MerchantSettlementBillService.java']: billCommented, [P + 'SessionService.java']: sessionCommented }));
   assert.ok(
-    errs.some((e) => e.includes('R3')) && errs.some((e) => e.includes('R4')),
-    '注释里的判据 token 不得满足 R3/R4：' + JSON.stringify(errs)
+    errsBill.some((e) => e.includes('R3')),
+    '注释里的 CONFIRMED 不得满足 R3：' + JSON.stringify(errsBill)
+  );
+
+  // 注入真生效守卫（铁律 2：注入串不命中=断言空转=假绿）
+  assert.ok(billCommented !== base[P + 'MerchantSettlementBillService.java'], 'R3 注入必须真生效');
+  const refundCommented = base[P + 'RefundRetryScheduler.java'].replace(
+    /private void touch\(T t\)\{/,
+    (m) => m + ' /* 历史形态 updateById( 已改条件写入，注释里出现不得假红 */'
+  );
+  assert.ok(refundCommented !== base[P + 'RefundRetryScheduler.java'], 'R2 注入必须真生效');
+  const errsRefund = gate.evaluate(read({ [P + 'RefundRetryScheduler.java']: refundCommented }));
+  assert.ok(
+    !errsRefund.some((e) => e.includes('R2')),
+    'touch 注释含 updateById 不得误报 R2：' + JSON.stringify(errsRefund)
   );
 }
-console.log('[check-status-cas.test] OK：6 项断言全过（R1–R4 负向 + 注释脱敏）');
+console.log('[check-status-cas.test] OK：6 项断言全过（R1–R4 负向 + 注释脱敏双向）');
