@@ -68,7 +68,7 @@ if (!diffList.ok) {
   diffList = await git(['diff', '--name-only', '--diff-filter=A', 'HEAD', '--', migrationDir]);
 }
 // 刻意**不**加 --exclude-standard：migration 目录里任何未跟踪的 .sql 都是一次真实的新迁移，
-// 被 .gitignore 掉 != 不会被 Flyway 执行（例如 check-migration-reviewed-gate.test.mjs 写进去的
+// 被 .gitignore 掉 != 不会被 Flyway 执行（例如 check-migration-safety.test.mjs 写进去的
 // 临时脚本，已由 .gitignore 兜底防误提交）。带 --exclude-standard 会让这类文件对安全门禁**完全隐形** ——
 // 2026-09-16 实测：一旦把该临时文件名加进 .gitignore，本脚本就再也扫不到它，
 // 于是「空头 MIGRATION_REVIEWED 必须被拦」的自测直接退化成恒假。

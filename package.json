@@ -76,7 +76,7 @@
     "check:shared-component-sync": "node scripts/style-full-audit.mjs --check && node scripts/sync-shared-uni-components.mjs --check",
     "sync:shared-uni-components": "node scripts/sync-shared-uni-components.mjs",
     "check:wxss-no-color-mix": "node scripts/check-wxss-no-color-mix.mjs",
-    "check:mp-template-comments": "node scripts/check-mp-template-comments.mjs",
+    "check:mp-template-comments": "node scripts/devops/verify-mp-template-comment-drift.mjs && node scripts/check-mp-template-comments.mjs",
     "check:feature-flags": "node scripts/check-feature-flags.test.mjs && node scripts/check-feature-flags.mjs",
     "check:competitor-benchmark": "node scripts/check-competitor-benchmark.mjs",
     "check:docker-tests-guarded": "node scripts/check-docker-tests-guarded.test.mjs && node scripts/check-docker-tests-guarded.mjs",

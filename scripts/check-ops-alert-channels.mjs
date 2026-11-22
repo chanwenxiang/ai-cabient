@@ -86,7 +86,10 @@ const CONTROLLER = join(
 const ENDPOINTS = join(root, 'clients/admin-vue/src/api/endpoints.ts');
 const RELAY = join(root, 'infra/monitoring/feishu-relay.py');
 const AM_CONFIG = join(root, 'infra/monitoring/alertmanager.yml');
+const EMAIL_AM_CONFIG = join(root, 'infra/monitoring/alertmanager.email.yml');
+const EMAIL_TMPL = join(root, 'infra/monitoring/email.tmpl');
 const FULL_COMPOSE = join(root, 'infra/docker-compose.full.yml');
+const APPS_COMPOSE = join(root, 'infra/docker-compose.apps.yml');
 /** 会评估告警规则的 prometheus 配置（`prometheus.yml` 是 dev 栈的极简版，不加载规则）。 */
 const PROM_CONFIGS = [
   'infra/monitoring/prometheus.yml',
@@ -698,6 +701,138 @@ for (const block of alertBlocks) {
         'DeviceOfflineRateHigh 的 summary 不得写死「超过 20%」——恢复邮件复用同一文案，会读成「恢复：超过 20%」'
       );
     }
+  }
+}
+
+// ── R15–R18（2026-11-22 MA-395）：alertmanager **email 双配置栈**——「门禁读 A、运行跑 B」收口 ──
+// 背景：2026-11-19 起 alertmanager 实际运行的是 alertmanager.email.yml（compose 启动时 sed
+// 渲染占位符），原 alertmanager.yml 只挂成 gate.yml 供本门禁校验飞书版（4683c5d7 的用户拍板
+// 债务）。运行侧从此零门禁——622ad811（compose command 裸 $ 被 compose 插值致容器自退）正是
+// 从这个盲区带炸上线。本组规则守运行侧：双挂载在位、entrypoint 双美元、占位符双向对齐、
+// 密码不落模板、模板引用闭环。full.yml 与 apps.yml 的 alertmanager 块同构，两份都判。
+function composeServiceBlock(text, service) {
+  // 显式两段：先定位「  <service>:」键行，再切到下一个二级键行（或文件尾）。
+  // 不用一条正则硬做（alt+lookahead 跨行组合在无 s 旗标下不可靠）。
+  const startRe = new RegExp(`^  ${service}:\\s*$`, 'm');
+  const sm = startRe.exec(text);
+  if (!sm) return '';
+  const rest = text.slice(sm.index);
+  const afterFirstLine = rest.indexOf('\n') + 1;
+  const next = /^  [a-z][a-z0-9_-]*:\s*$/m.exec(rest.slice(afterFirstLine));
+  if (!next) return rest;
+  return rest.slice(0, afterFirstLine + next.index);
+}
+
+const SMTP_VARS = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'SMTP_TO'];
+for (const [label, composePath] of [
+  ['full.yml', FULL_COMPOSE],
+  ['apps.yml', APPS_COMPOSE]
+]) {
+  const composeText = readFileSync(composePath, 'utf8');
+  const block = composeServiceBlock(composeText, 'alertmanager');
+  if (!block || !/^  alertmanager:/m.test(block)) {
+    fail(`${label} 解析不到 alertmanager 服务块（结构可能已变，R15 会失去判别力）`);
+  }
+
+  // R15a 三条挂载缺一不可：gate.yml（飞书版门禁面）/ email.yml→.tpl（运行面）/ email.tmpl
+  for (const mount of [
+    './monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.gate.yml:ro',
+    './monitoring/alertmanager.email.yml:/etc/alertmanager/alertmanager.yml.tpl:ro',
+    './monitoring/email.tmpl:/etc/alertmanager/email.tmpl:ro'
+  ]) {
+    if (!block.includes(mount)) {
+      problems.push(`${label} alertmanager 缺挂载「${mount}」⇒ 门禁面/运行面/邮件模板三份配置有一份脱钩`);
+    }
+  }
+
+  // R15b entrypoint 双美元（622ad811 实炸形态）：6 个必需变量必须 :?fail-loud 且写 $$；
+  // sed 渲染行引用 env 必须用 $$SMTP_X——单 $ 会被 compose 先吃掉 ⇒ 渲染成空值。
+  for (const v of SMTP_VARS) {
+    const failLoud = '"$${' + v + ':?'; // compose 文件里的字面量：""$${SMTP_HOST:?" 双美元+花括号
+    if (!block.includes(failLoud)) {
+      problems.push(
+        `${label} alertmanager entrypoint 缺「"$$${v}:?…」强校验（单 $ 会被 compose 插值成恒真空判——622ad811 实炸形态）`
+      );
+    }
+  }
+  const sedPart = block.slice(block.indexOf('sed -e'));
+  if (!sedPart) {
+    problems.push(`${label} alertmanager entrypoint 解析不到 sed 渲染段（email 模板渲染链断了）`);
+  } else {
+    if (/(?<!\$)\$SMTP_/.test(sedPart.replace(/\$\$SMTP_/g, ''))) {
+      problems.push(`${label} alertmanager sed 渲染段出现单 $SMTP_ 引用（compose 会插值吃掉 ⇒ 渲染成空值）`);
+    }
+    if (!/alertmanager\.yml\.tpl\s*>/.test(sedPart)) {
+      problems.push(`${label} alertmanager sed 必须从 alertmanager.yml.tpl 渲染出运行配置（挂载名对不上 = 跑的是别的文件）`);
+    }
+    if (!/--config\.file=\/etc\/alertmanager\/alertmanager\.yml/.test(block)) {
+      problems.push(`${label} alertmanager 必须以 --config.file=/etc/alertmanager/alertmanager.yml（渲染产物）启动`);
+    }
+  }
+
+  // R16 占位符双向对齐：email.yml 里的 __SMTP_X__ 必须都被 sed 替换；sed 清单里的每个
+  // 占位符都必须真的在 email.yml 出现（单侧漂移 = 占位符字面量进运行配置/替换落空）。
+  if (!existsSync(EMAIL_AM_CONFIG)) {
+    fail('alertmanager.email.yml 不存在——它是容器实际运行的配置（R16 失去对象）');
+  }
+  const emailCfg = readFileSync(EMAIL_AM_CONFIG, 'utf8');
+  const tplPlaceholders = new Set(
+    [...sedPart.matchAll(/__(SMTP_[A-Z]+)__/g)].map((m) => m[1])
+  );
+  const cfgPlaceholders = new Set(
+    [...emailCfg.matchAll(/__(SMTP_[A-Z]+)__/g)].map((m) => m[1])
+  );
+  for (const p of cfgPlaceholders) {
+    if (!tplPlaceholders.has(p)) {
+      problems.push(`email.yml 占位符 __${p}__ 不在 ${label} sed 替换清单里 ⇒ 字面量进运行配置（邮件发不出去）`);
+    }
+  }
+  for (const p of tplPlaceholders) {
+    if (!cfgPlaceholders.has(p)) {
+      problems.push(`${label} sed 替换 __${p}__ 但 email.yml 已不用该占位符 ⇒ 替换清单与模板漂移（结构可能已变）`);
+    }
+  }
+
+  // R17 密码卫生：smtp_auth_password_file 指针 + 禁明文 auth_password + chmod 644（uid 65534 实测坑）
+  if (!/smtp_auth_password_file:\s*\/etc\/alertmanager\/smtp_pass/.test(emailCfg)) {
+    problems.push('email.yml 必须 smtp_auth_password_file: /etc/alertmanager/smtp_pass（密码走文件不进模板/git）');
+  }
+  if (/^\s*smtp_auth_password:/m.test(emailCfg) || /auth_password:\s*["']?\$/.test(emailCfg)) {
+    problems.push('email.yml 出现明文 smtp_auth_password 形态 ⇒ 密码进渲染配置，违背「密码不落模板」');
+  }
+  if (!/chmod 644 \/etc\/alertmanager\/smtp_pass/.test(block)) {
+    problems.push(`${label} alertmanager 缺 chmod 644 smtp_pass（uid 65534 下 600 = permission denied，实测踩坑）`);
+  }
+
+  // R18 模板闭环：templates 引用 = 挂载路径；引用的 template 名必须在 email.tmpl 有 define；
+  // email_configs 必须显式 send_resolved（「只看到炸了看不到好了」的坑）。
+  if (!existsSync(EMAIL_TMPL)) {
+    fail('email.tmpl 不存在——email.yml templates 引用会落空（R18 失去对象）');
+  }
+  if (!/templates:\s*\n\s*-\s*\/etc\/alertmanager\/email\.tmpl/.test(emailCfg)) {
+    problems.push('email.yml templates 必须引用 /etc/alertmanager/email.tmpl（与 compose 挂载路径同源）');
+  }
+  const tmplText = readFileSync(EMAIL_TMPL, 'utf8');
+  const definedTmpl = new Set(
+    [...tmplText.matchAll(/\{\{-?\s*define\s+"([^"]+)"/g)].map((m) => m[1])
+  );
+  for (const ref of emailCfg.matchAll(/\{\{\s*template\s+"([^"]+)"/g)) {
+    if (!definedTmpl.has(ref[1])) {
+      problems.push(`email.yml 引用模板「${ref[1]}」但 email.tmpl 没有 {{ define "${ref[1]}" }} ⇒ 渲染失败告警丢失`);
+    }
+  }
+  if (!/send_resolved:\s*true/.test(emailCfg)) {
+    problems.push('email.yml email_configs 缺 send_resolved: true ⇒ 恢复通知不发（只看到「炸了」看不到「好了」）');
+  }
+  // R18b 路由闭环：route.receiver 必须落在 receivers[].name
+  const routeReceiver = /route:\s*[\s\S]*?receiver:\s*["']?([A-Za-z0-9_-]+)["']?/.exec(emailCfg)?.[1];
+  const receiverNames = [...emailCfg.matchAll(/^\s{2,}-\s*name:\s*["']?([A-Za-z0-9_-]+)["']?/gm)].map(
+    (m) => m[1]
+  );
+  if (!routeReceiver || !receiverNames.includes(routeReceiver)) {
+    problems.push(
+      `email.yml route.receiver「${routeReceiver ?? '(空)'}」不在 receivers [${receiverNames.join('/')}] 里 ⇒ 默认路由落空、告警静默丢失`
+    );
   }
 }
 

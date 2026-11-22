@@ -1,6 +1,6 @@
 /**
  * 本地快速校验：空头 MIGRATION_REVIEWED 应失败。
- * Run: node scripts/check-migration-reviewed-gate.test.mjs
+ * Run: node scripts/check-migration-safety.test.mjs
  *
  * ⚠️ 本测试会把临时 .sql **写进真实的 Flyway migration 目录**（因为 check-migration-safety
  * 是按目录扫描的），所以清理逻辑本身就是安全边界，不能靠「沉默的 catch」兜底：
@@ -32,7 +32,7 @@ const migrationDir = join(
   'db',
   'migration'
 );
-const TAG = '[check-migration-reviewed-gate]';
+const TAG = '[check-migration-safety]';
 
 // 严格匹配本测试自己产生的文件名（不误伤任何真实迁移）
 const TMP_RE = /^V9999__tmp_migration_reviewed_gate_\d+\.sql$/;

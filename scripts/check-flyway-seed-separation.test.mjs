@@ -2,7 +2,7 @@
  * 本地快速自测：`check-flyway-seed-separation` 必须**会红**且**不假红**。
  * Run: node scripts/check-flyway-seed-separation.test.mjs
  *
- * ⚠️ 与 `check-migration-reviewed-gate.test.mjs` 同源风险：本测试要把临时 .sql
+ * ⚠️ 与 `check-migration-safety.test.mjs` 同源风险：本测试要把临时 .sql
  * **写进真实的 Flyway 目录**（门禁是按目录扫描的），所以清理逻辑本身就是安全边界：
  *   · 开跑前先清扫（上次崩溃的残留会污染断言，会让「应通过」的用例假红）；
  *   · 删除带重试；

@@ -16,6 +16,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { analyzeOpenApiSurfaceRisk } from './lib/openapi-surface.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = new Set(process.argv.slice(2));
@@ -137,6 +138,8 @@ run('migration-immutable', node, [resolve(root, 'scripts/check-migration-immutab
 // 的库下次启动即 Validate failed。同为基线 diff 门禁，故也只在这里 + CI 独立步骤。
 run('migration-number-order', node, [resolve(root, 'scripts/check-migration-number-order.mjs')]);
 run('openapi-regen', node, [resolve(root, 'scripts/check-openapi-regen-required.mjs')]);
+// MA-392 判据自测随预检同跑：判定函数的负向夹具（fire×2/none×3/warn×2）每次推送前必过
+run('openapi-surface:test', node, [resolve(root, 'scripts/lib/openapi-surface.test.mjs')]);
 
 // S8③：判据改动 ↔ 负向夹具同批对账。同为基线 diff 门禁（吃 origin/dev…HEAD 推送前语义，
 // CI 里 origin/dev 已含本次推送 ⇒ 恒空恒绿），只在这里跑；接线由 check-audit-gates-wiring
@@ -157,6 +160,37 @@ const openApiSurface = changed.some(
     /services\/common\/common-core\/.*\.java$/.test(n) ||
     n.includes('packages/shared-types/src/generated')
 );
+
+// MA-392（2026-11-22 CI #1479 实炸形态）：trade-service 非控制器 Java（service 内嵌
+// record / dto）改形状不落在上面的路径判据里 ⇒ 本地假绿、CI 起真 jar 才红。springdoc
+// 按返回类型图反射、控制器文本不引用类型名（实测 0/289），本地无 jar 无真值 ⇒ 只能
+// 强制显式决策：形状载体改动未同批重生成 shared-types ⇒ 必须 OPENAPI_DRIFT_ACK=1。
+const surfaceRisk = analyzeOpenApiSurfaceRisk(changed);
+if (surfaceRisk.level === 'fire' && process.env.OPENAPI_DRIFT_ACK !== '1') {
+  console.error(
+    '\n✗ OPENAPI 面漂移风险（MA-392）：以下改动含 record/dto 形状定义、同批未动 shared-types/generated：'
+  );
+  surfaceRisk.files.forEach((f) => console.error('  ' + f));
+  console.error(
+    '  springdoc 按返回类型图反射进 spec，本地无 jar 无法判定是否漂移（无真值）。二选一：'
+  );
+  console.error(
+    '  a) 本次改了 API 形状 → 重生成 shared-types（真判据=CI 起 jar 抓 /v3/api-docs；本地配方见 4736edee 提交）；'
+  );
+  console.error('  b) 确认本次不涉及 API 形状 → OPENAPI_DRIFT_ACK=1 重跑本预检（显式留痕）。');
+  process.exit(1);
+}
+if (surfaceRisk.level === 'fire') {
+  console.log('\n── openapi 面漂移风险（MA-392）──');
+  console.log('已显式确认 OPENAPI_DRIFT_ACK=1：以下改动声明不涉及 API 形状 ——');
+  surfaceRisk.files.forEach((f) => console.log('  ' + f));
+}
+if (surfaceRisk.level === 'warn') {
+  console.log(
+    '\n⚠️ trade-service src/main 有非控制器改动（无 record/dto 形状信号）。若本次涉及响应/请求结构，'
+  );
+  console.log('   记得同批 pnpm gen:api-types 重生成（4736edee 教训：漏生成 = 本地全绿 CI 红）。');
+}
 
 if (adminSrcChanged || full) {
   // 🔴 该门禁只在 CI build job 单步跑、不在聚合链里 ⇒ 本地预检不跑就等于「推了才知道红」

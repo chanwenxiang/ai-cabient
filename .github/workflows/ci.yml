@@ -114,7 +114,7 @@ jobs:
       # check-migration-safety.mjs 本身）—— 属「测试资产未接 CI」，故补齐。
       # 它会临时写入 V9999__tmp_migration_reviewed_gate_<ts>.sql 并在 finally 中删除。
       - name: Migration gate bypass self-test
-        run: node scripts/check-migration-reviewed-gate.test.mjs
+        run: node scripts/check-migration-safety.test.mjs
         env:
           MIGRATION_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/dev' }}
 
