@@ -2632,6 +2632,21 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "87c64fa9",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-401（check-tz-pinned 扫描面排除 .tmp：沙箱回收竞态致 ENOENT 假红 + clone 副本翻倍计数）",
+          "files": [
+            "scripts/check-tz-pinned.mjs",
+            "scripts/check-tz-pinned.test.mjs",
+            "docs/module-audit/ISSUES.md"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
