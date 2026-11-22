@@ -42,21 +42,27 @@ function body(src, sig) {
 
 export function evaluate(read) {
   const errors = [];
-  const comp = read(FILES.comp);
+  // 铁律 84①：判据前先等长脱敏注释（保行号/索引）——否则注释里的
+  // CONFIRMED/PAID/updateById 会被当真实判据（假绿），注释含花括号还会破坏配平。
+  const mask = (s) =>
+    s
+      .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+      .replace(/\/\/[^\n]*/g, (m) => m.replace(/[^\n]/g, ' '));
+  const comp = mask(read(FILES.comp));
   const processTask = body(comp, 'public void processTask(');
   if (!/claimIfPending\s*\(/.test(processTask)) errors.push('R1 补偿任务未条件领取');
   if (!/finishIfProcessing\s*\(/.test(comp)) errors.push('R1 收尾未条件更新');
   if (!/rescheduleIfProcessing\s*\(/.test(comp)) errors.push('R1 退避重排未条件更新');
 
-  const pay = read(FILES.pay);
+  const pay = mask(read(FILES.pay));
   const fail = body(pay, 'public void markRefundFailed(');
   if (!/failIfInitiated\s*\(/.test(fail)) errors.push('R2 markRefundFailed 未条件更新');
-  const refund = read(FILES.refund);
+  const refund = mask(read(FILES.refund));
   const touch = body(refund, 'private void touch(');
   if (!/touchIfInitiated\s*\(/.test(touch)) errors.push('R2 touch 未条件更新');
   if (/updateById\s*\(/.test(touch)) errors.push('R2 touch 仍无条件 updateById');
 
-  const bill = read(FILES.bill);
+  const bill = mask(read(FILES.bill));
   if (!/CONFIRMED/.test(body(bill, 'private int doRebuildMonth('))) {
     errors.push('R3 重建仍会改写 CONFIRMED 结算单');
   }
@@ -64,7 +70,7 @@ export function evaluate(read) {
     errors.push('R3 清理仍会删除 CONFIRMED 结算单');
   }
 
-  const session = read(FILES.session);
+  const session = mask(read(FILES.session));
   const force = body(session, 'private SessionDto doForceCancelForOperations(');
   if (!/PAID/.test(force) || !/PENDING/.test(force) || !/CONFLICT/.test(force)) {
     errors.push('R4 强杀会话未校验订单状态（PAID/PENDING/DISPUTED 必须拒绝）');

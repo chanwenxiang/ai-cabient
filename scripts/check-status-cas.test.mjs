@@ -36,4 +36,21 @@ for (const [file, sig, label] of [
     `${label} 未判红`
   );
 }
-console.log('[check-status-cas.test] OK：5 项断言全过（R1–R4 负向）');
+
+// 铁律 84①（2026-11-22 补）：注释里出现判据 token 不得满足 R3/R4（evaluate 先等长脱敏）
+{
+  const billCommented = base[P + 'MerchantSettlementBillService.java'].replace(
+    /private int doRebuildMonth\(M m\)\{/,
+    (m) => m + ' // 历史说明：此处曾有 CONFIRMED 判据，注释不应充当判据'
+  );
+  const sessionCommented = base[P + 'SessionService.java'].replace(
+    /private SessionDto doForceCancelForOperations\(String id, String r\)\{/,
+    (m) => m + ' /* PAID PENDING DISPUTED CONFLICT 注释里的词不算校验 */'
+  );
+  const errs = gate.evaluate(read({ [P + 'MerchantSettlementBillService.java']: billCommented, [P + 'SessionService.java']: sessionCommented }));
+  assert.ok(
+    errs.some((e) => e.includes('R3')) && errs.some((e) => e.includes('R4')),
+    '注释里的判据 token 不得满足 R3/R4：' + JSON.stringify(errs)
+  );
+}
+console.log('[check-status-cas.test] OK：6 项断言全过（R1–R4 负向 + 注释脱敏）');
