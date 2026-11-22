@@ -228,3 +228,6 @@ services/trade-service/src/main/resources/static/admin/runtime-config.json
 # qoder 工具工作树（不入库）
 .qoder/
 .zcode/
+
+# WorkBuddy 应用卡注册产物（.genie：含 appId/name，工具生成，不入库）
+.wbapp_*.genie
