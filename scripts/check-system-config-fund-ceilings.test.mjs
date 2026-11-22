@@ -25,7 +25,8 @@ const REAL_SRC = `
             MERCHANT_WITHDRAW_FEE_BPS, (long) CommissionParamBounds.WITHDRAW_FEE_BPS_MAX,
             LINE_WITHDRAW_FEE_BPS, (long) CommissionParamBounds.WITHDRAW_FEE_BPS_MAX,
             BALANCE_REFUND_MAX_CENTS, (long) CommissionParamBounds.REFUND_LIMIT_CENTS_CEILING,
-            CHECKOUT_PREAUTH_CENTS, (long) CommissionParamBounds.PREAUTH_CENTS_CEILING);
+            CHECKOUT_PREAUTH_CENTS, (long) CommissionParamBounds.PREAUTH_CENTS_CEILING,
+            PROFIT_SHARING_RECEIVER_MAX_PERCENT, 100L);
 
     static final java.util.Map<String, Long> FUND_YUAN_KEYS = java.util.Map.of(
             PLATFORM_FUND_PLAN_BUFFER_YUAN, 10_000_000L,
@@ -42,7 +43,7 @@ check('真实形态零违规', () => {
 });
 
 check('天花板换成 999999999L ⇒ 红（台账原缺陷形态）', () => {
-  const bad = REAL_SRC.replace('CommissionParamBounds.PREAUTH_CENTS_CEILING);', '999999999L);');
+  const bad = REAL_SRC.replace('CommissionParamBounds.PREAUTH_CENTS_CEILING,', '999999999L,');
   assert.ok(
     fundCeilingProblems(bad).some((p) => p.includes('CHECKOUT_PREAUTH_CENTS 天花板不再是')),
     fundCeilingProblems(bad).join('|')
@@ -72,6 +73,19 @@ check('元键混进整数守卫族 ⇒ 红', () => {
 check('删 FUND_YUAN_KEYS 分支 ⇒ 红', () => {
   const bad = REAL_SRC.replace('        if (FUND_YUAN_KEYS.containsKey(key)) { return; }', '');
   assert.ok(fundCeilingProblems(bad).some((p) => p.includes('不再走 FUND_YUAN_KEYS 分支')));
+});
+
+check('分账接收方上限被放到 10000L ⇒ 红（MA-389）', () => {
+  const bad = REAL_SRC.replace(
+    'PROFIT_SHARING_RECEIVER_MAX_PERCENT, 100L);',
+    'PROFIT_SHARING_RECEIVER_MAX_PERCENT, 10000L);'
+  );
+  assert.ok(
+    fundCeilingProblems(bad).some((p) =>
+      p.includes('PROFIT_SHARING_RECEIVER_MAX_PERCENT 天花板不再是')
+    ),
+    fundCeilingProblems(bad).join('|')
+  );
 });
 
 console.log(`${TAG} OK：${checks} 项断言全过`);

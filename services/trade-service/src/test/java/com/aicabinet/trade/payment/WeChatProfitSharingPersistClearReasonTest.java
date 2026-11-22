@@ -37,6 +37,7 @@ class WeChatProfitSharingPersistClearReasonTest {
 
     @Mock private WeChatPayV3Client client;
     @Mock private OrderRevenueSplitMapper splitRepository;
+    @Mock private com.aicabinet.trade.service.SystemConfigService systemConfig;
 
     private WeChatProfitSharingService service;
 
@@ -46,7 +47,7 @@ class WeChatProfitSharingPersistClearReasonTest {
         WeChatPayProperties pay = new WeChatPayProperties(
                 true, "wx-appid", "1900000109", "https://example.test/notify",
                 "0123456789abcdef0123456789abcdef", "SERIAL-1", "PRIVATE-PEM", null, false);
-        service = new WeChatProfitSharingService(sharing, pay, client, splitRepository, null, null);
+        service = new WeChatProfitSharingService(sharing, pay, client, splitRepository, null, new ProfitSharingCapPolicy(systemConfig), null);
     }
 
     @Test

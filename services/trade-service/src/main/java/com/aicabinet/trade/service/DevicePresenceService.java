@@ -25,7 +25,6 @@ public class DevicePresenceService {
 
 
     private static final Logger log = LoggerFactory.getLogger(DevicePresenceService.class);
-    private static final long OFFLINE_AFTER_MINUTES = 2;
 
     private final DeviceInfoMapper deviceRepository;
     private final DeviceTemperatureReadingMapper temperatureReadingRepository;
@@ -141,10 +140,13 @@ public class DevicePresenceService {
         boolean failed = false;
         String summary = "本次无设备状态变更";
         try {
-        Instant cutoff = Instant.now().minus(OFFLINE_AFTER_MINUTES, ChronoUnit.MINUTES);
+        // MA-390（设备 #11）：阈值改运行期可配；一次扫描只解析一次，避免同一批设备
+        // 用到两个不同的 cutoff（配置在扫描途中被改会造成「前面判离线、后面判在线」）。
+        long offlineAfterMinutes = offlineThresholdMinutes();
+        Instant cutoff = Instant.now().minus(offlineAfterMinutes, ChronoUnit.MINUTES);
         var stale = deviceRepository.findByOnlineStatusAndUpdatedAtBefore(CabinetConstants.DEVICE_ONLINE, cutoff);
         stale.forEach(d -> runWithPresenceLock(d.getDeviceId(), () -> {
-            markDeviceOffline(d.getDeviceId());
+            markDeviceOffline(d.getDeviceId(), offlineAfterMinutes);
             return null;
         }));
         int locked = autoLockLongOfflineDevices();
@@ -213,7 +215,28 @@ public class DevicePresenceService {
         });
     }
 
-    private void markDeviceOffline(String deviceId) {
+    /**
+     * 当前生效的「心跳超时判离线」分钟数（MA-390）。
+     *
+     * <p>0/负数/超过 {@link SystemConfigService#MAX_DEVICE_OFFLINE_THRESHOLD_MINUTES} 一律回落默认 2：
+     * 阈值填 0 或极大值时「离线」永不成立 ⇒ 死机会长时间显示在线、待办与告警全不触发（fail-open）。
+     * 这里刻意不做「0=不限制」解释——设备状态判定没有「不限制」这种合法语义。
+     */
+    private long offlineThresholdMinutes() {
+        int configured = systemConfigService.getInt(
+                SystemConfigService.DEVICE_OFFLINE_THRESHOLD_MINUTES,
+                SystemConfigService.DEFAULT_DEVICE_OFFLINE_THRESHOLD_MINUTES);
+        if (configured <= 0 || configured > SystemConfigService.MAX_DEVICE_OFFLINE_THRESHOLD_MINUTES) {
+            log.warn("CONFIG {} = {} 非法（1-{}），按默认 {} 分钟处理",
+                    SystemConfigService.DEVICE_OFFLINE_THRESHOLD_MINUTES, configured,
+                    SystemConfigService.MAX_DEVICE_OFFLINE_THRESHOLD_MINUTES,
+                    SystemConfigService.DEFAULT_DEVICE_OFFLINE_THRESHOLD_MINUTES);
+            return SystemConfigService.DEFAULT_DEVICE_OFFLINE_THRESHOLD_MINUTES;
+        }
+        return configured;
+    }
+
+    private void markDeviceOffline(String deviceId, long offlineAfterMinutes) {
         DeviceInfo d = deviceRepository.findByIdForUpdate(deviceId).orElse(null);
         if (d == null || !CabinetConstants.DEVICE_ONLINE.equalsIgnoreCase(d.getOnlineStatus())) {
             return;
@@ -223,10 +246,10 @@ public class DevicePresenceService {
         d.setLastOfflineAt(Instant.now());
         deviceRepository.save(d);
         deviceRepository.clearOnlineSince(deviceId);
-        opsExceptionService.report("DEVICE_OFFLINE", "CRITICAL", new OpsExceptionService.ExceptionReport.ExceptionRefs(deviceId, null, null, null), "设备离线", "连续 " + OFFLINE_AFTER_MINUTES + " 分钟未收到心跳");
-        log.info("device marked offline device={}", deviceId);
+        opsExceptionService.report("DEVICE_OFFLINE", "CRITICAL", new OpsExceptionService.ExceptionReport.ExceptionRefs(deviceId, null, null, null), "设备离线", "连续 " + offlineAfterMinutes + " 分钟未收到心跳");
+        log.info("device marked offline device={} thresholdMinutes={}", deviceId, offlineAfterMinutes);
         safeIncidentNotify(() -> incidentNotifyService.notifyDeviceOffline(deviceId,
-                "连续 " + OFFLINE_AFTER_MINUTES + " 分钟未收到心跳"));
+                "连续 " + offlineAfterMinutes + " 分钟未收到心跳"));
     }
 
     /** 离线超过配置分钟数后自动锁机停售（需运营手动解锁）。返回本次锁机台数。 */

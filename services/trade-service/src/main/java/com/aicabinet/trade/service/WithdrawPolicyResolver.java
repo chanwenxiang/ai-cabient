@@ -183,6 +183,20 @@ public class WithdrawPolicyResolver {
                 lineProperties == null ? 0L : lineProperties.reviewThresholdCents(), 50_000L);
     }
 
+    /**
+     * 商户销售款「可提现」解锁时刻（小时 0-23）——CB-035，默认 0 = 次日零点即解冻。
+     *
+     * <p>这是「何时能申请提现」的闸门参数（读侧消费在 {@code MerchantWithdrawService#pendingSettleAmount}
+     * 的可行额扣减），**不是**「打款多久到账」。运营台打款模式面板用它拼出到账口径文案（MA-391），
+     * 免得面板上写死一个与数据库实际口径不同的时刻。
+     */
+    public int merchantSettleUnlockHour() {
+        int raw = systemConfigService == null
+                ? 0
+                : systemConfigService.getInt(SystemConfigService.MERCHANT_WITHDRAW_SETTLE_UNLOCK_HOUR, 0);
+        return Math.min(Math.max(raw, 0), 23);
+    }
+
     /** 运营台「打款模式」面板展示用：全部提现参数 + 各通道就绪态。 */
     public java.util.Map<String, Object> describeForOps() {
         java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();

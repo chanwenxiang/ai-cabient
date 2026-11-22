@@ -150,11 +150,17 @@ public class LineWithdrawPayoutService {
         String feeNote = "；手续费=固定 " + effectiveFlat + " 分 + " + effectiveBps
                 + " bps，单笔封顶 " + (effectiveCap > 0 ? effectiveCap + " 分" : "不封顶")
                 + "（仅新申请写入 feeCents；已成立的提现单按快照费率不变）";
+        // MA-391（资金 #10）：线长侧同样按单审核打款，没有批量出款窗口 ⇒ 无截单时点可拦。
+        // 面板把真实到账口径说清（此前只有手续费，运营对「多久到账」只能猜）。
+        String arrivalNote = "；到账时效：审核通过后由所选通道随即发起，到账快慢由通道决定"
+                + "（见 channelReadiness）。本系统按单审核打款、无批量出款窗口，故不设截单时点";
         String note;
         if (mock) {
-            note = "当前为记账打款（未接入真实转账）：审核通过后标记为成功，不向任何渠道发起转账" + feeNote;
+            note = "当前为记账打款（未接入真实转账）：审核通过后标记为成功，不向任何渠道发起转账"
+                    + feeNote + arrivalNote;
         } else {
-            note = "记账打款已关闭：真实出款需各通道就绪（当前就绪状态见 channelReadiness）" + feeNote;
+            note = "记账打款已关闭：真实出款需各通道就绪（当前就绪状态见 channelReadiness）"
+                    + feeNote + arrivalNote;
         }
         // ⚠️ 用 LinkedHashMap 显式构建而非 Map.of：Map.of 拒绝 null 值，且返回无序 map
         //    （前端展示顺序不稳）。这里是运行期真值面板，顺序有语义。

@@ -163,11 +163,20 @@ public class MerchantWithdrawPayoutService {
                 + "（仅新申请写入 feeCents；已成立的提现单按快照费率不变。"
                 + "本面板是<b>全局档</b>，单个商户可用 sys_config merchant.withdraw.fee_bps.{商户号} 覆盖，"
                 + "覆盖值在提现页「提现费率」标签查改）";
+        // MA-391（资金 #10）：到账时效口径写进面板真值提示。
+        // 本系统按单审核后逐单发起打款（MerchantWithdrawController#payout），没有批量出款窗口
+        // ⇒ 「截单时间」无对象可拦；与其加一个没人消费的开关（假可配置），不如把真实口径说清。
+        int settleUnlockHour = policy.merchantSettleUnlockHour();
+        String arrivalNote = "；到账时效：销售款结算 T+1，次日 " + settleUnlockHour
+                + ":00 起可申请提现；审核通过后由所选通道随即发起，到账快慢由通道决定"
+                + "（见 channelReadiness）。本系统按单审核打款、无批量出款窗口，故不设截单时点";
         String note;
         if (mock) {
-            note = "当前为记账打款（未接入真实转账）：审核通过后标记为成功，不向任何渠道发起转账" + feeNote;
+            note = "当前为记账打款（未接入真实转账）：审核通过后标记为成功，不向任何渠道发起转账"
+                    + feeNote + arrivalNote;
         } else {
-            note = "记账打款已关闭：真实出款需各通道就绪（当前就绪状态见 channelReadiness）" + feeNote;
+            note = "记账打款已关闭：真实出款需各通道就绪（当前就绪状态见 channelReadiness）"
+                    + feeNote + arrivalNote;
         }
         // ⚠️ 用 LinkedHashMap 显式构建而非 Map.of：Map.of 拒绝 null 值，
         //    且返回无序 map（前端展示顺序不稳）。这里是运行期真值面板，顺序有语义。
@@ -183,6 +192,8 @@ public class MerchantWithdrawPayoutService {
         // 也是与渠道流水对账的锚点——此前该数字在任何页面都查不到。
         info.put("feeIncomeTodayCents", feeIncomeSince(startOfToday()));
         info.put("feeIncomeLast30dCents", feeIncomeSince(Instant.now().minus(30, ChronoUnit.DAYS)));
+        // MA-391：结构化给前端/对账脚本用（文案同源，别让页面自己再算一遍时刻）
+        info.put("settleUnlockHour", settleUnlockHour);
         info.put("note", note);
         return info;
     }

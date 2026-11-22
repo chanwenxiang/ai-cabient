@@ -45,6 +45,7 @@ class WeChatProfitSharingServiceZeroRateTest {
 
     @Mock private WeChatPayV3Client client;
     @Mock private OrderRevenueSplitMapper splitRepository;
+    @Mock private com.aicabinet.trade.service.SystemConfigService systemConfig;
 
     private WeChatProfitSharingService service;
 
@@ -54,7 +55,8 @@ class WeChatProfitSharingServiceZeroRateTest {
         WeChatPayProperties pay = new WeChatPayProperties(
                 true, "wx-appid", "1900000109", "https://example.test/notify",
                 "0123456789abcdef0123456789abcdef", "SERIAL-1", "PRIVATE-PEM", null, false);
-        service = new WeChatProfitSharingService(sharing, pay, client, splitRepository, null, null);
+        service = new WeChatProfitSharingService(sharing, pay, client, splitRepository, null,
+                new ProfitSharingCapPolicy(systemConfig), null);
     }
 
     private static Merchant merchant() {
@@ -92,8 +94,9 @@ class WeChatProfitSharingServiceZeroRateTest {
     }
 
     @Test
-    void prepareSubmit_positivePlatformCents_stillBuildsSharingBody() {
-        OrderRevenueSplit split = split(100, 900);
+    void prepareSubmit_positivePlatformCents_withinReceiverCap_stillBuildsSharingBody() {
+        // MA-389：接收方占比必须落在单接收方上限内（默认 30%），故取平台 80% / 商户 20%
+        OrderRevenueSplit split = split(800, 200);
 
         WeChatProfitSharingService.PreparedSubmission prep =
                 service.prepareSubmit(split, merchant(), "WX-TXN-2");
@@ -106,7 +109,7 @@ class WeChatProfitSharingServiceZeroRateTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> receivers = (List<Map<String, Object>>) prep.body().get("receivers");
         assertEquals(1, receivers.size());
-        assertEquals(900L, receivers.get(0).get("amount"));
+        assertEquals(200L, receivers.get(0).get("amount"));
         assertEquals("1900000109", receivers.get(0).get("account"));
         // out_order_no 先落库再打微信（B2 幂等键）
         verify(splitRepository).update(any(), any());

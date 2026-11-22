@@ -348,11 +348,27 @@
       "description": "有待支付订单时是否禁止开门"
     },
     {
+      "key": "fund.profit_sharing.receiver_max_percent",
+      "group": "交易与资金",
+      "type": "NUMBER",
+      "default": "30",
+      "description": "微信分账单接收方比例上限（MA-389，1-100）；商户分成占订单超过该比例时拒绝提交分账（服务商口径，CB-032 待微信书面确认）；0/越界按 30",
+      "unit": "%"
+    },
+    {
       "key": "device.offline.auto_sales_lock_minutes",
       "group": "设备与柜机",
       "type": "NUMBER",
       "default": "10",
       "description": "设备离线超时自动锁机分钟数, 0=关闭",
+      "unit": "分钟"
+    },
+    {
+      "key": "device.offline.threshold_minutes",
+      "group": "设备与柜机",
+      "type": "NUMBER",
+      "default": "2",
+      "description": "心跳超时判定离线的分钟数（MA-390，1-30）；0/越界按 2 处理。与「离线自动锁机分钟数」是两件事：这里只决定状态判定",
       "unit": "分钟"
     },
     {

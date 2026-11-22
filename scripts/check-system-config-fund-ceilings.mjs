@@ -25,7 +25,10 @@ const FEN_CEILING_ENTRIES = [
   ['MERCHANT_WITHDRAW_FEE_BPS', 'CommissionParamBounds.WITHDRAW_FEE_BPS_MAX'],
   ['LINE_WITHDRAW_FEE_BPS', 'CommissionParamBounds.WITHDRAW_FEE_BPS_MAX'],
   ['BALANCE_REFUND_MAX_CENTS', 'CommissionParamBounds.REFUND_LIMIT_CENTS_CEILING'],
-  ['CHECKOUT_PREAUTH_CENTS', 'CommissionParamBounds.PREAUTH_CENTS_CEILING']
+  ['CHECKOUT_PREAUTH_CENTS', 'CommissionParamBounds.PREAUTH_CENTS_CEILING'],
+  // MA-389：这张表不是「只有分」——本键单位是百分数，天花板 100 是字面量。
+  // 它决定「这笔分成能不能发分账请求」，属资金路由闸，必须与写/读两侧同口径。
+  ['PROFIT_SHARING_RECEIVER_MAX_PERCENT', '100L']
 ];
 /** MA-179 元单位键：键 → 天花板（分，字面量逐字一致）。 */
 const YUAN_CEILING_ENTRIES = [

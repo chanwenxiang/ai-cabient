@@ -8,6 +8,7 @@ import com.aicabinet.trade.mapper.DeviceTemperatureReadingMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -320,5 +321,61 @@ class DevicePresenceServiceTest {
         org.junit.jupiter.api.Assertions.assertFalse(neverHb.salesLockedEnabled());
         org.mockito.Mockito.verify(audit, org.mockito.Mockito.never())
                 .appendLog(eq(0L), eq("DEVICE_AUTO_LOCK_OFFLINE"), anyString(), anyString(), anyString());
+    }
+
+    /**
+     * MA-390：阈值可配 —— 一次扫描只解析一次；0/越界回落默认 2（fail-closed）。
+     *
+     * <p>🔴 判据必须钉「实际传给查询的 cutoff」，不能只钉「没报错」：阈值解析坏掉时
+     * 最典型的表现是**永远用代码默认值**或**永不判离线**，两者都不会抛异常。
+     */
+    @Test
+    void markStaleUsesConfiguredOfflineThreshold() {
+        long minutes = cutoffMinutesAgo(7);
+        assertTrue(Math.abs(minutes - 7) <= 1, "配置 7 分钟 ⇒ cutoff 应约 7 分钟前，实际 " + minutes);
+    }
+
+    /** 配置被填 0 / 越界 ⇒ 必须回落默认 2（而不是「不限制」或 0 分钟）。 */
+    @Test
+    void markStaleIllegalThresholdFallsBackToTwoMinutes() {
+        long zero = cutoffMinutesAgo(0);
+        assertTrue(Math.abs(zero - 2) <= 1, "配置 0 ⇒ 应回落 2 分钟，实际 " + zero);
+        long tooLarge = cutoffMinutesAgo(999);
+        assertTrue(Math.abs(tooLarge - 2) <= 1, "配置 999（>30）⇒ 应回落 2 分钟，实际 " + tooLarge);
+    }
+
+    /**
+     * 跑一次扫描，返回「查询 cutoff 距现在多少分钟」。
+     *
+     * <p>判据取**实际传给查询的 cutoff**：阈值解析坏掉时最典型的表现是永远用代码默认值
+     * 或永不判离线，两者都不抛异常 ⇒ 只断言「没报错」等于没测。
+     */
+    private long cutoffMinutesAgo(int configuredValue) {
+        DeviceInfoMapper devices = mock(DeviceInfoMapper.class);
+        DeviceTemperatureReadingMapper temperatures = mock(DeviceTemperatureReadingMapper.class);
+        CabinetMetrics metrics = mock(CabinetMetrics.class);
+        OpsExceptionService exceptions = mock(OpsExceptionService.class);
+        SystemConfigService systemConfig = mock(SystemConfigService.class);
+        AdminAuditService audit = mock(AdminAuditService.class);
+        ScheduledTaskService tasks = mock(ScheduledTaskService.class);
+        when(tasks.tryBegin(eq("device-presence"), eq(600L))).thenReturn(true);
+        when(systemConfig.getInt(SystemConfigService.DEVICE_OFFLINE_THRESHOLD_MINUTES,
+                SystemConfigService.DEFAULT_DEVICE_OFFLINE_THRESHOLD_MINUTES))
+                .thenReturn(configuredValue);
+        when(systemConfig.getInt(SystemConfigService.DEVICE_OFFLINE_AUTO_LOCK_MINUTES, 10)).thenReturn(0);
+        when(systemConfig.getInt(SystemConfigService.DEVICE_OFFLINE_MANUAL_UNLOCK_GRACE_MINUTES, 45))
+                .thenReturn(45);
+        when(devices.findByOnlineStatusAndUpdatedAtBefore(eq("ONLINE"), any(Instant.class)))
+                .thenReturn(java.util.List.of());
+
+        DevicePresenceService service = new DevicePresenceService(
+                devices, temperatures, metrics, exceptions, systemConfig, audit,
+                lockService(), null, tasks, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        service.markStaleDevicesOffline();
+
+        ArgumentCaptor<Instant> cutoff = ArgumentCaptor.forClass(Instant.class);
+        verify(devices).findByOnlineStatusAndUpdatedAtBefore(eq("ONLINE"), cutoff.capture());
+        return java.time.Duration.between(cutoff.getValue(), Instant.now()).toMinutes();
     }
 }

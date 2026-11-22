@@ -36,6 +36,7 @@ class WeChatProfitSharingReturnRetryQueryFirstTest {
 
     @Mock private WeChatPayV3Client client;
     @Mock private OrderRevenueSplitMapper splitRepository;
+    @Mock private com.aicabinet.trade.service.SystemConfigService systemConfig;
     @Mock private WeChatProfitSharingService self;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -45,7 +46,7 @@ class WeChatProfitSharingReturnRetryQueryFirstTest {
         WeChatPayProperties pay = new WeChatPayProperties(
                 true, "wx-appid", "1900000109", "https://example.test/notify",
                 "0123456789abcdef0123456789abcdef", "SERIAL-1", "PRIVATE-PEM", null, false);
-        return new WeChatProfitSharingService(sharing, pay, client, splitRepository, null, self);
+        return new WeChatProfitSharingService(sharing, pay, client, splitRepository, null, new ProfitSharingCapPolicy(systemConfig), self);
     }
 
     private OrderSplitReturnLeg failedLeg() {

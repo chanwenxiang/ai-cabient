@@ -85,6 +85,15 @@ public class SystemConfigService {
     public static final String RECHARGE_AUTO_CANCEL_MINUTES = "recharge.pending.auto_cancel_minutes";
     /** 设备离线超过该分钟数后自动锁机停售, 0=不自动锁机. */
     public static final String DEVICE_OFFLINE_AUTO_LOCK_MINUTES = "device.offline.auto_sales_lock_minutes";
+    /**
+     * 心跳超时判定「离线」的分钟数（设备 #11 / MA-390）。此前是 {@code DevicePresenceService}
+     * 里的 {@code private static final long OFFLINE_AFTER_MINUTES = 2}，改一次要发版。
+     *
+     * <p>⚠️ 本键与 {@link #DEVICE_OFFLINE_AUTO_LOCK_MINUTES} 是**两件事**：这里是「多久没心跳
+     * 就算离线」（状态判定），那边是「离线多久后自动停售」（业务动作）。调大这里会让死机
+     * 长时间显示在线 ⇒ 读取侧 0/越界一律回落 {@link #DEFAULT_DEVICE_OFFLINE_THRESHOLD_MINUTES}。
+     */
+    public static final String DEVICE_OFFLINE_THRESHOLD_MINUTES = "device.offline.threshold_minutes";
     /** 人工/策略解锁后，离线自动锁机宽限分钟数, 0=无宽限. */
     public static final String DEVICE_OFFLINE_MANUAL_UNLOCK_GRACE_MINUTES =
             "device.offline.manual_unlock_grace_minutes";
@@ -153,6 +162,15 @@ public class SystemConfigService {
      * 配置项会退化成「假可配置」。</p>
      */
     public static final int DEFAULT_DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES = 5;
+    /**
+     * {@link #DEVICE_OFFLINE_THRESHOLD_MINUTES} 的兜底默认值（分钟），与改造前的硬编码 2 一致。
+     *
+     * <p>读取侧把 0/负数/超过 {@code MAX_DEVICE_OFFLINE_THRESHOLD_MINUTES} 的值都视为非法并回落本值：
+     * 阈值被填成 0 或极大值时，「离线」要么永不成立、要么形同虚设 —— 两种都是 fail-open。
+     */
+    public static final int DEFAULT_DEVICE_OFFLINE_THRESHOLD_MINUTES = 2;
+    /** 离线判定阈值上限（分钟）：超过它基本等于关掉离线检测（心跳通常秒级），一律回落默认。 */
+    public static final int MAX_DEVICE_OFFLINE_THRESHOLD_MINUTES = 30;
     /** 柜机离线/停售即时通知冷却分钟数（同柜同类型），0=不冷却. */
     public static final String MERCHANT_INCIDENT_NOTIFY_COOLDOWN_MINUTES =
             "merchant.notify.incident_cooldown_minutes";
@@ -205,6 +223,18 @@ public class SystemConfigService {
     public static final String PLATFORM_FUND_RECON_TOLERANCE_YUAN = "platform.fund.recon.tolerance_yuan";
     /** 租赁账单日检：租金账期结束后宽限天数，超过即自动欠租锁柜（CB-034），0=账期结束即锁。 */
     public static final String DEVICE_RENTAL_OVERDUE_LOCK_DAYS = "device.rental.overdue_lock_days";
+    /**
+     * 微信分账「单接收方」比例上限（百分数）——服务商分账口径（资金 #13 / MA-389）。
+     *
+     * <p>CB-032 记的默认 30% 目前只有 ⚪ 旁证、提额真实性未与微信书面确认，故做成<b>运行期可调</b>：
+     * 拿到确认后改这一行即可，不必发版。判据单源在 {@code ProfitSharingCapPolicy}，
+     * 禁止各处手写「merchantCents × 100 > gross × N」。
+     *
+     * <p>⚠️ 与提现族「0=不限制」**语义相反**：本键 0 或越界一律回落默认 30（fail-closed）——
+     * 把闸填成 0 等于关掉闸门，那正是要防的。
+     */
+    public static final String PROFIT_SHARING_RECEIVER_MAX_PERCENT =
+            "fund.profit_sharing.receiver_max_percent";
     // 结算识别方式键（settlement.recognition_mode）已随重力/云识别链退役删除：DC-27 批2，识别只认端侧上报。
     /**
      * 商户端完成补货任务是否必须上传现场凭证照片。
@@ -464,7 +494,9 @@ public class SystemConfigService {
             LINE_WITHDRAW_DAILY_LIMIT_CENTS, LINE_WITHDRAW_REVIEW_THRESHOLD_CENTS,
             LINE_WITHDRAW_FEE_CENTS, LINE_WITHDRAW_FEE_BPS, LINE_WITHDRAW_FEE_CAP_CENTS,
             // S12 扩面（2026-11-14 拍板）：此前完全无写侧校验的预授权键入守卫族（0 仍合法=关闭）。
-            CHECKOUT_PREAUTH_CENTS);
+            CHECKOUT_PREAUTH_CENTS,
+            // MA-389：分账接收方上限决定「钱走分账还是走钱包」——资金路由键，必须留痕且可审计。
+            PROFIT_SHARING_RECEIVER_MAX_PERCENT);
 
     /**
      * DC-6（2026-10-19 拍板）：上限型资金键——<b>0 不再表示「不限制」</b>。
@@ -487,7 +519,9 @@ public class SystemConfigService {
             MERCHANT_WITHDRAW_FEE_BPS, (long) CommissionParamBounds.WITHDRAW_FEE_BPS_MAX,
             LINE_WITHDRAW_FEE_BPS, (long) CommissionParamBounds.WITHDRAW_FEE_BPS_MAX,
             BALANCE_REFUND_MAX_CENTS, (long) CommissionParamBounds.REFUND_LIMIT_CENTS_CEILING,
-            CHECKOUT_PREAUTH_CENTS, (long) CommissionParamBounds.PREAUTH_CENTS_CEILING);
+            CHECKOUT_PREAUTH_CENTS, (long) CommissionParamBounds.PREAUTH_CENTS_CEILING,
+            // MA-389：百分数，>100 无意义（接收方拿不回超过订单毛额）
+            PROFIT_SHARING_RECEIVER_MAX_PERCENT, 100L);
 
     /**
      * MA-179：元单位资金键（元字符串，可带 ≤2 位小数）——不能进 {@link #FUND_GUARDED_KEYS}
@@ -1060,6 +1094,10 @@ public class SystemConfigService {
                 "平台资金池日检：备付缓冲（元）；余额 < 在途待付 + 该缓冲即告警「备付金缺口」");
         upsertIfAbsent(PLATFORM_FUND_RECON_TOLERANCE_YUAN, "10",
                 "平台资金池日检：归集核对容差（元）；本月平台分成 vs 归集登记差异超过该值即告警");
+        // ── 分账接收方上限（MA-389）：超过即不发微信分账请求，fail-closed ──
+        upsertIfAbsent(PROFIT_SHARING_RECEIVER_MAX_PERCENT, "30",
+                "微信分账单接收方比例上限（百分数，1-100）；商户分成占订单超过该比例时拒绝提交分账"
+                        + "（服务商分账口径，CB-032 的 30% 待微信书面确认后可在此调整）；0/越界按 30 处理");
         // ── 设备租赁（CB-034）：欠租锁柜宽限天数 ──
         upsertIfAbsent(DEVICE_RENTAL_OVERDUE_LOCK_DAYS, "15",
                 "租赁日检：租金账期结束后宽限天数，超过即自动欠租锁柜；0=账期结束即锁");
@@ -1083,6 +1121,12 @@ public class SystemConfigService {
         upsertIfAbsent(PRICING_CLEARANCE_DISCOUNT_PERCENT, "0",
                 "清仓折扣比例（1-99）；0 或 ≥100 视为不生效；与时段折扣取更深者不叠加");
         upsertIfAbsent(DEVICE_OFFLINE_AUTO_LOCK_MINUTES, "10", "设备离线超时自动锁机分钟数, 0=关闭");
+        // 字面写 "2" 而非 String.valueOf(...)：门禁 R0 要求 NUMBER 型注册表默认值是整数、
+        // R5 要求 seed 字面与注册表 default 逐字相等 ⇒ 这里只能用字面量（与
+        // DEFAULT_DEVICE_OFFLINE_THRESHOLD_MINUTES 保持一致，改动要同步两处）。
+        upsertIfAbsent(DEVICE_OFFLINE_THRESHOLD_MINUTES, "2",
+                "心跳超时判定离线的分钟数（默认 2，上限 30）；0/越界按默认 2 处理"
+                        + "——注意与「离线自动锁机分钟数」是两件事");
         upsertIfAbsent(DEVICE_OFFLINE_MANUAL_UNLOCK_GRACE_MINUTES, "45",
                 "人工解锁后离线自动锁机宽限分钟数, 0=无宽限");
         upsertIfAbsent(DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED, FALSE,
