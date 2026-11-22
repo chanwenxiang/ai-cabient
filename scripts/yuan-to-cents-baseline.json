@@ -94,6 +94,11 @@
   ],
   "javaEntries": [
     {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/payment/ProfitSharingCapPolicy.java",
+      "count": 2,
+      "why": "百分比换算（MA-389）：接收方占比 = receiverCents*100/grossCents、上限比较 receiverCents*100 > grossCents*capPercent；不是元→分，不涉及小数精度损失"
+    },
+    {
       "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceAssetService.java",
       "count": 1
     },
