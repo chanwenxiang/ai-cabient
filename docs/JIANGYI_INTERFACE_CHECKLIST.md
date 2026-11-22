@@ -829,6 +829,7 @@ docker exec -i <pg> psql -U aicabinet -d aicabinet -tA -c `
   **① 逐柜「待复核」标记**——`autoBind` 注入 `JiangyiMappingReviewService.isVerified`（与 `JiangyiShelfWriter:91` 同源判据），`DeviceNote` 加 `mappingVerified`，前端对 BOUND/ALREADY 且 false 显示红色「待复核」tag。成因：挂上映射行 ≠ 能结算，未复核柜仍被结算侧整单转 DISPUTED，原明细只显示「已挂上」误导运营。**纯展示，不动挂接判定与资金逻辑**。
   **② 上架提示**——弹窗加「先上架，再挂接」：`floor-goods:116` 跳过非在售 SKU（thirdPid 路断），但 classId 兜底仍能按 SKU 价结算（§既有口径），运营流程约束先上架。
   **③ 🔴 拒绝**（用户提议「autoRebuild 入口从仅认我方 SENT 扩到用设备自报 currentTxtUrl 首次重算+盖戳」）：`autoRebuild` 现用**我方下发时的 classes 指纹**（`expectedClassesVersion`，`JiangyiInternalController:236`）双重确认——我方知道该跑哪版 + 设备回执确认为那一版；设备自报 URL 只是「设备自称在跑什么」，无第二来源交叉验证，且 `autoRebuild` 结尾无条件 `stampMappingVerified`（`:433`）=解除结算闸。换成自报 = 厂商推什么认什么，拆掉 V400 资金闸（H-27 雪碧 65 类 25 号/69 类 29 号错钱实证）。替代方案：保留人工盖戳，把差异预览做成进页用 `currentTxtUrl` 零点击自动带出，省机械动作不省「人看一眼」。
+- **2026-11-22 开机回执线程解耦（MA-388，用户复核 P3-1）**：漂移检测（上面 O2 那条）要拉一次 OSS classes.txt（档位 3s 连接 + 10s 读），原先同步跑在 `confirmModelByTxtUrl` 里，而这条链另一端是网关**单线程**守护线程 `DeviceInfoController.txtConfirmExecutor` ⇒ 一台柜机慢网会把后续所有柜机的确认转达排到队尾（整站停电恢复后几十台同时开机时，靠后的柜机 SENT→CONFIRMED 可能先被下发看门狗判超时，模型白下发一次）。改为 `scheduleDriftCheck` 交给单线程 daemon executor + 同柜在途去重（`finally` 摘键；漏摘＝该柜此后永不检测漂移＝静默 fail-open）；同时撤戳改条件更新 `clearMappingVerificationIfStill(deviceId, verifiedVersion, at)`——拉取窗口内若被并发复核盖了新戳，0 行即放弃、不覆盖新戳。**接口与设备侧行为不变**（网关照旧立刻回 666），只是确认闭环的时延与并发安全变了。
 
 ## 12. 对账结论（2026-10-29，D-4/D-5 + 接口对账）
 

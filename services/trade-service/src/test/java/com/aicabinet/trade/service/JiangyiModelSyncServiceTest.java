@@ -96,6 +96,9 @@ class JiangyiModelSyncServiceTest {
         // AU-183：白名单注入本地 HttpServer host（守卫默认仅将邑域）
         org.springframework.test.util.ReflectionTestUtils.setField(svc, "allowedModelHosts",
                 java.util.List.of("hunanjysmart.com", "http://localhost", "http://127.0.0.1"));
+        // MA-388：漂移检测已挪到独立线程；用例里改成同步执行（Runnable::run），
+        // 否则「never 撤戳」这类断言会在检测跑完之前就通过＝假绿。
+        svc.setDriftCheckExecutor(Runnable::run);
         return svc;
     }
 
@@ -375,6 +378,8 @@ class JiangyiModelSyncServiceTest {
         verify(deploymentMapper, org.mockito.Mockito.never()).confirm(anyLong(), anyString(), any());
         verify(deploymentMapper, org.mockito.Mockito.never()).findLatestSent(anyString(), anyString());
         verify(jiangyiDeviceMapper, org.mockito.Mockito.never()).clearMappingVerification(anyString(), any());
+        verify(jiangyiDeviceMapper, org.mockito.Mockito.never())
+                .clearMappingVerificationIfStill(anyString(), anyString(), any());
         verify(jiangyiDeviceMapper, org.mockito.Mockito.never()).updateModelInfo(anyString(), anyString(), anyString(), any());
     }
 
@@ -396,12 +401,65 @@ class JiangyiModelSyncServiceTest {
         d.setMappingVerifiedVersion("deadbeef1234");
         when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(d);
         when(deploymentMapper.listByDevice(DEVICE_ID)).thenReturn(List.of());
+        when(jiangyiDeviceMapper.clearMappingVerificationIfStill(eq(DEVICE_ID), eq("deadbeef1234"), any()))
+                .thenReturn(1);
 
         String driftUrl = "http://127.0.0.1:" + classesServer.getAddress().getPort() + "/drift.txt";
         assertNull(service().confirmModelByTxtUrl(DEVICE_ID, driftUrl));
 
-        verify(jiangyiDeviceMapper).clearMappingVerification(eq(DEVICE_ID), any());
+        // MA-388：撤戳必须带「比对时那一版」谓词——窗口里被并发复核换掉的新戳不得被覆盖
+        verify(jiangyiDeviceMapper).clearMappingVerificationIfStill(eq(DEVICE_ID), eq("deadbeef1234"), any());
         verify(deploymentMapper, org.mockito.Mockito.never()).confirm(anyLong(), anyString(), any());
+    }
+
+    /** MA-388：窗口内复核戳被改过（条件更新 0 行）⇒ 放弃撤戳，不覆盖新戳。 */
+    @Test
+    void confirmModelByTxtUrl_stampChangedDuringFetchKeepsNewStamp() {
+        JiangyiDevice d = boundDevice("rk3576");
+        d.setMappingVerifiedVersion("deadbeef1234");
+        when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(d);
+        when(deploymentMapper.listByDevice(DEVICE_ID)).thenReturn(List.of());
+        when(jiangyiDeviceMapper.clearMappingVerificationIfStill(anyString(), anyString(), any()))
+                .thenReturn(0);
+
+        String driftUrl = "http://127.0.0.1:" + classesServer.getAddress().getPort() + "/drift.txt";
+        assertNull(service().confirmModelByTxtUrl(DEVICE_ID, driftUrl));
+
+        // 0 行＝并发复核已盖新戳：不得再用无条件清空兜一遍
+        verify(jiangyiDeviceMapper, org.mockito.Mockito.never())
+                .clearMappingVerification(anyString(), any());
+    }
+
+    /** MA-388：漂移检测不占开机回执线程——回执返回时检测可以还没跑（异步）。 */
+    @Test
+    void confirmModelByTxtUrl_doesNotRunDriftCheckOnCallerThread() {
+        JiangyiDevice d = boundDevice("rk3576");
+        d.setMappingVerifiedVersion("deadbeef1234");
+        when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(d);
+        when(deploymentMapper.listByDevice(DEVICE_ID)).thenReturn(List.of());
+
+        java.util.List<Runnable> queued = new java.util.ArrayList<>();
+        JiangyiModelSyncService svc = service();
+        svc.setDriftCheckExecutor(queued::add);
+
+        String driftUrl = "http://127.0.0.1:" + classesServer.getAddress().getPort() + "/drift.txt";
+        assertNull(svc.confirmModelByTxtUrl(DEVICE_ID, driftUrl));
+        assertEquals(1, queued.size(), "漂移检测应只排队、不在回执线程执行");
+        // 未执行 ⇒ 还没拉 OSS、也没撤戳
+        verify(jiangyiDeviceMapper, org.mockito.Mockito.never())
+                .clearMappingVerificationIfStill(anyString(), anyString(), any());
+
+        // 同柜第二次回执：在途去重，不再排队（两次拉同一份内容没有新信息）
+        assertNull(svc.confirmModelByTxtUrl(DEVICE_ID, driftUrl));
+        assertEquals(1, queued.size(), "同柜在途去重：第二次回执不得再排队");
+
+        // 执行队列里的任务 ⇒ 检测真跑了、撤戳真发生；跑完必须摘净去重键
+        queued.forEach(Runnable::run);
+        verify(jiangyiDeviceMapper).clearMappingVerificationIfStill(eq(DEVICE_ID), eq("deadbeef1234"), any());
+
+        // 摘净后第三次回执要重新排队（漏摘会让该柜机此后永远不检测漂移＝静默 fail-open）
+        assertNull(svc.confirmModelByTxtUrl(DEVICE_ID, driftUrl));
+        assertEquals(2, queued.size(), "检测跑完必须摘掉去重键，否则该柜机此后永不检测漂移");
     }
 
     /**
@@ -419,6 +477,8 @@ class JiangyiModelSyncServiceTest {
         String missingUrl = "http://127.0.0.1:" + classesServer.getAddress().getPort() + "/not-exist.txt";
         assertNull(service().confirmModelByTxtUrl(DEVICE_ID, missingUrl));
 
+        verify(jiangyiDeviceMapper, org.mockito.Mockito.never())
+                .clearMappingVerificationIfStill(anyString(), anyString(), any());
         verify(jiangyiDeviceMapper, org.mockito.Mockito.never()).clearMappingVerification(anyString(), any());
     }
 
@@ -433,6 +493,8 @@ class JiangyiModelSyncServiceTest {
 
         assertNull(service().confirmModelByTxtUrl(DEVICE_ID, classesUrl));
 
+        verify(jiangyiDeviceMapper, org.mockito.Mockito.never())
+                .clearMappingVerificationIfStill(anyString(), anyString(), any());
         verify(jiangyiDeviceMapper, org.mockito.Mockito.never()).clearMappingVerification(anyString(), any());
     }
 

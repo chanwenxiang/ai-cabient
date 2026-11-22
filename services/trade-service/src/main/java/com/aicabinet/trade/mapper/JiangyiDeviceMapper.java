@@ -123,6 +123,30 @@ public interface JiangyiDeviceMapper extends BaseTradeMapper<JiangyiDevice> {
                 .eq(JiangyiDevice::getDeviceId, deviceId));
     }
 
+    /**
+     * 条件撤戳（MA-388）：只在复核戳<b>仍是比对时那一版</b>时才清空。
+     *
+     * <p>成因：开机回执的漂移检测在比完指纹→清戳之间有一段窗口（拉 OSS 那步本身可长到 3s+10s 超时），
+     * 运营恰在此间复核通过并盖了新戳，无条件 {@code UPDATE … SET version=null} 会把刚盖的新戳抹掉。
+     * 与「定时清扫禁拿快照直写状态」同一形态：判据读的是旧快照，写入必须带快照态谓词，
+     * 0 行即说明状态已被别人推进 ⇒ 本条放弃。</p>
+     *
+     * @param expectedVersion 比对时读到的 {@code mapping_verified_version}
+     * @return 受影响行数；0 = 戳已不是该版本（被并发复核换掉），调用方不得当成「撤成功」
+     */
+    default int clearMappingVerificationIfStill(String deviceId, String expectedVersion, Instant at) {
+        if (expectedVersion == null || expectedVersion.isBlank()) {
+            // 没有快照态就不能做条件更新，直接放弃（调用方本就在「戳为空即早退」之后）
+            return 0;
+        }
+        return update(null, Wrappers.<JiangyiDevice>lambdaUpdate()
+                .set(JiangyiDevice::getMappingVerifiedVersion, null)
+                .set(JiangyiDevice::getMappingVerifiedAt, null)
+                .set(JiangyiDevice::getUpdatedAt, at)
+                .eq(JiangyiDevice::getDeviceId, deviceId)
+                .eq(JiangyiDevice::getMappingVerifiedVersion, expectedVersion));
+    }
+
     /** 登记工控机机型（将邑原值 "76"/"88"，admin 录入/采集链路回填）。 */
     default int updateIndustrialControlModel(String deviceId, String industrialControlModel, Instant at) {
         return update(null, Wrappers.<JiangyiDevice>lambdaUpdate()

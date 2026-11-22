@@ -33,6 +33,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 
 /**
  * 将邑模型同步编排（CB-023 二期，范围 A）：
@@ -60,6 +64,28 @@ public class JiangyiModelSyncService {
      *  R21-1（2026-11-12）：原先 RestClient.create() 无任何超时——模型同步在管理操作链路上，
      *  OSS 外链卡住即占死请求线程。S1（2026-11-12）：档位由 OutboundHttp 单源提供。 */
     private final RestClient publicHttp = OutboundHttp.publicApi().build();
+
+    /**
+     * 漂移检测执行器（MA-388）。
+     *
+     * <p>成因：{@link #revokeVerificationIfModelDrifted} 要拉一次 OSS classes.txt（档位 3s 连接 +
+     * 10s 读）。它挂在开机回执的确认转达链上，而网关侧转达是**单线程**守护线程
+     * （{@code DeviceInfoController.txtConfirmExecutor}）：一次卡住的拉取会把后续所有柜机的
+     * 确认转达排在后面。整站停电恢复后几十台柜机同时开机时，最坏 20×13s ⇒ 后面的柜机
+     * SENT→CONFIRMED 迟迟不落地，可能先被下发看门狗判成超时（模型白下发一次）。</p>
+     *
+     * <p>撤戳是**事后追认**（拉到内容才能判漂移），晚几秒撤不影响正确性：这段窗口里一张单仍按
+     * 旧戳结算的风险，远小于「几十台柜机确认链被一台的慢网拖住」。故挪出回执线程，
+     * 单线程 daemon + 同柜去重即可（与网关侧同款做法，不引入新基础设施）。</p>
+     */
+    private Executor driftCheckExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "jiangyi-drift-check");
+        t.setDaemon(true);
+        return t;
+    });
+
+    /** 同柜去重：同一台柜机的开机回执短时间内可能连发多次，重复拉 OSS 只增负载不增信息。 */
+    private final Set<String> driftChecksInFlight = ConcurrentHashMap.newKeySet();
 
     public JiangyiModelSyncService(JiangyiGatherClient jiangyiGatherClient,
                                    JiangyiDeviceMapper jiangyiDeviceMapper,
@@ -497,7 +523,7 @@ public class JiangyiModelSyncService {
         if (match == null) {
             log.info("jiangyi receiveCurrentTxtUrl no matching SENT deviceId={} txtUrl={}（不确认；漂移检测见后续日志）",
                     deviceId, reported);
-            revokeVerificationIfModelDrifted(deviceId, reported);
+            scheduleDriftCheck(deviceId, reported);
             return null;
         }
         // R3-D-R3-3：确认前重读目标行 —— match 与 confirmModel 内部重查之间若被 watchdog
@@ -510,6 +536,40 @@ public class JiangyiModelSyncService {
             return null;
         }
         return confirmModel(deviceId, match.getModelName());
+    }
+
+    /**
+     * 把漂移检测挪出开机回执线程（MA-388），同柜在途去重。
+     *
+     * <p>去重是<b>并发</b>语义而不是节流：同一台柜机连发两次回执时，第二次直接跳过——两次拉到的是
+     * 同一份内容、算的是同一个指纹，重复拉只会把 OSS 加重。跳过不影响正确性：在途那次无论结论
+     * 是「一致」还是「漂移」都已覆盖本次。</p>
+     */
+    void scheduleDriftCheck(String deviceId, String reportedTxtUrl) {
+        if (!driftChecksInFlight.add(deviceId)) {
+            log.info("jiangyi drift check already in flight deviceId={} txtUrl={}（同柜去重，跳过重复拉取）",
+                    deviceId, reportedTxtUrl);
+            return;
+        }
+        try {
+            driftCheckExecutor.execute(() -> {
+                try {
+                    revokeVerificationIfModelDrifted(deviceId, reportedTxtUrl);
+                } finally {
+                    // 必须摘净：漏摘会让该柜机此后**永远**不再检测漂移（静默 fail-open）
+                    driftChecksInFlight.remove(deviceId);
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            driftChecksInFlight.remove(deviceId);
+            log.warn("jiangyi drift check rejected (shutting down?) deviceId={} txtUrl={}",
+                    deviceId, reportedTxtUrl);
+        }
+    }
+
+    /** 供测试把漂移检测改成同步执行（默认单线程 daemon，见字段注释）。 */
+    void setDriftCheckExecutor(Executor executor) {
+        this.driftCheckExecutor = executor;
     }
 
     /**
@@ -547,7 +607,16 @@ public class JiangyiModelSyncService {
                 return;
             }
             Instant now = Instant.now();
-            int cleared = jiangyiDeviceMapper.clearMappingVerification(deviceId, now);
+            // MA-388：条件撤戳。上面的 verifiedVersion 是「拉 OSS 之前」读到的快照，而拉取本身
+            // 可长达 3s+10s 超时；这段时间里运营可能复核通过并盖了新戳。无条件清空会把刚盖的新戳
+            // 抹掉（一条正确的复核被一条过期的漂移判定作废），故写入必须带快照态谓词。
+            int cleared = jiangyiDeviceMapper.clearMappingVerificationIfStill(deviceId, verifiedVersion, now);
+            if (cleared == 0) {
+                log.warn("jiangyi current model DRIFT deviceId={} reported={} verifiedVersion={} currentVersion={} "
+                                + "→ 撤戳放弃：复核戳已被并发改动（期间有人复核通过？），不覆盖新戳",
+                        deviceId, reportedTxtUrl, verifiedVersion, currentVersion);
+                return;
+            }
             log.warn("jiangyi current model DRIFT deviceId={} reported={} verifiedVersion={} currentVersion={} "
                             + "→ mapping verification revoked rows={} ——柜机在跑的类表已不是已复核版本"
                             + "（厂商直推/恢复出厂？），识别映射需重新复核后方可售",
