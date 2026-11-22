@@ -64,8 +64,19 @@ git archive --format=tar.gz -o "$TARBALL" HEAD
 echo "✅ $(du -h "$TARBALL" | cut -f1) → $TARBALL"
 
 echo "── [2/7] 上传 ${PROD_HOST} ──"
-scp "${SSH_OPTS[@]}" -P "$PROD_PORT" "$TARBALL" "${SSH_CMD[0]}:/data/apps/prod-src-${SHA}.tar.gz"
-echo "✅ 上传完成"
+# 2026-11-22：GitHub runner→服务器路由偶发劣化到 ~16KB/s（271MB 包 50 分钟只传 18%，
+# deploy job 撞 50min 超时被取消，孤儿 scp 残留）。加「同 SHA 同大小⇒跳过上传」：
+# 服务器已有完整同尺寸包（如人工从本机预传/上次部署残留完整包）时直接复用；
+# 尺寸不符（半截包）则覆盖重传，fail-closed 不认残包。
+REMOTE_SIZE=$(ssh "${SSH_OPTS[@]}" -p "$PROD_PORT" "${SSH_CMD[0]}" "stat -c %s /data/apps/prod-src-${SHA}.tar.gz 2>/dev/null || echo 0")
+LOCAL_SIZE=$(stat -c %s "$TARBALL")
+if [ "$REMOTE_SIZE" = "$LOCAL_SIZE" ] && [ "$LOCAL_SIZE" != "0" ]; then
+  echo "✅ 服务器已有同 SHA 同大小（${LOCAL_SIZE} 字节）的源码包，跳过上传"
+else
+  echo "上传 ${LOCAL_SIZE} 字节（服务器现有 ${REMOTE_SIZE}）…"
+  scp "${SSH_OPTS[@]}" -P "$PROD_PORT" "$TARBALL" "${SSH_CMD[0]}:/data/apps/prod-src-${SHA}.tar.gz"
+  echo "✅ 上传完成"
+fi
 
 echo "── [3/7] 服务器解包 + 清理陈旧 admin 资产 ──"
 ADMIN_REL="services/trade-service/src/main/resources/static/admin"
