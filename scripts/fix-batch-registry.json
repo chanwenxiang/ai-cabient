@@ -2473,6 +2473,45 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "f9713eb8",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 4,
+      "items": [
+        {
+          "id": "MA-385①（消费者模板 fail-closed）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/config/WeChatMiniAppProperties.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/UnpaidOrderService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/ExternalNotificationDispatcher.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/config/WeChatMiniAppPropertiesConsumerTemplateTest.java"
+          ]
+        },
+        {
+          "id": "MA-385②（HTTP 移出事务）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiMappingAutoBindService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/JiangyiMappingAutoBindServiceTest.java"
+          ]
+        },
+        {
+          "id": "MA-385③（复核判据合并）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiMappingReviewService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiLearningLibraryService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiFlowSummaryService.java"
+          ]
+        },
+        {
+          "id": "MA-385④（load 仅换柜清空）",
+          "files": [
+            "clients/admin-vue/src/views/vision/VisionMappingView.vue",
+            "scripts/check-consumer-template-and-tx-scope.mjs",
+            "scripts/check-consumer-template-and-tx-scope.test.mjs"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
