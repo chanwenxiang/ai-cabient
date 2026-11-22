@@ -140,7 +140,9 @@ public class WeChatProfitSharingService {
         // 运营手工提交 / 失败重试）全部汇到本方法，闸只设一处。
         // 状态**不动**（仍是 ACCRUED=未提交）：此时还没打渠道，翻成 WECHAT_FAILED 等于谎称「已尝试过」；
         // 原因写 failure_reason，运营台「失败原因」列直接可见、可照着改配置。
-        // ⚠️ mock 模式同样受此闸约束（判据不因通道真假而不同）；联调要跑通分账，把抽成配 0 或把上限调高即可。
+        // ⚠️ mock 模式同样受此闸约束（判据不因通道真假而不同，与上面零抽成闸同口径）。
+        // 联调要跑通分账流程，别把抽成配 0（那会先被零抽成闸短路成 LEDGER_ONLY），
+        // 而是把该商户 platform_rate_bps 配到 ≥7000（接收方 ≤30%），或临时调高本上限。
         if (capPolicy.exceedsCap(split.getMerchantCents(), split.getGrossCents())) {
             String reason = capPolicy.refusalReason(split.getMerchantCents(), split.getGrossCents());
             split.setFailureReason(reason);
