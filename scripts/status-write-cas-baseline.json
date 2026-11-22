@@ -1,0 +1,202 @@
+{
+  "note": "MA-396 F5 类级棘轮基线：状态/版本突变与落库写共现的方法体白名单。新站点必须登记（带 why）或改条件写入；修复后站点必须摘牌（只减不增）。种子 = da0577fe 工作树实测。",
+  "seededAt": "2026-11-22",
+  "seededHead": "da0577fe",
+  "sites": {
+    "services/trade-service/src/main/java/com/aicabinet/trade/payment/WeChatProfitSharingService.java#prepareSubmit": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/payment/WeChatProfitSharingService.java#finalizeSubmitted": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/payment/WeChatProfitSharingService.java#markLedgerOnly": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/AdCampaignService.java#doUpsert": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/AdCampaignService.java#launch": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/AdCampaignService.java#stop": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/ApprovalWorkflowService.java#start": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/BalanceRefundService.java#rejectRefund": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/BalanceRefundService.java#debitRemainingAndMarkProcessing": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/BalanceRefundService.java#debitAndMarkProcessing": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/BalanceRefundService.java#markRefundSuccess": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceDataFeeBillService.java#markPaid": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceDataFeeBillService.java#voidBill": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceRentalService.java#settle": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceRentalService.java#runMonthlyRefunds": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceRentalService.java#markPaid": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceRentalService.java#voidBill": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/DisputeService.java#ensureDisputeTicketForFullRefund": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/DisputeService.java#closeTicket": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/DisputeService.java#reopenTicket": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/ExternalChannelImportService.java#commit": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/InvoiceService.java#issue": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/InvoiceService.java#reject": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiOnboardingService.java#bindDomain": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiOnboardingService.java#setTenantDomain": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/LineManagerService.java#unbindDevice": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/LinePromoTaskService.java#doUpsert": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/LineRouteAdminService.java#archive": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/LineRouteAdminService.java#upsertMember": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/LineWithdrawService.java#completeReview": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/LineWithdrawService.java#cancelFailedLocked": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/LineWithdrawService.java#finalizePayout": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/LineWithdrawService.java#failSingleStalePaying": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/MachinePayeeBillService.java#settle": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/MediaAssetService.java#doUpdate": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantFeeLedgerService.java#settle": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantService.java#doUpsertMerchant": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantWithdrawService.java#completeReview": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantWithdrawService.java#cancelFailedLocked": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantWithdrawService.java#failSingleStalePaying": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/OpsDeviceAdminService.java#resetHardwareBinding": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/OpsRbacService.java#doUpdatePermission": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/OrderPaymentService.java#finalizeRefundInitiated": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/OrderPaymentService.java#finalizeChargePending": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/OrderPaymentService.java#markAdjustInitiatedFinalized": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/PayScoreOrderNotifyService.java#handlePaid": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/PayoutAccountService.java#disable": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/RevenueSplitService.java#doVoidSplitOnFullRefund": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/RevenueSplitService.java#resyncSubmittedSplitAfterPartialRefund": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/RevenueSplitService.java#doConfirmLedgerOnly": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/RiskAutoDispositionService.java#tryAutoClearInfo": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/RiskAutoDispositionService.java#tryAutoAckWarn": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/SiteContractService.java#doUpsert": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/SiteRentBillService.java#markPaid": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/SiteRentBillService.java#voidBill": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/SkuDelistReviewService.java#upsertSkuReview": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/SkuJiangyiLinkService.java#valueOf": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/SkuJiangyiLinkService.java#deleteFromJiangyi": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/SkuJiangyiLinkService.java#unbind": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/SysDictService.java#doUpsertType": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/WarehouseMonthlyCloseSheetService.java#approve": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/WarehouseMonthlyCloseSheetService.java#insertSheet": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/WarehouseTransferService.java#doShip": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/WarehouseTransferService.java#doReceive": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/WarehouseTransferService.java#doCancel": {
+      "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
+    }
+  }
+}
