@@ -49,7 +49,7 @@
     "check:jiangyi-outbound": "node scripts/jiangyi-outbound-inventory.test.mjs && node scripts/jiangyi-outbound-inventory.mjs",
     "check:mapper-xml-binding": "node scripts/check-mapper-xml-binding.mjs",
     "check:openapi-regen": "node scripts/check-openapi-regen-required.mjs",
-    "check:gate-runtime-hygiene": "node scripts/check-gate-runtime-hygiene.mjs",
+    "check:gate-runtime-hygiene": "node scripts/check-gate-runtime-hygiene.test.mjs && node scripts/check-gate-runtime-hygiene.mjs",
     "check:config-passthrough": "node scripts/check-config-env-passthrough.mjs",
     "check:config-properties-binding": "node scripts/check-config-properties-binding.mjs",
     "check:devmock-scope": "node scripts/check-devmock-scope.mjs",

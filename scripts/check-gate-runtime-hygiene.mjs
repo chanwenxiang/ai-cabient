@@ -104,92 +104,70 @@ const problems = [];
 
 const SELF = 'check-gate-runtime-hygiene.mjs';
 const scriptsDir = join(ROOT, 'scripts');
-const gateFiles = readdirSync(scriptsDir).filter((f) => /^check-.*\.mjs$/.test(f));
-const extraFiles = ['run-audit-gates.mjs'].map((f) => join(scriptsDir, f));
-for (const file of [...gateFiles.map((f) => join(scriptsDir, f)), ...extraFiles]) {
-  const rel = relative(ROOT, file).replace(/\\/g, '/');
-  if (rel.endsWith(SELF)) continue;
-  let src;
-  try {
-    src = stripComments(readFileSync(file, 'utf8'));
-  } catch (e) {
-    problems.push(`${rel}: 读取失败 ${e.message}`);
-    continue;
-  }
+
+/* ------------------------------------------------------------------ *
+ * 三条判据都抽成纯函数（输入 = 相对路径 + 源码文本），供 .test.mjs 直接调用。
+ * 不抽出来就只能靠「改真仓文件再跑脚本」，夹具必然要动工作区 —— 那是污染源。
+ * ------------------------------------------------------------------ */
+
+/** 判据 1：禁同步子进程（WorkBuddy 下 EBUSY 把「没跑」记成「全红」）。 */
+export function problemsOfSyncSpawn(rel, rawSrc) {
+  const src = stripComments(rawSrc);
   const hit = src.match(/\b(spawnSync|execSync|execFileSync)\b/);
-  if (hit) {
-    problems.push(
-      `${rel}: 使用了同步子进程 ${hit[1]}（WorkBuddy 下 EBUSY 会把「没跑」记成「全红」）——改用 scripts/lib/async-spawn.mjs`
-    );
-  }
+  return hit
+    ? [
+        `${rel}: 使用了同步子进程 ${hit[1]}（WorkBuddy 下 EBUSY 会把「没跑」记成「全红」）——改用 scripts/lib/async-spawn.mjs`
+      ]
+    : [];
 }
 
-// 判据 3：负向验证脚本写 `.tmp` 前必须自建父目录。
-// 成因（2026-11-22 CI run 45037911316 实证）：`.tmp` 是 gitignore 的 ⇒ runner 新检出上
-// **根本不存在**；`devops/verify-mp-template-comment-drift.mjs` 的
-// `copyFileSync(TARGET, BACKUP)`（BACKUP 在 `.tmp/` 下）直接
-// `ENOENT: copyfile ... -> .tmp/orders.vue.template-comment-backup`。
-// 本机因 `.tmp` 常驻而恒绿 —— 典型「本机绿、CI 红」，且报的是 fs 错误、看着像环境抖动。
-// 判据只认「写入目标确实落在 .tmp」（含 `const X = join(root, '.tmp/…')` 这类别名），
-// 不搞「凡写文件都要 mkdir」——那会把写既有目录的正常脚本全判红。
-const WRITE_CALLS =
-  /\b(copyFileSync|cpSync|writeFileSync|appendFileSync|writeFile)\s*\(/g;
-for (const file of walk(join(ROOT, 'scripts', 'devops')).filter((f) =>
-  /verify-.*\.mjs$/.test(f)
-)) {
-  const rel = relative(ROOT, file).replace(/\\/g, '/');
-  let src;
-  try {
-    src = stripComments(readFileSync(file, 'utf8'));
-  } catch (e) {
-    problems.push(`${rel}: 读取失败 ${e.message}`);
-    continue;
-  }
-  // `.tmp` 路径别名：const NAME = …'.tmp'…（单行）
+/**
+ * 判据 3：负向验证脚本（`scripts/devops/verify-*.mjs`）写 `.tmp` 前必须自建父目录。
+ * 成因（2026-11-22 CI run 45037911316 实证）：`.tmp` 是 gitignore 的 ⇒ runner 新检出上
+ * **根本不存在**；`devops/verify-mp-template-comment-drift.mjs` 的
+ * `copyFileSync(TARGET, BACKUP)`（BACKUP 在 `.tmp/` 下）直接
+ * `ENOENT: copyfile ... -> .tmp/orders.vue.template-comment-backup`。
+ * 本机因 `.tmp` 常驻而恒绿 —— 典型「本机绿、CI 红」，且报的是 fs 错误、看着像环境抖动。
+ * 判据只认「写入目标确实落在 .tmp」（含 `const X = join(root, '.tmp/…')` 这类别名），
+ * 不搞「凡写文件都要 mkdir」——那会把写既有目录的正常脚本全判红。
+ */
+export function problemsOfTmpWrite(rel, rawSrc) {
+  if (!/^scripts\/devops\/verify-[^/]*\.mjs$/.test(rel)) return [];
+  const src = stripComments(rawSrc);
   const aliases = new Set(
     [...src.matchAll(/\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*[^;\n]*['"`]\.tmp['"`/\\]/g)].map(
       (m) => m[1]
     )
   );
   const mkdirAt = src.search(/\bmkdirSync\s*\(/);
-  WRITE_CALLS.lastIndex = 0;
+  const writeCall = /\b(copyFileSync|cpSync|writeFileSync|appendFileSync|writeFile)\s*\(/g;
   let m;
-  while ((m = WRITE_CALLS.exec(src)) !== null) {
+  while ((m = writeCall.exec(src)) !== null) {
     const rest = src.slice(m.index, m.index + 400);
     const open = rest.indexOf('(');
     // 取该调用的实参文本（到行末即可，判据只看目标表达式）
-    const args = rest.slice(open + 1, rest.indexOf('\n', open) === -1 ? rest.length : rest.indexOf('\n', open));
+    const lineEnd = rest.indexOf('\n', open);
+    const args = rest.slice(open + 1, lineEnd === -1 ? rest.length : lineEnd);
     const isCopy = m[1] === 'copyFileSync' || m[1] === 'cpSync';
     const dest = isCopy ? args.split(',').slice(1).join(',') : args;
-    const hitTmp = dest.includes('.tmp') || [...aliases].some((a) => new RegExp(`\\b${a}\\b`).test(dest));
+    const hitTmp =
+      dest.includes('.tmp') || [...aliases].some((a) => new RegExp(`\\b${a}\\b`).test(dest));
     if (!hitTmp) continue;
     if (mkdirAt === -1 || mkdirAt > m.index) {
-      problems.push(
+      return [
         `${rel}: 写入 .tmp 的调用 \`${m[1]}(…)\` 之前没有 mkdirSync ——`.concat(
           '.tmp 是 gitignore 的，新检出（CI runner）不存在 ⇒ ENOENT 假红；先 mkdirSync(dirname(DEST), { recursive: true })'
         )
-      );
-      break; // 每个文件只报一次，避免刷屏
+      ]; // 每个文件只报一次，避免刷屏
     }
   }
+  return [];
 }
 
-// 相对路径 --require
-const requireScopes = [
-  ...walk(join(ROOT, 'scripts')),
-  join(ROOT, 'package.json'),
-  ...walk(join(ROOT, '.github', 'workflows')),
-  ...walk(join(ROOT, 'infra')).filter((f) => /\.(sh|ps1|ya?ml)$/.test(f))
-];
-for (const file of requireScopes) {
-  if (!/\.(mjs|js|cjs|json|sh|ps1|ya?ml)$/.test(file)) continue;
-  if (file.endsWith(SELF)) continue;
-  let text;
-  try {
-    text = stripComments(readFileSync(file, 'utf8'));
-  } catch {
-    continue;
-  }
+/** 判据 2：禁相对路径 `--require`（Node v24 按 CWD 解析必失败）。 */
+export function problemsOfRelativeRequire(rel, rawSrc) {
+  const text = stripComments(rawSrc);
+  const out = [];
   for (const line of text.split(/\r?\n/)) {
     const m = line.match(/--require\s+["']?([^\s"']+)/);
     if (!m) continue;
@@ -197,16 +175,76 @@ for (const file of requireScopes) {
     // 绝对路径：以 / 或盘符开头；变量/占位符：$VAR、${...}、$(...)、<repo> 都视为未知，不做判断
     if (/^([/\\]|[A-Za-z]:[\\/])/.test(target)) continue;
     if (/^[$<]/.test(target)) continue;
-    problems.push(
-      `${relative(ROOT, file).replace(/\\/g, '/')}: --require 使用相对路径 "${target}"（Node v24 按 CWD 解析必失败，改用绝对路径）`
+    out.push(
+      `${rel}: --require 使用相对路径 "${target}"（Node v24 按 CWD 解析必失败，改用绝对路径）`
     );
   }
+  return out;
 }
 
-if (problems.length) {
-  fail(`门禁运行时卫生问题 ${problems.length} 处：\n  - ${problems.join('\n  - ')}`);
+const gateFiles = readdirSync(scriptsDir).filter((f) => /^check-.*\.mjs$/.test(f));
+
+/**
+ * 全仓扫描。**只在被当作脚本直接执行时运行**——`.test.mjs` 会 import 本模块来调纯函数，
+ * 若无条件执行，夹具一 import 就把整个门禁跑一遍，真红时 `fail()` 的 process.exit 会
+ * 把测试进程一并带走（表现为「夹具跑不起来」而非「夹具绿」）。
+ */
+function main() {
+  const problems = [];
+
+  const extraFiles = ['run-audit-gates.mjs'].map((f) => join(scriptsDir, f));
+  for (const file of [...gateFiles.map((f) => join(scriptsDir, f)), ...extraFiles]) {
+    const rel = relative(ROOT, file).replace(/\\/g, '/');
+    if (rel.endsWith(SELF)) continue;
+    let src;
+    try {
+      src = readFileSync(file, 'utf8');
+    } catch (e) {
+      problems.push(`${rel}: 读取失败 ${e.message}`);
+      continue;
+    }
+    problems.push(...problemsOfSyncSpawn(rel, src));
+  }
+
+  for (const file of walk(join(ROOT, 'scripts', 'devops')).filter((f) =>
+    /verify-.*\.mjs$/.test(f)
+  )) {
+    const rel = relative(ROOT, file).replace(/\\/g, '/');
+    try {
+      problems.push(...problemsOfTmpWrite(rel, readFileSync(file, 'utf8')));
+    } catch (e) {
+      problems.push(`${rel}: 读取失败 ${e.message}`);
+    }
+  }
+
+  // 相对路径 --require
+  const requireScopes = [
+    ...walk(join(ROOT, 'scripts')),
+    join(ROOT, 'package.json'),
+    ...walk(join(ROOT, '.github', 'workflows')),
+    ...walk(join(ROOT, 'infra')).filter((f) => /\.(sh|ps1|ya?ml)$/.test(f))
+  ];
+  for (const file of requireScopes) {
+    if (!/\.(mjs|js|cjs|json|sh|ps1|ya?ml)$/.test(file)) continue;
+    if (file.endsWith(SELF)) continue;
+    let text;
+    try {
+      text = readFileSync(file, 'utf8');
+    } catch {
+      continue;
+    }
+    problems.push(...problemsOfRelativeRequire(relative(ROOT, file).replace(/\\/g, '/'), text));
+  }
+
+  if (problems.length) {
+    fail(`门禁运行时卫生问题 ${problems.length} 处：\n  - ${problems.join('\n  - ')}`);
+  }
+
+  console.log(
+    `${TAG} OK：${gateFiles.length} 个 check-*.mjs 均无同步子进程，scripts/CI 里无相对路径 --require，devops/verify-* 写 .tmp 前均已自建目录`
+  );
 }
 
-console.log(
-  `${TAG} OK：${gateFiles.length} 个 check-*.mjs 均无同步子进程，scripts/CI 里无相对路径 --require，devops/verify-* 写 .tmp 前均已自建目录`
-);
+const invokedDirectly =
+  process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (invokedDirectly) main();
