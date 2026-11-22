@@ -55,11 +55,11 @@
 | 资金 | 5 | 银行预留手机号 | `payout_account` 建表（`V307:21-51`）无该列；后续 `V309` 只补 `bank_code` / `bank_province_city` | 小（加列 + DTO），**但无银行代付签约前无消费方** |
 | 资金 | 6 | 开票金额无「未开票冻结」 | `InvoiceService` 仅工单状态机，无 freeze/hold 概念 | 中（涉及余额可用额口径） |
 | 资金 | 8 | 无保证金/押金模型 | `depositCents` 仍只作 `ConsumerPreauthService` 开门预授权额度 | 中，**需先定业务是否收保证金** |
-| 资金 | 10 | 无到账时效/截单配置 | `WithdrawPolicyResolver` 全量方法只有金额上下限/免审阈值/费率/封顶，无 timeliness/cutoff | 小（加配置键 + 展示） |
+| 资金 | 10 | 无到账时效/截单配置 | ✅ **已落 MA-391（2026-11-22）**：原判「`WithdrawPolicyResolver` 无 timeliness/cutoff」属实，但**进一步的取证推翻了「加两个开关」的做法** —— ① 到账时效其实已有半套：`settle_unlock_hour`（CB-035，`MerchantWithdrawService:915`）管「T+1 后几点可申请提现」；② 「截单」在本系统**无对象可拦**：打款是运营审核后**逐单**触发（`MerchantWithdrawController:107` → `payout`），没有批量出款窗口。故不加开关（加了就是没人消费的死开关，正是 `check-feature-flags` R2 要抓的），改为把真口径写进打款模式面板真值提示：`MerchantWithdrawPayoutService.modeInfo()` / `LineWithdrawPayoutService.modeInfo()` 的 `note` + 结构化 `settleUnlockHour` | 已收口（口径展示，非新开关） |
 | 资金 | 14 | 无分期/按量计费账单 | 全仓无 `installment` / `usageBased` / `meteredBilling` | 大（新账务模型） |
 | 设备 | 5 | 无远程配置下发 | 无 `RemoteConfig` / `device_config` 任何实现 | 中 |
 | 设备 | 7 | 耗材零管理 | 全仓无 `Consumable` 相关 | 中，**需先有耗材清单业务定义** |
-| 设备 | 11 | `OFFLINE_AFTER_MINUTES=2` 硬编码 | `DevicePresenceService.java:28` `private static final long OFFLINE_AFTER_MINUTES = 2;` | 小（挪 SystemConfig，与 `WithdrawPolicyResolver` 同款） |
+| 设备 | 11 | `OFFLINE_AFTER_MINUTES=2` 硬编码 | ✅ **已修 MA-390（2026-11-22）**：原判属实（`DevicePresenceService:28` 常量）。现改为 SystemConfig 键 `device.offline.threshold_minutes`（默认 2，seed + 注册表已登记），一次扫描只解析一次阈值（扫描途中改配置不会让同一批设备用两个 cutoff）；读侧 0 / 负数 / >30 分钟一律回落 2 —— 阈值被填成 0 或极大值会让「离线」永不成立，属 fail-open | 已收口 |
 | 营销 | 2 | 分享/邀请裂变归因 | `inviteCode` / `invitedBy` 仅存在于 `Member.java:33,35`，**零读写点** | 中，**需先定奖励规则** |
 | 营销 | 3 | 抽奖/互动游戏 | 全仓无 lottery 相关 | 大（新产品功能） |
 
@@ -70,7 +70,7 @@
 | 域 | # | 缺口 | 阻塞点 | 证据 |
 |---|---|---|---|---|
 | 资金 | 11 | 打款退票/查单终态回查 | 支付通道未签约 | `PayoutChannel.java:64` 接口只有 `transfer()`，无 query 方法；`BankPayoutChannel` 无 status 查询 |
-| 资金 | 13 | 微信分账 30% 上限未校验 | 真实微信支付未接入 | `WeChatProfitSharingService.java:124-133`：`platformCents<=0` 时跳过分账（2026-10-17 拍板「平台分账先不收」），注释**自认**「全额分账是否被微信服务商允许**未实证**（CB-032 的 30% 上限仅 ⚪ 旁证）」。⚠️ 一旦运营把 `platformRateBps` 填成 500（5%），`merchantCents` = 毛额 95% > 30% ⇒ 微信侧会拒。且 `MerchantService.java:149` 写入侧**无范围校验** |
+| 资金 | 13 | 微信分账 30% 上限未校验 | ⚠️ **一半已落 MA-389（2026-11-22）**：提交闸到位——`ProfitSharingCapPolicy`（单源判据）+ `WeChatProfitSharingService.prepareSubmit` 在**唯一出口** fail-closed（超限不发请求、状态不动、原因落 `failure_reason`，运营台「失败原因」列直接可见）；上限走 SystemConfig `fund.profit_sharing.receiver_max_percent`（默认 30，资金键守卫 + 天花板 100 + 强制留痕），0/越界回落 30 而不是「不限制」。**仍受外部阻塞的是比例真值**：CB-032 的 30% 只有 ⚪ 旁证，拿到微信书面确认前提额不可当真。⚠️ 另：原判「`MerchantService:149` 写入侧无范围校验」**是错的**——`UpsertMerchantRequest.platformRateBps` 带 `@Min(0) @Max(10000)` 且 `MerchantAdminController:47` 有 `@Valid` | 闸已收口；真收分账仍需 CB-032 六问 |
 | 设备 | 8 | 货道级故障无独立遥测 | 需硬件协议 | 全仓无 `slotFault` / 货道级错误上报 |
 
 ---
@@ -104,11 +104,19 @@
 
 ## 9. 建议下一步（按价值/风险排序，不自动执行）
 
-1. **资金 13（分账 30% 上限）**——虽然受真实微信支付阻塞，但**校验本身可以先落**：在 `MerchantService` 写入侧给 `platformRateBps` 加上限（≤7000 bps，即平台抽成 ≤70%，保证接收方 ≤30%），并在 `prepareSubmit` 加 fail-closed 断言。这是**资损/上线阻塞类**，且改动小、不依赖支付接入。
-2. **设备 11（离线阈值配置化）**——照 `WithdrawPolicyResolver` 的 SystemConfig 模式，一个常量挪配置，20 行内。
-3. **资金 10（到账时效/截单）**——纯运营参数，与 11 同款。
+> ⚠️ **本节第 1 条的在先写法有算术错误，已订正**：原文写「`platformRateBps` 加上限 ≤7000 bps，
+> 即平台抽成 ≤70%，保证接收方 ≤30%」——方向搞反了。接收方占比 = `1 − 平台抽成`，
+> 要让接收方 ≤30% 必须让平台抽成 **≥70%**，写「上限 ≤7000」恰好把合法档位全挡掉。
+> 且「拦配置」会否掉现实档位（平台抽 5%），属产品决策而非缺陷修复。故实际做法改为
+> **提交出口 fail-closed + 运行期可调上限**（MA-389），不动账本状态机。
+
+1. ~~资金 13：写入侧给 `platformRateBps` 加上限~~ → **已按订正后的做法落地（MA-389）**。
+2. ~~设备 11（离线阈值配置化）~~ → **已落地（MA-390）**。
+3. ~~资金 10（到账时效/截单）~~ → **已收口（MA-391，口径展示；截单在本系统不适用）**。
 4. **仓储 ④ 方案 C**——`InventoryWriteOff` 台账查询端点 + admin 视图，数据已备，零资损风险；需先确认是否认可「先 C 后 A」。
 5. 其余（资金 6/8/14、设备 5/7、营销 2/3）**都需要产品/业务决策**才能动，不建议在决策前写代码。
+6. **分账模型本身**（平台抽成 >0 时商户份额 ~95% > 30% 上限）是 CB-032 六问的一部分：
+   现闸只保证「不发必被拒的请求」，要让 rate>0 真能出款，仍需拍板走「持牌分账」或改「钱包入账 + 转账出款」。
 
 ---
 
