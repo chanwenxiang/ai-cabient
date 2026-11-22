@@ -104,7 +104,9 @@ export function receiptProblems(source) {
     );
   }
   if (!/\bscheduleDriftCheck\s*\(\s*deviceId\s*,/.test(body)) {
-    problems.push('回执命中不到 SENT 时未调 scheduleDriftCheck(deviceId, …)：漂移检测要么丢了、要么回到了同步');
+    problems.push(
+      '回执命中不到 SENT 时未调 scheduleDriftCheck(deviceId, …)：漂移检测要么丢了、要么回到了同步'
+    );
   }
   return problems;
 }
@@ -143,7 +145,9 @@ export function revokeProblems(source) {
     );
   }
   if (/\bclearMappingVerification\s*\(/.test(body)) {
-    problems.push('漂移撤戳方法体内仍有无条件 clearMappingVerification(…)（会把并发复核的新戳一起抹掉）');
+    problems.push(
+      '漂移撤戳方法体内仍有无条件 clearMappingVerification(…)（会把并发复核的新戳一起抹掉）'
+    );
   }
   return problems;
 }
@@ -156,11 +160,17 @@ export function mapperProblems(source) {
     return ['JiangyiDeviceMapper 缺 clearMappingVerificationIfStill（条件撤戳无实现）'];
   }
   const problems = [];
-  if (!/\.eq\s*\(\s*JiangyiDevice::getMappingVerifiedVersion\s*,\s*expectedVersion\s*\)/.test(body)) {
-    problems.push('clearMappingVerificationIfStill 缺 eq(getMappingVerifiedVersion, expectedVersion) 谓词——等于无条件清空');
+  if (
+    !/\.eq\s*\(\s*JiangyiDevice::getMappingVerifiedVersion\s*,\s*expectedVersion\s*\)/.test(body)
+  ) {
+    problems.push(
+      'clearMappingVerificationIfStill 缺 eq(getMappingVerifiedVersion, expectedVersion) 谓词——等于无条件清空'
+    );
   }
   if (!/expectedVersion\s*==\s*null\s*\|\|\s*expectedVersion\s*\.\s*isBlank\s*\(\s*\)/.test(body)) {
-    problems.push('clearMappingVerificationIfStill 缺「空快照直接放弃」早退（空值 eq 会清掉任何戳）');
+    problems.push(
+      'clearMappingVerificationIfStill 缺「空快照直接放弃」早退（空值 eq 会清掉任何戳）'
+    );
   }
   return problems;
 }

@@ -29,7 +29,10 @@ const mapper = readFileSync(MAPPER_FILE, 'utf8');
 // 1) 真实树：四条判据全绿
 {
   assert(receiptProblems(service).length === 0, `真实树回执判据应绿：${receiptProblems(service)}`);
-  assert(schedulerProblems(service).length === 0, `真实树调度判据应绿：${schedulerProblems(service)}`);
+  assert(
+    schedulerProblems(service).length === 0,
+    `真实树调度判据应绿：${schedulerProblems(service)}`
+  );
   assert(revokeProblems(service).length === 0, `真实树撤戳判据应绿：${revokeProblems(service)}`);
   assert(mapperProblems(mapper).length === 0, `真实树 mapper 判据应绿：${mapperProblems(mapper)}`);
 }
@@ -60,10 +63,7 @@ const mapper = readFileSync(MAPPER_FILE, 'utf8');
 
 // 4) 注入③：调度方法改成同步执行（不经 executor）⇒ 红
 {
-  const injected = service.replace(
-    'driftCheckExecutor.execute(() -> {',
-    '((Runnable) () -> {'
-  );
+  const injected = service.replace('driftCheckExecutor.execute(() -> {', '((Runnable) () -> {');
   const p = schedulerProblems(injected);
   assert(
     p.some((x) => x.includes('没有把检测交给 driftCheckExecutor')),
