@@ -581,6 +581,68 @@ class MerchantDailyIncomeNotifySchedulerTest {
         verify(dailyReport, never()).send(any());
     }
 
+    /**
+     * P2③（2026-11-21 用户复核）：日报只发给「在运营柜」的商户——INBOUND（入库未投放）与
+     * RETIRED（已退役）不算，否则只剩这两类柜的商户每天收 0 元纯噪音。
+     * 注意费用口径仍是全表，退役柜欠费照催（另一条测试钉）。
+     */
+    @Test
+    void retiredAndInboundCabinetsDoNotTriggerZeroReport() {
+        var splitRepo = mock(com.aicabinet.trade.mapper.OrderRevenueSplitMapper.class);
+        when(splitRepo.selectList(any())).thenReturn(List.of());
+        var feeLedger = mock(com.aicabinet.trade.mapper.MerchantFeeLedgerMapper.class);
+        when(feeLedger.selectList(any())).thenReturn(List.of());
+        var notify = mock(com.aicabinet.trade.service.NotificationService.class);
+        var dailyReport = mock(com.aicabinet.trade.service.MerchantDailyReportNotifier.class);
+
+        var retired = device("PURCHASE", null, 0L);
+        retired.setLifecycleStatus("RETIRED");
+        var inbound = device("PURCHASE", null, 0L);
+        inbound.setLifecycleStatus("INBOUND");
+        var svc = new MerchantDailyIncomeNotifyScheduler(
+                mock(com.aicabinet.trade.mapper.MerchantMapper.class), splitRepo, notify,
+                mock(com.aicabinet.trade.mapper.NotificationLogMapper.class),
+                mock(com.aicabinet.trade.service.ScheduledTaskService.class),
+                deviceRepoWith(retired, inbound), feeLedger,
+                mock(com.aicabinet.trade.service.MerchantWalletService.class), configWithLockDays("7"),
+                mock(com.aicabinet.trade.service.DeviceSalesLockService.class),
+                walletArrearsService(), dailyReport);
+
+        var outcome = svc.sendDailyIncomeNotify(java.time.LocalDate.of(2026, 10, 15));
+
+        assertEquals(0, outcome.sent(), "只剩退役/入库柜 ⇒ 不发日报（费用口径不受影响）");
+        verify(dailyReport, never()).send(any());
+    }
+
+    /** 在运营柜（含 IDLE/RETURNING）仍照发 0 元日报，不能因排除退役柜误伤。 */
+    @Test
+    void operatingCabinetsStillTriggerZeroReport() {
+        var splitRepo = mock(com.aicabinet.trade.mapper.OrderRevenueSplitMapper.class);
+        when(splitRepo.selectList(any())).thenReturn(List.of());
+        var feeLedger = mock(com.aicabinet.trade.mapper.MerchantFeeLedgerMapper.class);
+        when(feeLedger.selectList(any())).thenReturn(List.of());
+        var dailyReport = mock(com.aicabinet.trade.service.MerchantDailyReportNotifier.class);
+
+        var idle = device("PURCHASE", null, 0L);
+        idle.setLifecycleStatus("IDLE");
+        var returning = device("PURCHASE", null, 0L);
+        returning.setLifecycleStatus("RETURNING");
+        var svc = new MerchantDailyIncomeNotifyScheduler(
+                mock(com.aicabinet.trade.mapper.MerchantMapper.class), splitRepo,
+                mock(com.aicabinet.trade.service.NotificationService.class),
+                mock(com.aicabinet.trade.mapper.NotificationLogMapper.class),
+                mock(com.aicabinet.trade.service.ScheduledTaskService.class),
+                deviceRepoWith(idle, returning), feeLedger,
+                mock(com.aicabinet.trade.service.MerchantWalletService.class), configWithLockDays("7"),
+                mock(com.aicabinet.trade.service.DeviceSalesLockService.class),
+                walletArrearsService(), dailyReport);
+
+        var outcome = svc.sendDailyIncomeNotify(java.time.LocalDate.of(2026, 10, 15));
+
+        assertEquals(1, outcome.sent(), "IDLE/RETURNING 属在运营，去重后一个商户一条");
+        verify(dailyReport, never()).send(any()); // 00:20 站内信，不打微信
+    }
+
     @Test
     void zeroSalesMerchantWithoutCabinetGetsNothing() {
         // 边界：没柜的商户收 0 元日报纯噪音——扩集合只按设备表枚举

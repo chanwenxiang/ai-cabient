@@ -287,13 +287,42 @@ public class MerchantDailyIncomeNotifyScheduler {
         return new NotifyOutcome(sent, feeChargeFailed);
     }
 
+    /** 设备生命周期取值（V127__device_asset_lifecycle.sql:15）。 */
+    private static final String LIFECYCLE_INBOUND = "INBOUND";
+    private static final String LIFECYCLE_RETIRED = "RETIRED";
+
     /**
-     * 名下有柜机的商户集合（去重、保序）。柜机是费用的载体，也是「经营日报该发给谁」的边界：
-     * 没柜的商户收日报全是 0，纯噪音。
+     * 名下有柜机的商户集合（去重、保序）——<b>费用口径</b>，全表枚举，不做生命周期过滤：
+     * 柜机是费用的载体（欠费源于柜机费用），退役柜/入库柜也可能有未结费用，故
+     * {@link #chargeAndCheckAllMerchants} 必须用这个全集。
      */
     private java.util.Set<String> merchantIdsWithDevices() {
         java.util.Set<String> ids = new java.util.LinkedHashSet<>();
         for (DeviceInfo d : deviceRepository.selectList(Wrappers.<DeviceInfo>lambdaQuery())) {
+            String mid = d.getMerchantId();
+            if (mid != null && !mid.isBlank()) {
+                ids.add(mid);
+            }
+        }
+        return ids;
+    }
+
+    /**
+     * 「在运营柜」的商户集合——<b>日报口径</b>（P2③，2026-11-21 用户复核）：排除
+     * INBOUND（入库未投放）与 RETIRED（已退役）。只剩这两类柜的商户每天收 0 元日报纯噪音，
+     * 与「名下有柜机＝在运营」的直觉不符。IDLE/DEPLOYED/RETURNING 都算在运营
+     * （RETURNING 尚未入库、IDLE 是空闲在场，仍属商户资产在册）。
+     *
+     * <p>🔴 与费用口径分开：费用催缴按资产归属（全集），日报按在运营，两者不共用集合——
+     * 排除退役柜不得连带停掉它的欠费催缴。</p>
+     */
+    private java.util.Set<String> merchantIdsWithOperatingDevices() {
+        java.util.Set<String> ids = new java.util.LinkedHashSet<>();
+        for (DeviceInfo d : deviceRepository.selectList(Wrappers.<DeviceInfo>lambdaQuery())) {
+            String ls = d.getLifecycleStatus();
+            if (LIFECYCLE_INBOUND.equals(ls) || LIFECYCLE_RETIRED.equals(ls)) {
+                continue;
+            }
             String mid = d.getMerchantId();
             if (mid != null && !mid.isBlank()) {
                 ids.add(mid);
@@ -309,15 +338,16 @@ public class MerchantDailyIncomeNotifyScheduler {
      * <p><b>为什么改判</b>：2026-10-14 拍板「0.00 不发」（见 {@link #aggregateSales}），出发点是
      * 别拿 0 元打扰人；但那一版的直接后果是——商户没成交的日子什么都收不到，于是分不清
      * 「今天确实没生意」和「通知坏了/没生效」。2026-11-20 用户改判：<b>有柜机的商户每天都要收到</b>，
-     * 0 也要收到，这也是竞品早间经营报告的通行做法。范围仍限「名下有柜机」，
-     * 不给无柜商户发 0 元。
+     * 0 也要收到，这也是竞品早间经营报告的通行做法。范围限「名下有<b>在运营</b>柜机」
+     * （排除 INBOUND/RETIRED，见 {@link #merchantIdsWithOperatingDevices}），
+     * 不给无柜/仅退役柜商户发 0 元；费用催缴仍按全表口径，不受影响。
      *
      * <p>{@link #aggregateSales} 本身口径不变（仍只保留合计 &gt;0 的商户），它是「有成交」的视图，
      * 扩集合只发生在调度器这一层，免得影响其它调用点与既有单测。
      */
     private Map<String, DailySales> mergeDeviceMerchants(Map<String, DailySales> salesByMerchant) {
         Map<String, DailySales> merged = new java.util.LinkedHashMap<>(salesByMerchant);
-        for (String merchantId : merchantIdsWithDevices()) {
+        for (String merchantId : merchantIdsWithOperatingDevices()) {
             merged.putIfAbsent(merchantId, new DailySales(0L, 0));
         }
         return merged;
