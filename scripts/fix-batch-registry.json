@@ -2647,6 +2647,21 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "c4d2cd74",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-402（verify-mp-template-comment-drift 备份前自建 .tmp + 判据 3 入 check-gate-runtime-hygiene）",
+          "files": [
+            "scripts/devops/verify-mp-template-comment-drift.mjs",
+            "scripts/check-gate-runtime-hygiene.mjs",
+            "docs/module-audit/ISSUES.md"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
