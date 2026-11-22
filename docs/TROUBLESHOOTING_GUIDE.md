@@ -135,19 +135,19 @@ HikariPool - Connection is not available
 #### 排查步骤
 
 **步骤1**: 查看连接池状态
-`sql
+```sql
 SELECT count(*), state FROM pg_stat_activity GROUP BY state;
 ```
 
 **步骤2**: 查看长时间查询
-`sql
+```sql
 SELECT pid, now() - pg_stat_activity.query_start AS duration, query, state
 FROM pg_stat_activity
 WHERE (now() - pg_stat_activity.query_start) > interval '5 minutes';
 ```
 
 **步骤3**: 查看锁等待
-`sql
+```sql
 SELECT blocked_locks.pid AS blocked_pid,
        blocked_activity.usename AS blocked_user,
        blocking_locks.pid AS blocking_pid,
@@ -163,7 +163,7 @@ WHERE NOT blocked_locks.granted;
 ```
 
 **解决方案**:
-`sql
+```sql
 -- 杀掉长时间运行的查询
 SELECT pg_terminate_backend(pid) 
 FROM pg_stat_activity 
@@ -309,7 +309,7 @@ docker exec emqx emqx_ctl subscriptions list
 ```
 
 **步骤2**: 检查设备状态
-`sql
+```sql
 SELECT * FROM devices WHERE device_id = 'xxx';
 SELECT * FROM device_sessions WHERE device_id = 'xxx';
 ```
@@ -344,7 +344,7 @@ API响应时间超过5秒
 #### 排查步骤
 
 **步骤1**: 查看慢查询日志
-`sql
+```sql
 SELECT query, calls, total_time, mean_time
 FROM pg_stat_statements
 ORDER BY mean_time DESC
@@ -352,19 +352,19 @@ LIMIT 10;
 ```
 
 **步骤2**: 分析执行计划
-`sql
+```sql
 EXPLAIN ANALYZE SELECT * FROM orders WHERE user_id = 123;
 ```
 
 **步骤3**: 检查索引
-`sql
+```sql
 SELECT schemaname, tablename, indexname, idx_scan
 FROM pg_stat_user_indexes
 ORDER BY idx_scan;
 ```
 
 **解决方案**:
-`sql
+```sql
 -- 创建索引
 CREATE INDEX CONCURRENTLY idx_orders_user_id ON orders(user_id);
 

@@ -2564,6 +2564,74 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "da0577fe",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 4,
+      "items": [
+        {
+          "id": "MA-392（openapi 触发面盲区→强制显式决策 OPENAPI_DRIFT_ACK）",
+          "files": [
+            "scripts/lib/openapi-surface.mjs",
+            "scripts/lib/openapi-surface.test.mjs",
+            "scripts/pre-push-ci-preflight.mjs"
+          ]
+        },
+        {
+          "id": "MA-393（readonly-tx 判据从 createMember 扩写入族两层）",
+          "files": [
+            "scripts/check-readonly-tx-write-call.mjs",
+            "scripts/check-readonly-tx-write-call.test.mjs"
+          ]
+        },
+        {
+          "id": "MA-394（卫生 O-3 旧测试名对齐 + 死件 verify-mp-template-comment-drift 接线 + O-1/O-2 收口）",
+          "files": [
+            "scripts/check-migration-safety.test.mjs",
+            "scripts/check-migration-safety.mjs",
+            "scripts/check-flyway-seed-separation.test.mjs",
+            ".github/workflows/ci.yml",
+            "package.json"
+          ]
+        },
+        {
+          "id": "MA-395（alertmanager email 双配置栈 R15–R18）",
+          "files": [
+            "scripts/check-ops-alert-channels.mjs"
+          ]
+        }
+      ]
+    },
+    {
+      "commit": "03644056",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-396（F5 状态机条件写入类级棘轮 check-status-write-cas + 65 站点基线种子）",
+          "files": [
+            "scripts/check-status-write-cas.mjs",
+            "scripts/check-status-write-cas.test.mjs",
+            "scripts/status-write-cas-baseline.json",
+            "package.json"
+          ]
+        }
+      ]
+    },
+    {
+      "commit": "ca99b536",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-396 #5（check-status-cas 判据前等长脱敏注释，铁律 84① 收口）",
+          "files": [
+            "scripts/check-status-cas.mjs",
+            "scripts/check-status-cas.test.mjs"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
@@ -2649,7 +2717,7 @@
     },
     {
       "commit": "ddbfc438",
-      "why": "复核三修复（PlatformFundService 钳位恢复 + movePoint(2) 判据 + R22 过期表订正），钳位属业务修复但规模小且与并行会话协同处理中，先入 allowlist 防阻塞"
+      "why": "复核三小项业务修复（PlatformFundService 钳位恢复 + movePoint(2) 判据 + R22 过期表订正）：不挂审计条目号、无「条目→文件+totalItems」可对账，故按非审计条目入白名单带理由（与 622ad811 / f45fcb9a 同型，2026-11-22 语气定案收口——原 why 为「协同处理中先防阻塞」的临时口径，协同已结束）"
     },
     {
       "commit": "e31abac4",
@@ -2738,6 +2806,10 @@
     {
       "commit": "c183499f",
       "why": "部署链基建补齐（feat(deploy)，非审计条目，与 f45fcb9a / 622ad811 同型）：deploy-prod.sh 新增 [5b/7] jiangyi-gateway build+recreate 与 gateway recreate、[6/7] 补 /o 校验文件与 jiangyi 探针断言（原版 domainConfig 只 echo 不判）、[6b/7] 公网探针、workflow timeout 40→50。实证：生产 jiangyi-gateway 停 10-23 旧镜像（门磁/关门/重启/音量端点 0 命中恒 503，11-19 zipfile 复核）+ /o/*.txt 404（MA-362/365 的 mp-verify 挂载从未随容器 recreate 生效，微信回查可取消已发布扫码规则）。零业务代码、零审计条目，无法按「条目→文件+totalItems」对账，故入白名单带理由"
+    },
+    {
+      "commit": "ab8f2edb",
+      "why": "MA-396 #5 的夹具修正（同条目次笔，纯 .test.mjs）：上一笔的脱敏负向用例有两处注入空转（正则未转义 `(M m){` 裸括号是捕获组不消费字面量、形参名 T t≠M m），断言虚绿被「注入真生效」守卫抓回；本笔补非空转守卫断言并把 R2 注释形态修正为「touch 体内注释含 updateById 不得假红」。条目本体仍是 MA-396（已在 ca99b536 批登记），无新条目可对账，故入白名单带理由"
     }
   ]
 }
