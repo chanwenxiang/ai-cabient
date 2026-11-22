@@ -63,7 +63,9 @@ export function readOnlyWriteProblems(src) {
       const name = fm[0].replace(/\s*\($/, '').trim();
       if (IN_MEMORY_ALLOW.test(name)) continue;
       const line = clean.slice(0, m.index + fm.index).split('\n').length;
-      problems.push(`第 ${line} 行：只读事务方法体调用写入族 ${name}(...)（PG 必炸；若属在内存构建，请到 IN_MEMORY_ALLOW 白名单登记并写 why）`);
+      problems.push(
+        `第 ${line} 行：只读事务方法体调用写入族 ${name}(...)（PG 必炸；若属在内存构建，请到 IN_MEMORY_ALLOW 白名单登记并写 why）`
+      );
     }
   }
   return problems;

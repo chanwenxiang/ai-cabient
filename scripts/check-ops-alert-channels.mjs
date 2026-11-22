@@ -741,7 +741,9 @@ for (const [label, composePath] of [
     './monitoring/email.tmpl:/etc/alertmanager/email.tmpl:ro'
   ]) {
     if (!block.includes(mount)) {
-      problems.push(`${label} alertmanager 缺挂载「${mount}」⇒ 门禁面/运行面/邮件模板三份配置有一份脱钩`);
+      problems.push(
+        `${label} alertmanager 缺挂载「${mount}」⇒ 门禁面/运行面/邮件模板三份配置有一份脱钩`
+      );
     }
   }
 
@@ -760,13 +762,19 @@ for (const [label, composePath] of [
     problems.push(`${label} alertmanager entrypoint 解析不到 sed 渲染段（email 模板渲染链断了）`);
   } else {
     if (/(?<!\$)\$SMTP_/.test(sedPart.replace(/\$\$SMTP_/g, ''))) {
-      problems.push(`${label} alertmanager sed 渲染段出现单 $SMTP_ 引用（compose 会插值吃掉 ⇒ 渲染成空值）`);
+      problems.push(
+        `${label} alertmanager sed 渲染段出现单 $SMTP_ 引用（compose 会插值吃掉 ⇒ 渲染成空值）`
+      );
     }
     if (!/alertmanager\.yml\.tpl\s*>/.test(sedPart)) {
-      problems.push(`${label} alertmanager sed 必须从 alertmanager.yml.tpl 渲染出运行配置（挂载名对不上 = 跑的是别的文件）`);
+      problems.push(
+        `${label} alertmanager sed 必须从 alertmanager.yml.tpl 渲染出运行配置（挂载名对不上 = 跑的是别的文件）`
+      );
     }
     if (!/--config\.file=\/etc\/alertmanager\/alertmanager\.yml/.test(block)) {
-      problems.push(`${label} alertmanager 必须以 --config.file=/etc/alertmanager/alertmanager.yml（渲染产物）启动`);
+      problems.push(
+        `${label} alertmanager 必须以 --config.file=/etc/alertmanager/alertmanager.yml（渲染产物）启动`
+      );
     }
   }
 
@@ -776,32 +784,38 @@ for (const [label, composePath] of [
     fail('alertmanager.email.yml 不存在——它是容器实际运行的配置（R16 失去对象）');
   }
   const emailCfg = readFileSync(EMAIL_AM_CONFIG, 'utf8');
-  const tplPlaceholders = new Set(
-    [...sedPart.matchAll(/__(SMTP_[A-Z]+)__/g)].map((m) => m[1])
-  );
-  const cfgPlaceholders = new Set(
-    [...emailCfg.matchAll(/__(SMTP_[A-Z]+)__/g)].map((m) => m[1])
-  );
+  const tplPlaceholders = new Set([...sedPart.matchAll(/__(SMTP_[A-Z]+)__/g)].map((m) => m[1]));
+  const cfgPlaceholders = new Set([...emailCfg.matchAll(/__(SMTP_[A-Z]+)__/g)].map((m) => m[1]));
   for (const p of cfgPlaceholders) {
     if (!tplPlaceholders.has(p)) {
-      problems.push(`email.yml 占位符 __${p}__ 不在 ${label} sed 替换清单里 ⇒ 字面量进运行配置（邮件发不出去）`);
+      problems.push(
+        `email.yml 占位符 __${p}__ 不在 ${label} sed 替换清单里 ⇒ 字面量进运行配置（邮件发不出去）`
+      );
     }
   }
   for (const p of tplPlaceholders) {
     if (!cfgPlaceholders.has(p)) {
-      problems.push(`${label} sed 替换 __${p}__ 但 email.yml 已不用该占位符 ⇒ 替换清单与模板漂移（结构可能已变）`);
+      problems.push(
+        `${label} sed 替换 __${p}__ 但 email.yml 已不用该占位符 ⇒ 替换清单与模板漂移（结构可能已变）`
+      );
     }
   }
 
   // R17 密码卫生：smtp_auth_password_file 指针 + 禁明文 auth_password + chmod 644（uid 65534 实测坑）
   if (!/smtp_auth_password_file:\s*\/etc\/alertmanager\/smtp_pass/.test(emailCfg)) {
-    problems.push('email.yml 必须 smtp_auth_password_file: /etc/alertmanager/smtp_pass（密码走文件不进模板/git）');
+    problems.push(
+      'email.yml 必须 smtp_auth_password_file: /etc/alertmanager/smtp_pass（密码走文件不进模板/git）'
+    );
   }
   if (/^\s*smtp_auth_password:/m.test(emailCfg) || /auth_password:\s*["']?\$/.test(emailCfg)) {
-    problems.push('email.yml 出现明文 smtp_auth_password 形态 ⇒ 密码进渲染配置，违背「密码不落模板」');
+    problems.push(
+      'email.yml 出现明文 smtp_auth_password 形态 ⇒ 密码进渲染配置，违背「密码不落模板」'
+    );
   }
   if (!/chmod 644 \/etc\/alertmanager\/smtp_pass/.test(block)) {
-    problems.push(`${label} alertmanager 缺 chmod 644 smtp_pass（uid 65534 下 600 = permission denied，实测踩坑）`);
+    problems.push(
+      `${label} alertmanager 缺 chmod 644 smtp_pass（uid 65534 下 600 = permission denied，实测踩坑）`
+    );
   }
 
   // R18 模板闭环：templates 引用 = 挂载路径；引用的 template 名必须在 email.tmpl 有 define；
@@ -810,7 +824,9 @@ for (const [label, composePath] of [
     fail('email.tmpl 不存在——email.yml templates 引用会落空（R18 失去对象）');
   }
   if (!/templates:\s*\n\s*-\s*\/etc\/alertmanager\/email\.tmpl/.test(emailCfg)) {
-    problems.push('email.yml templates 必须引用 /etc/alertmanager/email.tmpl（与 compose 挂载路径同源）');
+    problems.push(
+      'email.yml templates 必须引用 /etc/alertmanager/email.tmpl（与 compose 挂载路径同源）'
+    );
   }
   const tmplText = readFileSync(EMAIL_TMPL, 'utf8');
   const definedTmpl = new Set(
@@ -818,17 +834,23 @@ for (const [label, composePath] of [
   );
   for (const ref of emailCfg.matchAll(/\{\{\s*template\s+"([^"]+)"/g)) {
     if (!definedTmpl.has(ref[1])) {
-      problems.push(`email.yml 引用模板「${ref[1]}」但 email.tmpl 没有 {{ define "${ref[1]}" }} ⇒ 渲染失败告警丢失`);
+      problems.push(
+        `email.yml 引用模板「${ref[1]}」但 email.tmpl 没有 {{ define "${ref[1]}" }} ⇒ 渲染失败告警丢失`
+      );
     }
   }
   if (!/send_resolved:\s*true/.test(emailCfg)) {
-    problems.push('email.yml email_configs 缺 send_resolved: true ⇒ 恢复通知不发（只看到「炸了」看不到「好了」）');
+    problems.push(
+      'email.yml email_configs 缺 send_resolved: true ⇒ 恢复通知不发（只看到「炸了」看不到「好了」）'
+    );
   }
   // R18b 路由闭环：route.receiver 必须落在 receivers[].name
-  const routeReceiver = /route:\s*[\s\S]*?receiver:\s*["']?([A-Za-z0-9_-]+)["']?/.exec(emailCfg)?.[1];
-  const receiverNames = [...emailCfg.matchAll(/^\s{2,}-\s*name:\s*["']?([A-Za-z0-9_-]+)["']?/gm)].map(
-    (m) => m[1]
-  );
+  const routeReceiver = /route:\s*[\s\S]*?receiver:\s*["']?([A-Za-z0-9_-]+)["']?/.exec(
+    emailCfg
+  )?.[1];
+  const receiverNames = [
+    ...emailCfg.matchAll(/^\s{2,}-\s*name:\s*["']?([A-Za-z0-9_-]+)["']?/gm)
+  ].map((m) => m[1]);
   if (!routeReceiver || !receiverNames.includes(routeReceiver)) {
     problems.push(
       `email.yml route.receiver「${routeReceiver ?? '(空)'}」不在 receivers [${receiverNames.join('/')}] 里 ⇒ 默认路由落空、告警静默丢失`

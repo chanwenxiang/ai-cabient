@@ -44,7 +44,8 @@ assert(
   'Tier A：readOnly 内 .updateById( 必须红'
 );
 assert(
-  readOnlyWriteProblems(good.replace('createMember(userId)', 'skuMapper.insert(entity)')).length === 0,
+  readOnlyWriteProblems(good.replace('createMember(userId)', 'skuMapper.insert(entity)')).length ===
+    0,
   'Tier A：可写事务内 .insert( 必须绿'
 );
 
@@ -62,7 +63,10 @@ const poi = bad.replace(
 );
 assert(readOnlyWriteProblems(poi).length === 0, 'Tier B：POI 建表在内存族必须绿（白名单）');
 const removeIf = bad.replace('createMember(userId)', 'rows.removeIf(r -> r.isStale())');
-assert(readOnlyWriteProblems(removeIf).length === 0, 'Tier B：List.removeIf 在内存族必须绿（白名单）');
+assert(
+  readOnlyWriteProblems(removeIf).length === 0,
+  'Tier B：List.removeIf 在内存族必须绿（白名单）'
+);
 
 // ── 白名单不得豁免其它写入族：同方法体 POI + saveOrder 并存时 saveOrder 仍红 ──
 const mixed = bad.replace(
