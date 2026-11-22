@@ -39,6 +39,22 @@ const REGISTRY_PATH = join('scripts', 'fix-batch-registry.json');
  *   但 diff 包含检查（present.has）对删除文件照常生效
  * @returns {string[]}
  */
+/**
+ * 条目自述「这条修复是删东西」的词面（MA-387，P3-5）。
+ *
+ * 成因（用户复核 2026-11-22）：初版豁免只看「被声明的文件在本 commit 里是 D 状态」，
+ * **不要求条目本身是删死代码**——撤销一个功能时 commit 里必然带 D 文件，于是任意别的
+ * 条目只要把「同批被删掉的文件」也写进自己的 files，就能绕过「文件必须在仓内存在」这道
+ * 锚点（幽灵文件检查形同虚设）。改为「D 文件 + 条目自述删除语义」双条件后，豁免只对
+ * 「删死代码/下线功能」类条目生效；负向用例覆盖「登记 D 文件但条目无删除语义 ⇒ 红」。
+ */
+const REMOVAL_SEMANTICS = /(删|下线|移除|退役|清理|remove|remov|delet|retire|drop)/i;
+
+function declaresRemoval(item) {
+  const text = [item?.id, item?.why, item?.note].filter(Boolean).join(' ');
+  return REMOVAL_SEMANTICS.test(text);
+}
+
 export function evaluateBatch(batch, commitFiles, existsFn, deletedFiles = new Set()) {
   const problems = [];
   const present = new Set(commitFiles);
@@ -58,8 +74,16 @@ export function evaluateBatch(batch, commitFiles, existsFn, deletedFiles = new S
             `（A26 形态：提交信息声称的条目与 diff 不对应）`
         );
       }
-      if (!existsFn(norm) && !deletedFiles.has(norm)) {
-        problems.push(`${batch.commit} ${item.id}: 登记的文件在仓内不存在：${norm}`);
+      if (!existsFn(norm)) {
+        if (!deletedFiles.has(norm)) {
+          problems.push(`${batch.commit} ${item.id}: 登记的文件在仓内不存在：${norm}`);
+        } else if (present.has(norm) && !declaresRemoval(item)) {
+          problems.push(
+            `${batch.commit} ${item.id}: ${norm} 在本 commit 里是删除（D），但条目自述没有删除语义` +
+              `（id/why 需含「删/下线/移除/退役/remove/delete/retire」）——删除豁免只对「删死代码/下线功能」` +
+              `类条目生效，否则任意条目挂一个同批被删的文件即可绕过「文件必须在仓内存在」这道锚点`
+          );
+        }
       }
     }
   }

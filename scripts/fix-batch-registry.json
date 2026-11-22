@@ -2448,6 +2448,7 @@
         },
         {
           "id": "MA-383（死代码收缩+注释同步）",
+          "why": "删死代码：12B.8 旧学习链整链退场后类体残留 270 行无调用点代码，连同钉住它的 JiangyiLearningLibraryServiceTest 一并删除（铁律 62）",
           "files": [
             "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiLearningLibraryService.java",
             "services/trade-service/src/test/java/com/aicabinet/trade/service/JiangyiLearningLibraryServiceTest.java",

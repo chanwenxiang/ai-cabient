@@ -44,14 +44,44 @@ const BATCH = {
 }
 
 // 3b) 修复批删除钉住已下线功能的用例（铁律 62）——D 状态文件在 diff 里但仓内已无 ⇒ 绿
+//     但豁免要求**条目自述删除语义**（MA-387）：只认 D 文件不认条目＝任意条目挂一个被删文件
+//     就能绕过「文件必须在仓内存在」这道锚点。
 {
+  const batch = {
+    ...BATCH,
+    items: [
+      {
+        id: 'X-1（删死代码：下线旧学习链）',
+        why: '旧链整链退场，连同钉住它的用例一并删除',
+        files: ['services/a/A.java', 'services/a/AOldTest.java']
+      }
+    ]
+  };
   const p = evaluateBatch(
-    BATCH,
+    batch,
     ['services/a/A.java', 'services/a/AOldTest.java'],
     (rel) => rel === 'services/a/A.java',
     new Set(['services/a/AOldTest.java'])
   );
-  assert(p.length === 0, `D 状态删除文件不应按幽灵文件误报：${p.join('|')}`);
+  assert(p.length === 0, `声明了删除语义的条目删 D 文件不应误报：${p.join('|')}`);
+}
+
+// 3d) 3b 的负向（MA-387）：登记 D 文件，但条目自述里没有删除语义 ⇒ 红
+{
+  const batch = {
+    ...BATCH,
+    items: [{ id: 'X-1', files: ['services/a/A.java', 'services/a/AOldTest.java'] }]
+  };
+  const p = evaluateBatch(
+    batch,
+    ['services/a/A.java', 'services/a/AOldTest.java'],
+    (rel) => rel === 'services/a/A.java',
+    new Set(['services/a/AOldTest.java'])
+  );
+  assert(
+    p.length === 1 && p[0].includes('没有删除语义'),
+    `条目无删除语义却挂 D 文件须红（否则幽灵文件检查被绕过）：${p.join('|')}`
+  );
 }
 
 // 3c) 3b 的负向：声称删除但 diff 里没有（既非改也非删）⇒ 仍红
