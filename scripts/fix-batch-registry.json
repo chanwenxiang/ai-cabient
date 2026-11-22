@@ -2529,6 +2529,41 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "04738a54",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-387（删除豁免要求条目自述删除语义）",
+          "files": [
+            "scripts/check-fix-batch-coverage.mjs",
+            "scripts/check-fix-batch-coverage.test.mjs",
+            "scripts/fix-batch-registry.json",
+            "docs/module-audit/ISSUES.md"
+          ]
+        }
+      ]
+    },
+    {
+      "commit": "c6e07871",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-388（开机回执漂移检测挪出回执线程+撤戳快照态谓词）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiModelSyncService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/JiangyiDeviceMapper.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/JiangyiModelSyncServiceTest.java",
+            "scripts/check-jiangyi-receipt-offload.mjs",
+            "scripts/check-jiangyi-receipt-offload.test.mjs",
+            "package.json",
+            "docs/JIANGYI_INTERFACE_CHECKLIST.md"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
