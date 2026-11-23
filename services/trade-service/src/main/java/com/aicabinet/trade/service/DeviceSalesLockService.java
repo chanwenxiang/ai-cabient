@@ -81,7 +81,9 @@ public class DeviceSalesLockService {
                                     String reason, boolean notifyEdge) {
         PersistResult persisted = self.persistSalesLockState(operatorId, deviceId, locked, reason, notifyEdge);
         String commandId = persisted.localCommandId();
-        if (notifyEdge) {
+        // 将邑柜不接 MQTT，协议也没有「物理锁机」指令（门锁由开门指令控制）——
+        // 营业停售在平台侧已生效（sales_locked），发一条注定 15s 超时的 LOCK 只会污染指令台账。
+        if (notifyEdge && deviceClient.usesMqttChannel(deviceId)) {
             String mqttCmd = locked ? CabinetConstants.MQTT_CMD_LOCK : CabinetConstants.MQTT_CMD_UNLOCK;
             try {
                 commandId = deviceClient.requestOpsCommand(deviceId, mqttCmd);

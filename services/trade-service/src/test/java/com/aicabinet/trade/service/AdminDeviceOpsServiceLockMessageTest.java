@@ -45,6 +45,10 @@ class AdminDeviceOpsServiceLockMessageTest {
     private AdminAuditService auditService;
     @Mock
     private DistributedLockService distributedLockService;
+    @Mock
+    private JiangyiDeviceDirectory jiangyiDeviceDirectory;
+    @Mock
+    private JiangyiDeviceOpsService jiangyiDeviceOpsService;
 
     private AdminDeviceOpsService service;
 
@@ -61,7 +65,9 @@ class AdminDeviceOpsServiceLockMessageTest {
                 auditService,
                 distributedLockService,
                 null,
-                null);
+                null,
+                jiangyiDeviceDirectory,
+                jiangyiDeviceOpsService);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

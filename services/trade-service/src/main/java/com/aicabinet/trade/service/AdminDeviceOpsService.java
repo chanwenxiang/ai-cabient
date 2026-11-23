@@ -32,6 +32,8 @@ public class AdminDeviceOpsService {
     private final DistributedLockService distributedLockService;
     private final AdminDeviceOpsService self;
     private final SessionService sessionService;
+    private final JiangyiDeviceDirectory jiangyiDeviceDirectory;
+    private final JiangyiDeviceOpsService jiangyiDeviceOpsService;
 
     public AdminDeviceOpsService(DeviceInfoMapper deviceRepository,
                                  ShoppingSessionMapper sessionRepository,
@@ -43,7 +45,9 @@ public class AdminDeviceOpsService {
                                  AdminAuditService auditService,
                                  DistributedLockService distributedLockService,
                                  @Lazy AdminDeviceOpsService self,
-                                 @Lazy SessionService sessionService) {
+                                 @Lazy SessionService sessionService,
+                                 JiangyiDeviceDirectory jiangyiDeviceDirectory,
+                                 JiangyiDeviceOpsService jiangyiDeviceOpsService) {
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
         this.deviceValidationService = deviceValidationService;
@@ -55,6 +59,8 @@ public class AdminDeviceOpsService {
         this.distributedLockService = distributedLockService;
         this.self = self;
         this.sessionService = sessionService;
+        this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
+        this.jiangyiDeviceOpsService = jiangyiDeviceOpsService;
     }
 
     /** 无外层长事务：落库短事务与 device-service MQTT 指令分离。 */
@@ -184,6 +190,12 @@ public class AdminDeviceOpsService {
     }
 
     private DeviceOpsCommandResultDto selfTest(Long operatorId, DeviceInfo device, String reason) {
+        if (jiangyiDeviceDirectory.isJiangyi(device.getDeviceId())) {
+            // 将邑 V16 下行 17 条无自检消息（我方实现的 10 个 msgType 里也没有）。
+            // 旧行为：MQTT 发一条没人收的 SELF_TEST ⇒ 回「已下发」+ 15s TIMEOUT = 假成功。
+            throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED,
+                    "将邑柜协议无远程自检指令（可用设备卡的「查询门磁/拉取设备信息」代替）");
+        }
         String commandId;
         try {
             commandId = deviceClient.requestOpsCommand(device.getDeviceId(), CabinetConstants.MQTT_CMD_SELF_TEST);
@@ -198,6 +210,16 @@ public class AdminDeviceOpsService {
     }
 
     private DeviceOpsCommandResultDto reboot(Long operatorId, DeviceInfo device, String reason) {
+        if (jiangyiDeviceDirectory.isJiangyi(device.getDeviceId())) {
+            // 将邑柜不接 MQTT，reboot 走网关 WS（§4.3.2.1，2026-11-10 真机验：约 28s 后重连）。
+            // 🔴 必须复用 JiangyiDeviceOpsService 而不是直接发网关请求 —— 它带
+            //    「进行中业务」闸（消费者会话 / 已签到补货 ⇒ 409，force 才越过）与审计留痕；
+            //    自己再写一份 = 第二份闸，迟早漂移（同族判据见 check:ops-device-scope）。
+            jiangyiDeviceOpsService.reboot(operatorId, device.getDeviceId(), false);
+            return new DeviceOpsCommandResultDto(device.getDeviceId(), "REBOOT", null,
+                    "已将邑柜重启指令经网关下发（协议无指令号；重启后 WebSocket 会短暂断开）",
+                    device.salesLockedEnabled());
+        }
         String commandId;
         try {
             commandId = deviceClient.requestOpsCommand(device.getDeviceId(), CabinetConstants.MQTT_CMD_REBOOT);
@@ -222,10 +244,18 @@ public class AdminDeviceOpsService {
         self.persistTargetTemp(device.getDeviceId(), targetTempC);
         String commandId = "LOCAL-" + UUID.randomUUID().toString().substring(0, 8);
         String message;
-        if ("ONLINE".equalsIgnoreCase(device.getOnlineStatus())) {
+        if (jiangyiDeviceDirectory.isJiangyi(device.getDeviceId())) {
+            // 将邑柜无远程控温（V16 下行无温控消息）。目标温度仍落库（运营记录/报表口径），
+            // 但文案必须说清「柜机不会变温」，否则运营以为设过了。
+            message = "目标温度已记录；将邑柜协议无远程控温指令，需现场在柜机上设置";
+        } else if ("ONLINE".equalsIgnoreCase(device.getOnlineStatus())) {
             try {
                 commandId = deviceClient.requestSetTargetTemp(device.getDeviceId(), targetTempC);
                 message = "已向柜机下发目标温度 " + targetTempC + "°C";
+            } catch (ResponseStatusException e) {
+                // 路由层的明确拒绝原样透出（同 doRemoteOpen 的处理方式），别再套「device-service 在线」——
+                // 那是把「通道不对」误报成「服务挂了」，会把排查引向错误方向。
+                message = "设置已保存，但" + (e.getReason() == null ? "柜机不受理该指令" : e.getReason());
             } catch (Exception e) {
                 message = "设置已保存，柜机指令下发失败（请确认 device-service 在线）";
             }

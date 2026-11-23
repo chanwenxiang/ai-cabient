@@ -57,6 +57,45 @@ class DeviceTempPlanServiceTest {
                 deviceRepository, deviceClient, auditService, distributedLockService, null, taskService,
                 merchantScopeService);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        // 缺省按「普通 MQTT 柜」跑；将邑柜（usesMqttChannel=false）见下方专门用例
+        org.mockito.Mockito.lenient().when(deviceClient.usesMqttChannel(anyString())).thenReturn(true);
+    }
+
+    /**
+     * 将邑柜无远程控温：写入侧必须拒绝启用，且 apply 时不许假装下发。
+     *
+     * <p>🔴 两侧都要钉 —— 只钉 upsert 的话，存量计划（本改动前建的）仍会每分钟发一条
+     * 注定超时的指令；只钉 apply 的话，运营还能建出一个永远不生效的计划。
+     */
+    @Test
+    void jiangyiDevice_shouldNotAcceptOrPushTempPlan() {
+        when(deviceClient.usesMqttChannel("JY-001")).thenReturn(false);
+        when(deviceRepository.findById("JY-001"))
+                .thenReturn(Optional.of(device("JY-001", "ONLINE", null)));
+
+        ResponseStatusException rejected = assertThrows(ResponseStatusException.class,
+                () -> service.upsert(OPERATOR_ID, "JY-001", true,
+                        List.of(new DeviceTempPlanEntryDto(null, 0, 4))));
+        assertEquals("将邑柜协议无远程控温指令，无法配置温控计划（需现场在柜机上设置）",
+                rejected.getReason());
+
+        // 存量计划：允许停用（否则运营关不掉）
+        service.upsert(OPERATOR_ID, "JY-001", false, List.of(new DeviceTempPlanEntryDto(null, 0, 4)));
+
+        // apply：落库记录但不下发
+        DeviceTempPlan plan = new DeviceTempPlan();
+        plan.setPlanId(20L);
+        plan.setDeviceId("JY-001");
+        plan.setEnabled(true);
+        when(planRepository.findByDeviceId("JY-001")).thenReturn(Optional.of(plan));
+        when(entryRepository.findByPlanId(20L)).thenReturn(List.of(entry(2L, 0, 6)));
+        DeviceInfo device = device("JY-001", "ONLINE", null);
+        when(deviceRepository.findByIdForUpdate("JY-001")).thenReturn(Optional.of(device));
+
+        service.applyNow("JY-001");
+
+        assertEquals(Integer.valueOf(6), device.getTargetTempC());
+        verify(deviceClient, never()).requestSetTargetTemp(anyString(), anyInt());
     }
 
     @Test

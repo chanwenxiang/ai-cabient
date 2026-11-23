@@ -33,6 +33,8 @@ class AdminDeviceOpsConcurrencyTest {
     @Mock private AdminAuditService auditService;
     @Mock private DistributedLockService distributedLockService;
     @Mock private DeviceServiceClient deviceClient;
+    @Mock private JiangyiDeviceDirectory jiangyiDeviceDirectory;
+    @Mock private JiangyiDeviceOpsService jiangyiDeviceOpsService;
 
     private AdminDeviceOpsService service;
 
@@ -40,7 +42,7 @@ class AdminDeviceOpsConcurrencyTest {
     void setUp() {
         service = new AdminDeviceOpsService(deviceRepository, sessionRepository, deviceValidationService,
                 salesLockService, deviceClient, merchantScopeService, permissionService, auditService,
-                distributedLockService, null, null);
+                distributedLockService, null, null, jiangyiDeviceDirectory, jiangyiDeviceOpsService);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

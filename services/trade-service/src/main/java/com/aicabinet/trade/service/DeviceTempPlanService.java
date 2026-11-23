@@ -92,6 +92,13 @@ public class DeviceTempPlanService {
         permissionService.requirePermission(operatorId, "ops:device:edit");
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         requireDevice(deviceId);
+        if (enabled && !deviceClient.usesMqttChannel(deviceId)) {
+            // 将邑柜协议无远程控温（V16 下行 17 条无温控消息）⇒ 建了也不会生效。
+            // 在写入侧拒掉，比「建好、每分钟一次下发失败 warn」诚实。
+            // ⚠️ 只拦「启用」：存量计划（历史数据）必须允许被停用，否则运营连关都关不掉。
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "将邑柜协议无远程控温指令，无法配置温控计划（需现场在柜机上设置）");
+        }
         if (entries == null || entries.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "温控计划至少需要一个时间点");
         }
@@ -191,6 +198,12 @@ public class DeviceTempPlanService {
         }
         device.setTargetTempC(target);
         deviceRepository.save(device);
+        if (!deviceClient.usesMqttChannel(deviceId)) {
+            // 存量计划落在将邑柜上：不假装下发（否则每分钟一条 warn + 指令台账里堆 TIMEOUT）。
+            log.debug("temp plan skipped (jiangyi device has no remote temp command) device={} target={}",
+                    deviceId, target);
+            return;
+        }
         if ("ONLINE".equalsIgnoreCase(device.getOnlineStatus())) {
             try {
                 deviceClient.requestSetTargetTemp(deviceId, target);

@@ -1,5 +1,6 @@
 package com.aicabinet.trade.client;
 
+import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.constants.InternalApiConstants;
 import com.aicabinet.common.security.InternalApiProperties;
 import com.aicabinet.trade.service.JiangyiDeviceDirectory;
@@ -116,8 +117,24 @@ public class DeviceServiceClient {
                 .toBodilessEntity());
     }
 
+    /**
+     * 该设备是否真的接在 device-service 的 MQTT 通道上。
+     *
+     * <p>将邑柜<b>不接 MQTT</b>（只连 jiangyi-gateway 的 WS）⇒ 调用方在「可选是否下发边缘指令」的
+     * 场景（如营业锁机：平台侧已生效，物理锁机对将邑无指令）应先问本方法，
+     * 而不是发一条注定超时的指令再回退。
+     */
+    public boolean usesMqttChannel(String deviceId) {
+        return !jiangyiDeviceDirectory.isJiangyi(deviceId);
+    }
+
     public String requestSetTargetTemp(String deviceId, int targetTempC) {
         log.info("request set target temp: device={}, target={}", deviceId, targetTempC);
+        if (jiangyiDeviceDirectory.isJiangyi(deviceId)) {
+            // 🔴 将邑 V16 下行 17 条里**没有温控消息**：这条指令发出去只会「已下发 → 15s TIMEOUT」。
+            // 温控计划/运营设温对将邑柜一律走本拒绝（见 JiangyiCommandCapability）。
+            throw jiangyiRefusal(CabinetConstants.MQTT_CMD_SET_TARGET_TEMP);
+        }
         SetTargetTempResponse body = restClient.post()
                 .uri("/internal/v1/devices/{deviceId}/set-target-temp", deviceId)
                 .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
@@ -132,6 +149,11 @@ public class DeviceServiceClient {
 
     public String requestOpsCommand(String deviceId, String command) {
         log.info("request ops command: device={}, command={}", deviceId, command);
+        if (jiangyiDeviceDirectory.isJiangyi(deviceId)) {
+            // 将邑柜不走 MQTT：不发「没人订阅」的指令冒充成功（2026-11-23 商户端「重启」实证）。
+            // 该走网关的（REBOOT）由 AdminDeviceOpsService 转 JiangyiDeviceOpsService（含业务闸）。
+            throw jiangyiRefusal(command);
+        }
         OpsCommandResponse body = restClient.post()
                 .uri("/internal/v1/devices/{deviceId}/ops-command", deviceId)
                 .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
@@ -142,6 +164,35 @@ public class DeviceServiceClient {
             throw new IllegalStateException("device-service ops-command returned empty body");
         }
         return body.commandId();
+    }
+
+    /**
+     * 将邑柜收到一条 MQTT 运维指令时的拒绝语义（按 {@link JiangyiCommandCapability} 分档）。
+     *
+     * <p>🔴 三条文案必须<b>各说各的真话</b>：
+     * <ul>
+     *   <li>{@code GATEWAY}：能力有，但通道不对 —— 让调用方去对的地方，而不是「不支持」；</li>
+     *   <li>{@code PLATFORM_ONLY}：物理动作不存在（将邑柜门锁由开门指令控制），
+     *       平台侧已生效，别让运维以为柜子被锁了；</li>
+     *   <li>{@code UNSUPPORTED}：协议确实没有，明确拒绝。</li>
+     * </ul>
+     */
+    private ResponseStatusException jiangyiRefusal(String command) {
+        JiangyiCommandCapability.Route route;
+        try {
+            route = JiangyiCommandCapability.routeOf(command);
+        } catch (IllegalArgumentException e) {
+            return new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED,
+                    "将邑柜未声明指令能力：" + command + "（见 JiangyiCommandCapability）");
+        }
+        return switch (route) {
+            case GATEWAY -> new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED,
+                    "将邑柜指令 " + command + " 须经将邑网关通道下发（不走 MQTT），请从运营台设备卡的将邑面板操作");
+            case PLATFORM_ONLY -> new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED,
+                    "将邑柜协议无 " + command + " 物理指令：营业状态已在平台侧生效，柜门由开门指令控制");
+            case UNSUPPORTED -> new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED,
+                    "将邑柜协议不支持 " + command + "（V16 下行无此消息类型）");
+        };
     }
 
     /**
