@@ -1,8 +1,7 @@
 {
-  "verifiedAt": "2026-11-23T05:59:48.846Z",
+  "verifiedAt": "2026-11-23T14:41:40.629Z",
   "inputs": {
-    "packages/shared-types/src/generated/openapi.ts": "71acac58af4d6c59a9160d9e0767225b863ca87d",
-    "packages/shared-types/src/index.ts": "01b2e756492e5e883a94a6f35934ffed9c84e6c2"
+    "packages/shared-types/src/generated/openapi.ts": "cf3e46072b937da4cc71bcd8452059a210dfb395"
   },
   "note": "PROVE_INERT rebuild verified byte-identical"
 }
