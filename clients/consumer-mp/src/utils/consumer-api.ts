@@ -821,6 +821,17 @@ export const consumerApi = {
       'POST'
     ),
   /**
+   * MA-407：发起微信免确认收款授权。返回 packageInfo 供 JSAPI 拉起微信授权页，
+   * 用户在微信点同意后长期有效（以后提现打款免逐笔确认）。
+   */
+  requestWechatPayoutAuthorization: (displayName?: string) =>
+    request<{
+      outAuthorizationNo: string;
+      packageInfo: string;
+      state: string;
+      mchId: string;
+    }>(ConsumerEndpoints.wechatPayoutAuthorization, 'POST', { displayName }),
+  /**
    * G9：用户主动解约（关闭免密代扣）。幂等 —— 没有已开通合约时同样返回 200。
    * 返回刷新后的 `AccountDto`（与签约端点同款），前端整份替换即可。
    */

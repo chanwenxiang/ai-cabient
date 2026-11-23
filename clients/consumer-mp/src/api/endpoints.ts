@@ -46,6 +46,8 @@ export const ConsumerEndpoints = {
     `${API_PREFIX}/account/transactions?page=${page}&size=${size}`,
   payscoreSign: `${API_PREFIX}/account/payscore/sign`,
   alipayAgreementSign: `${API_PREFIX}/account/alipay-agreement/sign`,
+  /** MA-407：微信免确认收款授权（商家转账提现） */
+  wechatPayoutAuthorization: `${API_PREFIX}/payout/wechat/authorization`,
   payContractUnsign: `${API_PREFIX}/account/pay-contract/unsign`,
   accountDelete: `${API_PREFIX}/account/delete-account`,
   balanceRefunds: `${API_PREFIX}/account/balance-refunds`,
@@ -154,6 +156,7 @@ export const CONSUMER_ENDPOINT_PILOT_LITERALS = [
   '/api/v2/account',
   '/api/v2/disputes',
   '/api/v2/payment/recharge',
+  '/api/v2/payout/',
   '/api/v2/coupons',
   '/api/v2/member/',
   '/api/v2/public/consumer-config',

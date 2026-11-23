@@ -106,6 +106,18 @@
       ]
     },
     {
+      "root": "pages/payout-authorization",
+      "pages": [
+        {
+          "path": "authorization",
+          "style": {
+            "navigationBarTitleText": "开通免密收款",
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    },
+    {
       "root": "pages/marketing",
       "pages": [
         {

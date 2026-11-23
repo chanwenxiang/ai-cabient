@@ -140,6 +140,14 @@
         </view>
         <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
+      <view v-if="authed" role="button" class="menu-cell" @click="goPayoutAuthorization">
+        <image class="menu-icon" :src="menuIcon('balance')" mode="aspectFit" />
+        <view class="menu-text">
+          <text class="menu-title">开通免密收款</text>
+          <text class="menu-desc">商户提现自动到账，无需逐笔确认</text>
+        </view>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
+      </view>
       <view role="button" class="menu-cell" @click="goAnnouncements">
         <image class="menu-icon" :src="menuIcon('billing')" mode="aspectFit" />
         <view class="menu-text">
@@ -637,6 +645,11 @@ function goPoints() {
 
 function goBalance() {
   uni.navigateTo({ url: '/pages/balance/balance' });
+}
+
+/** MA-407：开通微信免确认收款授权（一次性，之后提现免逐笔确认）。 */
+function goPayoutAuthorization() {
+  uni.navigateTo({ url: '/pages/payout-authorization/authorization' });
 }
 
 function goMessages() {

@@ -69,6 +69,49 @@ public class WeChatPayV3Client {
         }
     }
 
+    /**
+     * MA-407：带 HTTP 状态码的 POST——商家转账要靠错误码区分「确定失败」与「结果不确定」，
+     * 现有 {@link #post} 把所有异常吞成 IllegalStateException 拿不到状态码，故新增本方法。
+     *
+     * <p>不改 {@link #post} 行为（支付/退款调用方依赖其异常语义）。4xx/5xx 走 exchange 不抛，
+     * 原样返回 status + 错误 body（微信 v3 错误体形如 {"code":"NOT_ENOUGH","message":"..."}）。
+     */
+    public HttpResult postWithStatus(String path, Object body) {
+        try {
+            String json = objectMapper.writeValueAsString(body);
+            String auth = buildAuthorization("POST", path, json);
+            var response = restClient.post()
+                    .uri(API_HOST + path)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .header("Authorization", auth)
+                    .header("Accept", MediaType.APPLICATION_JSON_VALUE)
+                    .body(json)
+                    .exchange((req, res) -> {
+                        String text = new String(res.getBody().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                        JsonNode parsed = text.isBlank() ? objectMapper.createObjectNode() : objectMapper.readTree(text);
+                        return new HttpResult(res.getStatusCode().value(), parsed);
+                    });
+            return response;
+        } catch (Exception e) {
+            throw new IllegalStateException("wechat v3 POST " + path + " failed", e);
+        }
+    }
+
+    public record HttpResult(int status, JsonNode body) {
+        /** 微信 v3 错误码（2xx 时通常为空）。 */
+        public String code() {
+            return body.path("code").asText(null);
+        }
+
+        public String message() {
+            return body.path("message").asText(null);
+        }
+
+        public boolean is2xx() {
+            return status >= 200 && status < 300;
+        }
+    }
+
     public JsonNode get(String path) {
         try {
             String auth = buildAuthorization("GET", path, "");

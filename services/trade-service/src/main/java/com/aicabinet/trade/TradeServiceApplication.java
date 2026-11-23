@@ -27,6 +27,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 @Import(InternalApiAuthInterceptor.class)
 @EnableConfigurationProperties({WeChatPayProperties.class, WeChatMiniAppProperties.class, WeChatWebProperties.class,
+        // MA-407：微信商家转账（场景/报备/回调）业务参数
+        com.aicabinet.trade.config.WeChatTransferProperties.class,
         MinioProperties.class, SecurityProperties.class, StagingProperties.class,
         CheckoutProperties.class,
         // MA-377：商户每日经营日报（微信订阅消息）——模板 id/落地页/关键词名独立成组

@@ -196,6 +196,15 @@ aicabinet:
     private-key: ${WECHAT_PRIVATE_KEY:}
     platform-cert: ${WECHAT_PLATFORM_CERT:}
     platform-cert-auto-fetch: ${WECHAT_PLATFORM_CERT_AUTO_FETCH:true}
+  # MA-407：微信商家转账（用户授权免确认模式）业务参数
+  wechat-transfer:
+    enabled: ${WECHAT_TRANSFER_ENABLED:false}
+    scene-id: ${WECHAT_PAYOUT_SCENE_ID:1005}
+    report-job-type: ${WECHAT_PAYOUT_REPORT_JOB:商户经营者}
+    report-reward-note: ${WECHAT_PAYOUT_REWARD_NOTE:平台结算款提现}
+    user-recv-perception: ${WECHAT_PAYOUT_RECV_PERCEPTION:}
+    authorization-notify-url: ${WECHAT_PAYOUT_AUTH_NOTIFY_URL:}
+    transfer-notify-url: ${WECHAT_PAYOUT_TRANSFER_NOTIFY_URL:}
   wechat-miniapp:
     enabled: ${WECHAT_MINIAPP_ENABLED:false}
     app-id: ${WECHAT_MINIAPP_ID:}

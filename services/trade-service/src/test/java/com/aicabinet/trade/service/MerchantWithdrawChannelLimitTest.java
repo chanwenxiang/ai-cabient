@@ -271,7 +271,8 @@ class MerchantWithdrawChannelLimitTest {
     @Test
     @DisplayName("微信通道默认限额 = 单笔¥200 / 单用户单日¥2000 / 单日总额¥5万（官方非个体户口径）")
     void wechatChannelLimitsMatchOfficialDoc() {
-        var channel = new com.aicabinet.trade.payout.WeChatPayoutChannel(null);
+        // MA-407：构造器加了转账配置/client 两个依赖；channelLimits() 是纯常量，不碰依赖，传 null 即可
+        var channel = new com.aicabinet.trade.payout.WeChatPayoutChannel(null, null, null);
         PayoutChannelLimits limits = channel.channelLimits();
         assertEquals(20_000L, limits.singleCents());
         assertEquals(200_000L, limits.perPayeeDailyCents());

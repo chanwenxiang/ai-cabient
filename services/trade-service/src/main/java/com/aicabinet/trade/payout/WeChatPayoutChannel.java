@@ -2,31 +2,36 @@ package com.aicabinet.trade.payout;
 
 import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.trade.config.WeChatPayProperties;
+import com.aicabinet.trade.config.WeChatTransferProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
+
 /**
- * 微信提现通道（商家转账到零钱 / 商家转账到银行卡）。
+ * 微信提现通道（商家转账 · 用户授权免确认模式，MA-407）。
  *
- * <p><b>接入清单</b>（拿到认证后按此实现 transfer 即可）：
+ * <p><b>接入清单</b>（已全部落地）：
  * <ol>
- *   <li>开通「商家转账到零钱」产品（微信支付商户平台 → 产品中心 → 商家转账）；</li>
- *   <li>API 端点：{@code POST /v3/transfer/batches}（新版单笔：{@code /v3/funds/transfer/...}）；</li>
- *   <li>必须用 <b>APIv3 密钥</b>做 AEAD_AES_256_GCM 加解密（复用 {@code WeChatPayV3Aead}）；</li>
- *   <li>证书序列号 + APIv3 私钥签名；</li>
- *   <li><b>收款方需为该商户号的 openid</b>（对私）或已绑定的收款人openid（对公需先完成对公账户绑定/验证）。</li>
+ *   <li>开通「商家转账」产品（商户平台 → 产品中心 → 商家转账）——✅ 场景 1005 佣金报酬已开通；</li>
+ *   <li>设置接口安全 IP（服务器公网 IP）——✅ 120.25.246.179；</li>
+ *   <li>运营账户充值（出款来源）——✅；</li>
+ *   <li>用户授权免确认收款（小程序 JSAPI 拉起授权页，一次性长期有效）；</li>
+ *   <li>APIv3 签名（复用 {@code WeChatPayV3Client}）+ 场景 1005 报备两条 + 幂等键原样作 out_bill_no。</li>
  * </ol>
  *
- * <p>⚠️ <b>金额与商户号硬约束</b>：微信「商家转账到零钱」<b>不支持从任意商户号给任意 openid 打款</b>，
- * 需在商户平台配置收款用户。额度方面，代码已按官方<b>默认档</b>预置
- * {@link #channelLimits()}（单笔 ¥200 / 单用户单日 ¥2000 / 单商户号单日 ¥5 万），
- * 真实接入前必须<b>核对目标商户号的实际核准额度</b>：
- * 若商户号已提额到单笔 ¥20000，代码这层限额会让本可出款的大额被<b>提前拒绝</b>，
- * 需相应上调（只调这三个常量，或由运营限额放宽无效 —— 见 {@link PayoutChannelLimits#effective}）。
+ * <p>🔴 <b>为什么用免确认模式</b>：用户申请提现时已明确表达收款意愿，再让每笔去微信点确认
+ * 是多余摩擦。免确认授权一次后，{@code /transfer-bills/transfer} 同步返回 {@code SUCCESS} 终态，
+ * 无需异步回调+查单闭环（那是确认模式的负担）。
  *
- * <p><b>本期状态</b>：骨架。{@link #isReady()} 恒 false —— 即使支付参数已配置，
- * 因为「转账产品未开通」无法从配置推断，硬报 ready 会让运营以为能出款。
+ * <p>🔴 <b>授权单号确定性派生</b>：微信要求「一个用户账号对应唯一一个生效中的授权」。
+ * 用 openid 的 SHA-256 前 24 位十六进制作 out_authorization_no，天然幂等、无需额外存储；
+ * 授权到期/关闭后同单号可复用（官方文档：未确认授权 30 天后原单号可再次发起）。
+ *
+ * <p>⚠️ <b>金额与商户号硬约束</b>：见 {@link #channelLimits()}。个体户主体口径更严，需改常量。
  */
 @Component
 public class WeChatPayoutChannel implements PayoutChannel {
@@ -34,9 +39,15 @@ public class WeChatPayoutChannel implements PayoutChannel {
     private static final Logger log = LoggerFactory.getLogger(WeChatPayoutChannel.class);
 
     private final WeChatPayProperties weChatPayProperties;
+    private final WeChatTransferProperties transferProperties;
+    private final WeChatTransferClient transferClient;
 
-    public WeChatPayoutChannel(WeChatPayProperties weChatPayProperties) {
+    public WeChatPayoutChannel(WeChatPayProperties weChatPayProperties,
+                               WeChatTransferProperties transferProperties,
+                               WeChatTransferClient transferClient) {
         this.weChatPayProperties = weChatPayProperties;
+        this.transferProperties = transferProperties;
+        this.transferClient = transferClient;
     }
 
     @Override
@@ -45,64 +56,81 @@ public class WeChatPayoutChannel implements PayoutChannel {
     }
 
     /**
-     * 恒 false：微信「收款参数已配」≠「商户号已开通商家转账且已配收款用户」，
-     * 这两项无法从本地配置推断，误报 ready 会导致批量出款失败。
+     * 真实探测：支付凭证配齐 + 转账业务开关打开。
+     *
+     * <p>注意：这仍<b>不能</b>推断「用户已授权免确认」——那是逐用户的状态，
+     * 由 {@link #transfer} 在打款时由微信侧校验（未授权会返回 USER_ERROR/ORDER_CLOSED）。
      */
     @Override
     public boolean isReady() {
-        return false;
+        return weChatPayProperties.isConfigured() && transferClient.isConfigured();
     }
 
     @Override
     public String supportedAccountType() {
-        // 微信零钱转账本质是对私；对公需走「商家转账到银行卡」并额外核验
         return PayoutConstants.PAYEE_TYPE_PERSONAL;
     }
 
-    /**
-     * 微信「商家转账」<b>默认档</b>渠道限额（分）。
-     *
-     * <p>🔴 <b>来源与口径</b>：微信支付官方《设置转账额度》
-     * （{@code pay.weixin.qq.com/doc/v3/merchant/4013747667}），
-     * <b>商户号主体不为个体户</b>一栏：
-     * <ul>
-     *   <li>单笔限额<b>默认 ¥200</b>，可调区间 0.1–200 元；</li>
-     *   <li>单用户转账限额（<b>单商户号单日</b>向<b>同一用户</b>）<b>默认 ¥2000</b>，可调 0.1–2000；</li>
-     *   <li>单日转账额度（<b>单商户号单日总额</b>）<b>默认 ¥5 万</b>，可调 0.1–5 万；</li>
-     *   <li>单月 3000 万，<b>不支持修改</b>（本类不设此维，改不了的东西不写进限额模型）。</li>
-     * </ul>
-     *
-     * <p><b>为什么必须拆三个维度而不是一个 200</b>（2026-10-06 用户纠正）：
-     * 单笔 ¥200 只是最窄的那道门，商户当日提 3 笔 ¥180（¥540）单笔都合规，
-     * 却会撞上「单用户单日 ¥2000 / 单商户号单日 ¥5 万」——
-     * 只校验单笔的商户会在<b>申请时通过、渠道侧被拒</b>，表现为「一直 PAYING 转人工」。
-     *
-     * <p>⚠️ <b>个体户主体更严</b>：官方同页个体户一栏为单笔 ¥200 / 单用户单日 ¥200 /
-     * 单日 ¥5000。本项目收款主体是<b>商户</b>（非个体户），故用非个体户口径；
-     * 若将来接入个体户收款，<b>必须改这三个数字</b>（而不是靠运营限额去压 ——
-     * 运营限额只能更严，不能更松）。
-     *
-     * <p>📌 官方明确提示「限额仅供参考、请以接口实际返回为准」，
-     * 因此这些数字的作用是<b>提前给用户一个可解释的拒绝</b>，不是精确的资金安全边界。
-     */
     @Override
     public PayoutChannelLimits channelLimits() {
-        return new PayoutChannelLimits(
-                20_000L,     // 单笔 ¥200
-                200_000L,    // 单用户单日 ¥2000
-                5_000_000L   // 单商户号单日总额 ¥50000
-        );
+        // 与商户号实际核准额度一致（2026-11-23 商户平台实测）：单笔 ¥200 / 单用户单日 ¥2000 / 单商户单日 ¥5 万
+        return new PayoutChannelLimits(20_000L, 200_000L, 5_000_000L);
     }
 
     @Override
     public PayoutResult transfer(PayoutCommand command) {
-        if (!weChatPayProperties.isConfigured()) {
-            return PayoutResult.notReady(channel(), "微信支付商户号 + APIv3 密钥 + 证书");
+        if (!isReady()) {
+            return PayoutResult.notReady(channel(), "微信支付凭证 + 商家转账业务开关");
         }
-        // 🔴 只记 requestId/金额，绝不记 accountNo（openid 属个人敏感标识）
-        log.warn("WeChat payout channel not wired yet: requestId={}, payeeType={}, netCents={}, idemKey={}",
-                command.requestId(), command.accountType(), command.netCents(), command.idemKey());
-        return PayoutResult.notReady(channel(),
-                "微信「商家转账」产品开通 + 收款用户配置 + transfer API 实现");
+        String openid = command.accountNo();
+        if (openid == null || openid.isBlank()) {
+            return PayoutResult.rejected("微信提现收款账户缺少 openid（请在收款账户中绑定微信）");
+        }
+        String outAuthorizationNo = authorizationNoFor(openid);
+        try {
+            WeChatTransferClient.TransferResponse response = transferClient.transfer(
+                    command.idemKey(),          // 幂等键原样作商户单号——绝不换单重试
+                    openid,                     // 仅日志/校验用；免确认转账按授权单号定位用户
+                    command.netCents(),         // 金额由上游算好，通道不改
+                    command.remark(),
+                    outAuthorizationNo);
+            if (response.isSuccess()) {
+                return PayoutResult.paid(response.transferBillNo(), "微信商家转账成功（免确认）");
+            }
+            if (response.isPending()) {
+                // 非终态：结果不确定，保持 PAYING（上层绝不释放冻结）
+                throw new PayoutPendingException(
+                        "微信转账非终态 state=" + response.state() + "，保持 PAYING 待查单",
+                        command.idemKey());
+            }
+            return PayoutResult.rejected(response.describeFail()
+                    .orElse("微信转账失败 state=" + response.state()));
+        } catch (WeChatTransferClient.DefiniteFailure e) {
+            return PayoutResult.rejected(e.getMessage());
+        } catch (PayoutPendingException e) {
+            throw e;
+        } catch (PayoutChannel.PayeeIncompatibleException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            // 网络超时/未知异常 ⇒ 结果不确定，绝不吞成失败（会释放冻结造成双重支出）
+            log.error("wechat transfer uncertain: requestId={}, idemKey={}, reason={}",
+                    command.requestId(), command.idemKey(), e.getClass().getSimpleName());
+            throw new PayoutPendingException("微信转账结果不确定（" + e.getClass().getSimpleName() + "），保持 PAYING 转人工",
+                    command.idemKey());
+        }
+    }
+
+    /**
+     * 由 openid 确定性派生商户侧授权单号（32 位内、纯字母数字）。
+     * 公开供小程序授权页调用——授权页和转账必须用同一个单号，否则微信会当成两个授权。
+     */
+    public String authorizationNoFor(String openid) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(openid.getBytes(StandardCharsets.UTF_8));
+            return "A" + HexFormat.of().formatHex(digest).substring(0, 24);
+        } catch (Exception e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
     }
 }
