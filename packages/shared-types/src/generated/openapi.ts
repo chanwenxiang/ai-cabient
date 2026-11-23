@@ -1438,22 +1438,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/internal/v1/demo/ensure": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["ensure"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/sessions": {
         parameters: {
             query?: never;
@@ -1496,6 +1480,38 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/payout/wechat/authorization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["requestAuthorization"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/payout/wechat/authorization-notify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["authorizationNotify"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5686,54 +5702,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/dev/payment/wechat/notify/mock/{orderId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["mockNotify"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/dev/payment/recharge/{orderId}/mock-success": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["confirmMockRecharge"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/dev/payment/alipay/notify/mock/{orderId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["mockNotify_1"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/coupons/use": {
         parameters: {
             query?: never;
@@ -6478,22 +6446,6 @@ export interface paths {
             cookie?: never;
         };
         get: operations["exists"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/v1/demo/context": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["context"];
         put?: never;
         post?: never;
         delete?: never;
@@ -13145,32 +13097,27 @@ export interface components {
             assetId?: number;
             eventType: string;
         };
-        ApiResponseDemoContext: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["DemoContext"];
-        };
-        DemoContext: {
-            deviceId?: string;
-            consumerPhone?: string;
-            /** Format: int64 */
-            consumerUserId?: number;
-            fallbackSkuId?: string;
-            /** Format: int64 */
-            skuCount?: number;
-            /** Format: int64 */
-            deviceInventoryLines?: number;
-            /** Format: int64 */
-            warehouseLotCount?: number;
-            warehouseId?: string;
-        };
         CreateSessionRequest: {
             deviceId: string;
             idempotencyKey: string;
             entryChannel?: string;
             /** Format: int64 */
             preferredCouponId?: number;
+        };
+        AuthorizationRequest: {
+            displayName?: string;
+        };
+        ApiResponseWechatPayoutAuthResponse: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["WechatPayoutAuthResponse"];
+        };
+        WechatPayoutAuthResponse: {
+            outAuthorizationNo?: string;
+            packageInfo?: string;
+            state?: string;
+            mchId?: string;
         };
         ApiResponseRechargeOrderDto: {
             /** Format: int32 */
@@ -23743,26 +23690,6 @@ export interface operations {
             };
         };
     };
-    ensure: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseDemoContext"];
-                };
-            };
-        };
-    };
     create: {
         parameters: {
             query?: never;
@@ -23828,6 +23755,57 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["ApiResponseSessionDto"];
                 };
+            };
+        };
+    };
+    requestAuthorization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AuthorizationRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseWechatPayoutAuthResponse"];
+                };
+            };
+        };
+    };
+    authorizationNotify: {
+        parameters: {
+            query?: never;
+            header: {
+                "Wechatpay-Timestamp": string;
+                "Wechatpay-Nonce": string;
+                "Wechatpay-Signature": string;
+                "Wechatpay-Serial"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": string;
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -31229,72 +31207,6 @@ export interface operations {
             };
         };
     };
-    mockNotify: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                orderId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseVoid"];
-                };
-            };
-        };
-    };
-    confirmMockRecharge: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                orderId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseRechargeOrderDto"];
-                };
-            };
-        };
-    };
-    mockNotify_1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                orderId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseVoid"];
-                };
-            };
-        };
-    };
     useCoupon: {
         parameters: {
             query: {
@@ -32526,26 +32438,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseMapStringObject"];
-                };
-            };
-        };
-    };
-    context: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseDemoContext"];
                 };
             };
         };
