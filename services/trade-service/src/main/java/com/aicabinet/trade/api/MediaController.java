@@ -56,6 +56,17 @@ public class MediaController {
         fileAttachmentService.stream(row, response);
     }
 
+    /** MA-404：商户营业执照图（提现资质）——需运营会话（生产 cookie 模式下 <img> 预览自动携带）。 */
+    @GetMapping("/business-licenses/{fileId}")
+    public void businessLicense(HttpServletRequest request,
+                                @PathVariable("fileId") Long fileId,
+                                HttpServletResponse response) throws IOException {
+        Long operatorId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        OperatorAuth.requireOperator(operatorId);
+        FileAttachment row = fileAttachmentService.requireBusinessLicense(fileId);
+        fileAttachmentService.stream(row, response);
+    }
+
     @GetMapping("/ad-assets/{assetId}")
     public void adAsset(@PathVariable("assetId") Long assetId,
                         HttpServletRequest request,

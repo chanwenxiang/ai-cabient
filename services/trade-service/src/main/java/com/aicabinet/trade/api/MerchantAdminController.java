@@ -2,6 +2,7 @@ package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ConfirmLedgerSplitRequest;
 import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.common.dto.FileAttachmentDto;
 import com.aicabinet.common.dto.MerchantDto;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.ProfitSharingStatusDto;
@@ -10,6 +11,7 @@ import com.aicabinet.common.dto.SubmitProfitSharingRequest;
 import com.aicabinet.common.dto.UpsertMerchantRequest;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.FileAttachmentService;
 import com.aicabinet.trade.service.MerchantService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -17,6 +19,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
 
@@ -25,9 +28,12 @@ import java.nio.charset.StandardCharsets;
 public class MerchantAdminController {
 
     private final MerchantService merchantService;
+    private final FileAttachmentService fileAttachmentService;
 
-    public MerchantAdminController(MerchantService merchantService) {
+    public MerchantAdminController(MerchantService merchantService,
+                                   FileAttachmentService fileAttachmentService) {
         this.merchantService = merchantService;
+        this.fileAttachmentService = fileAttachmentService;
     }
 
     @RequiresPermissions("ops:merchant:list")
@@ -46,6 +52,15 @@ public class MerchantAdminController {
             HttpServletRequest request,
             @Valid @RequestBody UpsertMerchantRequest body) {
         return ApiResponse.ok(merchantService.upsertMerchant(operatorId(request), body));
+    }
+
+    /** MA-404：商户营业执照图上传（提现资质）。资质字段此前是手贴 URL 文本框，运营无图床 ⇒ 恒空 ⇒ 提现资质门禁恒拦。 */
+    @RequiresPermissions("ops:merchant:edit")
+    @PostMapping(value = "/license-upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<FileAttachmentDto> uploadBusinessLicense(
+            HttpServletRequest request,
+            @RequestPart("file") MultipartFile file) {
+        return ApiResponse.ok(fileAttachmentService.uploadBusinessLicense(operatorId(request), file));
     }
 
     @RequiresPermissions("ops:merchant:split")

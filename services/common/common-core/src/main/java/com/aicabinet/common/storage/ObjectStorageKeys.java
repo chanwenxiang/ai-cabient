@@ -38,6 +38,16 @@ public final class ObjectStorageKeys {
         return String.format(Locale.ROOT, "dispute-evidence/%s/user-%d/%s%s", date, userId, token, ext);
     }
 
+    /** 商户营业执照图（提现资质，运营台上传）。 */
+    public static String businessLicenseKey(long operatorId, String fileToken, String extension) {
+        ZonedDateTime zdt = Instant.now().atZone(ZONE);
+        String date = String.format(
+                Locale.ROOT, V_04D_02D_02D, zdt.getYear(), zdt.getMonthValue(), zdt.getDayOfMonth());
+        String token = sanitize(fileToken, "file");
+        String ext = normalizeExtension(extension);
+        return String.format(Locale.ROOT, "business-license/%s/ops-%d/%s%s", date, operatorId, token, ext);
+    }
+
     /** 补货现场取证图。 */
     public static String replenishmentEvidenceKey(long taskId, long userId, String fileToken, String extension) {
         ZonedDateTime zdt = Instant.now().atZone(ZONE);

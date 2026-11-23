@@ -7,6 +7,7 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { errorMessage } from '@/utils/error-message';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
@@ -272,8 +273,11 @@ function onStatusChange() {
           <div class="page-card-head__title">
             <span class="title">开票申请</span>
             <span class="hint"
-              >仅状态流转：开具=PENDING→ISSUED，不生成税控 PDF、不发邮件；商户税号在商户端维护</span
-            >
+              >仅状态流转：开具=PENDING→ISSUED，不生成税控
+              PDF、不发邮件；商户税号在商户端维护<HelpTip
+                content="仅已支付/已完成/部分退款订单可申请；同一订单同时只允许一张待处理或已开具申请，驳回后可重新申请。驳回未填原因时默认记「不符合开票条件」。开票只留痕并写审计，不改动余额。"
+                aria-label="开票申请口径"
+            /></span>
           </div>
         </div>
         <div class="page-card-head__actions">

@@ -6,7 +6,11 @@
           <div class="page-card-head__meta">
             <div class="page-card-head__title">
               <span class="title">线路与提成</span>
-              <span class="hint">线路与成员提成配置 · 月合计财务对账 · 补货员钱包打款</span>
+              <span class="hint"
+                >线路与成员提成配置 · 月合计财务对账 · 补货员钱包打款<HelpTip
+                  content="成员提成按配置：提成基数「按销售额」取 GMV×比例(bps)，「按补货数量」取件数×每件佣金；同一人可同时配线长/补货员两行，两行并行计入。月合计是账期汇总（订单数/销售额/补货件数），已含退款冲回；补货员钱包是累计入账，打款走钱包行「标记打款」——两者不是同一口径。"
+                  aria-label="提成与月合计口径"
+              /></span>
             </div>
           </div>
         </div>
@@ -263,6 +267,7 @@ import { errorMessage } from '@/utils/error-message';
 import { AdminEndpoints } from '@/api/endpoints';
 import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { reportSoftFail } from '@/utils/soft-fallback';

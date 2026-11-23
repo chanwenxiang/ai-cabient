@@ -5,7 +5,11 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">固件版本</span>
-            <span class="hint">支持发布与灰度；柜机需自行安装，后台不下发自动安装</span>
+            <span class="hint"
+              >支持发布与灰度；柜机需自行安装，后台不下发自动安装<HelpTip
+                content="灰度% 按 deviceId 哈希分桶命中（1–99 抽样，100=全量）；填了定向设备白名单时只推名单内设备（白名单优先于灰度）。后台只登记版本与下载地址，不推送安装，柜机自行下载安装；升级进度需开启 ota.progress.enabled，关闭时设备不上报、下方进度表为空表（不是页面故障）。"
+                aria-label="固件发布口径"
+            /></span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -334,6 +338,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { formatDateTime } from '@aicabinet/shared-uni/format';

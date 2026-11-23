@@ -153,13 +153,13 @@ public class LineWithdrawPayoutService {
         // MA-391（资金 #10）：线长侧同样按单审核打款，没有批量出款窗口 ⇒ 无截单时点可拦。
         // 面板把真实到账口径说清（此前只有手续费，运营对「多久到账」只能猜）。
         String arrivalNote = "；到账时效：审核通过后由所选通道随即发起，到账快慢由通道决定"
-                + "（见 channelReadiness）。本系统按单审核打款、无批量出款窗口，故不设截单时点";
+                + "（见下方「通道就绪」）。本系统按单审核打款、无批量出款窗口，故不设截单时点";
         String note;
         if (mock) {
             note = "当前为记账打款（未接入真实转账）：审核通过后标记为成功，不向任何渠道发起转账"
                     + feeNote + arrivalNote;
         } else {
-            note = "记账打款已关闭：真实出款需各通道就绪（当前就绪状态见 channelReadiness）"
+            note = "记账打款已关闭：真实出款需各通道就绪（当前就绪状态见下方「通道就绪」）"
                     + feeNote + arrivalNote;
         }
         // ⚠️ 用 LinkedHashMap 显式构建而非 Map.of：Map.of 拒绝 null 值，且返回无序 map

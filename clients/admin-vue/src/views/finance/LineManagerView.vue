@@ -41,14 +41,28 @@
       </div>
     </template>
 
-    <el-alert
-      v-if="payoutMode?.note"
-      class="mb"
-      :type="payoutMode.mockEnabled ? 'warning' : 'error'"
-      :closable="false"
-      show-icon
-      :title="payoutMode.note"
-    />
+    <div v-if="payoutMode?.note" class="payout-status">
+      <el-alert :type="payoutMode.mockEnabled ? 'warning' : 'error'" :closable="false" show-icon>
+        <template #title>
+          <span class="payout-note"
+            >{{ payoutMode.note
+            }}<HelpTip
+              content="记账打款=审核通过仅标记成功、不向渠道真实转账；真实出款需所选通道（微信零钱/支付宝/银行代付）就绪。手续费按系统参数计，已成立的提现单按申请时费率快照计，调价不追溯。审核通过后由所选通道随即发起，本系统逐单审核打款、无批量出款截单时点；赏金入线长钱包幂等，不重复发放。"
+              aria-label="打款模式与提现口径"
+          /></span>
+        </template>
+      </el-alert>
+      <div v-if="readinessItems.length" class="payout-readiness">
+        <span class="payout-readiness__label">通道就绪</span>
+        <span
+          v-for="item in readinessItems"
+          :key="item.key"
+          class="payout-readiness__item"
+          :class="item.ready ? 'is-ready' : 'is-not-ready'"
+          >{{ item.label }}{{ item.ready ? '已就绪' : '未就绪' }}</span
+        >
+      </div>
+    </div>
 
     <el-tabs v-model="tab" class="line-tabs" @tab-change="onTab">
       <el-tab-pane label="线长成员" name="managers">
@@ -945,6 +959,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { Refresh, View, TrendCharts, Link, Wallet, Money, User } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -1055,7 +1070,31 @@ interface PromoTask {
 
 const auth = useAuthStore();
 const tab = ref('managers');
-const payoutMode = ref<{ mockEnabled?: boolean; note?: string } | null>(null);
+type PayoutMode = {
+  mockEnabled?: boolean;
+  note?: string;
+  channelReadiness?: Record<string, { ready?: boolean }>;
+};
+const PAYOUT_CHANNEL_LABELS: Record<string, string> = {
+  WECHAT: '微信零钱',
+  ALIPAY: '支付宝',
+  BANK: '银行代付'
+};
+const PAYOUT_CHANNEL_ORDER = ['WECHAT', 'ALIPAY', 'BANK'];
+const payoutMode = ref<PayoutMode | null>(null);
+const readinessItems = computed(() =>
+  Object.entries(payoutMode.value?.channelReadiness ?? {})
+    .map(([key, info]) => ({
+      key,
+      label: PAYOUT_CHANNEL_LABELS[key] ?? key,
+      ready: Boolean(info?.ready)
+    }))
+    .sort(
+      (a, b) =>
+        (PAYOUT_CHANNEL_ORDER.indexOf(a.key) + 1 || 99) -
+        (PAYOUT_CHANNEL_ORDER.indexOf(b.key) + 1 || 99)
+    )
+);
 const managersLoading = ref(false);
 let managersLoadingInflight = 0;
 const withdrawsLoading = ref(false);
@@ -1270,10 +1309,7 @@ function reload() {
 async function loadPayoutMode() {
   const seq = loadSeq.begin('loadPayoutMode');
   try {
-    const mode = await api.request<{ mockEnabled?: boolean; note?: string }>(
-      AdminEndpoints.lineWithdrawsPayoutMode,
-      'GET'
-    );
+    const mode = await api.request<PayoutMode>(AdminEndpoints.lineWithdrawsPayoutMode, 'GET');
     // R11-A-N2 同族：成功路径也须判代际
     if (!loadSeq.isCurrent(seq, 'loadPayoutMode')) return;
     payoutMode.value = mode;
@@ -1820,6 +1856,27 @@ onMounted(async () => {
 <style scoped>
 .mb {
   margin-bottom: 12px;
+}
+.payout-status {
+  margin-bottom: 12px;
+}
+.payout-readiness {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 6px;
+  font-size: var(--admin-font-size-sm);
+  color: var(--layout-muted);
+}
+.payout-readiness__label {
+  color: var(--layout-text);
+}
+.payout-readiness__item.is-ready {
+  color: var(--app-primary);
+}
+.payout-readiness__item.is-not-ready {
+  color: var(--el-color-danger);
 }
 /* V307 收款方/渠道对账列：主行关键值 + 副行补充信息 */
 .payee-cell {

@@ -644,11 +644,29 @@
         <el-form-item label="法人姓名（提现资质）">
           <el-input v-model="orgForm.legalPerson" placeholder="营业执照法人姓名" maxlength="64" />
         </el-form-item>
-        <el-form-item label="营业执照 URL（提现资质）">
+        <el-form-item label="营业执照照片（提现资质）">
+          <div class="license-field">
+            <el-upload
+              :show-file-list="false"
+              accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+              :http-request="onLicenseUpload"
+              :disabled="licenseUploading"
+            >
+              <el-button :loading="licenseUploading" type="primary" plain>上传执照照片</el-button>
+            </el-upload>
+            <el-image
+              v-if="orgForm.businessLicenseUrl"
+              :src="orgForm.businessLicenseUrl"
+              :preview-src-list="[orgForm.businessLicenseUrl]"
+              fit="cover"
+              class="license-thumb"
+            />
+          </div>
           <el-input
             v-model="orgForm.businessLicenseUrl"
-            placeholder="营业执照图片地址"
-            maxlength="512"
+            placeholder="上传后自动填入图片地址（也可手动粘贴）"
+            maxlength="255"
+            class="license-url-input"
           />
         </el-form-item>
         <el-form-item label="上级商户">
@@ -804,10 +822,11 @@ import { centsToYuanFixed } from '@/utils/display';
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { CircleCheck, Refresh, RefreshRight, Upload, User } from '@element-plus/icons-vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox, type UploadRequestOptions } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
-import { api } from '@/api/client';
+import { api, authFetch } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import { validateImageFile } from '@/utils/upload-validate';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
 import HelpTip from '@/components/HelpTip.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
@@ -1030,6 +1049,42 @@ const orgForm = ref({
   platformRateBps: 0,
   status: 'ACTIVE'
 });
+const licenseUploading = ref(false);
+
+/** MA-404：执照照片上传——成功后回填 businessLicenseUrl（替代手贴 URL 文本框）。 */
+async function onLicenseUpload(options: UploadRequestOptions) {
+  const file = options.file as File;
+  if (!file) return;
+  const check = validateImageFile(file);
+  if (!check.ok) {
+    ElMessage.warning(check.message);
+    options.onError?.(new Error(check.message) as never);
+    return;
+  }
+  licenseUploading.value = true;
+  try {
+    const base =
+      (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await authFetch(`${base}${AdminEndpoints.merchantsLicenseUpload}`, {
+      method: 'POST',
+      body: formData
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || json.code !== 0) {
+      throw new Error(json.message || `上传失败 (${res.status})`);
+    }
+    const uploaded = json.data as { url?: string };
+    if (!uploaded?.url) throw new Error('上传返回缺少图片地址');
+    orgForm.value.businessLicenseUrl = uploaded.url;
+    ElMessage.success('执照照片已上传');
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '上传失败');
+  } finally {
+    licenseUploading.value = false;
+  }
+}
 const assignDialog = ref(false);
 const assignSaving = ref(false);
 const assignDevicesLoading = ref(false);
@@ -1814,6 +1869,20 @@ onActivated(() => {
   margin: 0 0 10px;
   font-size: 13px;
   color: var(--el-text-color-secondary);
+}
+.license-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-bottom: 8px;
+}
+.license-thumb {
+  width: 72px;
+  height: 72px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 6px;
+  cursor: zoom-in;
 }
 .status-meta {
   margin-left: 8px;

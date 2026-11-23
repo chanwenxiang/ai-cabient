@@ -21,7 +21,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class FileAttachmentOperatorReadTest {
 
-    private static final Long OPERATOR_ID = 9001L;
+    /** 运营号段：无请求上下文时 OperatorAuth 按 userId ≥ 1 亿判定。 */
+    private static final Long OPERATOR_ID = 100_000_001L;
     private static final Long CONSUMER_ID = 100L;
 
     @Mock private FileAttachmentMapper fileAttachmentMapper;
@@ -53,6 +54,48 @@ class FileAttachmentOperatorReadTest {
                 () -> service.uploadOpsAvatar(CONSUMER_ID, null));
 
         assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+    }
+
+    @Test
+    void uploadBusinessLicense_rejectsConsumerAccount() {
+        // MA-404：执照图命名空间与 ops-avatars 同守卫——仅运营账号可传。
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.uploadBusinessLicense(CONSUMER_ID,
+                        new org.springframework.mock.web.MockMultipartFile(
+                                "file", "license.jpg", "image/jpeg", new byte[] {1})));
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+    }
+
+    @Test
+    void uploadBusinessLicense_rejectsEmptyFile() {
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.uploadBusinessLicense(OPERATOR_ID,
+                        new org.springframework.mock.web.MockMultipartFile(
+                                "file", "license.jpg", "image/jpeg", new byte[0])));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+    }
+
+    @Test
+    void uploadBusinessLicense_rejectsNonImage() {
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.uploadBusinessLicense(OPERATOR_ID,
+                        new org.springframework.mock.web.MockMultipartFile(
+                                "file", "license.txt", "text/plain", "hello".getBytes())));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+    }
+
+    @Test
+    void uploadBusinessLicense_rejectsOversize() {
+        byte[] big = new byte[(int) (5 * 1024 * 1024L + 1)];
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.uploadBusinessLicense(OPERATOR_ID,
+                        new org.springframework.mock.web.MockMultipartFile(
+                                "file", "license.jpg", "image/jpeg", big)));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
     }
 
     @Test

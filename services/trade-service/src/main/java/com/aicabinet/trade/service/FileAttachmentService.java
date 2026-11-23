@@ -55,6 +55,8 @@ public class FileAttachmentService {
     public static final String REF_SKU_IMAGE = "SKU_IMAGE";
     public static final String REF_OPS_AVATAR = "OPS_AVATAR";
     public static final String REF_OPS_BRAND_LOGO = "OPS_BRAND_LOGO";
+    /** MA-404：商户营业执照图（提现资质，运营台「编辑商户组织」上传）。 */
+    public static final String REF_BUSINESS_LICENSE = "BUSINESS_LICENSE";
     private static final long MAX_BYTES = 5 * 1024 * 1024L;
     private static final int MAX_EVIDENCE = 5;
     /** R15-L3：单用户未绑定（PENDING）凭证配额——堵「只传不绑」的无界堆积面。 */
@@ -529,6 +531,57 @@ public class FileAttachmentService {
         return toDto(row);
     }
 
+    /**
+     * 商户营业执照图上传（提现资质，MA-404）。此前资质字段是手贴 URL 文本框——运营没有图床，
+     * 字段永远空着 ⇒ 提现资质门禁（法人+执照非空）永远拦着代提现。与 opsAvatar 同款守卫
+     * （仅运营账号可传）+ 独立 refType 命名空间 + sha256 去重。
+     */
+    @Transactional
+    public FileAttachmentDto uploadBusinessLicense(Long operatorId, MultipartFile file) {
+        OperatorAuth.requireOperator(operatorId);
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择营业执照照片");
+        }
+        if (file.getSize() > MAX_BYTES) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "单张图片不能超过 5MB");
+        }
+        String contentType = normalizeContentType(file.getContentType(), file.getOriginalFilename());
+        if (!ALLOWED_TYPES.contains(contentType)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "仅支持 jpg/png/webp/gif");
+        }
+        byte[] bytes = readAndStripImageBytes(file, contentType);
+        String sha = sha256Hex(bytes);
+        if (sha != null) {
+            FileAttachment existing = fileAttachmentMapper.findByContentSha256(sha).stream()
+                    .filter(r -> REF_BUSINESS_LICENSE.equals(r.getRefType()))
+                    .filter(r -> r.getStoragePath() != null && !r.getStoragePath().isBlank())
+                    .filter(r -> !r.getStoragePath().startsWith(MINIO)
+                            || minioVideoService.objectExists(r.getStoragePath()))
+                    .findFirst()
+                    .orElse(null);
+            if (existing != null) {
+                return toDto(existing);
+            }
+        }
+        String ext = extensionFor(contentType, file.getOriginalFilename());
+        String token = UUID.randomUUID().toString().replace("-", "");
+        String objectKey = ObjectStorageKeys.businessLicenseKey(operatorId, token, ext);
+        String storagePath = storeOrReuse(sha, objectKey, bytes, contentType);
+        FileAttachment row = new FileAttachment();
+        row.setRefType(REF_BUSINESS_LICENSE);
+        row.setRefId(String.valueOf(operatorId));
+        row.setFileName(safeName(file.getOriginalFilename(), token + ext));
+        row.setFileSize((long) bytes.length);
+        row.setContentType(contentType);
+        row.setStoragePath(storagePath);
+        row.setStorageBucket(storagePath.startsWith(MINIO) ? minioProperties.bucket() : LOCAL);
+        row.setContentSha256(sha);
+        row.setUploadedBy(operatorId);
+        row.setCreatedAt(Instant.now());
+        fileAttachmentMapper.insert(row);
+        return toDto(row);
+    }
+
     /** 运营后台品牌 Logo 上传。 */
     @Transactional
     public FileAttachmentDto uploadOpsBrandLogo(Long operatorId, MultipartFile file) {
@@ -715,6 +768,15 @@ public class FileAttachmentService {
         return row;
     }
 
+    /** MA-404：商户营业执照图（提现资质）读取——仅运营，图片经流式接口出（带 cookie 即可）。 */
+    public FileAttachment requireBusinessLicense(Long fileId) {
+        FileAttachment row = fileAttachmentMapper.selectById(fileId);
+        if (row == null || !REF_BUSINESS_LICENSE.equals(row.getRefType())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "营业执照照片不存在");
+        }
+        return row;
+    }
+
     /**
      * H24：运营经通用附件读取入口（requireReadable）可见的附件类别白名单。
      * 仅限运营职责必需的争议与补货证据（含关联争议/补货申请的待归属附件）；
@@ -792,6 +854,8 @@ public class FileAttachmentService {
             url = "/api/v2/media/ops-avatars/" + row.getFileId();
         } else if (REF_OPS_BRAND_LOGO.equals(row.getRefType())) {
             url = "/api/v2/media/ops-brand/" + row.getFileId();
+        } else if (REF_BUSINESS_LICENSE.equals(row.getRefType())) {
+            url = "/api/v2/media/business-licenses/" + row.getFileId();
         } else {
             url = "/api/v2/disputes/evidence/" + row.getFileId();
         }

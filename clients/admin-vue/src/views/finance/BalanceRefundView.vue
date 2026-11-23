@@ -8,6 +8,7 @@ import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
 import { useNavAccess } from '@/composables/useNavAccess';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import type { BalanceRefundRequestDto, PageResult } from '@aicabinet/shared-types';
 import { displayLabel } from '@aicabinet/shared-dict';
@@ -244,7 +245,11 @@ async function batchReviewAll(approve: boolean) {
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">余额退款申请</span>
-            <span class="hint">用户在充值页提交 · 审核通过后按充值单原路退微信/支付宝</span>
+            <span class="hint"
+              >用户在充值页提交 · 审核通过后按充值单原路退微信/支付宝<HelpTip
+                content="提交即冻结对应余额；只有「可原路退回的充值」部分能退微信/支付宝——运营赠送或已消费对应的部分不可原路退。审核通过后按充值单切片退款，部分成功会保留进度（PARTIAL），复审可续退剩余；驳回释放冻结。金额在 refund.auto_approve.max_cents 阈值内可自动审批（默认 0=全人工）。"
+                aria-label="余额退款口径"
+            /></span>
           </div>
         </div>
         <div class="page-card-head__actions">

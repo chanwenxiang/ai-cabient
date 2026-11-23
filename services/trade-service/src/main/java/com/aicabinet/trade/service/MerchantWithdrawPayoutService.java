@@ -161,7 +161,7 @@ public class MerchantWithdrawPayoutService {
         String feeNote = "；手续费=固定 " + effectiveFlat + " 分 + " + effectiveBps
                 + " bps，单笔封顶 " + (effectiveCap > 0 ? effectiveCap + " 分" : "不封顶")
                 + "（仅新申请写入 feeCents；已成立的提现单按快照费率不变。"
-                + "本面板是<b>全局档</b>，单个商户可用 sys_config merchant.withdraw.fee_bps.{商户号} 覆盖，"
+                + "本面板是「全局档」，单个商户可用 sys_config merchant.withdraw.fee_bps.{商户号} 覆盖，"
                 + "覆盖值在提现页「提现费率」标签查改）";
         // MA-391（资金 #10）：到账时效口径写进面板真值提示。
         // 本系统按单审核后逐单发起打款（MerchantWithdrawController#payout），没有批量出款窗口
@@ -169,13 +169,13 @@ public class MerchantWithdrawPayoutService {
         int settleUnlockHour = policy.merchantSettleUnlockHour();
         String arrivalNote = "；到账时效：销售款结算 T+1，次日 " + settleUnlockHour
                 + ":00 起可申请提现；审核通过后由所选通道随即发起，到账快慢由通道决定"
-                + "（见 channelReadiness）。本系统按单审核打款、无批量出款窗口，故不设截单时点";
+                + "（见下方「通道就绪」）。本系统按单审核打款、无批量出款窗口，故不设截单时点";
         String note;
         if (mock) {
             note = "当前为记账打款（未接入真实转账）：审核通过后标记为成功，不向任何渠道发起转账"
                     + feeNote + arrivalNote;
         } else {
-            note = "记账打款已关闭：真实出款需各通道就绪（当前就绪状态见 channelReadiness）"
+            note = "记账打款已关闭：真实出款需各通道就绪（当前就绪状态见下方「通道就绪」）"
                     + feeNote + arrivalNote;
         }
         // ⚠️ 用 LinkedHashMap 显式构建而非 Map.of：Map.of 拒绝 null 值，

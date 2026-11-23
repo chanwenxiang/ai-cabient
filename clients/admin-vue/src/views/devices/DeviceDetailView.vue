@@ -17,7 +17,11 @@
             }}</el-tag>
             <el-tag v-if="metrics?.salesLocked" type="danger" size="small">已锁机</el-tag>
           </div>
-          <span class="page-hint">设备编号 {{ deviceId }} · 资产投放与远程运维</span>
+          <span class="page-hint"
+            >设备编号 {{ deviceId }} · 资产投放与远程运维<HelpTip
+              content="空字段有口径：将邑柜不显示柜内温度（厂商协议暂无法获取）；固件版本与 IMEI 厂商未提供时显示「厂商未提供」；序列号取绑定表 SN。缺货=库存为 0，低库存=有货但不超过低库存阈值（可逐商品调整）；「最近开门」= 最新一条开门记录的时间。"
+              aria-label="字段口径"
+          /></span>
         </div>
       </template>
       <template #extra>
@@ -771,6 +775,7 @@ import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
 import { api, authFetch, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import DeviceAssetDeploymentCard from '@/components/device/DeviceAssetDeploymentCard.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import DeviceJiangyiCard from '@/components/device/DeviceJiangyiCard.vue';
 import DeviceJiangyiControlCard from '@/components/device/DeviceJiangyiControlCard.vue';
 import DeviceFaultOrderCard from '@/components/device/DeviceFaultOrderCard.vue';

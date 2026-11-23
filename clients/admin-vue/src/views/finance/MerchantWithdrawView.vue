@@ -40,14 +40,28 @@
       </div>
     </template>
 
-    <el-alert
-      v-if="payoutMode?.note"
-      class="mb"
-      :type="payoutMode.mockEnabled ? 'warning' : 'error'"
-      :closable="false"
-      show-icon
-      :title="payoutMode.note"
-    />
+    <div v-if="payoutMode?.note" class="payout-status">
+      <el-alert :type="payoutMode.mockEnabled ? 'warning' : 'error'" :closable="false" show-icon>
+        <template #title>
+          <span class="payout-note"
+            >{{ payoutMode.note
+            }}<HelpTip
+              content="记账打款=审核通过仅标记成功、不向渠道真实转账；真实出款需所选通道（微信零钱/支付宝/银行代付）就绪。手续费按系统参数「全局档」计，单个商户可在「提现费率」页覆盖；已成立的提现单按申请时费率快照计，调价不追溯。销售款结算 T+1，次日出账时间起可申请提现；审核通过后由所选通道随即发起，本系统逐单审核打款、无批量出款截单时点。"
+              aria-label="打款模式与提现口径"
+          /></span>
+        </template>
+      </el-alert>
+      <div v-if="readinessItems.length" class="payout-readiness">
+        <span class="payout-readiness__label">通道就绪</span>
+        <span
+          v-for="item in readinessItems"
+          :key="item.key"
+          class="payout-readiness__item"
+          :class="item.ready ? 'is-ready' : 'is-not-ready'"
+          >{{ item.label }}{{ item.ready ? '已就绪' : '未就绪' }}</span
+        >
+      </div>
+    </div>
 
     <el-tabs v-model="tab" @tab-change="onTab">
       <el-tab-pane label="商户钱包" name="wallets">
@@ -740,7 +754,31 @@ interface Withdraw {
 
 const auth = useAuthStore();
 const tab = ref('wallets');
-const payoutMode = ref<{ mockEnabled?: boolean; note?: string } | null>(null);
+type PayoutMode = {
+  mockEnabled?: boolean;
+  note?: string;
+  channelReadiness?: Record<string, { ready?: boolean }>;
+};
+const PAYOUT_CHANNEL_LABELS: Record<string, string> = {
+  WECHAT: '微信零钱',
+  ALIPAY: '支付宝',
+  BANK: '银行代付'
+};
+const PAYOUT_CHANNEL_ORDER = ['WECHAT', 'ALIPAY', 'BANK'];
+const payoutMode = ref<PayoutMode | null>(null);
+const readinessItems = computed(() =>
+  Object.entries(payoutMode.value?.channelReadiness ?? {})
+    .map(([key, info]) => ({
+      key,
+      label: PAYOUT_CHANNEL_LABELS[key] ?? key,
+      ready: Boolean(info?.ready)
+    }))
+    .sort(
+      (a, b) =>
+        (PAYOUT_CHANNEL_ORDER.indexOf(a.key) + 1 || 99) -
+        (PAYOUT_CHANNEL_ORDER.indexOf(b.key) + 1 || 99)
+    )
+);
 // —— 按商户提现费率覆盖（写 sys_config key merchant.withdraw.fee_bps.{商户号}）——
 // 命名带单位：BPS = 万分比，CENTS = 分，避免读代码时猜单位
 const FEE_GLOBAL_BPS_KEY = 'merchant.withdraw.fee_bps';
@@ -1094,10 +1132,7 @@ async function clearFeeOverride() {
 async function loadPayoutMode() {
   const seq = loadSeq.begin('loadPayoutMode');
   try {
-    const mode = await api.request<{ mockEnabled?: boolean; note?: string }>(
-      AdminEndpoints.merchantWithdrawsPayoutMode,
-      'GET'
-    );
+    const mode = await api.request<PayoutMode>(AdminEndpoints.merchantWithdrawsPayoutMode, 'GET');
     // R11-A-N2 同族：成功路径也须判代际
     if (!loadSeq.isCurrent(seq, 'loadPayoutMode')) return;
     payoutMode.value = mode;
@@ -1412,6 +1447,27 @@ onMounted(reload);
 <style scoped>
 .mb {
   margin-bottom: 12px;
+}
+.payout-status {
+  margin-bottom: 12px;
+}
+.payout-readiness {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 6px;
+  font-size: var(--admin-font-size-sm);
+  color: var(--layout-muted);
+}
+.payout-readiness__label {
+  color: var(--layout-text);
+}
+.payout-readiness__item.is-ready {
+  color: var(--app-primary);
+}
+.payout-readiness__item.is-not-ready {
+  color: var(--el-color-danger);
 }
 .rule-help {
   display: flex;

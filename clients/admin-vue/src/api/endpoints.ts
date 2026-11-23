@@ -338,6 +338,7 @@ export const AdminEndpoints = {
   skusCatalogPage: `${ops}/skus?${adminCatalogQuery()}`,
   sku: (skuId: string) => `${ops}/skus/${encodeURIComponent(skuId)}`,
   skusImage: `${ops}/skus/image`,
+  merchantsLicenseUpload: `${ops}/merchants/license-upload`,
 
   /** 外部渠道对账导入（CB-036） */
   externalImportTemplates: `${ops}/external-import/templates`,
