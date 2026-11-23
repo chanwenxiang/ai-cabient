@@ -65,14 +65,53 @@ public class WeChatTransferClient {
         if (properties.userRecvPerception() != null && !properties.userRecvPerception().isBlank()) {
             body.put("user_recv_perception", properties.userRecvPerception().trim());
         }
-        if (properties.authorizationNotifyUrl() != null && !properties.authorizationNotifyUrl().isBlank()) {
-            body.put("authorization_notify_url", properties.authorizationNotifyUrl().trim());
+        // 🔴 官方 4015901167：authorization_notify_url 是**必填**（公网 HTTPS、不能带 query）。
+        // 之前按「选填」处理 ⇒ 微信直接 400 PARAM_ERROR，且错误码被 post() 吞掉，现场只看到
+        // 「POST ... failed」。这里 fail-closed 并说清缺哪个配置，别让运维去猜。
+        String notifyUrl = properties.authorizationNotifyUrl();
+        if (notifyUrl == null || notifyUrl.isBlank()) {
+            throw new IllegalStateException(
+                    "微信免确认收款授权缺少回调地址：请配置 aicabinet.wechat-transfer.authorization-notify-url"
+                            + "（环境变量 WECHAT_PAYOUT_AUTH_NOTIFY_URL，必须是公网 HTTPS 且不带参数）");
         }
+        body.put("authorization_notify_url", notifyUrl.trim());
         log.info("wechat transfer authorization request outAuthorizationNo={}", outAuthorizationNo);
-        JsonNode resp = v3.post("/v3/fund-app/mch-transfer/user-confirm-authorization", body);
+        // 🔴 必须走 postWithStatus：`post` 把 4xx/5xx 吞成 IllegalStateException，微信错误码
+        // （如 4015901167 商户未开通免确认、4012711988 appid 未开通商家转账）全部丢失——
+        // 2026-11-23 B5 首跑实测只能看到「POST ... failed」一句，无法定位，线上同样不可接受。
+        WeChatPayV3Client.HttpResult result =
+                v3.postWithStatus("/v3/fund-app/mch-transfer/user-confirm-authorization", body);
+        if (!result.is2xx()) {
+            log.warn("wechat transfer authorization failed: outAuthorizationNo={}, status={}, code={}, message={}",
+                    outAuthorizationNo, result.status(), result.code(), result.message());
+            throw new AuthorizationRejected(result.status(), result.code(), result.message());
+        }
+        JsonNode resp = result.body();
         String state = resp.path("state").asText(null);
         String packageInfo = resp.path("package_info").asText(null);
         return new AuthorizationRequest(outAuthorizationNo, state, packageInfo, resp.toString());
+    }
+
+    /** 授权申请被微信拒绝（商户未开通产品 / appid 未绑定 / 参数不合规）。错误码必须原样上抛，否则无法排障。 */
+    public static class AuthorizationRejected extends RuntimeException {
+        private final int status;
+        private final String code;
+
+        public AuthorizationRejected(int status, String code, String message) {
+            super("微信免确认授权申请被拒（HTTP " + status + "，code="
+                    + (code == null ? "unknown" : code) + "，"
+                    + (message == null ? "" : message) + "）");
+            this.status = status;
+            this.code = code;
+        }
+
+        public int status() {
+            return status;
+        }
+
+        public String code() {
+            return code;
+        }
     }
 
     public record AuthorizationRequest(String outAuthorizationNo, String state,

@@ -21,7 +21,7 @@ public record WeChatTransferProperties(
         String reportRewardNote,
         /** 用户收款感知：劳务报酬/报销款/企业补贴/开工利是，空=场景默认。 */
         String userRecvPerception,
-        /** 免确认授权结果回调地址（公网 HTTPS，无 query）。 */
+        /** 免确认授权结果回调地址（官方 4015901167 <b>必填</b>：公网 HTTPS、不带参数）。 */
         String authorizationNotifyUrl,
         /** 转账结果回调地址（公网 HTTPS，无 query）。 */
         String transferNotifyUrl

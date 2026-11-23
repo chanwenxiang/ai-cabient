@@ -59,9 +59,23 @@ public class WeChatPayoutAuthorizationService {
                 ? displayName.trim()
                 : (user.getNickname() != null && !user.getNickname().isBlank() ? user.getNickname() : "微信用户");
         WeChatTransferClient.AuthorizationRequest request =
-                transferClient.requestAuthorization(openid, name, outAuthorizationNo);
+                requestWithDiagnostics(openid, name, outAuthorizationNo);
         log.info("wechat payout authorization requested: userId={}, state={}, outAuthorizationNo={}",
                 userId, request.state(), outAuthorizationNo);
         return new AuthorizationResult(outAuthorizationNo, request.packageInfo(), request.state());
+    }
+
+    /**
+     * 微信拒绝授权申请时把错误码带出来（502，而不是 500「服务器内部错误」）。
+     * 实测价值：商户未开通「免确认模式」/ appid 未绑定商家转账时，只有错误码能定位。
+     */
+    private WeChatTransferClient.AuthorizationRequest requestWithDiagnostics(
+            String openid, String displayName, String outAuthorizationNo) {
+        try {
+            return transferClient.requestAuthorization(openid, displayName, outAuthorizationNo);
+        } catch (WeChatTransferClient.AuthorizationRejected e) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                    "微信免确认收款开通失败（" + e.code() + "），请联系客服核对商户配置", e);
+        }
     }
 }

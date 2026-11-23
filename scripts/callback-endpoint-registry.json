@@ -1,6 +1,6 @@
 {
   "note": "S11 回调入口契约登记（check-callback-endpoint-contract）：外部回调 path+控制器+鉴权模式+白名单锚点+验签器 全量登记。判据：①新 notify/callback 映射不登记即红；②SIGNATURE_BYPASS/ONE_TIME_TOKEN 的 path 必须真实出现在对应白名单配置（MA-047 本体：回调漏免登录白名单=线上死路）；③DEV_ONLY 的 path 必须不在白名单（mock 裸奔防线）；④DEVICE_TOKEN 的 path 必须不在网关豁免表（豁免=裸奔）。",
-  "seedDate": "2026-11-12",
+  "seedDate": "2026-11-23",
   "entries": [
     {
       "path": "/api/v2/payment/wechat/notify",
@@ -65,6 +65,14 @@
       "whitelist": "none-gateway",
       "signature": "设备 JWT（不豁免）",
       "outcome": "模型下发回执"
+    },
+    {
+      "path": "/api/v2/payout/wechat/authorization-notify",
+      "controller": "services/trade-service/src/main/java/com/aicabinet/trade/api/WechatPayoutNotifyController.java",
+      "authMode": "SIGNATURE_BYPASS",
+      "whitelist": "trade",
+      "signature": "WeChatPayV3 授权结果通知验签（复用 WeChatPayNotifyService：验签+AEAD 解密+nonce 防重放，处理异常归还 nonce）",
+      "outcome": "记录用户免确认收款授权状态（admin_audit_log，operator=系统）；官方 4015901167 该回调地址为必填"
     }
   ]
 }

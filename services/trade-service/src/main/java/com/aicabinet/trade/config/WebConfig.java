@@ -31,6 +31,9 @@ public class WebConfig implements WebMvcConfigurer {
             "/api/v2/payment/alipay/notify",
             // 微信支付分授权/订单事件回调（CB-064；与支付结果通知同一套 v3 验签链）
             "/api/v2/payment/payscore/notify",
+            // 商家转账免确认收款授权结果通知（MA-407）。官方 4015901167 把
+            // authorization_notify_url 列为必填 ⇒ 微信会真的往这里投递，漏白名单=渠道重投全 401。
+            "/api/v2/payout/wechat/authorization-notify",
             // 消费者公开公告
             "/api/v2/announcements/**",
             // 商品图/品牌 Logo/广告素材等 <img> 直链（H43：运营头像不公开，
