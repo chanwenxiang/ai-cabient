@@ -189,4 +189,5 @@
 ### ⑲ device-simulator 镜像以 root 运行 + `deploy-prod.sh` 默认 root/公网 IP
 - **现状**：`edge/device-simulator/Dockerfile` 无 `USER`；`deploy-prod.sh:25/26` 的 `PROD_HOST=120.25.246.179` / `PROD_USER=root` 是**可 env 覆盖的默认值**。
 - **本轮不修的原因**：模拟器只在测试拓扑里跑（不入生产），加 `USER` 需同时验证 jar 写日志目录权限，收益低；deploy 的默认值指向的是**测试服务器**（项目当前无生产环境），改成什么用户名/主机要用户给生产 SSH 口径，我不猜。
+- **2026-11-23 用户拍板（两段式转正）**：接受「验收通过后本机转正」——A/B 全 PASS 后再设 `PROD_HOST`、删除 deploy 默认值、勾 `DEPLOYMENT_CHECKLIST §7` 并文档留痕；验收前维持「预生产」称呼与默认测试口径。
 - **复审时点/触发条件**：生产主机与安全账号定案时，一并把 deploy 默认值改掉或删掉默认（强制显式传参）。

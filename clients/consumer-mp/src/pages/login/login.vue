@@ -287,7 +287,6 @@ import {
 } from '@/utils/consumer-api';
 import { eventInputValue, readDomFieldValue, readDomPassword } from '@/utils/form-bind';
 import { isDevBuild, showDevTools } from '@/utils/runtime-flags';
-import { flushPendingInvite } from '@/utils/member-invite';
 import loginBgUrl from '@/static/bg-cooler.jpg';
 
 const { showPrivacy, refreshPrivacyGate, onPrivacyAccepted, onPrivacyDeclined } =
@@ -436,8 +435,6 @@ function decodeRedirectParam(raw: string) {
 }
 
 function finishLogin() {
-  // 营销 2：好友分享卡带来的邀请码在游客态只记在本地，登录落定后补绑（失败静默，不拦跳转）
-  void flushPendingInvite();
   const target = redirect.value.split('?')[0];
   if (
     target.startsWith('/pages/index') ||

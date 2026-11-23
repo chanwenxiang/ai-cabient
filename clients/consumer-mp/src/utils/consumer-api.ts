@@ -1074,18 +1074,6 @@ export const consumerApi = {
     request<import('@aicabinet/shared-types').OpenApiMemberProfileDto>(
       ConsumerEndpoints.memberProfile
     ),
-  /** 我的邀请码 + 邀请进度（营销 2）。首次调用会给存量会员惰性补码。 */
-  memberInviteMe: () =>
-    request<import('@aicabinet/shared-types').OpenApiMemberInviteSummaryDto>(
-      ConsumerEndpoints.memberInviteMe
-    ),
-  /** 绑定邀请人；409=已绑过/已有消费记录，404=码无效，400=绑自己或参数不合法 */
-  bindMemberInvite: (inviteCode: string) =>
-    request<import('@aicabinet/shared-types').OpenApiMemberInviteSummaryDto>(
-      ConsumerEndpoints.memberInviteBind,
-      'POST',
-      { inviteCode }
-    ),
   memberPoints: () =>
     request<import('@aicabinet/shared-types').OpenApiMemberPointsSummaryDto>(
       ConsumerEndpoints.memberPoints

@@ -95,8 +95,8 @@ public class SystemConfigService {
      */
     public static final String DEVICE_OFFLINE_THRESHOLD_MINUTES = "device.offline.threshold_minutes";
     /**
-     * 邀请拉新总开关（营销 2 / V501）。关闭后：绑定接口直接拒、首单结算不再发券，
-     * **已发出的券不回收**（券是已生效的资产，回收会变成用户侧纠纷）。
+     * 邀请拉新总开关（营销 2 / V501）。2026-11-23 产品下线，默认关；关闭后：绑定接口直接拒、
+     * 首单结算不再发券，**已发出的券不回收**（券是已生效的资产，回收会变成用户侧纠纷）。
      */
     public static final String MARKETING_INVITE_ENABLED = "marketing.invite.enabled";
     /** 人工/策略解锁后，离线自动锁机宽限分钟数, 0=无宽限. */
@@ -1021,8 +1021,8 @@ public class SystemConfigService {
         // 同一份 public-legal.json 的协议/隐私政策正文三处也写它）。
         // 占位号此前只在「帮助中心 + 公开配置」这一侧，导致协议里的号与实际可拨的号不是同一个。
         upsertIfAbsent(CONSUMER_SERVICE_PHONE, "4000182992", "C端客服电话");
-        upsertIfAbsent(MARKETING_INVITE_ENABLED, "true",
-                "邀请拉新开关（新人首单券/邀请人奖励券）；关闭后不再接受新绑定与发券，已发券不回收");
+        upsertIfAbsent(MARKETING_INVITE_ENABLED, "false",
+                "邀请拉新开关（营销 2）：2026-11-23 产品下线，默认关闭；保留开关仅用于临时回开");
         upsertIfAbsent(REPLENISH_AUTO_TASK_ENABLED, "true",
                 "缺货自动建补货任务（按台账阈值/补货点触发，同柜已有进行中任务即跳过）");
         upsertIfAbsent(MERCHANT_SERVICE_PHONE, "4000182992", "商户端客服电话");

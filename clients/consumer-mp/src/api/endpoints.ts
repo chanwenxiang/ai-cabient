@@ -108,10 +108,6 @@ export const ConsumerEndpoints = {
   feedbackMine: `${API_PREFIX}/feedback/mine`,
   /** 会员 / 积分 / 通知 */
   memberProfile: `${API_PREFIX}/member/profile`,
-  /** 我的邀请码 + 邀请进度（营销 2） */
-  memberInviteMe: `${API_PREFIX}/member/invite/me`,
-  /** 绑定邀请人（营销 2）：仅「零消费记录」账号可绑 */
-  memberInviteBind: `${API_PREFIX}/member/invite/bind`,
   memberPoints: `${API_PREFIX}/member/points`,
   memberPointsLog: (limit: number) => `${API_PREFIX}/member/points/log?limit=${limit}`,
   memberRedeemItems: `${API_PREFIX}/member/redeem/items`,

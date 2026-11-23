@@ -35,7 +35,7 @@ public class MemberInviteService implements FirstOrderInviteSettler {
 
     private static final Logger log = LoggerFactory.getLogger(MemberInviteService.class);
 
-    /** 邀请活动总开关（默认开；关闭后 bind 直接拒、结算不发券，但已有券不回收）。 */
+    /** 邀请活动总开关（2026-11-23 产品下线，默认关；关闭后 bind 直接拒、结算不发券，但已有券不回收）。 */
     public static final String KEY_ENABLED = "marketing.invite.enabled";
 
     private final MemberMapper memberRepository;
@@ -170,6 +170,6 @@ public class MemberInviteService implements FirstOrderInviteSettler {
     }
 
     private boolean enabled() {
-        return systemConfigService.getBoolean(KEY_ENABLED, true);
+        return systemConfigService.getBoolean(KEY_ENABLED, false);
     }
 }
