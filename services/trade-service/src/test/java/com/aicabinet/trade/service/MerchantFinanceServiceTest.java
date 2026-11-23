@@ -35,6 +35,14 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class MerchantFinanceServiceTest {
 
+    static {
+        // 纯 Mockito 环境无 SqlSession ⇒ LambdaQueryWrapper 解析列名需要 TableInfo 缓存
+        com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
+                new org.apache.ibatis.builder.MapperBuilderAssistant(
+                        new com.baomidou.mybatisplus.core.MybatisConfiguration(), ""),
+                com.aicabinet.trade.domain.MerchantFeeLedger.class);
+    }
+
     @Mock PermissionService permissionService;
     @Mock MerchantFeaturePackService merchantFeaturePackService;
     @Mock MerchantPortalGuard merchantPortalGuard;
@@ -232,5 +240,41 @@ class MerchantFinanceServiceTest {
         assertEquals(777L, bill.dataFeeCents(), "单设备流量费必须取该柜机逐台行");
         assertEquals("DEVICE", bill.dataFeeBasis());
         org.mockito.Mockito.verifyNoInteractions(dataFeeBillRepository);
+    }
+
+    /**
+     * MA-398：单设备无逐台行时的兜底计数必须只数商户级聚合行（device_id IS NULL）。
+     * 不加 isNull 时，同商户其它柜机的逐台行会被计入 ⇒ 本该 NONE 的 basis 误判成 MERCHANT。
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    @Test
+    void getMonthlyBill_singleDevice_fallbackCountExcludesOtherDevices() {
+        when(merchantFeaturePackService.allowedMerchantIdsForPack(9L, MerchantFeaturePacks.BIZ))
+                .thenReturn(Set.of("MCH-DEFAULT"));
+        when(merchantFeaturePackService.intersectDeviceFilterForPack(9L, "DEV-A", MerchantFeaturePacks.BIZ))
+                .thenReturn(java.util.List.of("DEV-A"));
+        when(orderLineRepository.merchantBillSalesByDay(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.List.of());
+        when(orderLineRepository.merchantBillRefundsByDay(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.List.of());
+        when(feeLedgerRepository.selectList(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.List.of());
+        when(feeLedgerRepository.selectCount(org.mockito.ArgumentMatchers.any())).thenReturn(0L);
+
+        var bill = service.getMonthlyBill(9L, "2026-04", "DEV-A");
+
+        assertEquals("NONE", bill.dataFeeBasis());
+        org.mockito.ArgumentCaptor<com.baomidou.mybatisplus.core.conditions.Wrapper<com.aicabinet.trade.domain.MerchantFeeLedger>> captor =
+                (org.mockito.ArgumentCaptor<com.baomidou.mybatisplus.core.conditions.Wrapper<com.aicabinet.trade.domain.MerchantFeeLedger>>) (org.mockito.ArgumentCaptor<?>) org.mockito.ArgumentCaptor.forClass(com.baomidou.mybatisplus.core.conditions.Wrapper.class);
+        org.mockito.Mockito.verify(feeLedgerRepository).selectCount(captor.capture());
+        com.baomidou.mybatisplus.core.conditions.AbstractWrapper wrapper =
+                (com.baomidou.mybatisplus.core.conditions.AbstractWrapper) captor.getValue();
+        String sql = wrapper.getSqlSegment();
+        assertTrue(sql.contains("device_id IS NULL"),
+                "兜底计数必须带 device_id IS NULL，否则其它柜机逐台行会把 basis 误判成 MERCHANT：" + sql);
     }
 }

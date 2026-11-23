@@ -307,10 +307,13 @@ public class MerchantFinanceService {
             if (!deviceRows.isEmpty()) {
                 dataFeeBasis = "DEVICE";
             } else {
+                // MA-398：兜底只数商户级聚合行；不加 isNull 时同商户其它柜机的逐台行也会命中，
+                // 把本该 NONE 的 basis 误判成 MERCHANT（前端显示「商户级」）。
                 Long merchantAgg = feeLedgerRepository.selectCount(
                         com.baomidou.mybatisplus.core.toolkit.Wrappers.<MerchantFeeLedger>lambdaQuery()
                                 .in(MerchantFeeLedger::getMerchantId, merchantIds)
                                 .eq(MerchantFeeLedger::getFeeType, MerchantFeeLedger.FEE_TYPE_DATA)
+                                .isNull(MerchantFeeLedger::getDeviceId)
                                 .ge(MerchantFeeLedger::getFeeDate, ym.atDay(1))
                                 .le(MerchantFeeLedger::getFeeDate, ym.atEndOfMonth()));
                 dataFeeBasis = merchantAgg != null && merchantAgg > 0 ? "MERCHANT" : "NONE";
