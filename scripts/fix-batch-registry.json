@@ -2709,6 +2709,34 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "9636c8c7",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-398（月账单兜底计数补 device_id IS NULL）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantFinanceService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/MerchantFinanceServiceTest.java"
+          ]
+        }
+      ]
+    },
+    {
+      "commit": "5d932b80",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-397（充值退款 reason 保尾缀 #orderId）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/PaymentService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/PaymentServiceReasonSuffixTest.java"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
