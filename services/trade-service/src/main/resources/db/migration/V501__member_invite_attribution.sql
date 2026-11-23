@@ -1,3 +1,5 @@
+-- MIGRATION_KIND: backfill（member 加 4 列 + 恢复邀请码唯一索引 + 两张专用券定义种子行；
+-- DDL 与种子同迁移与 V99/V163 券定义口径一致，种子按 system_code 幂等去重）
 -- V501: 会员邀请归因（营销 2）—— 邀请码唯一性、归因时间、发奖状态、两张专用券定义
 --
 -- 背景：V128 删掉了 member.invite_code 与 idx_member_invite_code，V163 只把**列**加回来，
