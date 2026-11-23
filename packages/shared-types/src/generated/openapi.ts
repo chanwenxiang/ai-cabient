@@ -3103,6 +3103,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/merchants/license-upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["uploadBusinessLicense"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/merchant-withdraws/{requestId}/review": {
         parameters: {
             query?: never;
@@ -10804,6 +10820,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["opsAvatar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/media/business-licenses/{fileId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["businessLicense"];
         put?: never;
         post?: never;
         delete?: never;
@@ -26668,6 +26700,33 @@ export interface operations {
             };
         };
     };
+    uploadBusinessLicense: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseFileAttachmentDto"];
+                };
+            };
+        };
+    };
     review: {
         parameters: {
             query?: never;
@@ -38578,6 +38637,26 @@ export interface operations {
         };
     };
     opsAvatar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                fileId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    businessLicense: {
         parameters: {
             query?: never;
             header?: never;
