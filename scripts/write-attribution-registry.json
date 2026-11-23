@@ -159,6 +159,12 @@
       "writes": 2,
       "cls": "CALLBACK",
       "why": "外部回调幂等处理，审计语义=渠道事件流水（回调侧不写 admin 审计，事件本身即凭据）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/api/WechatPayoutAuthorizationController.java",
+      "writes": 1,
+      "cls": "CONSUMER_WRITE",
+      "why": "MA-407 消费者自助发起微信免确认收款授权：授权单(out_authorization_no)与微信回调即业务流水，userId 来自登录态、openid 由 userId 反查（前端无法传他人 openid）"
     }
   ]
 }

@@ -49,7 +49,7 @@ class MemberInviteServiceTest {
 
     @Test
     void bind_whenInviteCodeNotFound_returns404() {
-        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, true)).thenReturn(true);
+        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, false)).thenReturn(true);
         when(memberRepository.findByUserId(10001L)).thenReturn(Optional.of(member(null, 0)));
         when(memberRepository.findByInviteCode("NOPE2345")).thenReturn(Optional.empty());
 
@@ -62,7 +62,7 @@ class MemberInviteServiceTest {
 
     @Test
     void bind_whenBindSelf_returns400() {
-        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, true)).thenReturn(true);
+        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, false)).thenReturn(true);
         when(memberRepository.findByUserId(10001L)).thenReturn(Optional.of(member(null, 0)));
         when(memberRepository.findByInviteCode("SELF2345")).thenReturn(Optional.of(member(null, 0)));
 
@@ -75,7 +75,7 @@ class MemberInviteServiceTest {
 
     @Test
     void bind_whenAlreadyBound_returns409() {
-        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, true)).thenReturn(true);
+        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, false)).thenReturn(true);
         when(memberRepository.findByUserId(10001L)).thenReturn(Optional.of(member(42L, 0)));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -88,7 +88,7 @@ class MemberInviteServiceTest {
     /** 老用户不能被「补录」成新客：否则等于给存量用户倒送拉新成本。 */
     @Test
     void bind_whenAlreadyHasOrders_returns409() {
-        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, true)).thenReturn(true);
+        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, false)).thenReturn(true);
         when(memberRepository.findByUserId(10001L)).thenReturn(Optional.of(member(null, 1)));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -100,7 +100,7 @@ class MemberInviteServiceTest {
 
     @Test
     void bind_whenFeatureDisabled_returns400() {
-        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, true)).thenReturn(false);
+        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, false)).thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> service.bind(10001L, "ANY23456"));
@@ -113,7 +113,7 @@ class MemberInviteServiceTest {
 
     @Test
     void bind_success_writesBindingAndIssuesNewcomerCoupon() {
-        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, true)).thenReturn(true);
+        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, false)).thenReturn(true);
         Member me = member(null, 0);
         when(memberRepository.findByUserId(10001L)).thenReturn(Optional.of(me));
         when(memberRepository.findByInviteCode("INV23456")).thenReturn(Optional.of(inviter(20002L, "INV23456")));
@@ -136,7 +136,7 @@ class MemberInviteServiceTest {
      */
     @Test
     void bind_whenCouponIssueFails_stillKeepsBinding() {
-        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, true)).thenReturn(true);
+        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, false)).thenReturn(true);
         Member me = member(null, 0);
         when(memberRepository.findByUserId(10001L)).thenReturn(Optional.of(me));
         when(memberRepository.findByInviteCode("INV23456")).thenReturn(Optional.of(inviter(20002L, "INV23456")));
@@ -155,7 +155,7 @@ class MemberInviteServiceTest {
     /** 条件更新落空（并发下已被绑/per 已下单）必须报 409，且不发券。 */
     @Test
     void bind_whenConditionalUpdateMisses_returns409WithoutCoupon() {
-        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, true)).thenReturn(true);
+        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, false)).thenReturn(true);
         when(memberRepository.findByUserId(10001L)).thenReturn(Optional.of(member(null, 0)));
         when(memberRepository.findByInviteCode("INV23456")).thenReturn(Optional.of(inviter(20002L, "INV23456")));
         when(memberRepository.bindInviter(eq(10001L), eq(20002L), any(Instant.class))).thenReturn(0);
@@ -171,7 +171,7 @@ class MemberInviteServiceTest {
 
     @Test
     void settle_whenDisabled_returnsNull() {
-        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, true)).thenReturn(false);
+        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, false)).thenReturn(false);
 
         assertNull(service.settleInviterReward(10001L, 20002L, "O-1"));
         verify(couponIssuer, never()).issue(anyLong(), any());
@@ -179,7 +179,7 @@ class MemberInviteServiceTest {
 
     @Test
     void settle_whenInviterIsSelf_returnsNull() {
-        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, true)).thenReturn(true);
+        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, false)).thenReturn(true);
 
         assertNull(service.settleInviterReward(10001L, 10001L, "O-1"));
         verify(couponIssuer, never()).issue(anyLong(), any());
@@ -187,7 +187,7 @@ class MemberInviteServiceTest {
 
     @Test
     void settle_issuesInviterCoupon() {
-        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, true)).thenReturn(true);
+        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, false)).thenReturn(true);
         when(couponIssuer.issue(20002L, InviteCouponIssuer.CODE_INVITER)).thenReturn(777L);
 
         assertEquals(777L, service.settleInviterReward(10001L, 20002L, "O-1"));
@@ -196,7 +196,7 @@ class MemberInviteServiceTest {
     /** 券模板下架时 issue 返回 null ⇒ 结算返回 null（调用方保持「未结算」，等下次重试）。 */
     @Test
     void settle_whenCouponTemplateInactive_returnsNull() {
-        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, true)).thenReturn(true);
+        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, false)).thenReturn(true);
         when(couponIssuer.issue(20002L, InviteCouponIssuer.CODE_INVITER)).thenReturn(null);
 
         assertNull(service.settleInviterReward(10001L, 20002L, "O-1"));
@@ -211,7 +211,7 @@ class MemberInviteServiceTest {
         when(memberRepository.findByUserId(10001L)).thenReturn(Optional.of(me));
         when(memberRepository.existsInviteCode(any())).thenReturn(false);
         when(memberRepository.writeInviteCodeIfAbsent(eq(10001L), any())).thenReturn(1);
-        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, true)).thenReturn(true);
+        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, false)).thenReturn(true);
         when(memberRepository.countByInvitedBy(anyLong())).thenReturn(3L);
         when(memberRepository.countSettledByInvitedBy(anyLong())).thenReturn(1L);
 
@@ -229,7 +229,7 @@ class MemberInviteServiceTest {
         Member me = member(null, 0);
         me.setInviteCode("EXIST234");
         when(memberRepository.findByUserId(10001L)).thenReturn(Optional.of(me));
-        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, true)).thenReturn(true);
+        when(systemConfigService.getBoolean(MemberInviteService.KEY_ENABLED, false)).thenReturn(true);
         when(memberRepository.countByInvitedBy(anyLong())).thenReturn(0L);
         when(memberRepository.countSettledByInvitedBy(anyLong())).thenReturn(0L);
 
