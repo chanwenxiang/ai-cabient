@@ -2750,6 +2750,21 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "2ff302eb",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-406（微信日结对账 01:30→10:30 主跑 + 14:30 重试）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/ReconciliationScheduler.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/ScheduledTaskRegistry.java",
+            "services/trade-service/src/main/resources/db/migration/V503__reconciliation_schedule_desc.sql"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
