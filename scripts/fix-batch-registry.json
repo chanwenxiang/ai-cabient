@@ -2662,6 +2662,34 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "2f13768d",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-403（将邑车队运维指令假成功：能力表单源 + 两条指令出口 fail-closed + reboot 转网关 + 温控计划拒启用 + 门禁 check:jiangyi-command-capability）",
+          "files": [
+            "docs/BUSINESS_GAP_RECHECK_2026-11-22.md",
+            "docs/module-audit/ISSUES.md",
+            "package.json",
+            "scripts/check-jiangyi-command-capability.mjs",
+            "scripts/check-jiangyi-command-capability.test.mjs",
+            "services/trade-service/src/main/java/com/aicabinet/trade/client/DeviceServiceClient.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/client/JiangyiCommandCapability.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDeviceOpsService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceSalesLockService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceTempPlanService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/client/DeviceServiceClientJiangyiGuardTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/client/JiangyiCommandCapabilityTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/AdminDeviceOpsConcurrencyTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/AdminDeviceOpsServiceJiangyiOpsTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/AdminDeviceOpsServiceLockMessageTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/DeviceTempPlanServiceTest.java"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
