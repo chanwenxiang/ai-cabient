@@ -96,6 +96,8 @@ public class MemberController {
     /**
      * 绑定邀请人。错误口径：码无效 404、已绑/已有消费记录 409、绑自己被 400 —— 前端据此分文案。
      */
+    // authz: self-service —— 邀请人由请求体里的码反查，被写的是调用者自己那一行 member；
+    // 不存在 ops:/merchant: 权限码这一层。未登录由 AuthInterceptor 前置拦成 401（实测无 token = 401）。
     @PostMapping("/invite/bind")
     public ApiResponse<MemberInviteSummaryDto> bindInvite(HttpServletRequest request,
                                                           @Valid @RequestBody BindInviteRequest body) {

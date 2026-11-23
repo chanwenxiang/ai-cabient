@@ -1,8 +1,8 @@
 {
   "note": "S9 第二层：写端点逐端点归因快照基线（机器生成，node .tmp/seed-endpoint-baseline.mjs）。每控制器 {endpoints, attributed}：attributed 降=审计被拆红；endpoints 增而 attributed 不增=新端点未归因红；未解析端点 attributed=false 显式在册，修复后收紧。totalEndpoints / totalAttributed / maxUnattributed 全部参与判定（2026-11-14 第五轮）：总量任一变化都须重种基线——归因上升也要人工复核，防解析链放宽或失败路径审计被误算造成的假归因（旧判据改个类名即可 240→258 假绿）；maxUnattributed 是未归因存量天花板（只许减），重种快照后须同步。2026-11-15（MA-267/C06）：方法声明解析补齐限定名返回类型（`ApiResponse<com.x.Y>`）与注解同行签名两形态，端点 455→477（22 个此前从未被解析、长期零覆盖），其中 15 个归因、7 个无审计；maxUnattributed 215→222 属解析面纠偏而非放松棘轮——原 215 是漏算结果，此后只许减。 2026-11-16（S9）：extractMethod 修掉路径占位符 `{id}` 的字符串花括号计数截断（OpsExceptionController 8 个端点体内 appendLog 被截掉）；attributed 256→264、maxUnattributed 221→213，属解析纠偏，非放松。 2026-11-16（S9 P2）：补 9 组成功路径 admin 审计（Jiangyi 激活/绑定、运营资料、采购/退货/付款、保证金固化、phone-verify、盘点完成、机器账单出账），归因 264→279，同时保留 extractMethod {id} 修复。 2026-11-16（S9 P3）：补 25 处成功路径审计（商户证据/改密/采集/争议/补货凭证/通知绑定/盘点建单改行取消/线路主数据/温度计划/外部导入预览/机器账单配置等），归因 279→304。 2026-11-16（S9 B）：解析器支持 provider 访问器链 support.xService().method()（含 2 级聚合器），归因 304→319；剩余 lambda/私有方法盲区另批。 2026-11-16（S9 B2）：provider 换行链 + 同名重载 all-bodies + this.private + 失败类派生修正（有业务审计的类不再整类排除），归因 319→330；B 剩余 OpsRbac assignRoles/assignMerchants（重载/锁 lambda 深层）。 2026-11-16（S9 B3）：OpsRbac assignRoles/assignMerchants 经人工复核显式归因（服务层 replaceUserRoles/assignMerchants 直接审计；锁 lambda/重载解析盲区），S9 B 清零；C 19 语义豁免仍显式在册。归因 330→332。 2026-11-17（支付偏好删除）：AccountController 移除 PUT /account/pay-preferred，端点 477→476、maxUnattributed 145→144（删除端点属收缩，非棘轮放松）。",
   "seedDate": "2026-11-17",
-  "totalEndpoints": 476,
-  "totalAttributed": 332,
+  "totalEndpoints": 477,
+  "totalAttributed": 333,
   "maxUnattributed": 144,
   "controllers": {
     "services/device-service/src/main/java/com/aicabinet/device/api/DeviceInternalController.java": {
@@ -202,8 +202,8 @@
       "attributed": 1
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/MemberController.java": {
-      "endpoints": 1,
-      "attributed": 1
+      "endpoints": 2,
+      "attributed": 2
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/MerchantAdminController.java": {
       "endpoints": 4,

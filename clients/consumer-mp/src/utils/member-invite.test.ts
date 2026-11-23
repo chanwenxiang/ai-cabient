@@ -91,7 +91,9 @@ describe('member-invite', () => {
 
   it('409（已绑过/已有消费记录）属终态：清码，不再每次登录重撞', async () => {
     mocks.isConsumerLoggedIn.mockReturnValue(true);
-    mocks.bindMemberInvite.mockRejectedValue(Object.assign(new Error('已绑定过邀请人'), { status: 409 }));
+    mocks.bindMemberInvite.mockRejectedValue(
+      Object.assign(new Error('已绑定过邀请人'), { status: 409 })
+    );
     rememberInviteCode('ABCD2345');
 
     await flushPendingInvite();
