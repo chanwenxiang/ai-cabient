@@ -2690,6 +2690,25 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "372d705d",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-404（营业执照改图片上传：端点+命名空间+专属读取路由+el-upload+4 守卫）",
+          "files": [
+            "services/common/common-core/src/main/java/com/aicabinet/common/storage/ObjectStorageKeys.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/MediaController.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/MerchantAdminController.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/FileAttachmentService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/FileAttachmentOperatorReadTest.java",
+            "clients/admin-vue/src/api/endpoints.ts",
+            "clients/admin-vue/src/views/merchants/MerchantSplitsView.vue"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
