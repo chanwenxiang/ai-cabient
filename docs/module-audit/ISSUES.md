@@ -1614,6 +1614,8 @@ automator 0.12.1 的 `page.data(array)` / `page.text()` / `page.path()` 都不�
 
 | MA-405 | P3 | fixed | `scripts/backup-offsite-oss.sh` 自测 | 自测用例依赖宿主 `python3` 解析 AssumeRole STS：Windows 商店桩导致绿路径假红（「本地恒红」的真正成因），且负向用例的 ERROR 输出易被误读成线上故障 | 2026-11-23 复核 MA-400 时定位（假 ossutil 不连 OSS；PATH 注入 shim 后自测转绿） | 夹具内提供假 `python3`；自测统一 `OSS_BACKUP_PREFIX=backups/_selftest`（即便误用真 ossutil 也不会写到真实备份 key）；负向区前打印「预期负向用例」提示；本地无 shim 实跑 exit 0（2 绿 3 红） |
 
+| MA-406 | P1 | fixed | trade-service `ReconciliationScheduler` / `scheduled_task` | 微信日结对账在 01:30 拉「昨天」账单必失败：微信 tradebill 次日 09:00 后才生成，服务器 11-23 01:30 `last_result=FAILED`（`bill_date=2026-11-22` 微信 500）⇒ 日终对账从未跑通、B6 验收被拦 | 2026-11-23 服务器实读 `scheduled_task.last_result/last_message` + `docker logs` 栈（`ReconciliationService.runDaily:155`） | 主跑改 10:30、14:30 重试（`runDaily` 按 date+channel 幂等，重跑只更新主行）；registry 描述 + V503 同步运营台频率；`scheduled-task-seed/trybegin`、`migration-safety/number-order` 全绿；部署后用 `POST /api/v2/ops/admin/reconciliation/run?date=2026-11-22` 重跑验证 MATCHED |
+
 > ⏳ **待配置前置检查（非已修缺陷，不占 MA 号）**：商户日报微信模板 `WECHAT_MERCHANT_DAILY_REPORT_TEMPLATE` 在 `infra/.env.production` / `.env` **均未配置**（`application.yml:224` 默认空，`MerchantDailyReportProperties.configured()==false` ⇒ `MerchantDailyReportNotifier:109` 跳过，当前生产微信日报从未发出）。用户复核 P2② 提示：微信**一次性订阅一次授权只能发一条**，若该模板是一次性订阅（零售类通常拿不到长期订阅），配了模板后第一天发成功、之后每天 43101，而 `MerchantDailyReportNotifier` 只记 WARN、调度摘要显示「送达 0 人」，商户端无提示（页面 `notify.vue:95` 却写「每日推送」）。**配置模板前必须**：①确认模板在微信公众平台是长期订阅（是→直接用）；②若一次性→商户端启动时补授权请求，**或**把 `notify.vue:95` 文案改为「每次授权推送一条」，避免承诺无法兑现。模板类型只能从微信后台查，代码无法判断。
 
 

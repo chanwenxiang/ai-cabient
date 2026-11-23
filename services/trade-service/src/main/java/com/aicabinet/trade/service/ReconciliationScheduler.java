@@ -38,8 +38,10 @@ public class ReconciliationScheduler {
         this.lineWithdrawService = lineWithdrawService;
     }
 
+    // 2026-11-23 实证：01:30 拉「昨天」的微信 tradebill 会 500（账单次日 9 点后才生成）。
+    // 主跑改 10:30；14:30 再跑一次作为失败重试（runDaily 按 (date,channel) 幂等，重跑只更新主行）。
     @Scheduled(
-            cron = "${aicabinet.reconciliation.scheduled-cron:0 30 1 * * *}",
+            cron = "${aicabinet.reconciliation.scheduled-cron:0 30 10,14 * * *}",
             zone = "${aicabinet.schedule.zone:Asia/Shanghai}")
     public void runDailyReconciliation() {
         long start = System.nanoTime();
