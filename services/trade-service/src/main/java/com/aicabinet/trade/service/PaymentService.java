@@ -1155,10 +1155,25 @@ public class PaymentService {
         // 的既定契约是「reason 尾部 #orderId」（其类注释自证），写入侧却拼空格 ⇒ 充值退款
         // PROCESSING 行永不能被查单推进（幽灵扣款无兜底）。写入改拼 # 对齐契约；
         // 读取侧另行兼容存量空格行。
-        String withRechargeId = base.contains(order.getOrderId()) ? base : (base + " #" + order.getOrderId());
-        // A7/P3：按 code point 边界截断，不切碎代理对（emoji）
-        op.setReason(TextTruncate.safeTruncate(withRechargeId, 128));
+        // MA-397：先给「 #orderId」尾缀留位再截 base —— 拼完再截会把尾缀切掉，
+        // 该行永远 JOIN 不上，退款同步告警对本单静默失明。
+        op.setReason(rechargeRefundReasonWithOrderId(base, order.getOrderId(), 128));
         paymentOperationRepository.save(op);
+    }
+
+    /**
+     * MA-397：充值退款 reason 的既定契约是「尾部 #orderId」（对账查单器反解用）。
+     * 先截 base 再拼尾缀，保证长 reason 也不会把尾缀截掉；按 code point 边界截断。
+     */
+    static String rechargeRefundReasonWithOrderId(String base, String orderId, int maxCodeUnits) {
+        String safeBase = base == null ? "" : base;
+        if (orderId == null || orderId.isBlank() || safeBase.contains(orderId)) {
+            return TextTruncate.safeTruncate(safeBase, maxCodeUnits);
+        }
+        String suffix = " #" + orderId;
+        int room = Math.max(1, maxCodeUnits - suffix.length());
+        return TextTruncate.safeTruncate(
+                TextTruncate.safeTruncate(safeBase, room) + suffix, maxCodeUnits);
     }
 
     @Transactional(readOnly = true)
