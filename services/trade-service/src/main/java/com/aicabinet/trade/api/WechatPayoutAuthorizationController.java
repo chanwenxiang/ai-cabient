@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.WechatPayoutAuthResponse;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.config.WeChatPayProperties;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.WeChatPayoutAuthorizationService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,11 +26,14 @@ public class WechatPayoutAuthorizationController {
 
     private final WeChatPayoutAuthorizationService authorizationService;
     private final WeChatPayProperties wxPayProperties;
+    private final AdminAuditService auditService;
 
     public WechatPayoutAuthorizationController(WeChatPayoutAuthorizationService authorizationService,
-                                               WeChatPayProperties wxPayProperties) {
+                                               WeChatPayProperties wxPayProperties,
+                                               AdminAuditService auditService) {
         this.authorizationService = authorizationService;
         this.wxPayProperties = wxPayProperties;
+        this.auditService = auditService;
     }
 
     /**
@@ -44,6 +48,10 @@ public class WechatPayoutAuthorizationController {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         String displayName = body == null ? null : body.displayName();
         var result = authorizationService.requestAuthorization(userId, displayName);
+        // 资金相关授权必须留痕：授权单号长期有效，是「用户同意我们代打款」的唯一凭证。
+        auditService.appendLog(userId, "WECHAT_PAYOUT_AUTHORIZE", "PAYOUT_AUTHORIZATION",
+                result.outAuthorizationNo(),
+                "开通微信免确认收款授权 state=" + result.state());
         return ApiResponse.ok(new WechatPayoutAuthResponse(
                 result.outAuthorizationNo(), result.packageInfo(), result.state(),
                 wxPayProperties.mchId()));

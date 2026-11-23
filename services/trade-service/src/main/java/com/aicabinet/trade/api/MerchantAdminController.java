@@ -11,6 +11,7 @@ import com.aicabinet.common.dto.SubmitProfitSharingRequest;
 import com.aicabinet.common.dto.UpsertMerchantRequest;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.FileAttachmentService;
 import com.aicabinet.trade.service.MerchantService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,11 +30,14 @@ public class MerchantAdminController {
 
     private final MerchantService merchantService;
     private final FileAttachmentService fileAttachmentService;
+    private final AdminAuditService auditService;
 
     public MerchantAdminController(MerchantService merchantService,
-                                   FileAttachmentService fileAttachmentService) {
+                                   FileAttachmentService fileAttachmentService,
+                                   AdminAuditService auditService) {
         this.merchantService = merchantService;
         this.fileAttachmentService = fileAttachmentService;
+        this.auditService = auditService;
     }
 
     @RequiresPermissions("ops:merchant:list")
@@ -60,7 +64,13 @@ public class MerchantAdminController {
     public ApiResponse<FileAttachmentDto> uploadBusinessLicense(
             HttpServletRequest request,
             @RequestPart("file") MultipartFile file) {
-        return ApiResponse.ok(fileAttachmentService.uploadBusinessLicense(operatorId(request), file));
+        FileAttachmentDto dto = fileAttachmentService.uploadBusinessLicense(operatorId(request), file);
+        // 提现资质材料属于「谁能代商户提现」的依据，上传必须留痕（sha 去重命中时也记，便于查明谁先传的）。
+        auditService.appendLog(operatorId(request), "MERCHANT_LICENSE_UPLOAD", "MERCHANT_LICENSE",
+                dto.fileId() == null ? null : String.valueOf(dto.fileId()),
+                "上传营业执照图片 " + (dto.fileName() == null ? "" : dto.fileName())
+                        + " size=" + dto.fileSize());
+        return ApiResponse.ok(dto);
     }
 
     @RequiresPermissions("ops:merchant:split")
