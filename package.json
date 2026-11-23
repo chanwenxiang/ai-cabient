@@ -23,7 +23,7 @@
     "check:mp-release-bundle": "node scripts/check-mp-release-bundle.test.mjs && node scripts/check-mp-release-bundle.mjs",
     "check:admin-page-size": "node scripts/check-admin-page-size.mjs",
     "check:admin-dialog-a11y": "node scripts/check-admin-dialog-a11y.mjs",
-    "check:scheduled-zone": "node scripts/check-scheduled-zone.mjs",
+    "check:scheduled-zone": "node scripts/check-scheduled-zone.test.mjs && node scripts/check-scheduled-zone.mjs",
     "check:cache-names": "node scripts/check-cache-names.mjs",
     "check:admin-endpoints": "node scripts/check-admin-endpoints.mjs",
     "check:admin-endpoint-paths": "node scripts/check-admin-endpoint-paths.mjs",
