@@ -136,5 +136,46 @@ const WRITE_METHOD = `    public void updateStock(String deviceId) {
   );
 }
 
+// 11) 多行签名（参数换行）：hunk 落在体内时必须归属到**它自己**，不能算到上一个方法头上
+//     （2026-11-23 实测形态：改 `finalizePayout(long requestId,\n PayoutResult result)`，
+//      报成「写方法 markPaying 无并发策略」——真凶没被点名，有证据的方法反而背锅）
+{
+  const head = [
+    'class X {',
+    '    public void settle(long id) {',
+    '        // CONCURRENCY: 显式锁 lockKey=wallet',
+    '        walletMapper.updateById(row);',
+    '    }',
+    '',
+    '    public void payout(long requestId,'
+  ];
+  const tailBad = ['                      Result result) {', '        walletMapper.updateById(row);', '    }', '}'];
+  const bad = judge([
+    { file: 'X.java', content: [...head, ...tailBad].join('\n'), changedRanges: [{ start: 9, end: 9 }] }
+  ]);
+  check(
+    '多行签名方法被正确归属（不误报成上一个方法）',
+    bad.problems.length === 1 &&
+      bad.problems[0].includes('payout') &&
+      !bad.problems[0].includes('settle'),
+    bad.problems.join('|')
+  );
+  const tailGood = [
+    '                      Result result) {',
+    '        // CONCURRENCY: 条件 UPDATE',
+    '        walletMapper.updateById(row);',
+    '    }',
+    '}'
+  ];
+  const good = judge([
+    {
+      file: 'X.java',
+      content: [...head, ...tailGood].join('\n'),
+      changedRanges: [{ start: 9, end: 9 }]
+    }
+  ]);
+  check('多行签名方法带锚点=绿', good.problems.length === 0, good.problems.join('|'));
+}
+
 console.log(`\n[check-concurrency-declaration.test] ${pass} 通过 / ${fail} 失败`);
 if (fail > 0) process.exit(1);

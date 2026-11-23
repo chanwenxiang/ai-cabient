@@ -78,11 +78,34 @@ export function isMethodSignature(line) {
   return /^[\w$@.<>\[\],?&\s]+\s+[A-Za-z_]\w*\s*\(/.test(stripped);
 }
 
+/** 一行里的括号净深度（只判「签名是否跨行」；注释/字符串里的括号只影响本用途）。 */
+function parenDelta(line) {
+  let d = 0;
+  for (const c of line) {
+    if (c === '(') d++;
+    else if (c === ')') d--;
+  }
+  return d;
+}
+
 /** 找到所有方法签名行号 */
 function findMethodStarts(lines) {
   const starts = [];
   for (let i = 0; i < lines.length; i++) {
-    if (isMethodSignature(lines[i])) starts.push(i);
+    let probe = lines[i];
+    // 🔴 2026-11-23：参数换行的签名（`public X foo(long a,` 换行 `  PayoutResult b) {`）在**逐行**
+    // 判据里永远不成立（`)` 不在行尾），于是该方法根本不算签名 ⇒ hunk 落在它体内时被归属到
+    // **上一个方法**头上。实测形态：改 `finalizePayout`（多行签名）报成「写方法 markPaying
+    // 无并发策略」——既不指名真凶，也让有证据的方法背锅。这里把括号补平后再判，
+    // 签名仍登记在**首行**，行号语义（归属/切片）不变。
+    if (parenDelta(probe) > 0 && /[A-Za-z_]\w*\s*\(/.test(probe)) {
+      let j = i + 1;
+      while (j < lines.length && parenDelta(probe) > 0) {
+        probe += ' ' + lines[j].trim();
+        j += 1;
+      }
+    }
+    if (isMethodSignature(probe)) starts.push(i);
   }
   return starts;
 }
