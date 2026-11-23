@@ -76,6 +76,17 @@ public interface PayoutChannel {
     }
 
     /**
+     * 该通道当前是否<b>必须由收款人确认</b>才到账（MA-407 确认收款模式）。
+     *
+     * <p>🔴 调用方必须在<b>建单之前</b>问这一句：确认模式下渠道一建单就锁资金，
+     * 谁没有确认入口（例如线长端尚未接入 `wx.requestMerchantTransfer`）就必须在这里拒掉，
+     * 否则钱会锁在渠道 24 小时、本地却已按失败释放冻结 ⇒ 账实不符。默认 false（银行通道无此概念）。
+     */
+    default boolean requiresUserConfirmation() {
+        return false;
+    }
+
+    /**
      * 渠道单据状态（归一化后的三态）。
      *
      * @param rawState 渠道原始状态串（排障用）

@@ -178,8 +178,13 @@ class LineWithdrawPayeeTest {
         assertEquals("线长7", saved.getPayeeAccountName());
         assertEquals("****0002", saved.getPayeeAccountNoMask());
         // 🔴 纪律：快照里绝不能出现明文账号列
-        assertTrue(saved.getIdemKey() == null || saved.getIdemKey().startsWith("LW:"),
-                "幂等键应已写入且以 LW: 开头");
+        // 幂等键形态 2026-11-23 起改为渠道可用形态（LW + 零填充 requestId，无冒号）：
+        // 微信 out_bill_no 只收数字/字母 6–32 位，旧的 "LW:" 前缀真打款必 PARAM_ERROR。
+        assertTrue(saved.getIdemKey() == null || saved.getIdemKey().startsWith("LW"),
+                "幂等键应已写入且以 LW 开头");
+        assertTrue(saved.getIdemKey() == null
+                        || PayoutAccountService.isChannelSafeBillNo(saved.getIdemKey()),
+                "幂等键必须是渠道可用形态（字母数字、6–32 位）");
     }
 
     @Test

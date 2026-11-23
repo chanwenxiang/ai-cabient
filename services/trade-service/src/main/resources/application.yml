@@ -268,7 +268,15 @@ aicabinet:
     mock-enabled: ${RECON_MOCK_ENABLED:true}
     wechat-bill-type: ${WECHAT_BILL_TYPE:ALL}
     scheduled-enabled: ${RECON_SCHEDULED_ENABLED:true}
-    scheduled-cron: ${RECON_SCHEDULED_CRON:0 30 1 * * *}
+    # 🔴 MA-406：微信日结账单要次日 09:00 后才生成，01:30 拉「昨天」必 500（2026-11-23 服务器实证）。
+    #    主跑 10:30 + 14:30 重试，必须与 ReconciliationScheduler 的 @Scheduled 默认、
+    #    V503 运营台文案（schedule_desc=每日 10:30（14:30 重试））三处一致——
+    #    此前注解默认改了、这里仍是 01:30 ⇒ yml 把注解默认盖回去，实际触发还是 01:30。
+    # 🔴 MA-406：微信日结账单要次日 09:00 后才生成，01:30 拉「昨天」必 500（2026-11-23 服务器实证）。
+    #    主跑 10:30 + 14:30 重试，必须与 ReconciliationScheduler 的 @Scheduled 默认、
+    #    V503 运营台文案（schedule_desc=每日 10:30（14:30 重试））三处一致——
+    #    此前注解默认改了、这里仍是 01:30 ⇒ yml 把注解默认盖回去，实际触发还是 01:30。
+    scheduled-cron: ${RECON_SCHEDULED_CRON:0 30 10,14 * * *}
   # 业务日界 / @Scheduled(cron) / XXL 种子统一时区（S-P2-7）
   schedule:
     zone: ${AICABINET_SCHEDULE_ZONE:Asia/Shanghai}

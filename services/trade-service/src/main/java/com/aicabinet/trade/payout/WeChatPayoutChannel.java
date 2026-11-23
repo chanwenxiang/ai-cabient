@@ -86,6 +86,18 @@ public class WeChatPayoutChannel implements PayoutChannel {
         if (openid == null || openid.isBlank()) {
             return PayoutResult.rejected("微信提现收款账户缺少 openid（请在收款账户中绑定微信）");
         }
+        // 🔴 out_bill_no 形态前置校验（fail-closed）：微信只收数字/字母 6–32 位，
+        //    不合规时微信回 PARAM_ERROR，而错误信息不会点名单号格式 ⇒ 排障来回好几轮。
+        //    更要紧的是**绝不能「清洗后再发」**：清洗会让回调带回来的 out_bill_no 反查不回
+        //    idem_key（幂等键/对账链断）。故键的形态在生成侧保证（newIdemKey），这里只做断言。
+        if (!PayoutConstants.isChannelSafeBillNo(command.idemKey())) {
+            String badKey = command.idemKey();
+            log.error("wechat transfer blocked: illegal out_bill_no requestId={}, idemKey={}",
+                    command.requestId(), badKey);
+            return PayoutResult.rejected("幂等键「" + badKey
+                    + "」不符合微信 out_bill_no 规范（仅数字/大小写字母、6–32 位）——"
+                    + "请检查 PayoutAccountService.newIdemKey 的生成形态");
+        }
         return transferProperties.confirmMode()
                 ? transferConfirmMode(command, openid)
                 : transferAuthorizedMode(command, openid);
@@ -115,7 +127,7 @@ public class WeChatPayoutChannel implements PayoutChannel {
             throw new PayoutPendingException(
                     "微信转账非终态 state=" + bill.state() + "，保持 PAYING 待查单", command.idemKey());
         } catch (WeChatTransferClient.DefiniteFailure e) {
-            return PayoutResult.rejected(e.getMessage());
+            return adjudicateDefiniteFailure(command, e);
         } catch (PayoutPendingException e) {
             throw e;
         } catch (PayoutChannel.PayeeIncompatibleException e) {
@@ -150,7 +162,7 @@ public class WeChatPayoutChannel implements PayoutChannel {
             return PayoutResult.rejected(response.describeFail()
                     .orElse("微信转账失败 state=" + response.state()));
         } catch (WeChatTransferClient.DefiniteFailure e) {
-            return PayoutResult.rejected(e.getMessage());
+            return adjudicateDefiniteFailure(command, e);
         } catch (PayoutPendingException e) {
             throw e;
         } catch (PayoutChannel.PayeeIncompatibleException e) {
@@ -167,6 +179,55 @@ public class WeChatPayoutChannel implements PayoutChannel {
     /** 当前收款模式（运营台展示用）。 */
     public String mode() {
         return transferProperties.mode();
+    }
+
+    /** 确认收款模式 ⇒ 渠道一建单就锁资金，没有确认入口的调用方必须**建单前**拒掉。 */
+    @Override
+    public boolean requiresUserConfirmation() {
+        return transferProperties.confirmMode();
+    }
+
+    /**
+     * 「确定失败」的统一裁决口——只有 {@code ALREADY_EXISTS} 要特殊处理。
+     *
+     * <p>🔴 为什么不能直接 rejected：微信回 {@code ALREADY_EXISTS} 的语义是
+     * 「这个 out_bill_no 在渠道侧<b>已经存在</b>」（典型是我们上一次请求其实受理了、只是回执丢了）。
+     * 当「确定失败」处理 ⇒ 上层释放冻结、单据置 FAILED，而渠道那边这笔钱还能继续走或被用户确认
+     * ⇒ 账实不符、极端情况重复出款。故必须**查单裁决**：
+     * <ul>
+     *   <li>查到且 SUCCESS ⇒ 按成功入账；</li>
+     *   <li>查到且 FAIL/CANCELLED ⇒ 才判失败（钱确实没出去）；</li>
+     *   <li>查不到 / 仍在途 / 查单本身失败 ⇒ 保持 PAYING 交定时查单与人工，绝不释放冻结。</li>
+     * </ul>
+     * 全程使用<b>原 out_bill_no</b>，不换单号（换单=重复出款）。
+     */
+    private PayoutResult adjudicateDefiniteFailure(PayoutCommand command,
+                                                   WeChatTransferClient.DefiniteFailure e) {
+        if (!e.alreadyExists()) {
+            return PayoutResult.rejected(e.getMessage());
+        }
+        log.warn("wechat transfer ALREADY_EXISTS ⇒ 转查单裁决: requestId={}, outBillNo={}",
+                command.requestId(), command.idemKey());
+        WeChatTransferClient.QueryOutcome outcome;
+        try {
+            outcome = transferClient.queryOutcome(command.idemKey());
+        } catch (RuntimeException qe) {
+            throw new PayoutPendingException("渠道回报单据已存在但查单失败（"
+                    + qe.getClass().getSimpleName() + "），保持 PAYING 转人工核对", command.idemKey());
+        }
+        if (outcome.found() && outcome.bill() != null) {
+            WeChatTransferClient.TransferResponse bill = outcome.bill();
+            if (bill.isSuccess()) {
+                return PayoutResult.paid(bill.transferBillNo(), "微信转账成功（查单裁决：单据已存在且已到账）");
+            }
+            if (bill.isFail()) {
+                return PayoutResult.rejected("微信转账终态=" + bill.state() + "（查单裁决）");
+            }
+            throw new PayoutPendingException("单据已存在但仍在途 state=" + bill.state()
+                    + "，保持 PAYING 待查单", command.idemKey());
+        }
+        throw new PayoutPendingException("单据已存在但查不到明细（" + outcome.reason()
+                + "），保持 PAYING 转人工核对", command.idemKey());
     }
 
     @Override

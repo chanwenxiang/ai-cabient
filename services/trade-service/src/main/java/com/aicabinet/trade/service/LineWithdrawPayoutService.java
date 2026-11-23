@@ -109,6 +109,16 @@ public class LineWithdrawPayoutService {
             return PayoutResult.failure(channel.channel(), null,
                     "收款账号解密密钥未配置（AICABINET_PAYOUT_ENCRYPTION_KEY），拒绝出款");
         }
+        // 🔴 MA-407：确认收款模式下渠道一建单就锁资金，而线长端**没有**「去确认收款」入口。
+        //    必须在这里（建单之前）拒掉——留在建单之后判，等于「钱锁在渠道 24h + 本地已解冻」，
+        //    收款人若在微信里点了确认就是重复出款。
+        if (channel.requiresUserConfirmation()) {
+            log.warn("line withdraw payout blocked before create: channel requires user confirmation"
+                    + " requestId={}, channel={}", request.getRequestId(), channel.channel());
+            return PayoutResult.failure(channel.channel(), null,
+                    "微信通道当前为「用户确认收款」模式，线长端尚未接入确认入口；"
+                            + "请改用银行通道，或等免确认授权模式开通后再提现（未发起任何渠道请求）");
+        }
 
         PayoutAccountService.ResolvedPayee payee = payoutAccountService.resolveForPayout(account);
         String idemKey = request.getIdemKey() != null && !request.getIdemKey().isBlank()
@@ -127,13 +137,15 @@ public class LineWithdrawPayoutService {
                 return PayoutResult.success(channel.channel(), result.channelOrderNo(), result.message());
             }
             if (result.awaitingUserConfirm()) {
-                // 🔴 线长侧暂未接入「确认收款」交互（没有确认入口，钱会在渠道侧锁 24 小时后自动退回，
-                //    单据却一直挂 PAYING）。宁可当场拒并释放冻结，也不要把线长的钱吊在半空。
-                log.warn("line withdraw payout blocked: wechat confirm-mode not wired requestId={}, orderNo={}",
+                // 兜底（正常已在上面的 requiresUserConfirmation 前置拦掉）：渠道若仍返回待确认，
+                // 说明前置判据与实际模式不一致——这里保持「不当成功、不当失败」，交由上层查单收口，
+                // 绝不释放冻结（钱已锁在渠道）。
+                log.error("line withdraw payout hit confirm-mode AFTER create (pre-check missed)"
+                                + " requestId={}, orderNo={}",
                         request.getRequestId(), result.channelOrderNo());
-                return PayoutResult.failure(channel.channel(), result.channelOrderNo(),
-                        "微信通道当前为「用户确认收款」模式，线长提现尚未接入确认入口；"
-                                + "请改用银行通道或等免确认授权模式开通后再提现");
+                throw new PayoutChannel.PayoutPendingException(
+                        "微信通道返回「待用户确认」，线长端无确认入口，保持 PAYING 转人工核对",
+                        request.getIdemKey());
             }
             return PayoutResult.failure(channel.channel(), result.channelOrderNo(), result.message());
         } catch (PayoutChannel.PayoutPendingException e) {

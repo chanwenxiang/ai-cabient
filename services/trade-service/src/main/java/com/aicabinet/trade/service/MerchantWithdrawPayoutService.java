@@ -85,6 +85,19 @@ public class MerchantWithdrawPayoutService {
      *
      * @param account 本次申请快照的收款账户（mock 模式下可为空 —— 老单无快照）
      */
+    /**
+     * 该单据实际使用的<b>渠道单号</b>（= 幂等键）。
+     *
+     * <p>🔴 单一真值来源：申请时写库（{@code idem_key}），历史单据缺失时按同一派生规则补齐。
+     * 打款、确认票据存取、回调反查三处必须用<b>同一个</b>值——2026-11-23 复核发现票据
+     * 存的是 {@code transfer_bill_no}、取的是 {@code idem_key} ⇒ 商户永远拿不到确认入口。
+     */
+    static String billNoOf(MerchantWithdrawRequest request) {
+        return request.getIdemKey() != null && !request.getIdemKey().isBlank()
+                ? request.getIdemKey()
+                : PayoutAccountService.newIdemKey(IDEM_PREFIX, request.getRequestId());
+    }
+
     public PayoutResult payout(MerchantWithdrawRequest request, Merchant merchant, PayoutAccount account) {
         long netCents = WithdrawFeeCalculator.netPayoutCents(request.getAmountCents(), request.getFeeCents());
 
@@ -119,9 +132,7 @@ public class MerchantWithdrawPayoutService {
         }
 
         PayoutAccountService.ResolvedPayee payee = payoutAccountService.resolveForPayout(account);
-        String idemKey = request.getIdemKey() != null && !request.getIdemKey().isBlank()
-                ? request.getIdemKey()
-                : PayoutAccountService.newIdemKey(IDEM_PREFIX, request.getRequestId());
+        String idemKey = billNoOf(request);
 
         PayoutChannel.PayoutCommand command = new PayoutChannel.PayoutCommand(
                 request.getRequestId(), idemKey,

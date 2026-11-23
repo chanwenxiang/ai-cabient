@@ -208,15 +208,27 @@ public class PayoutAccountService {
     }
 
     /**
-     * 渠道幂等键：{@code <prefix>:<requestId>}。
+     * 渠道幂等键：{@code <prefix><requestId 零填充 10 位>}，例如 {@code MW0000000042}。
      *
      * <p>只由不变业务要素构成（lessons #97/#225）：{@code requestId} 是提现单主键，
      * 同一单据的每次重试得到同一个键，不同单据天然不同。<b>不得</b>再拼随机/时间后缀——
      * 那会让重试换键，渠道侧无法识别为同一笔出款。建单时仍应把键落库（{@code idem_key}）
      * 以便审计与重放。
+     *
+     * <p>🔴 <b>形态由渠道契约决定，不是审美</b>：微信「商家转账」的 {@code out_bill_no}
+     * 只接受 <b>数字 / 大小写字母、6–32 位</b>（官方 4012716434）。旧实现 {@code MW:42} 含冒号，
+     * 2026-11-23 复核时确认为「真打款 100% PARAM_ERROR」的隐性阻断——幂等键就是要<b>原样</b>
+     * 当渠道单号用（铁律：绝不换单号重试），所以键本身必须生成成渠道可用形态，
+     * 而不是发送前临时清洗（清洗后回调 {@code out_bill_no} 反查不回 {@code idem_key}）。
+     * 零填充还顺带保证 6 位下限（requestId 很小时 {@code MW42} 只有 4 位）。
      */
     public static String newIdemKey(String prefix, long requestId) {
-        return prefix + ":" + requestId;
+        return prefix + String.format("%010d", requestId);
+    }
+
+    /** 渠道单号形态校验（微信 out_bill_no 规则，判据本体在 {@link PayoutConstants}，供通道侧 fail-closed 前置校验）。 */
+    public static boolean isChannelSafeBillNo(String value) {
+        return PayoutConstants.isChannelSafeBillNo(value);
     }
 
     /**

@@ -186,7 +186,7 @@ public class WeChatTransferClient {
                     + "）——商户平台「产品中心→商家转账」未开通或权限被处罚，请先开通产品";
         }
         if (definiteFail) {
-            throw new DefiniteFailure(detail);
+            throw new DefiniteFailure(detail, codeSafe);
         }
         // 429/5xx/SYSTEM_ERROR/未知码 ⇒ 结果不确定，绝不当失败（会释放冻结造成双重支出）
         throw new PayoutChannel.PayoutPendingException(detail, outBillNo);
@@ -194,8 +194,25 @@ public class WeChatTransferClient {
 
     /** 确定的渠道业务失败——由通道层转 PayoutResult.rejected（释放冻结）。 */
     public static class DefiniteFailure extends RuntimeException {
+        /** 微信错误码（如 ALREADY_EXISTS）；分类判据要按码分流，不能只靠 message 文本。 */
+        private final String code;
+
         public DefiniteFailure(String message) {
+            this(message, null);
+        }
+
+        public DefiniteFailure(String message, String code) {
             super(message);
+            this.code = code;
+        }
+
+        public String code() {
+            return code;
+        }
+
+        /** 「该单号已存在」——渠道侧**确实有这笔单**，绝不可当「没出款」处理（会释放冻结造成重复出款）。 */
+        public boolean alreadyExists() {
+            return "ALREADY_EXISTS".equals(code);
         }
     }
 

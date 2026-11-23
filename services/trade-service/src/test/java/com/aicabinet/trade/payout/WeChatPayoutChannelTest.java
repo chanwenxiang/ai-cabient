@@ -51,7 +51,11 @@ class WeChatPayoutChannelTest {
     }
 
     private PayoutChannel.PayoutCommand command(long cents, String openid) {
-        return new PayoutChannel.PayoutCommand(1L, "MW-idem-1", PayoutConstants.PAYEE_TYPE_PERSONAL,
+        return command(cents, openid, "MW0000000001");
+    }
+
+    private PayoutChannel.PayoutCommand command(long cents, String openid, String idemKey) {
+        return new PayoutChannel.PayoutCommand(1L, idemKey, PayoutConstants.PAYEE_TYPE_PERSONAL,
                 "产文祥", openid, null, null, null, null, null, cents, "提现 X");
     }
 
@@ -195,10 +199,90 @@ class WeChatPayoutChannelTest {
         assertThat(blank.confirmMode()).isTrue();
     }
 
+    // ============ 渠道单号形态（2026-11-23 复核：旧 MW:<id> 含冒号 ⇒ 真打款必 PARAM_ERROR）============
+
+    @Test
+    void illegalOutBillNoRejectedBeforeCallingWeChat() {
+        // 含冒号/下划线等非字母数字，或不足 6 位 ⇒ 本地直接拒，且绝不发请求
+        for (String bad : new String[]{"MW:1", "MW_0000000001", "MW1"}) {
+            var result = confirmChannel.transfer(command(50L, "openid-1", bad));
+            assertThat(result.success()).isFalse();
+            assertThat(result.message()).contains("out_bill_no");
+        }
+        org.mockito.Mockito.verifyNoInteractions(v3Client);
+    }
+
+    @Test
+    void newIdemKeyIsChannelSafe() {
+        String key = com.aicabinet.trade.service.PayoutAccountService.newIdemKey("MW", 42L);
+        assertThat(PayoutConstants.isChannelSafeBillNo(key)).isTrue();
+        assertThat(key).isEqualTo("MW0000000042");
+        // 小 requestId 也不能短于 6 位（官方 out_bill_no 下限）
+        assertThat(
+                        PayoutConstants.isChannelSafeBillNo(
+                                com.aicabinet.trade.service.PayoutAccountService.newIdemKey("LW", 1L)))
+                .isTrue();
+    }
+
+    // ============ ALREADY_EXISTS ⇒ 查单裁决（绝不当「没出款」释放冻结）============
+
+    @Test
+    void alreadyExistsButQuerySuccessMapsToPaid() {
+        mockResponse(400, "{\"code\":\"ALREADY_EXISTS\",\"message\":\"单据已存在\"}");
+        mockQuery(200, "{\"state\":\"SUCCESS\",\"transfer_bill_no\":\"BILL-A1\"}");
+        var result = confirmChannel.transfer(command(50L, "openid-1"));
+        assertThat(result.success()).isTrue();
+        assertThat(result.channelOrderNo()).isEqualTo("BILL-A1");
+    }
+
+    @Test
+    void alreadyExistsAndQueryFailIsRejected() {
+        mockResponse(400, "{\"code\":\"ALREADY_EXISTS\",\"message\":\"单据已存在\"}");
+        mockQuery(200, "{\"state\":\"FAIL\",\"transfer_bill_no\":\"BILL-A2\"}");
+        var result = confirmChannel.transfer(command(50L, "openid-1"));
+        assertThat(result.success()).isFalse();
+        assertThat(result.awaitingUserConfirm()).isFalse();
+        assertThat(result.message()).contains("查单裁决");
+    }
+
+    @Test
+    void alreadyExistsButQueryNotFoundStaysPending() {
+        mockResponse(400, "{\"code\":\"ALREADY_EXISTS\",\"message\":\"单据已存在\"}");
+        mockQuery(404, "{\"code\":\"NOT_FOUND\",\"message\":\"not found\"}");
+        assertThatThrownBy(() -> confirmChannel.transfer(command(50L, "openid-1")))
+                .isInstanceOf(PayoutChannel.PayoutPendingException.class);
+    }
+
+    @Test
+    void alreadyExistsWhileInFlightStaysPending() {
+        mockResponse(400, "{\"code\":\"ALREADY_EXISTS\",\"message\":\"单据已存在\"}");
+        mockQuery(200, "{\"state\":\"PROCESSING\",\"transfer_bill_no\":\"BILL-A3\"}");
+        assertThatThrownBy(() -> confirmChannel.transfer(command(50L, "openid-1")))
+                .isInstanceOf(PayoutChannel.PayoutPendingException.class);
+    }
+
+    // ============ 模式自述（供调用方建单前判断）============
+
+    @Test
+    void requiresUserConfirmationFollowsMode() {
+        assertThat(confirmChannel.requiresUserConfirmation()).isTrue();
+        assertThat(authorizedChannel.requiresUserConfirmation()).isFalse();
+    }
+
     private void mockResponse(int status, String json) {
         try {
             var body = new com.fasterxml.jackson.databind.ObjectMapper().readTree(json);
             when(v3Client.postWithStatus(anyString(), any()))
+                    .thenReturn(new WeChatPayV3Client.HttpResult(status, body));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private void mockQuery(int status, String json) {
+        try {
+            var body = new com.fasterxml.jackson.databind.ObjectMapper().readTree(json);
+            when(v3Client.getWithStatus(anyString()))
                     .thenReturn(new WeChatPayV3Client.HttpResult(status, body));
         } catch (Exception e) {
             throw new IllegalStateException(e);

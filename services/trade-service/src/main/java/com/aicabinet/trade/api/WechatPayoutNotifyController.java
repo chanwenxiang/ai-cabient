@@ -1,7 +1,5 @@
 package com.aicabinet.trade.api;
 
-import com.aicabinet.trade.mapper.MerchantWithdrawRequestMapper;
-import com.aicabinet.trade.domain.MerchantWithdrawRequest;
 import com.aicabinet.trade.payment.WeChatPayNotifyService;
 import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.MerchantWithdrawService;
@@ -15,8 +13,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.Optional;
 
 /**
  * 微信「商家转账」回调入口（MA-407）：① 免确认授权结果；② 转账结果（确认收款模式到账）。
@@ -42,16 +38,13 @@ public class WechatPayoutNotifyController {
 
     private final WeChatPayNotifyService notifyService;
     private final AdminAuditService auditService;
-    private final MerchantWithdrawRequestMapper withdrawMapper;
     private final MerchantWithdrawService merchantWithdrawService;
 
     public WechatPayoutNotifyController(WeChatPayNotifyService notifyService,
                                         AdminAuditService auditService,
-                                        MerchantWithdrawRequestMapper withdrawMapper,
                                         MerchantWithdrawService merchantWithdrawService) {
         this.notifyService = notifyService;
         this.auditService = auditService;
-        this.withdrawMapper = withdrawMapper;
         this.merchantWithdrawService = merchantWithdrawService;
     }
 
@@ -71,16 +64,23 @@ public class WechatPayoutNotifyController {
                 outAuthorizationNo, state, authorizationId);
         String detail = ("授权结果通知 state=" + state + " authorizationId=" + authorizationId
                 + " openid=" + data.path("openid").asText(""));
-        auditService.appendLog(null, "WECHAT_PAYOUT_AUTH_NOTIFY", "PAYOUT_AUTHORIZATION",
-                outAuthorizationNo, truncate(detail));
+        try {
+            auditService.appendLog(null, "WECHAT_PAYOUT_AUTH_NOTIFY", "PAYOUT_AUTHORIZATION",
+                    outAuthorizationNo, truncate(detail));
+        } catch (RuntimeException e) {
+            // 验签已消耗 nonce：留痕失败若不归还，微信重投会被判重放 ⇒ 这条授权永远补不上。
+            notifyService.releaseNonce(nonce);
+            throw e;
+        }
         return ResponseEntity.noContent().build();
     }
 
     /**
      * 转账结果通知（确认收款模式）：用户确认收款后微信推送终态。
      *
-     * <p>只认 {@code out_bill_no}（= 我们的 idem_key）；查不到单据也回 2xx ——
-     * 回 4xx 会让微信反复重投一条我们永远处理不了的记录。
+     * <p>定位单据/判终态/落账全部在 {@link MerchantWithdrawService#handleTransferNotify}
+     * （`..api..` 不得依赖 `..mapper..`）。只认 {@code out_bill_no}（= 我们的 idem_key）；
+     * 查不到单据也回 2xx —— 回 4xx 会让微信反复重投一条我们永远处理不了的记录。
      */
     @PostMapping(value = "/transfer-notify", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Void> transferNotify(
@@ -95,25 +95,16 @@ public class WechatPayoutNotifyController {
         String transferBillNo = data.path("transfer_bill_no").asText(null);
         log.info("wechat transfer notify: outBillNo={}, state={}, transferBillNo={}",
                 outBillNo, state, transferBillNo);
-        Optional<MerchantWithdrawRequest> hit = outBillNo == null
-                ? Optional.empty() : withdrawMapper.findByIdemKey(outBillNo);
-        if (hit.isEmpty()) {
-            log.warn("wechat transfer notify 未匹配到提现单: outBillNo={}, state={}", outBillNo, state);
-            auditService.appendLog(null, "WECHAT_PAYOUT_NOTIFY_UNMATCHED", "MERCHANT_WITHDRAW",
-                    outBillNo, truncate("转账结果通知 state=" + state + "（无对应提现单）"));
-            return ResponseEntity.noContent().build();
-        }
-        MerchantWithdrawRequest request = hit.get();
-        if ("SUCCESS".equals(state)) {
-            merchantWithdrawService.finalizeFromChannel(request.getRequestId(), true, transferBillNo,
-                    "微信转账到账（用户已确认收款）");
-        } else if ("FAIL".equals(state) || "CANCELLED".equals(state) || "CANCELING".equals(state)) {
-            merchantWithdrawService.finalizeFromChannel(request.getRequestId(), false, transferBillNo,
-                    "微信转账终态=" + state + "（回调）");
-        } else {
-            // 非终态（WAIT_USER_CONFIRM/ACCEPTED/PROCESSING/TRANSFERING）：不动单据，等下一次通知或查单
-            log.info("wechat transfer notify 非终态忽略: requestId={}, state={}",
-                    request.getRequestId(), state);
+        try {
+            merchantWithdrawService.handleTransferNotify(outBillNo, state, transferBillNo);
+        } catch (RuntimeException e) {
+            // 🔴 验签阶段已消耗 nonce；落账/查库失败如果不归还，微信的重投会被判「重放」而丢弃
+            //    ⇒ 这笔到账永远补不上（只能靠定时查单兜，且商户侧一直是待确认）。
+            //    归还后微信重投能真正重跑一遍（终态落账本身有条件 UPDATE 幂等闸，重复投不会双账）。
+            notifyService.releaseNonce(nonce);
+            log.error("wechat transfer notify 处理失败，nonce 已归还待重投: outBillNo={}, state={}, err={}",
+                    outBillNo, state, e.toString());
+            throw e;
         }
         return ResponseEntity.noContent().build();
     }

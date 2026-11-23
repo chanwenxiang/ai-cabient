@@ -726,8 +726,13 @@ public class MerchantWithdrawService {
             //    （用户确认后的回调/查单还要靠 out_bill_no 定位这笔）。
             request.setStatus("PAYING");
             withdrawMapper.updateById(request);
-            confirmTicketStore.save(result.payoutRef(), new PayoutConfirmTicketStore.Ticket(
-                    requestId, result.payChannel(), result.confirmPackage(), now.plusSeconds(24 * 3600)));
+            // 🔴 票据 key 必须是**渠道单号（idem_key）**，不是 transfer_bill_no：
+            //    读取点 confirmTicket() 用 request.getIdemKey() 反查，存的是 transfer_bill_no
+            //    会导致「钱锁在渠道、商户却永远拿不到确认入口」（2026-11-23 复核发现）。
+            confirmTicketStore.save(MerchantWithdrawPayoutService.billNoOf(request),
+                    new PayoutConfirmTicketStore.Ticket(
+                            requestId, result.payChannel(), result.confirmPackage(),
+                            now.plusSeconds(24 * 3600)));
             return toDto(request);
         }
         if (result.success()) {
@@ -790,7 +795,8 @@ public class MerchantWithdrawService {
             merchantWalletService.releaseFrozen(request.getMerchantId(), request.getAmountCents(),
                     WITHDRAW, String.valueOf(requestId), "提现打款失败释放（渠道终态）");
         }
-        confirmTicketStore.clear(ref);
+        // 票据按渠道单号（idem_key）存，故清理也必须用同一个键（用 payoutRef 会残留到 TTL 到期）
+        confirmTicketStore.clear(MerchantWithdrawPayoutService.billNoOf(request));
         auditService.appendLog(0L,
                 success ? "MERCHANT_WITHDRAW_PAYOUT_CONFIRMED" : "MERCHANT_WITHDRAW_PAYOUT_CHANNEL_FAILED",
                 BIZ_MERCHANT_WITHDRAW, String.valueOf(requestId),
@@ -800,6 +806,40 @@ public class MerchantWithdrawService {
                     Math.max(0L, request.getAmountCents() - feeCents), requestId);
         }
         return true;
+    }
+
+    /**
+     * 微信转账结果回调收口（MA-407 确认收款模式）。
+     *
+     * <p>🔴 <b>为什么不放在控制器里查库</b>：`..api..` 不许依赖 `..mapper..`
+     * （{@code TradeArchitectureTest.controllersShouldNotDependOnMappers}）。控制器只负责验签与
+     * 抽字段，定位单据 / 判终态 / 落账 / 留痕全部收在这里——顺带保证「回调」与「定时查单」
+     * 走的是同一套终态语义（都进 {@link #finalizeFromChannel} 的条件 UPDATE）。
+     *
+     * @return 命中的提现单 requestId；未命中返回 empty（已留痕，调用方回 2xx 免得微信反复重投）
+     */
+    public Optional<Long> handleTransferNotify(String outBillNo, String state, String transferBillNo) {
+        if (outBillNo == null || outBillNo.isBlank()) {
+            return Optional.empty();
+        }
+        Optional<MerchantWithdrawRequest> hit = withdrawMapper.findByIdemKey(outBillNo);
+        if (hit.isEmpty()) {
+            log.warn("wechat transfer notify 未匹配到提现单: outBillNo={}, state={}", outBillNo, state);
+            auditService.appendLog(null, "WECHAT_PAYOUT_NOTIFY_UNMATCHED", BIZ_MERCHANT_WITHDRAW,
+                    outBillNo, "转账结果通知 state=" + state + "（无对应提现单）");
+            return Optional.empty();
+        }
+        long requestId = hit.get().getRequestId();
+        if ("SUCCESS".equals(state)) {
+            finalizeFromChannel(requestId, true, transferBillNo, "微信转账到账（用户已确认收款）");
+        } else if ("FAIL".equals(state) || "CANCELLED".equals(state) || "CANCELING".equals(state)) {
+            finalizeFromChannel(requestId, false, transferBillNo, "微信转账终态=" + state + "（回调）");
+        } else {
+            // 非终态（WAIT_USER_CONFIRM / ACCEPTED / PROCESSING / TRANSFERING）：不动单据，
+            // 等下一次通知或定时查单——这里绝不能当失败处理（会误释放冻结）。
+            log.info("wechat transfer notify 非终态忽略: requestId={}, state={}", requestId, state);
+        }
+        return Optional.of(requestId);
     }
 
     /**
@@ -815,14 +855,15 @@ public class MerchantWithdrawService {
         if (!merchantId.equals(request.getMerchantId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权查看该提现单");
         }
-        String idemKey = request.getIdemKey();
-        weChatQueryClosure(request, idemKey);
+        // 与写入侧（finalizePayout）同一个键：渠道单号/幂等键，历史单据缺键时按同一规则补齐
+        String billNo = MerchantWithdrawPayoutService.billNoOf(request);
+        weChatQueryClosure(request, billNo);
         MerchantWithdrawRequest fresh = requireRequest(requestId);
         if (!"PAYING".equals(fresh.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "该提现单当前状态为 " + fresh.getStatus() + "，无需再确认收款");
         }
-        PayoutConfirmTicketStore.Ticket ticket = confirmTicketStore.find(idemKey)
+        PayoutConfirmTicketStore.Ticket ticket = confirmTicketStore.find(billNo)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "确认入口已过期或已使用，请稍后刷新提现记录"));
         return new PayoutConfirmTicket(fresh.getRequestId(), ticket.packageInfo(), ticket.expireAt(),

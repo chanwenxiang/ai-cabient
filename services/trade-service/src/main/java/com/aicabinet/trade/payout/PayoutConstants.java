@@ -52,4 +52,19 @@ public final class PayoutConstants {
     public static boolean isValidPayeeType(String payeeType) {
         return isCompany(payeeType) || isPersonal(payeeType);
     }
+
+    // ============ 渠道单号形态 ============
+
+    /**
+     * 微信「商家转账」{@code out_bill_no} 形态：<b>数字 / 大小写字母，6–32 位</b>（官方 4012716434）。
+     *
+     * <p>🔴 为什么放在 payout 包而不是 service 包：本判据是<b>渠道契约</b>，通道侧要在发请求前
+     * fail-closed 用一次（不合法就当场拒，别让微信回 PARAM_ERROR 后再去猜是哪一步错），
+     * 且 service 已经依赖 payout，反向依赖会成环。
+     */
+    public static final String CHANNEL_BILL_NO_PATTERN = "^[A-Za-z0-9]{6,32}$";
+
+    public static boolean isChannelSafeBillNo(String value) {
+        return value != null && value.matches(CHANNEL_BILL_NO_PATTERN);
+    }
 }
