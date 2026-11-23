@@ -133,12 +133,15 @@ esac
 FAKE
   chmod +x "$tmp/bin/ossutil"
 
-  if ( PATH="$tmp/bin:$PATH" OSS_BACKUP_ACCESS_KEY_ID=x OSS_BACKUP_ACCESS_KEY_SECRET=y \
+  if ( PATH="$tmp/bin:$PATH" OSS_BACKUP_PREFIX=backups/_selftest \
+      OSS_BACKUP_ACCESS_KEY_ID=x OSS_BACKUP_ACCESS_KEY_SECRET=y \
       upload_and_verify "$tmp/aicabinet.dump" ); then
     ok=$((ok + 1))
   else
     echo "$TAG self-test: 正常上传+字节一致被误判失败"
   fi
+
+  log "self-test: 以下 3 条红为【预期负向用例】（假 ossutil，不连真实 OSS；勿当线上故障）"
 
   # 远端字节数不一致必须判红
   cat > "$tmp/bin/ossutil" <<'FAKE'
@@ -150,7 +153,8 @@ case "$1" in
 esac
 FAKE
   chmod +x "$tmp/bin/ossutil"
-  if ( PATH="$tmp/bin:$PATH" OSS_BACKUP_ACCESS_KEY_ID=x OSS_BACKUP_ACCESS_KEY_SECRET=y \
+  if ( PATH="$tmp/bin:$PATH" OSS_BACKUP_PREFIX=backups/_selftest \
+      OSS_BACKUP_ACCESS_KEY_ID=x OSS_BACKUP_ACCESS_KEY_SECRET=y \
       upload_and_verify "$tmp/aicabinet.dump" ); then
     echo "$TAG self-test: 远端字节数不一致未判红"
   else
@@ -167,7 +171,8 @@ case "$1" in
 esac
 FAKE
   chmod +x "$tmp/bin/ossutil"
-  if ( PATH="$tmp/bin:$PATH" OSS_BACKUP_ACCESS_KEY_ID=x OSS_BACKUP_ACCESS_KEY_SECRET=y \
+  if ( PATH="$tmp/bin:$PATH" OSS_BACKUP_PREFIX=backups/_selftest \
+      OSS_BACKUP_ACCESS_KEY_ID=x OSS_BACKUP_ACCESS_KEY_SECRET=y \
       upload_and_verify "$tmp/aicabinet.dump" ); then
     echo "$TAG self-test: 上传失败未判红"
   else
@@ -175,13 +180,27 @@ FAKE
   fi
 
   # 缺凭据必须判红（不允许静默只留本地）
-  if ( PATH="$tmp/bin:$PATH" OSS_BACKUP_ACCESS_KEY_ID= OSS_BACKUP_ACCESS_KEY_SECRET= \
+  if ( PATH="$tmp/bin:$PATH" OSS_BACKUP_PREFIX=backups/_selftest \
+      OSS_BACKUP_ACCESS_KEY_ID= OSS_BACKUP_ACCESS_KEY_SECRET= \
       JIANGYI_OSS_ACCESS_KEY_ID= JIANGYI_OSS_ACCESS_KEY_SECRET= \
       upload_and_verify "$tmp/aicabinet.dump" ); then
     echo "$TAG self-test: 缺凭据未判红"
   else
     bad=$((bad + 1))
   fi
+
+  # 自测不依赖宿主 python3（Windows 商店桩会让 AssumeRole 用例假红）：夹具内提供解析器
+  cat > "$tmp/bin/python3" <<'FAKE'
+#!/usr/bin/env bash
+code="$2"
+case "$code" in
+  *AccessKeyId*) echo tmp-ak ;;
+  *AccessKeySecret*) echo tmp-sk ;;
+  *SecurityToken*) echo tmp-token ;;
+  *) exit 1 ;;
+esac
+FAKE
+  chmod +x "$tmp/bin/python3"
 
   # 配了 ROLE_ARN：应走 AssumeRole 换临时凭据后上传
   cat > "$tmp/bin/aliyun" <<'FAKE'
@@ -198,7 +217,8 @@ case "$1" in
 esac
 FAKE
   chmod +x "$tmp/bin/ossutil"
-  if ( PATH="$tmp/bin:$PATH" OSS_BACKUP_ACCESS_KEY_ID=x OSS_BACKUP_ACCESS_KEY_SECRET=y \
+  if ( PATH="$tmp/bin:$PATH" OSS_BACKUP_PREFIX=backups/_selftest \
+      OSS_BACKUP_ACCESS_KEY_ID=x OSS_BACKUP_ACCESS_KEY_SECRET=y \
       OSS_BACKUP_ROLE_ARN=acs:ram::1:role/test upload_and_verify "$tmp/aicabinet.dump" ); then
     ok=$((ok + 1))
   else
