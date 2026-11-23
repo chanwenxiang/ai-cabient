@@ -73,6 +73,14 @@
       "whitelist": "trade",
       "signature": "WeChatPayV3 授权结果通知验签（复用 WeChatPayNotifyService：验签+AEAD 解密+nonce 防重放，处理异常归还 nonce）",
       "outcome": "记录用户免确认收款授权状态（admin_audit_log，operator=系统）；官方 4015901167 该回调地址为必填"
+    },
+    {
+      "path": "/api/v2/payout/wechat/transfer-notify",
+      "controller": "services/trade-service/src/main/java/com/aicabinet/trade/api/WechatPayoutNotifyController.java",
+      "authMode": "SIGNATURE_BYPASS",
+      "whitelist": "trade",
+      "signature": "WeChatPayV3 转账结果通知验签（复用 WeChatPayNotifyService：验签+AEAD 解密+nonce 防重放，异常归还 nonce）",
+      "outcome": "确认收款模式下用户确认后的到账终态落库（finalizeFromChannel 条件 UPDATE，幂等）"
     }
   ]
 }

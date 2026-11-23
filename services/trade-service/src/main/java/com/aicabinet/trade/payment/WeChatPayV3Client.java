@@ -127,6 +127,31 @@ public class WeChatPayV3Client {
         }
     }
 
+    /**
+     * MA-407：带 HTTP 状态码的 GET（转账查单用）。
+     *
+     * <p>查单必须能区分「单不存在（404 NOT_FOUND）」与「权限/网络问题」：
+     * {@link #get} 把两者都吞成 IllegalStateException，查询闭环就没法判「这笔到底有没有建单」。
+     */
+    public HttpResult getWithStatus(String path) {
+        try {
+            String auth = buildAuthorization("GET", path, "");
+            return restClient.get()
+                    .uri(API_HOST + path)
+                    .header("Authorization", auth)
+                    .header("Accept", MediaType.APPLICATION_JSON_VALUE)
+                    .exchange((req, res) -> {
+                        String text = new String(res.getBody().readAllBytes(),
+                                java.nio.charset.StandardCharsets.UTF_8);
+                        JsonNode parsed = text.isBlank()
+                                ? objectMapper.createObjectNode() : objectMapper.readTree(text);
+                        return new HttpResult(res.getStatusCode().value(), parsed);
+                    });
+        } catch (Exception e) {
+            throw new IllegalStateException("wechat v3 GET " + path + " failed", e);
+        }
+    }
+
     public byte[] download(String url) {
         // 对账单文件（几 MB，境外 CDN）比 API 慢得多：单独放宽到 60s，不复用 API 客户端的 10s
         byte[] data = downloadRestClient.get()

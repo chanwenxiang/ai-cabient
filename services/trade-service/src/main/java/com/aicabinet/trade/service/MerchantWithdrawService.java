@@ -18,6 +18,7 @@ import com.aicabinet.trade.mapper.PayoutAccountMapper;
 import com.aicabinet.trade.payout.PayoutChannel;
 import com.aicabinet.trade.payout.PayoutChannelLimits;
 import com.aicabinet.trade.payout.PayoutChannelRegistry;
+import com.aicabinet.trade.payout.PayoutConfirmTicketStore;
 import com.aicabinet.trade.payout.PayoutConstants;
 import com.aicabinet.trade.support.CsvCells;
 import com.aicabinet.trade.util.BizIds;
@@ -84,6 +85,8 @@ public class MerchantWithdrawService {
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
     private final ApprovalWorkflowService approvalWorkflowService;
+    /** MA-407 确认收款模式：待用户确认票据（24h UX 凭证，放 Redis）。 */
+    private final PayoutConfirmTicketStore confirmTicketStore;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final MerchantWithdrawService self;
 
@@ -109,6 +112,7 @@ public class MerchantWithdrawService {
                                    WithdrawEligibilityService withdrawEligibilityService,
                                    PlatformFundService platformFundService,
                                    SystemConfigService systemConfigService,
+                                   PayoutConfirmTicketStore confirmTicketStore,
                                    @Lazy MerchantWithdrawService self) {
         this.withdrawMapper = withdrawMapper;
         this.merchantMapper = merchantMapper;
@@ -130,6 +134,7 @@ public class MerchantWithdrawService {
         this.withdrawEligibilityService = withdrawEligibilityService;
         this.platformFundService = platformFundService;
         this.systemConfigService = systemConfigService;
+        this.confirmTicketStore = confirmTicketStore;
         this.self = self;
     }
 
@@ -687,7 +692,7 @@ public class MerchantWithdrawService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可打款");
         }
         Instant now = Instant.now();
-        // 条件 UPDATE 抢出款权：单据没有 @Version，读-改-写之间有窗口；
+        // CONCURRENCY: 条件 UPDATE 抢出款权：单据没有 @Version，读-改-写之间有窗口；
         // 抢不到（0 行）说明并发方已把状态推走，此时向渠道转账就是重复出款。
         if (withdrawMapper.claimForPayout(requestId, previousStatus, now) == 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
@@ -706,12 +711,25 @@ public class MerchantWithdrawService {
     @Transactional
     public MerchantWithdrawRequestDto finalizePayout(long requestId,
                                                      MerchantWithdrawPayoutService.PayoutResult result) {
+        // CONCURRENCY: 条件 UPDATE —— 出款权由上游 markPaying 的 claimForPayout（WHERE status=?）抢占，
+        // 本方法只回写「本线程刚抢到的那一行」；awaitingUserConfirm 分支写的 PAYING 与原状态同值（幂等），
+        // 把单据从 PAYING 推到终态一律走 finalizeIfPaying（UPDATE ... WHERE status='PAYING'，0 行即放弃）。
         MerchantWithdrawRequest request = requireRequest(requestId);
         Instant now = Instant.now();
         request.setPayChannel(result.payChannel());
         request.setPayoutRef(result.payoutRef());
         request.setPayoutMessage(trim(result.message()));
         request.setUpdatedAt(now);
+        if (result.awaitingUserConfirm()) {
+            // MA-407 确认收款模式：渠道已建单并锁定资金，等用户确认。
+            // 🔴 三个「不做」：不落 PAID（钱没到账）、不释放冻结（钱已锁在渠道）、不解幂等键
+            //    （用户确认后的回调/查单还要靠 out_bill_no 定位这笔）。
+            request.setStatus("PAYING");
+            withdrawMapper.updateById(request);
+            confirmTicketStore.save(result.payoutRef(), new PayoutConfirmTicketStore.Ticket(
+                    requestId, result.payChannel(), result.confirmPackage(), now.plusSeconds(24 * 3600)));
+            return toDto(request);
+        }
         if (result.success()) {
             request.setStatus("PAID");
             request.setPaidAt(now);
@@ -733,6 +751,113 @@ public class MerchantWithdrawService {
         return toDto(request);
     }
 
+    /**
+     * <b>渠道终态汇聚点</b>（MA-407）：把 PAYING 单据按渠道结果落 PAID / FAILED。
+     *
+     * <p>三个入口共用这一处（铁律：扣款/释冻类闸放汇聚点，不放各入口）：
+     * ① 微信转账结果回调 {@code /api/v2/payout/wechat/transfer-notify}；
+     * ② 定时查单收口（回调丢失 / 未配 notify_url）；
+     * ③ 商户点「去确认收款」时的即时查单（用户刚确认完，回调可能还没到）。
+     *
+     * <p>🔴 幂等与并发：靠 {@code UPDATE ... WHERE status='PAYING'}，0 行即整条放弃
+     * （已有别人落过终态），绝不重复解冻/重复记账。
+     *
+     * @return true=本次真的推进了状态
+     */
+    @Transactional
+    public boolean finalizeFromChannel(long requestId, boolean success, String channelOrderNo,
+                                       String message) {
+        MerchantWithdrawRequest request = requireRequest(requestId);
+        if (!"PAYING".equals(request.getStatus())) {
+            log.info("channel finalize skipped (not PAYING): requestId={}, status={}",
+                    requestId, request.getStatus());
+            return false;
+        }
+        Instant now = Instant.now();
+        String status = success ? "PAID" : "FAILED";
+        String ref = channelOrderNo != null && !channelOrderNo.isBlank()
+                ? channelOrderNo : request.getPayoutRef();
+        if (withdrawMapper.finalizeIfPaying(requestId, status, now, ref, trim(message)) == 0) {
+            log.info("channel finalize lost race: requestId={}, target={}", requestId, status);
+            return false;
+        }
+        long feeCents = request.getFeeCents() == null ? 0L : request.getFeeCents();
+        if (success) {
+            merchantWalletService.consumeFrozenSplit(request.getMerchantId(),
+                    WithdrawFeeCalculator.netPayoutCents(request.getAmountCents(), feeCents), feeCents,
+                    WITHDRAW, String.valueOf(requestId), "提现到账（渠道确认收款）");
+        } else {
+            merchantWalletService.releaseFrozen(request.getMerchantId(), request.getAmountCents(),
+                    WITHDRAW, String.valueOf(requestId), "提现打款失败释放（渠道终态）");
+        }
+        confirmTicketStore.clear(ref);
+        auditService.appendLog(0L,
+                success ? "MERCHANT_WITHDRAW_PAYOUT_CONFIRMED" : "MERCHANT_WITHDRAW_PAYOUT_CHANNEL_FAILED",
+                BIZ_MERCHANT_WITHDRAW, String.valueOf(requestId),
+                "渠道终态=" + status + "；渠道单号=" + ref + "；" + trim(message));
+        if (success && platformFundService != null) {
+            platformFundService.recordPayoutQuietly(request.getPayChannel(),
+                    Math.max(0L, request.getAmountCents() - feeCents), requestId);
+        }
+        return true;
+    }
+
+    /**
+     * 商户取「去确认收款」票据（MA-407 确认模式）。
+     *
+     * <p>顺带做一次<b>即时查单收口</b>：用户可能刚在微信里确认完、回调还没到，
+     * 此时本地仍是 PAYING。查单发现已成功就当场落 PAID 并返回「已到账」，
+     * 免得商户反复点确认（微信侧会回「单据已终态」）。
+     */
+    public PayoutConfirmTicket confirmTicket(Long userId, long requestId) {
+        String merchantId = resolveMerchantId(userId, null);
+        MerchantWithdrawRequest request = requireRequest(requestId);
+        if (!merchantId.equals(request.getMerchantId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权查看该提现单");
+        }
+        String idemKey = request.getIdemKey();
+        weChatQueryClosure(request, idemKey);
+        MerchantWithdrawRequest fresh = requireRequest(requestId);
+        if (!"PAYING".equals(fresh.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "该提现单当前状态为 " + fresh.getStatus() + "，无需再确认收款");
+        }
+        PayoutConfirmTicketStore.Ticket ticket = confirmTicketStore.find(idemKey)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "确认入口已过期或已使用，请稍后刷新提现记录"));
+        return new PayoutConfirmTicket(fresh.getRequestId(), ticket.packageInfo(), ticket.expireAt(),
+                fresh.getAmountCents(), fresh.getPayChannel());
+    }
+
+    /** 微信单查询收口（走通道抽象，未实现查单的通道返回 empty ⇒ 保持现状转人工）。 */
+    private void weChatQueryClosure(MerchantWithdrawRequest request, String idemKey) {
+        if (idemKey == null || idemKey.isBlank()) {
+            return;
+        }
+        try {
+            Optional<PayoutChannel.BillState> state = payoutChannelRegistry.find(request.getPayChannel())
+                    .flatMap(channel -> channel.queryBill(idemKey));
+            if (state.isEmpty()) {
+                return;
+            }
+            PayoutChannel.BillState bill = state.get();
+            if (bill.success()) {
+                self.finalizeFromChannel(request.getRequestId(), true, bill.channelOrderNo(),
+                        "查单确认已到账");
+            } else if (bill.failed()) {
+                self.finalizeFromChannel(request.getRequestId(), false, bill.channelOrderNo(),
+                        "查单确认渠道终态=" + bill.rawState() + "（" + bill.detail() + "）");
+            }
+        } catch (RuntimeException e) {
+            log.warn("payout query closure failed requestId={} err={}", request.getRequestId(), e.toString());
+        }
+    }
+
+    /** 确认收款票据（对外返回体；不含任何敏感账号信息）。 */
+    public record PayoutConfirmTicket(Long requestId, String packageInfo, Instant expireAt,
+                                      Long amountCents, String payChannel) {
+    }
+
     /** 申请/审核落库结果：是否需要在事务提交后发起打款。 */
     public record PayoutGate(MerchantWithdrawRequestDto dto, boolean shouldPayout, long requestId) {
         static PayoutGate done(MerchantWithdrawRequestDto dto) {
@@ -748,32 +873,46 @@ public class MerchantWithdrawService {
     static final long PAYING_TIMEOUT_MINUTES = WithdrawPayoutPolicy.PAYING_TIMEOUT_MINUTES;
 
     /**
-     * PAYING 超过 {@link #PAYING_TIMEOUT_MINUTES} 分钟的提现单兜底处置：
-     * MOCK 渠道置 FAILED 并按 cancelFailed 同口径解冻（之后可走 payout() 重试，重试会重新冻结）；
-     * 真实渠道不自动置失败（F3：回执丢失时自动失败会造成「已出款+已解冻」双重支出），转人工核对渠道单。
+     * PAYING 超时的兜底扫描（MA-407 后分两步）。
      *
-     * @return 本次处理单数
+     * <p>🔴 <b>本方法刻意不加 {@code @Transactional}</b>：第 ① 步要向渠道查单（HTTP I/O），
+     * 渠道调用绝不能包在数据库事务里（长事务 + 锁等待，`check:tx-boundary-channel-call` 也会红）。
+     *
+     * <p>处置顺序：
+     * <ol>
+     *   <li><b>先查单</b>：确认模式下的 PAYING 单据大多是「用户在微信里确认了、回调还没到」，
+     *       查单能直接收口成 PAID / FAILED —— 这是把「卡 PAYING」变成「自动到账」的关键一步；</li>
+     *   <li>查不到终态才走原策略：MOCK 置 FAILED 解冻（可重试）；真实渠道保持 PAYING 转人工
+     *       （F3：回执丢失时自动失败 = 双重支出）。</li>
+     * </ol>
+     *
+     * @return 本次推进（落终态）的单数
      */
-    @Transactional
     public int failStalePayingWithdraws() {
         Instant cutoff = Instant.now().minus(PAYING_TIMEOUT_MINUTES, java.time.temporal.ChronoUnit.MINUTES);
         List<MerchantWithdrawRequest> stale =
                 withdrawMapper.findByStatusAndUpdatedAtBefore("PAYING", cutoff);
-        int failed = 0;
+        int progressed = 0;
         for (MerchantWithdrawRequest staleRequest : stale) {
             try {
-                if (failSingleStalePaying(staleRequest.getRequestId())) {
-                    failed++;
+                // ① 渠道查单收口（事务外）
+                if ("PAYING".equals(staleRequest.getStatus())) {
+                    weChatQueryClosure(staleRequest, staleRequest.getIdemKey());
+                }
+                // ② 仍未终态才按超时策略处理（独立短事务 + 钱包锁）
+                if (self.failSingleStalePaying(staleRequest.getRequestId())) {
+                    progressed++;
                 }
             } catch (Exception e) {
                 log.warn("stale PAYING merchant withdraw sweep failed requestId={} err={}",
                         staleRequest.getRequestId(), e.toString());
             }
         }
-        return failed;
+        return progressed;
     }
 
-    private boolean failSingleStalePaying(long requestId) {
+    @Transactional
+    public boolean failSingleStalePaying(long requestId) {
         return runWithMerchantWalletLock(requireRequest(requestId).getMerchantId(), () -> {
             MerchantWithdrawRequest request = requireRequest(requestId);
             if (!"PAYING".equals(request.getStatus())) {
@@ -788,10 +927,11 @@ public class MerchantWithdrawService {
                         WithdrawPayoutPolicy.payingTimeoutManualNote(request.getPayChannel(), request.getAmountCents()));
                 return false;
             }
-            request.setStatus("FAILED");
-            request.setPayoutMessage(WithdrawPayoutPolicy.payingTimeoutFailMessage(PAYING_TIMEOUT_MINUTES));
-            request.setUpdatedAt(Instant.now());
-            withdrawMapper.updateById(request);
+            // 🔴 条件 UPDATE：与渠道回调/查单收口并发时，拿快照直写会覆盖已落终态的单
+            if (withdrawMapper.finalizeIfPaying(requestId, "FAILED", Instant.now(), request.getPayoutRef(),
+                    WithdrawPayoutPolicy.payingTimeoutFailMessage(PAYING_TIMEOUT_MINUTES)) == 0) {
+                return false;
+            }
             merchantWalletService.releaseFrozen(request.getMerchantId(), request.getAmountCents(),
                     WITHDRAW, String.valueOf(request.getRequestId()), "提现打款超时释放");
             auditService.appendLog(0L, "MERCHANT_WITHDRAW_PAYOUT_TIMEOUT", BIZ_MERCHANT_WITHDRAW,

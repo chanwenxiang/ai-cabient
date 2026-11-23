@@ -18,6 +18,17 @@ public interface MerchantWithdrawRequestMapper extends BaseTradeMapper<MerchantW
     }
 
     /**
+     * 按渠道幂等键反查单据（MA-407 确认模式回调入口）。
+     *
+     * <p>渠道回调只带 {@code out_bill_no}（= 我们的 idem_key），必须能单点反查，
+     * 否则回调只能「收到但不知道是哪笔」。
+     */
+    default Optional<MerchantWithdrawRequest> findByIdemKey(String idemKey) {
+        return Optional.ofNullable(selectOne(Wrappers.<MerchantWithdrawRequest>lambdaQuery()
+                .eq(MerchantWithdrawRequest::getIdemKey, idemKey)));
+    }
+
+    /**
      * 抢「出款权」：把单据从指定状态<b>条件</b>迁移到 PAYING。
      *
      * <p>返回 1 才算拿到出款资格；返回 0 说明状态已被别的调用改走（并发重入 / 提现锁
@@ -33,6 +44,24 @@ public interface MerchantWithdrawRequestMapper extends BaseTradeMapper<MerchantW
                 .set(MerchantWithdrawRequest::getUpdatedAt, now)
                 .eq(MerchantWithdrawRequest::getRequestId, requestId)
                 .eq(MerchantWithdrawRequest::getStatus, fromStatus));
+    }
+
+    /**
+     * 渠道终态落库的<b>汇聚点</b>（MA-407 确认模式回调 / 查单收口共用）。
+     *
+     * <p>🔴 必须条件 UPDATE（{@code WHERE status='PAYING'}）：定时清扫与渠道回调可能同时到，
+     * 拿快照直接写会把「已 PAID」改回 FAILED 或反之。返回 0 行 = 已被别的调用推走，整条放弃。
+     */
+    default int finalizeIfPaying(long requestId, String toStatus, Instant now,
+                                 String payoutRef, String payoutMessage) {
+        return update(null, Wrappers.<MerchantWithdrawRequest>lambdaUpdate()
+                .set(MerchantWithdrawRequest::getStatus, toStatus)
+                .set(MerchantWithdrawRequest::getUpdatedAt, now)
+                .set(MerchantWithdrawRequest::getPayoutRef, payoutRef)
+                .set(MerchantWithdrawRequest::getPayoutMessage, payoutMessage)
+                .set("PAID".equals(toStatus), MerchantWithdrawRequest::getPaidAt, now)
+                .eq(MerchantWithdrawRequest::getRequestId, requestId)
+                .eq(MerchantWithdrawRequest::getStatus, "PAYING"));
     }
 
     default List<MerchantWithdrawRequest> findByMerchantIdOrderByCreatedAtDesc(String merchantId, int limit) {

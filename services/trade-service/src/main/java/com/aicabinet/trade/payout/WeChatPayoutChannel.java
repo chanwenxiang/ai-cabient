@@ -86,6 +86,50 @@ public class WeChatPayoutChannel implements PayoutChannel {
         if (openid == null || openid.isBlank()) {
             return PayoutResult.rejected("微信提现收款账户缺少 openid（请在收款账户中绑定微信）");
         }
+        return transferProperties.confirmMode()
+                ? transferConfirmMode(command, openid)
+                : transferAuthorizedMode(command, openid);
+    }
+
+    /**
+     * 用户确认收款模式（默认）：建单即锁定资金，等用户在微信里点「确认收款」。
+     *
+     * <p>返回 {@code awaitingUserConfirm} 而不是成功/失败——上层保持 PAYING，
+     * 由 {@code /api/v2/payout/wechat/transfer-notify} 与定时查单收口。
+     */
+    private PayoutResult transferConfirmMode(PayoutCommand command, String openid) {
+        try {
+            WeChatTransferClient.ConfirmBillResponse bill = transferClient.createConfirmBill(
+                    command.idemKey(), openid, command.netCents(), command.remark());
+            if (bill.isSuccess()) {
+                return PayoutResult.paid(bill.transferBillNo(), "微信商家转账成功（确认模式·即时到账）");
+            }
+            if (bill.isTerminalFail()) {
+                return PayoutResult.rejected("微信转账终态=" + bill.state());
+            }
+            if (bill.awaitingUserConfirm()) {
+                return PayoutResult.awaitingUserConfirm(bill.transferBillNo(), bill.packageInfo(),
+                        "已发起转账，等待用户在小程序内确认收款（24 小时内有效）");
+            }
+            // 既非终态也非待确认（如 PROCESSING/TRANSFERING）⇒ 结果未定，保持 PAYING 查单收口
+            throw new PayoutPendingException(
+                    "微信转账非终态 state=" + bill.state() + "，保持 PAYING 待查单", command.idemKey());
+        } catch (WeChatTransferClient.DefiniteFailure e) {
+            return PayoutResult.rejected(e.getMessage());
+        } catch (PayoutPendingException e) {
+            throw e;
+        } catch (PayoutChannel.PayeeIncompatibleException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            log.error("wechat transfer(bills) uncertain: requestId={}, idemKey={}, reason={}",
+                    command.requestId(), command.idemKey(), e.getClass().getSimpleName());
+            throw new PayoutPendingException("微信转账结果不确定（" + e.getClass().getSimpleName()
+                    + "），保持 PAYING 转人工", command.idemKey());
+        }
+    }
+
+    /** 用户授权免确认模式（白名单产品）：授权后同步返回终态，无需回调闭环。 */
+    private PayoutResult transferAuthorizedMode(PayoutCommand command, String openid) {
         String outAuthorizationNo = authorizationNoFor(openid);
         try {
             WeChatTransferClient.TransferResponse response = transferClient.transfer(
@@ -118,6 +162,29 @@ public class WeChatPayoutChannel implements PayoutChannel {
             throw new PayoutPendingException("微信转账结果不确定（" + e.getClass().getSimpleName() + "），保持 PAYING 转人工",
                     command.idemKey());
         }
+    }
+
+    /** 当前收款模式（运营台展示用）。 */
+    public String mode() {
+        return transferProperties.mode();
+    }
+
+    @Override
+    public java.util.Optional<BillState> queryBill(String idemKey) {
+        if (idemKey == null || idemKey.isBlank() || !isReady()) {
+            return java.util.Optional.empty();
+        }
+        WeChatTransferClient.QueryOutcome outcome = transferClient.queryOutcome(idemKey);
+        if (!outcome.found() || outcome.bill() == null) {
+            return java.util.Optional.empty();
+        }
+        WeChatTransferClient.TransferResponse bill = outcome.bill();
+        String state = bill.state();
+        boolean success = bill.isSuccess();
+        boolean failed = bill.isFail();
+        String detail = bill.describeFail().orElse(state);
+        return java.util.Optional.of(new BillState(state, success, failed,
+                bill.transferBillNo(), detail));
     }
 
     /**

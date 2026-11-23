@@ -119,6 +119,20 @@
             <text v-if="w.paidAt || w.createdAt" class="row-sub">{{
               formatTime(w.paidAt || w.createdAt)
             }}</text>
+            <!-- MA-407 确认收款模式：渠道已锁资金、等用户在微信点确认。不给入口钱会吊在渠道，
+                 24h 后微信自动退回（定时查单才落 FAILED 并解冻）——所以这里必须有按钮。 -->
+            <view
+              v-if="canConfirmPayout(w)"
+              class="confirm-row"
+              role="button"
+              aria-label="去微信确认收款"
+              @click="openConfirmPage(w)"
+            >
+              <text class="confirm-btn">{{
+                confirmingId === Number(w.requestId) ? '正在打开微信…' : '去确认收款'
+              }}</text>
+              <text class="confirm-hint">已提交微信，需你确认收款后到账（24 小时内有效）</text>
+            </view>
           </view>
           <empty-state
             v-if="!(overview.recentWithdraws || []).length"
@@ -182,7 +196,13 @@ import {
 } from '@aicabinet/shared-uni/format';
 import EmptyState from '@aicabinet/shared-uni/components/empty-state.vue';
 import { isRetriableMpTransportError } from '@aicabinet/shared-uni/request';
-import { merchantApi, isMerchantLoggedIn, handleUnauthorized, hasPerm } from '@/utils/merchant-api';
+import {
+  merchantApi,
+  isMerchantLoggedIn,
+  handleUnauthorized,
+  hasPerm,
+  fetchWithdrawConfirmTicket
+} from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import type {
   OpenApiLineWalletOverviewDto,
@@ -311,6 +331,85 @@ function formatSigned(cents?: number) {
 
 function withdrawStatus(status?: string) {
   return displayLabel(cfg.value.withdrawStatusDict, status, '未知状态');
+}
+
+/** 正在拉起的提现单（防连点：微信确认页是半屏页，连点会叠多张）。 */
+const confirmingId = ref<number | null>(null);
+
+/** 微信 JSAPI 最小声明（小程序全局对象，uni 无包装）。 */
+interface WxMerchantTransferApi {
+  canIUse?: (name: string) => boolean;
+  requestMerchantTransfer?: (opts: {
+    mchId: string;
+    appId: string;
+    package: string;
+    success?: (r: { errMsg?: string }) => void;
+    fail?: (r: { errMsg?: string }) => void;
+  }) => void;
+}
+
+/**
+ * 哪些提现单有「去确认收款」入口：商户 + 微信通道 + PAYING 三者同时成立。
+ *
+ * <p>线长提现走银行通道、且线长端没有确认入口（后端也直接判失败并说清原因），
+ * 所以这里必须按角色 + 通道裁剪——否则按钮点了只会报错。
+ */
+function canConfirmPayout(w: { status?: string; payChannel?: string }) {
+  return props.role === 'merchant' && w.status === 'PAYING' && w.payChannel === 'WECHAT';
+}
+
+/**
+ * MA-407 确认收款模式：取票据 → `wx.requestMerchantTransfer` 拉起微信确认页。
+ *
+ * 🔴 三个纪律：
+ *  ① mchId/appId 用服务端下发的（必须与建单时一致），不猜；
+ *  ② `success` 只代表「用户点完了」，<b>不等于</b>已到账——到账以微信回调/查单为准，
+ *    故这里刷新状态而不是直接改本地状态；
+ *  ③ 票据 404（过期）或 409（已终态）都顺手 `load()` 一次，让状态与真实一致。
+ */
+async function openConfirmPage(w: { requestId?: number | string }) {
+  if (confirmingId.value != null || w.requestId == null) return;
+  const requestId = Number(w.requestId);
+  confirmingId.value = requestId;
+  try {
+    const ticket = await fetchWithdrawConfirmTicket(w.requestId);
+    // #ifdef MP-WEIXIN
+    const wx = (globalThis as unknown as { wx?: WxMerchantTransferApi }).wx;
+    if (
+      !wx ||
+      typeof wx.requestMerchantTransfer !== 'function' ||
+      (typeof wx.canIUse === 'function' && !wx.canIUse('requestMerchantTransfer'))
+    ) {
+      showError('当前微信版本不支持确认收款，请升级微信后重试');
+      return;
+    }
+    wx.requestMerchantTransfer({
+      mchId: ticket.mchId,
+      appId: ticket.appId,
+      package: ticket.packageInfo,
+      success: () => {
+        showSuccess('已确认收款，到账后本页自动更新');
+        // 回调/查单可能略慢于用户点击，留 2s 再刷新一次，避免「点了还显示待确认」
+        setTimeout(() => void load(), 2000);
+      },
+      fail: (r) => {
+        showError(
+          r?.errMsg?.includes(':cancel')
+            ? '已取消确认，24 小时内可再次确认收款'
+            : '打开微信确认页失败，请稍后重试'
+        );
+      }
+    });
+    // #endif
+    // #ifndef MP-WEIXIN
+    showError('请在微信中打开商户端完成确认收款');
+    // #endif
+  } catch (e) {
+    showError(e instanceof Error ? e.message : '获取确认信息失败');
+    void load();
+  } finally {
+    confirmingId.value = null;
+  }
 }
 
 function ledgerTitleOf(l: { entryType?: string; remark?: string }) {
@@ -640,6 +739,32 @@ defineExpose({ reload: load });
 }
 .row-sub.fail {
   color: var(--color-danger);
+}
+/* MA-407 确认收款入口：整行可点（rpx 高 ≥ 88 才够手指命中），边框用品牌色强调「有动作待你处理」 */
+.confirm-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  /* 满宽 + 88rpx：整行都是热区（微信触控规范），也让 check:mp-touch-target-ratchet 能量出短边 */
+  width: 100%;
+  min-height: 88rpx;
+  box-sizing: border-box;
+  margin-top: 14rpx;
+  padding: 14rpx 20rpx;
+  border: 1rpx solid var(--brand, #0d9488);
+  border-radius: var(--radius-control);
+}
+.confirm-btn {
+  flex-shrink: 0;
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  color: var(--brand, #0d9488);
+}
+.confirm-hint {
+  flex: 1;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle, #94a3b8);
+  line-height: 1.4;
 }
 .status {
   color: var(--brand, #0d9488);

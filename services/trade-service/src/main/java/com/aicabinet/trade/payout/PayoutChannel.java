@@ -2,6 +2,8 @@ package com.aicabinet.trade.payout;
 
 import com.aicabinet.common.constants.CabinetConstants;
 
+import java.util.Optional;
+
 /**
  * 提现打款通道抽象：WECHAT / ALIPAY / BANK 三通道统一出口。
  *
@@ -64,6 +66,28 @@ public interface PayoutChannel {
     PayoutResult transfer(PayoutCommand command);
 
     /**
+     * 按商户单号查渠道单据状态（MA-407 查询收口）。
+     *
+     * <p>默认返回 {@link Optional#empty()}：银行/支付宝通道尚无查单实现，上层按「查不到」处理
+     * （保持现状转人工），<b>不得</b>当成「确定失败」。
+     */
+    default Optional<BillState> queryBill(String idemKey) {
+        return Optional.empty();
+    }
+
+    /**
+     * 渠道单据状态（归一化后的三态）。
+     *
+     * @param rawState 渠道原始状态串（排障用）
+     * @param success  渠道确认已到账（终态）
+     * @param failed   渠道确认失败/已撤销（终态，可安全释放冻结）
+     * @param channelOrderNo 渠道单号
+     * @param detail   失败原因/备注
+     */
+    record BillState(String rawState, boolean success, boolean failed, String channelOrderNo, String detail) {
+    }
+
+    /**
      * 打款请求。
      *
      * @param requestId    本地提现单 ID（仅日志用，不可作渠道幂等号）
@@ -103,15 +127,36 @@ public interface PayoutChannel {
     /**
      * 打款结果。
      *
+     * <p>三种形态，<b>上层必须分开处理</b>（把「待用户确认」当成功或当失败都错）：
+     * <ol>
+     *   <li>{@code success=true} —— 钱已确认到账（终态）：落 PAID + 消费冻结；</li>
+     *   <li>{@code awaitingUserConfirm=true} —— 渠道已受理并<b>锁定资金</b>，等用户确认
+     *       （微信确认收款模式）：单据<b>保持 PAYING</b>，冻结不动，靠回调/查单收口；</li>
+     *   <li>两者皆 false —— 确定未出款：置 FAILED + 释放冻结。</li>
+     * </ol>
+     *
      * @param success    是否已确认出款成功
+     * @param awaitingUserConfirm 是否已受理待用户确认（资金锁定但未到账）
      * @param channelOrderNo 渠道单号（对账用；失败时可为 null）
      * @param message    面向运营的失败原因/备注
+     * @param confirmPackage 拉起用户确认页的 package（仅 awaitingUserConfirm 时非空）
      */
-    record PayoutResult(boolean success, String channelOrderNo, String message) {
+    record PayoutResult(boolean success, boolean awaitingUserConfirm, String channelOrderNo,
+                        String message, String confirmPackage) {
 
-        /** 出款成功。 */
+        /** 出款成功（终态）。 */
         public static PayoutResult paid(String channelOrderNo, String message) {
-            return new PayoutResult(true, channelOrderNo, message);
+            return new PayoutResult(true, false, channelOrderNo, message, null);
+        }
+
+        /**
+         * 渠道已受理、资金已锁定、<b>等用户确认</b>（微信确认收款模式）。
+         *
+         * <p>🔴 不是成功也不是失败：上层保持 PAYING，且<b>绝不释放冻结</b>——钱已经在渠道侧锁着了。
+         */
+        public static PayoutResult awaitingUserConfirm(String channelOrderNo, String confirmPackage,
+                                                       String message) {
+            return new PayoutResult(false, true, channelOrderNo, message, confirmPackage);
         }
 
         /**
@@ -119,7 +164,7 @@ public interface PayoutChannel {
          * 上层据此释放冻结并置 FAILED。
          */
         public static PayoutResult rejected(String message) {
-            return new PayoutResult(false, null, message);
+            return new PayoutResult(false, false, null, message, null);
         }
 
         /**
@@ -127,8 +172,8 @@ public interface PayoutChannel {
          * 上层按「确定未出款」处理（释放冻结），但文案须与业务拒绝区分，避免误判为商户问题。
          */
         public static PayoutResult notReady(String channel, String requiredAuth) {
-            return new PayoutResult(false, null,
-                    channel + " 提现通道未接入（需完成" + requiredAuth + "后方可出款）");
+            return new PayoutResult(false, false, null,
+                    channel + " 提现通道未接入（需完成" + requiredAuth + "后方可出款）", null);
         }
     }
 

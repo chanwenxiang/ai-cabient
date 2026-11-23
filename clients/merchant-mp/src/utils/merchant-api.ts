@@ -1335,3 +1335,35 @@ function uploadJiangyiCapturePhotoOnce(barCode: string, filePath: string): Promi
     });
   });
 }
+
+// ---------- MA-407 确认收款（商家转账 · 用户确认收款模式） ----------
+
+/**
+ * 「去确认收款」票据（服务端 25h TTL；丢了只影响体验，不影响资金正确性）。
+ *
+ * 🔴 mchId/appId 必须用服务端下发的，**不要**拿 `wx.getAccountInfoSync()` 猜：
+ * 这笔提现的收款 openid 来自消费者端授权，而 `wx.requestMerchantTransfer` 的 appId
+ * 必须与「创建转账单据时的 appid」一致，否则微信拉不起确认页（商户端小程序自己的 appId 未必是那个）。
+ */
+export interface WithdrawConfirmTicket {
+  requestId: number;
+  packageInfo: string;
+  expireAt: string;
+  amountCents?: number;
+  payChannel?: string;
+  mchId: string;
+  appId: string;
+}
+
+/**
+ * 取确认收款票据。后端顺带查单自愈：
+ * 已到账 → 409（前端刷新即可），票据过期/已用 → 404（提示刷新后重试，不要反复弹确认页）。
+ */
+export function fetchWithdrawConfirmTicket(
+  requestId: number | string
+): Promise<WithdrawConfirmTicket> {
+  return request<WithdrawConfirmTicket>(
+    MerchantEndpoints.walletWithdrawConfirmTicket(requestId),
+    'GET'
+  );
+}

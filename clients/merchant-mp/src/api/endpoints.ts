@@ -64,6 +64,12 @@ export const MerchantEndpoints = {
   lineWalletWithdraw: `${API_PREFIX}/merchant/line-wallet/withdraw`,
   wallet: `${API_PREFIX}/merchant/wallet`,
   walletWithdraw: `${API_PREFIX}/merchant/wallet/withdraw`,
+  /**
+   * MA-407 确认收款模式：取「去确认收款」票据（package_info + mchId + appId），
+   * 供小程序 `wx.requestMerchantTransfer` 拉起微信确认页。仅微信通道 + PAYING 单有票据。
+   */
+  walletWithdrawConfirmTicket: (requestId: number | string) =>
+    `${API_PREFIX}/merchant/wallet/withdraws/${encodeURIComponent(String(requestId))}/confirm-ticket`,
   /** 结算概览 / 日结 / 批次（导出另见 settlementsExport） */
   settlementsOverview: `${API_PREFIX}/merchant/settlements/overview`,
   settlementsDaily: (from: string, to: string) =>

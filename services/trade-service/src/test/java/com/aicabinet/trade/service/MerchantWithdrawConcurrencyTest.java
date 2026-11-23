@@ -91,7 +91,7 @@ class MerchantWithdrawConcurrencyTest {
                 payoutAccountService, payoutAccountMapper,
                 merchantFeaturePackService, null, merchantScopeService, permissionService, auditService,
                 distributedLockService, null, WithdrawPolicyResolver.ymlOnly(properties),
-                payoutChannelRegistry, orderRevenueSplitMapper, withdrawEligibilityService, null, null, null);
+                payoutChannelRegistry, orderRevenueSplitMapper, withdrawEligibilityService, null, null, org.mockito.Mockito.mock(com.aicabinet.trade.payout.PayoutConfirmTicketStore.class), null);
         ReflectionTestUtils.setField(service, "self", service);
 
         // V307：所有用例共用一个可用的收款账户（默认对公 + BANK 通道）。
@@ -106,6 +106,8 @@ class MerchantWithdrawConcurrencyTest {
         // 委托给真实实现，未 stub 时恒返回 0 ⇒ 所有打款用例都会被「已有出款在进行中」拦住。
         // 这里默认让它抢到；专门测「抢不到」的用例在自己内部覆盖。
         lenient().when(withdrawMapper.claimForPayout(anyLong(), anyString(), any())).thenReturn(1);
+        // MA-407：超时扫描会先走渠道查单收口（注册表 find 必须给 Optional，否则裸 mock 返 null）
+        lenient().when(payoutChannelRegistry.find(anyString())).thenReturn(java.util.Optional.empty());
     }
 
     /**
@@ -274,6 +276,16 @@ class MerchantWithdrawConcurrencyTest {
         when(distributedLockService.tryLock(
                 MerchantWithdrawService.merchantWalletLockKey("M-1"), 60L, 5L))
                 .thenReturn(true);
+        // MA-407：终态落库走条件 UPDATE（finalizeIfPaying）。mock 的 default 方法恒返 0，
+        // 这里按真实语义回放：只有当前仍是 PAYING 才返回 1 行并改写状态。
+        when(withdrawMapper.finalizeIfPaying(eq(66L), eq("FAILED"), any(), any(), any()))
+                .thenAnswer(inv -> {
+                    if (!"PAYING".equals(stale.getStatus())) {
+                        return 0;
+                    }
+                    stale.setStatus("FAILED");
+                    return 1;
+                });
 
         assertEquals(1, service.failStalePayingWithdraws());
 

@@ -1438,6 +1438,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/v1/demo/ensure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ensure"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/sessions": {
         parameters: {
             query?: never;
@@ -1480,6 +1496,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/payout/wechat/transfer-notify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["transferNotify"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5702,6 +5734,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/dev/payment/wechat/notify/mock/{orderId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["mockNotify"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/dev/payment/recharge/{orderId}/mock-success": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["confirmMockRecharge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/dev/payment/alipay/notify/mock/{orderId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["mockNotify_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/coupons/use": {
         parameters: {
             query?: never;
@@ -6446,6 +6526,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["exists"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/demo/context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["context"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9572,6 +9668,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["wallet"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/wallet/withdraws/{requestId}/confirm-ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["withdrawConfirmTicket"];
         put?: never;
         post?: never;
         delete?: never;
@@ -13096,6 +13208,26 @@ export interface components {
             /** Format: int64 */
             assetId?: number;
             eventType: string;
+        };
+        ApiResponseDemoContext: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["DemoContext"];
+        };
+        DemoContext: {
+            deviceId?: string;
+            consumerPhone?: string;
+            /** Format: int64 */
+            consumerUserId?: number;
+            fallbackSkuId?: string;
+            /** Format: int64 */
+            skuCount?: number;
+            /** Format: int64 */
+            deviceInventoryLines?: number;
+            /** Format: int64 */
+            warehouseLotCount?: number;
+            warehouseId?: string;
         };
         CreateSessionRequest: {
             deviceId: string;
@@ -19442,6 +19574,24 @@ export interface components {
             recentLedgers?: components["schemas"]["MerchantWalletLedgerDto"][];
             recentWithdraws?: components["schemas"]["MerchantWithdrawRequestDto"][];
         };
+        ApiResponseWithdrawConfirmTicketDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["WithdrawConfirmTicketDto"];
+        };
+        WithdrawConfirmTicketDto: {
+            /** Format: int64 */
+            requestId?: number;
+            packageInfo?: string;
+            /** Format: date-time */
+            expireAt?: string;
+            /** Format: int64 */
+            amountCents?: number;
+            payChannel?: string;
+            mchId?: string;
+            appId?: string;
+        };
         ApiResponseMerchantTrendDto: {
             /** Format: int32 */
             code?: number;
@@ -23690,6 +23840,26 @@ export interface operations {
             };
         };
     };
+    ensure: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDemoContext"];
+                };
+            };
+        };
+    };
     create: {
         parameters: {
             query?: never;
@@ -23755,6 +23925,33 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["ApiResponseSessionDto"];
                 };
+            };
+        };
+    };
+    transferNotify: {
+        parameters: {
+            query?: never;
+            header: {
+                "Wechatpay-Timestamp": string;
+                "Wechatpay-Nonce": string;
+                "Wechatpay-Signature": string;
+                "Wechatpay-Serial"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": string;
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -31207,6 +31404,72 @@ export interface operations {
             };
         };
     };
+    mockNotify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    confirmMockRecharge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseRechargeOrderDto"];
+                };
+            };
+        };
+    };
+    mockNotify_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
     useCoupon: {
         parameters: {
             query: {
@@ -32438,6 +32701,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseMapStringObject"];
+                };
+            };
+        };
+    };
+    context: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDemoContext"];
                 };
             };
         };
@@ -36908,6 +37191,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseMerchantWalletOverviewDto"];
+                };
+            };
+        };
+    };
+    withdrawConfirmTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                requestId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseWithdrawConfirmTicketDto"];
                 };
             };
         };

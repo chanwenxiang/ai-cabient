@@ -199,6 +199,8 @@ aicabinet:
   # MA-407：微信商家转账（用户授权免确认模式）业务参数
   wechat-transfer:
     enabled: ${WECHAT_TRANSFER_ENABLED:false}
+    # CONFIRM=用户确认收款（商家转账开通即可用）；AUTHORIZED=用户授权免确认（白名单产品）
+    mode: ${WECHAT_PAYOUT_MODE:CONFIRM}
     scene-id: ${WECHAT_PAYOUT_SCENE_ID:1005}
     report-job-type: ${WECHAT_PAYOUT_REPORT_JOB:商户经营者}
     report-reward-note: ${WECHAT_PAYOUT_REWARD_NOTE:平台结算款提现}

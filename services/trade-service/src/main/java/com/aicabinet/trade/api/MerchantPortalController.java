@@ -6,6 +6,7 @@ import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.api.support.MerchantPortalControllerSupport;
 import com.aicabinet.trade.api.dto.SatelliteSkuOptionDto;
+import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.domain.JiangyiSkuJiangyiLink;
 import com.aicabinet.trade.dto.JiangyiRestockDtos.PhoneCapturePolicy;
 import com.aicabinet.trade.dto.OrderVideoPlaylistDto;
@@ -15,6 +16,7 @@ import com.aicabinet.trade.service.AuthService;
 import com.aicabinet.trade.service.DeviceFaultOrderService;
 import com.aicabinet.trade.service.MerchantFinanceService;
 import com.aicabinet.trade.service.MerchantPortalService;
+import com.aicabinet.trade.service.MerchantWithdrawService;
 import com.aicabinet.trade.service.JiangyiPhoneCaptureService;
 import com.aicabinet.trade.service.JiangyiProductStateService;
 import com.aicabinet.trade.service.MerchantScopeService;
@@ -31,6 +33,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 
 import java.nio.charset.StandardCharsets;
@@ -59,6 +62,8 @@ public class MerchantPortalController {
     private final JiangyiProductStateService jiangyiProductStateService;
     private final JiangyiPhoneCaptureService jiangyiPhoneCaptureService;
     private final AdminAuditService auditService;
+    /** MA-407 确认收款：下发 mchId/appId 供小程序拉起微信确认页（必须是建单时那一对）。 */
+    private final WeChatPayProperties wxPayProperties;
 
     public MerchantPortalController(MerchantPortalService merchantPortalService,
                                     MerchantPortalControllerSupport support,
@@ -69,7 +74,8 @@ public class MerchantPortalController {
                                     MerchantScopeService merchantScopeService,
                                     JiangyiProductStateService jiangyiProductStateService,
                                     JiangyiPhoneCaptureService jiangyiPhoneCaptureService,
-                                    AdminAuditService auditService) {
+                                    AdminAuditService auditService,
+                                    WeChatPayProperties wxPayProperties) {
         this.merchantPortalService = merchantPortalService;
         this.support = support;
         this.procurementService = procurementService;
@@ -80,6 +86,7 @@ public class MerchantPortalController {
         this.jiangyiProductStateService = jiangyiProductStateService;
         this.jiangyiPhoneCaptureService = jiangyiPhoneCaptureService;
         this.auditService = auditService;
+        this.wxPayProperties = wxPayProperties;
     }
 
     @GetMapping("/me")
@@ -1000,6 +1007,38 @@ public class MerchantPortalController {
             HttpServletRequest request, @Valid @RequestBody WithdrawApplyRequest body) {
         return ApiResponse.ok(support.merchantWithdrawService().merchantApply(
                 userId(request), body.amountCents(), body.requestNo(), body.merchantId()));
+    }
+
+    /**
+     * MA-407 确认收款模式：取「去确认收款」票据（package_info）以拉起微信确认页。
+     *
+     * <p>顺带查单自愈：用户刚在微信确认完、回调未到时会当场落 PAID，返回 409 让前端刷新状态。
+     * 票据过期/已用 → 404，前端提示「刷新后重试」，不要反复弹确认页。
+     */
+    @RequiresPermissions("merchant:wallet:view")
+    @GetMapping("/wallet/withdraws/{requestId}/confirm-ticket")
+    public ApiResponse<WithdrawConfirmTicketDto> withdrawConfirmTicket(
+            HttpServletRequest request, @PathVariable long requestId) {
+        MerchantWithdrawService.PayoutConfirmTicket ticket =
+                support.merchantWithdrawService().confirmTicket(userId(request), requestId);
+        return ApiResponse.ok(new WithdrawConfirmTicketDto(ticket.requestId(), ticket.packageInfo(),
+                ticket.expireAt(), ticket.amountCents(), ticket.payChannel(),
+                wxPayProperties.mchId(), wxPayProperties.appId()));
+    }
+
+    /**
+     * MA-407 确认收款票据（对小程序返回体）。
+     *
+     * <p>🔴 <b>为什么还要下发 mchId / appId</b>：{@code wx.requestMerchantTransfer} 的
+     * {@code mchId}、{@code appId}、{@code package} 三项缺一不可，且 {@code appId}
+     * 必须与<b>创建转账单据时用的 appid 一致</b>——微信按 (mchId, appId) 定位商户与小程序绑定关系。
+     * 提现的收款 openid 来自消费者端授权（{@code WeChatPayProperties.appId}），与商户端小程序自身的
+     * appId 不是同一个，让前端拿 {@code wx.getAccountInfoSync()} 去猜必然拉不起确认页。
+     * 故由服务端下发真值。
+     */
+    public record WithdrawConfirmTicketDto(Long requestId, String packageInfo, Instant expireAt,
+                                           Long amountCents, String payChannel,
+                                           String mchId, String appId) {
     }
 
     private static ResponseEntity<byte[]> csvAttachment(String filename, byte[] csv) {

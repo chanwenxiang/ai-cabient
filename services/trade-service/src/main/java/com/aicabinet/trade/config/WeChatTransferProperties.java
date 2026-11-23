@@ -13,6 +13,19 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "aicabinet.wechat-transfer")
 public record WeChatTransferProperties(
         boolean enabled,
+        /**
+         * 收款模式（MA-407）：
+         * <ul>
+         *   <li>{@code CONFIRM} —— 用户确认收款模式（{@code /transfer-bills} + JSAPI 拉起确认页）。
+         *       商家转账产品开通即可用；<b>每笔都要用户点一次确认</b>。</li>
+         *   <li>{@code AUTHORIZED} —— 用户授权免确认模式（{@code /user-confirm-authorization}
+         *       + {@code /transfer-bills/transfer}）。体验最好，但该产品<b>是白名单</b>
+         *       （官方社区答复：未全量开放、不支持自主申请），2026-11-23 实测本商户号
+         *       返回 403 NO_AUTH「商户无权限发起授权或权限被处罚」。</li>
+         * </ul>
+         * 默认 {@code CONFIRM}：先保证「能真打款」，白名单下来后改一行环境变量即可切免确认。
+         */
+        String mode,
         /** 转账场景 ID，商户平台「产品中心→商家转账→产品设置」查看。默认 1005=佣金报酬。 */
         String sceneId,
         /** 佣金报酬报备：岗位类型 info_content（默认「商户经营者」）。 */
@@ -28,6 +41,15 @@ public record WeChatTransferProperties(
 ) {
     public String sceneId() {
         return isBlank(sceneId) ? "1005" : sceneId.trim();
+    }
+
+    /** 归一化收款模式：只认 AUTHORIZED，其余（含空）按 CONFIRM —— 宁可多让用户点一次，也不静默走白名单接口。 */
+    public String mode() {
+        return "AUTHORIZED".equalsIgnoreCase(isBlank(mode) ? "" : mode.trim()) ? "AUTHORIZED" : "CONFIRM";
+    }
+
+    public boolean confirmMode() {
+        return "CONFIRM".equals(mode());
     }
 
     public String reportJobType() {

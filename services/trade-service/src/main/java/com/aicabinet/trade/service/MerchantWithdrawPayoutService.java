@@ -134,6 +134,12 @@ public class MerchantWithdrawPayoutService {
             if (result.success()) {
                 return PayoutResult.success(channel.channel(), result.channelOrderNo(), result.message());
             }
+            if (result.awaitingUserConfirm()) {
+                // 确认收款模式：渠道已锁定资金，等用户确认。**不能**当成功（钱没到账），
+                // 也**不能**当失败（会释放冻结造成「已锁资金 + 本地解冻」双重支出）。
+                return PayoutResult.awaitingUserConfirm(channel.channel(), result.channelOrderNo(),
+                        result.confirmPackage(), result.message());
+            }
             return PayoutResult.failure(channel.channel(), result.channelOrderNo(), result.message());
         } catch (PayoutChannel.PayoutPendingException e) {
             // 🔴 结果不确定 ⇒ 绝不当失败（会释放冻结），直接传播给上层保持 PAYING
@@ -226,14 +232,28 @@ public class MerchantWithdrawPayoutService {
             boolean success,
             String payChannel,
             String payoutRef,
-            String message
+            String message,
+            /** 确认收款模式：已建单待用户确认（资金已锁，未到账）。 */
+            boolean awaitingUserConfirm,
+            /** 拉起微信确认页所需的 package（仅待确认时有值）。 */
+            String confirmPackage
     ) {
         static PayoutResult success(String channel, String ref, String message) {
-            return new PayoutResult(true, channel, ref, message);
+            return new PayoutResult(true, channel, ref, message, false, null);
+        }
+
+        /** 兼容 4 参构造（历史调用点/测试）：等价于「非待确认」。 */
+        public PayoutResult(boolean success, String payChannel, String payoutRef, String message) {
+            this(success, payChannel, payoutRef, message, false, null);
         }
 
         static PayoutResult failure(String channel, String ref, String message) {
-            return new PayoutResult(false, channel, ref, message);
+            return new PayoutResult(false, channel, ref, message, false, null);
+        }
+
+        static PayoutResult awaitingUserConfirm(String channel, String ref, String confirmPackage,
+                                                String message) {
+            return new PayoutResult(false, channel, ref, message, true, confirmPackage);
         }
     }
 }

@@ -99,7 +99,7 @@ class MerchantWithdrawDoubleReviewTest {
                 distributedLockService, approvalWorkflowService,
                 WithdrawPolicyResolver.ymlOnly(properties),
                 payoutChannelRegistry, orderRevenueSplitMapper, withdrawEligibilityService,
-                null, null, null);
+                null, null, org.mockito.Mockito.mock(com.aicabinet.trade.payout.PayoutConfirmTicketStore.class), null);
         ReflectionTestUtils.setField(service, "self", service);
 
         lenient().when(withdrawMapper.findById(any())).thenAnswer(invocation -> readRow(invocation.getArgument(0)));

@@ -34,6 +34,8 @@ public class WebConfig implements WebMvcConfigurer {
             // 商家转账免确认收款授权结果通知（MA-407）。官方 4015901167 把
             // authorization_notify_url 列为必填 ⇒ 微信会真的往这里投递，漏白名单=渠道重投全 401。
             "/api/v2/payout/wechat/authorization-notify",
+            // 商家转账结果通知（MA-407 确认收款模式）：用户确认收款后到账的终态入口
+            "/api/v2/payout/wechat/transfer-notify",
             // 消费者公开公告
             "/api/v2/announcements/**",
             // 商品图/品牌 Logo/广告素材等 <img> 直链（H43：运营头像不公开，

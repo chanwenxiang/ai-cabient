@@ -158,12 +158,17 @@ public class WeChatTransferClient {
     }
 
     /**
-     * 🔴 错误码分类（官方 4014399371）——决定「释放冻结」还是「保持 PAYING 转人工」：
+     * 🔴 错误码分类（官方 4014399371 / 4012716434）——决定「释放冻结」还是「保持 PAYING 转人工」：
      * <ul>
-     *   <li>确定失败（可 rejected）：NOT_ENOUGH / USER_ERROR / ORDER_CLOSED / ALREADY_EXISTS(终态)；</li>
-     *   <li>结果不确定（必须 Pending，原单重试/查单）：429 频率 / 5xx / SYSTEM_ERROR / 未知码；
-     *       官方反复强调「非 200 不得换单号重试」，换单会重复出款。</li>
+     *   <li>确定失败（可 rejected）：NOT_ENOUGH / USER_ERROR / ORDER_CLOSED / ALREADY_EXISTS；</li>
+     *   <li><b>请求未被受理</b>（同样确定没出款，可 rejected）：NO_AUTH（产品未开通/无权限）、
+     *       PARAM_ERROR、SIGN_ERROR。这三类是**我方配置或参数错**，微信在校验阶段就拒了，
+     *       不会产生任何单据；若按「结果不确定」处理，单据会永久卡 PAYING 且冻结不释放
+     *       （2026-11-23 实测：免确认授权 403 NO_AUTH「产品权限未开通」）；</li>
+     *   <li>结果不确定（必须 Pending，原单重试/查单）：429 频率 / 5xx / SYSTEM_ERROR /
+     *       INVALID_REQUEST（可能是「单据已存在」等状态类冲突）/ 未知码。</li>
      * </ul>
+     * 仍保留官方铁律：<b>非 200 绝不换单号重试</b>，换单会重复出款。
      */
     private void classifyError(String action, String outBillNo, int status, String code, String message) {
         String codeSafe = code == null ? "" : code;
@@ -171,10 +176,15 @@ public class WeChatTransferClient {
         log.warn("wechat transfer {} error: outBillNo={}, status={}, code={}, message={}",
                 action, outBillNo, status, codeSafe, msgSafe);
         boolean definiteFail = switch (codeSafe) {
-            case "NOT_ENOUGH", "USER_ERROR", "ORDER_CLOSED", "ALREADY_EXISTS" -> true;
+            case "NOT_ENOUGH", "USER_ERROR", "ORDER_CLOSED", "ALREADY_EXISTS",
+                 "NO_AUTH", "PARAM_ERROR", "SIGN_ERROR" -> true;
             default -> false;
         };
         String detail = "微信转账失败（HTTP " + status + "，code=" + codeSafe + "，" + msgSafe + "）";
+        if ("NO_AUTH".equals(codeSafe)) {
+            detail = "微信商家转账不可用（" + status + " NO_AUTH " + msgSafe
+                    + "）——商户平台「产品中心→商家转账」未开通或权限被处罚，请先开通产品";
+        }
         if (definiteFail) {
             throw new DefiniteFailure(detail);
         }
@@ -195,6 +205,95 @@ public class WeChatTransferClient {
         log.debug("wechat transfer query outBillNo={}", outBillNo);
         JsonNode resp = v3.get(path);
         return toResponse(resp);
+    }
+
+    /**
+     * 用户确认收款模式：创建转账单（官方 4012716434，{@code POST /transfer-bills}）。
+     *
+     * <p>与免确认的差别：
+     * <ul>
+     *   <li>收款人用 {@code openid} 定位（免确认用 out_authorization_no）；</li>
+     *   <li>成功后<b>资金已被锁定但未到账</b>，返回 {@code WAIT_USER_CONFIRM} + {@code package_info}，
+     *       必须由用户在微信里确认才到账（24h 不确认自动关闭退回）；</li>
+     *   <li>因此本方法的返回<b>不是终态</b>，调用方必须把「待用户确认」与「已到账」分开表达。</li>
+     * </ul>
+     *
+     * <p>🔴 {@code notify_url} 官方标为选填，但我们**必须**配上：不配就只能靠定时查单收口
+     * （用户确认后到账，本地要等下一轮扫描才认账，商户端体验与对账都差一截）。
+     * 未配时记 WARN 而不是静默：这是可观测性红线，不是可选项。
+     */
+    public ConfirmBillResponse createConfirmBill(String outBillNo, String openid, long netCents, String remark) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("appid", payProperties.appId());
+        body.put("out_bill_no", outBillNo);
+        body.put("transfer_scene_id", properties.sceneId());
+        body.put("openid", openid);
+        body.put("transfer_amount", netCents);
+        body.put("transfer_remark", remark);
+        List<Map<String, String>> reportInfos = new ArrayList<>();
+        reportInfos.add(report("岗位类型", properties.reportJobType()));
+        reportInfos.add(report("报酬说明", properties.reportRewardNote()));
+        body.put("transfer_scene_report_infos", reportInfos);
+        if (properties.userRecvPerception() != null && !properties.userRecvPerception().isBlank()) {
+            body.put("user_recv_perception", properties.userRecvPerception().trim());
+        }
+        String notifyUrl = properties.transferNotifyUrl();
+        if (notifyUrl == null || notifyUrl.isBlank()) {
+            log.warn("wechat transfer notify_url 未配置，转账结果只能靠定时查单收口（WECHAT_PAYOUT_TRANSFER_NOTIFY_URL）");
+        } else {
+            body.put("notify_url", notifyUrl.trim());
+        }
+        log.info("wechat transfer-bills create outBillNo={}, amountCents={}", outBillNo, netCents);
+        WeChatPayV3Client.HttpResult result =
+                v3.postWithStatus("/v3/fund-app/mch-transfer/transfer-bills", body);
+        if (!result.is2xx()) {
+            classifyError("transfer-bills", outBillNo, result.status(), result.code(), result.message());
+        }
+        JsonNode resp = result.body();
+        return new ConfirmBillResponse(resp.path("state").asText(null),
+                resp.path("transfer_bill_no").asText(null),
+                resp.path("package_info").asText(null),
+                resp.toString());
+    }
+
+    /** 查单（带 HTTP 语义）：404/NOT_FOUND 代表「该商户单号在微信侧没有单据」。 */
+    public QueryOutcome queryOutcome(String outBillNo) {
+        String path = "/v3/fund-app/mch-transfer/transfer-bills/out-bill-no/" + outBillNo;
+        WeChatPayV3Client.HttpResult result = v3.getWithStatus(path);
+        if (result.is2xx()) {
+            return new QueryOutcome(true, toResponse(result.body()), null);
+        }
+        boolean notFound = result.status() == 404
+                || "NOT_FOUND".equals(result.code()) || "ORDER_NOT_EXIST".equals(result.code());
+        if (notFound) {
+            return new QueryOutcome(false, null, "NOT_FOUND");
+        }
+        log.warn("wechat transfer query failed: outBillNo={}, status={}, code={}, message={}",
+                outBillNo, result.status(), result.code(), result.message());
+        return new QueryOutcome(false, null, "QUERY_FAILED:" + result.status() + ":" + result.code());
+    }
+
+    /** 查单结果：found=false 且 reason=NOT_FOUND ⇒ 渠道侧确定没有这笔单据。 */
+    public record QueryOutcome(boolean found, TransferResponse bill, String reason) {
+        public boolean billNotFound() {
+            return !found && "NOT_FOUND".equals(reason);
+        }
+    }
+
+    /** 确认模式建单应答（非终态）。 */
+    public record ConfirmBillResponse(String state, String transferBillNo, String packageInfo,
+                                      String rawResponse) {
+        public boolean awaitingUserConfirm() {
+            return "WAIT_USER_CONFIRM".equals(state) || "ACCEPTED".equals(state);
+        }
+
+        public boolean isSuccess() {
+            return "SUCCESS".equals(state);
+        }
+
+        public boolean isTerminalFail() {
+            return "FAIL".equals(state) || "CANCELLED".equals(state);
+        }
     }
 
     private TransferResponse toResponse(JsonNode resp) {

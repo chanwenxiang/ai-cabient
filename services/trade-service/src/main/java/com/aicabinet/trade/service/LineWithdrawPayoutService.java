@@ -126,6 +126,15 @@ public class LineWithdrawPayoutService {
             if (result.success()) {
                 return PayoutResult.success(channel.channel(), result.channelOrderNo(), result.message());
             }
+            if (result.awaitingUserConfirm()) {
+                // 🔴 线长侧暂未接入「确认收款」交互（没有确认入口，钱会在渠道侧锁 24 小时后自动退回，
+                //    单据却一直挂 PAYING）。宁可当场拒并释放冻结，也不要把线长的钱吊在半空。
+                log.warn("line withdraw payout blocked: wechat confirm-mode not wired requestId={}, orderNo={}",
+                        request.getRequestId(), result.channelOrderNo());
+                return PayoutResult.failure(channel.channel(), result.channelOrderNo(),
+                        "微信通道当前为「用户确认收款」模式，线长提现尚未接入确认入口；"
+                                + "请改用银行通道或等免确认授权模式开通后再提现");
+            }
             return PayoutResult.failure(channel.channel(), result.channelOrderNo(), result.message());
         } catch (PayoutChannel.PayoutPendingException e) {
             // 🔴 结果不确定 ⇒ 绝不当失败（会释放冻结），直接传播给上层保持 PAYING
