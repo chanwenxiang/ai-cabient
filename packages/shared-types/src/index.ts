@@ -217,6 +217,10 @@ export type DeviceInfo = import('./generated/admin-models').OpenApiAdminDeviceDt
 export type MerchantDeviceInfo =
   import('./generated/openapi').components['schemas']['MerchantDeviceDto'];
 
+/** 我的邀请摘要（营销 2：邀请码 + 已邀请人数 + 已结算人数；`GET /api/v2/member/invite/me`） */
+export type OpenApiMemberInviteSummaryDto =
+  import('./generated/openapi').components['schemas']['MemberInviteSummaryDto'];
+
 /** 商户柜机设置读模型（`GET .../devices/{id}/settings`） */
 export type OpenApiMerchantDeviceSettingsDto =
   import('./generated/openapi').components['schemas']['MerchantDeviceSettingsDto'];
