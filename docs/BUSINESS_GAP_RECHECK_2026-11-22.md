@@ -235,5 +235,12 @@
 | 小程序 | 分享卡带 `invite`；落地记码（7 天 TTL）；登录成功后补绑（`utils/member-invite.ts`） |
 | 验证 | trade 全量 `3357` 用例通过（`Tests run: 3357, Failures: 0`）；小程序 `member-invite.test.ts` 8/8；负向注入三处（去掉结算幂等 / 去掉消费记录闸 / 关掉码过期）各自精确变红后还原，md5 一致 |
 
+**regen 已补**：起 trade 容器（`IMAGE_TAG=d1a88366`）后现抓 `/v3/api-docs` 重生成，`openapi.ts` +
+`OpenApiMemberInviteSummaryDto` 别名同批提交；`check-openapi-regen-required` 与
+`OPENAPI_CHECK_REGEN=1 check-openapi-types` 均零 diff。
+
+**端到端实测**（dev 容器 + 真 token）：`GET /member/invite/me` 返回真实 8 位码并落库（`member.invite_code`）；
+绑自己 400、码不存在 404；无 token 两端口均 401（路由已挂上，不是 404）。
+
 ⚠️ **未做设备级反作弊**：全仓没有设备指纹/同 IP 画像，写「同设备 24h 去重」只会得到一个恒真判据。
 当前可验证的约束是：同一 `userId` 只能绑一次 + 绑定前必须零消费 + 邀请人券只在真实支付后发。
