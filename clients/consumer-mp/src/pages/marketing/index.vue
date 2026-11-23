@@ -120,28 +120,46 @@ import {
 import { menuIcon } from '@/utils/menu-icon';
 import { thumbUrl } from '@/utils/product-thumb';
 import { isSafeCampaignPath, openCampaignPath } from '@/utils/campaign-path';
+import { flushPendingInvite, rememberInviteCode } from '@/utils/member-invite';
 
 /*
  * F3 原生分享（竞品标配，本仓此前两端 0 命中）。
- * 活动页是对外扩散价值最高的一页，故除首页外先补这里；同样是「无奖励转发」，
- * 不带 invite/归因参数 —— 先量化分享量，再决定是否上「分享领券」。
+ * 活动页是对外扩散价值最高的一页，故除首页外先补这里。
+ *
+ * F3+（营销 2 / V501，2026-11-23 用户拍板）：分享卡开始带 `invite` 归因参数，
+ * 好友落地点在 onLoad 里记住、登录后补绑；奖励只发券不发余额（见 docs/BUSINESS_GAP_RECHECK_2026-11-22.md §11.4）。
+ * 没拿到自己的邀请码时（未登录/接口失败）退回无参数分享——降级成「纯扩散」，不阻断分享。
  */
 const SHARE_TITLE = 'AI开门柜 · 领券与热门活动';
 const SHARE_PATH = '/pages/marketing/index';
+
+/** 自己的邀请码（登录后拉取，用于拼分享卡链接） */
+const myInviteCode = ref('');
+
+function sharePathWithInvite() {
+  const code = myInviteCode.value;
+  return code ? `${SHARE_PATH}?invite=${encodeURIComponent(code)}` : SHARE_PATH;
+}
 
 const banners = ref<MarketingBannerDto[]>([]);
 
 /** 分享卡带图：优先取广告横幅图，兜底品牌静态分享图（官方卡片规范 5:4） */
 onShareAppMessage(() => ({
   title: SHARE_TITLE,
-  path: SHARE_PATH,
+  path: sharePathWithInvite(),
   imageUrl:
     thumbUrl(banners.value.find((b) => !!b.imageUrl)?.imageUrl, 400) || '/static/share-card.jpg'
 }));
-onShareTimeline(() => ({ title: SHARE_TITLE }));
+// 朋友圈分享只认 query（不认 path），故这里单独拼一次
+onShareTimeline(() => ({
+  title: SHARE_TITLE,
+  query: myInviteCode.value ? `invite=${encodeURIComponent(myInviteCode.value)}` : ''
+}));
 
 // 开启右上角「发送给朋友/分享到朋友圈」原生入口（与首页同口径；失败静默）
-onLoad(() => {
+onLoad((query) => {
+  // 好友从分享卡进来：先记住邀请码（游客态也能记），登录后由 flushPendingInvite 补绑
+  rememberInviteCode((query as Record<string, string> | undefined)?.invite);
   // #ifdef MP-WEIXIN
   if (typeof uni.showShareMenu === 'function') {
     uni.showShareMenu({ menus: ['shareAppMessage', 'shareTimeline'], fail: () => {} });
@@ -209,8 +227,16 @@ async function load() {
       } catch {
         couponCount.value = 0;
       }
+      // 营销 2：先补绑落地时记住的邀请码（游客态记下、登录后绑定），再拉自己的码供分享卡
+      await flushPendingInvite();
+      try {
+        myInviteCode.value = (await consumerApi.memberInviteMe())?.inviteCode || '';
+      } catch {
+        myInviteCode.value = '';
+      }
     } else {
       couponCount.value = 0;
+      myInviteCode.value = '';
     }
   } catch (e) {
     if (!campaigns.value.length) {

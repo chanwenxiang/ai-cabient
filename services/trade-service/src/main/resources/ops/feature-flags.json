@@ -372,6 +372,13 @@
       "unit": "分钟"
     },
     {
+      "key": "marketing.invite.enabled",
+      "group": "扩展功能",
+      "type": "TEXT",
+      "default": "true",
+      "description": "邀请拉新开关（营销 2 / V501）：关闭后不再接受新绑定、首单不再给邀请人发券；已发出的券不回收。券面额与门槛在「券模板」页改（system_code=INVITE_NEWCOMER / INVITE_INVITER）"
+    },
+    {
       "key": "device.offline.auto_unlock_enabled",
       "group": "设备与柜机",
       "type": "TEXT",

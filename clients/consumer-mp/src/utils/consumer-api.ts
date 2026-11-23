@@ -763,6 +763,20 @@ export async function deleteConsumerAccount() {
   }
 }
 
+/**
+ * 我的邀请摘要（镜像后端 `MemberInviteSummaryDto`）。
+ *
+ * <p>⚠️ 暂用本地声明：`packages/shared-types` 的 `OpenApi*` 别名要跑 `pnpm gen:api-types`
+ * （需 live spec）才会生成。等下次重建 trade 容器并 regen 后，把这里换成
+ * `import('@aicabinet/shared-types').OpenApiMemberInviteSummaryDto` 并删掉本接口。
+ */
+export interface MemberInviteSummary {
+  inviteCode: string | null;
+  inviteeCount: number;
+  rewardedCount: number;
+  enabled: boolean;
+}
+
 export const consumerApi = {
   account: () => request<import('@aicabinet/shared-types').AccountDto>(ConsumerEndpoints.account),
   createRechargePrepay: (
@@ -1074,6 +1088,11 @@ export const consumerApi = {
     request<import('@aicabinet/shared-types').OpenApiMemberProfileDto>(
       ConsumerEndpoints.memberProfile
     ),
+  /** 我的邀请码 + 邀请进度（营销 2）。首次调用会给存量会员惰性补码。 */
+  memberInviteMe: () => request<MemberInviteSummary>(ConsumerEndpoints.memberInviteMe),
+  /** 绑定邀请人；409=已绑过/已有消费记录，404=码无效，400=绑自己或参数不合法 */
+  bindMemberInvite: (inviteCode: string) =>
+    request<MemberInviteSummary>(ConsumerEndpoints.memberInviteBind, 'POST', { inviteCode }),
   memberPoints: () =>
     request<import('@aicabinet/shared-types').OpenApiMemberPointsSummaryDto>(
       ConsumerEndpoints.memberPoints

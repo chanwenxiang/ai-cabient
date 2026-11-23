@@ -7,6 +7,7 @@ import com.aicabinet.trade.mapper.MemberMapper;
 import com.aicabinet.trade.mapper.MemberLevelRuleMapper;
 import com.aicabinet.trade.mapper.MemberPointsLogMapper;
 import com.aicabinet.trade.mapper.RechargeOrderMapper;
+import com.aicabinet.trade.support.InviteCodes;
 import com.aicabinet.common.dto.MemberLevelRuleDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,6 +58,7 @@ public class MemberService {
     private final MemberPointsLogMapper pointsLogRepository;
     private final RechargeOrderMapper rechargeOrderRepository;
     private final DistributedLockService distributedLockService;
+    private final FirstOrderInviteSettler inviteSettler;
     private final MemberService self;
 
     public MemberService(MemberMapper memberRepository,
@@ -64,12 +66,14 @@ public class MemberService {
                          MemberPointsLogMapper pointsLogRepository,
                          RechargeOrderMapper rechargeOrderRepository,
                          DistributedLockService distributedLockService,
+                         FirstOrderInviteSettler inviteSettler,
                          @Lazy MemberService self) {
         this.memberRepository = memberRepository;
         this.levelRuleRepository = levelRuleRepository;
         this.pointsLogRepository = pointsLogRepository;
         this.rechargeOrderRepository = rechargeOrderRepository;
         this.distributedLockService = distributedLockService;
+        this.inviteSettler = inviteSettler;
         this.self = self;
     }
 
@@ -86,6 +90,8 @@ public class MemberService {
             member.setMemberLevel(LEVEL_NORMAL);
             member.setTotalSpent(BigDecimal.ZERO);
             member.setOrderCount(0);
+            // 建号即发邀请码：分享链接要能带出可归因的码（V501 之前该列从未被写过）
+            member.setInviteCode(nextInviteCode());
             member.setCreatedAt(Instant.now());
 
             return memberRepository.save(member);
@@ -218,10 +224,40 @@ public class MemberService {
                 return null;
             }
             applyMemberStatsDelta(member, BigDecimal.valueOf(paidAmountCents, 2));
+            settleInviteRewardIfNeeded(member, orderId);
             memberRepository.save(member);
             self.earnPoints(member, paidAmountCents, orderId);
             return null;
         });
+    }
+
+    /**
+     * 营销 2：被邀请人的首单支付成功后，把奖励券发给邀请人。
+     *
+     * <p>为什么不严格判「首单」而判 {@code invite_settled_at IS NULL}：绑定要求
+     * {@code order_count = 0}，所以「绑定后的第一次支付」就是首单；用「未结算」当判据还能
+     * 顺带获得**失败重试**——发券失败时不写结算时间，下一单再试，而不是永远丢掉。
+     *
+     * <p>🔴 本方法在持有 member 行锁的事务里执行：只允许改内存里的 member 字段（随调用方
+     * 那次 save 落库），发券必须走 {@link FirstOrderInviteSettler}（独立事务、不碰 member 行）。
+     */
+    private void settleInviteRewardIfNeeded(Member member, String orderId) {
+        Long inviterUserId = member.getInvitedBy();
+        if (inviterUserId == null || member.getInviteSettledAt() != null) {
+            return;
+        }
+        try {
+            Long couponId = inviteSettler.settleInviterReward(member.getUserId(), inviterUserId, orderId);
+            if (couponId == null) {
+                return; // 活动关闭 / 券模板下架 / 发券冲突：保持未结算，下一单重试
+            }
+            member.setInviteSettledAt(Instant.now());
+            member.setInviterRewardCouponId(couponId);
+        } catch (Exception e) {
+            // 发券失败不能连累会员统计与积分（调用方已 catch 本方法外的异常，但这里必须局部兜住，
+            // 否则异常会把整条 onOrderPaid 事务标记成 rollback-only）
+            log.warn("invite reward settle failed userId={} order={}", member.getUserId(), orderId, e);
+        }
     }
 
     /**
@@ -261,8 +297,15 @@ public class MemberService {
         member.setMemberLevel(LEVEL_NORMAL);
         member.setTotalSpent(BigDecimal.ZERO);
         member.setOrderCount(0);
+        // 与 createMember 同源：两条建号路径都必须带码，否则「有的用户能分享、有的不能」
+        member.setInviteCode(nextInviteCode());
         member.setCreatedAt(Instant.now());
         return memberRepository.save(member);
+    }
+
+    /** 邀请码生成（唯一索引兜底，这里做一次查重避免偶发碰撞把建号打挂）。 */
+    private String nextInviteCode() {
+        return InviteCodes.next(memberRepository::existsInviteCode);
     }
 
     /** 按当前等级积分倍率返积分（1 元 = points_rate 积分），积分有效期 365 天。 */

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 @Mapper
@@ -28,6 +29,19 @@ public interface CouponDefinitionMapper extends BaseTradeMapper<CouponDefinition
                              @Param("activityId") Long activityId);
 
     CouponDefinition findByIdForUpdateRaw(@Param("couponDefId") Long couponDefId);
+
+    /**
+     * 按系统固定标识取「在架」券模板 id（V501 新增 {@code system_code}）。
+     *
+     * <p>只按代码语义取、只认 ACTIVE：券模板被运营下架时这里返回 null ⇒ 调用方跳过发券，
+     * 而不是发到 {@code issueToUser} 里再抛「优惠券已停用」——那会把一次「运营下架」
+     * 变成用户侧的错误弹窗。也刻意不按券名取：券名是运营可改的展示文案，改名就会失联。
+     */
+    @Select("""
+            SELECT coupon_def_id FROM coupon_definition
+             WHERE system_code = #{systemCode} AND status = 'ACTIVE'
+            """)
+    Long findActiveIdBySystemCode(@Param("systemCode") String systemCode);
 
     default Optional<CouponDefinition> findByIdForUpdate(Long couponDefId) {
         return Optional.ofNullable(findByIdForUpdateRaw(couponDefId));

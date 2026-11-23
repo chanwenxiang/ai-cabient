@@ -223,3 +223,17 @@
 #### 11.4.3 一句话结论
 
 6 项里 **1 项是判错（资金 8 已实现）**，4 项建议关闭或降级（资金 6 降为字段、资金 14 / 营销 3 不做、设备 7 只关「柜机耗材」而标签纸归仓储域），**只有营销 2 值得排期**——且成本主要落在反作弊与「首单才归因」两处，不在发券。
+
+### 11.5 营销 2 已落地（2026-11-23，提交见下）
+
+| 层 | 落点 |
+|---|---|
+| 迁移 | `V501__member_invite_attribution.sql`：`member` 加 `invited_at` / `invitee_coupon_id` / `invite_settled_at` / `inviter_reward_coupon_id`；**恢复 `idx_member_invite_code` 唯一偏索引**（V128 删掉后一直没有恢复）；`coupon_definition` 加 `system_code` + 两张券模板（`INVITE_NEWCOMER` 满 19 减 5 / 7 天；`INVITE_INVITER` 5 元无门槛 / 30 天） |
+| 服务 | `MemberInviteService`：绑定的四条拒绝（码无效 404 / 绑自己 400 / 已绑过 409 / 已有消费记录 409）+ 结算幂等；`InviteCouponIssuer` 用 `REQUIRES_NEW` 把发券与调用方事务隔开（发券失败不能把「钱已收」的会员统计一起回滚） |
+| 挂点 | `MemberService`：两条建号路径都发邀请码；`onOrderPaid` 里做首单结算 —— 三条支付路径（支付分回调 / 落单结算 / 欠款补缴）**共用这一处**，不在三处各写一遍 |
+| 开关 | `marketing.invite.enabled`（默认 true，已登记 + seed）；券面额/门槛改券模板即可，不走发版 |
+| 小程序 | 分享卡带 `invite`；落地记码（7 天 TTL）；登录成功后补绑（`utils/member-invite.ts`） |
+| 验证 | trade 全量 `3357` 用例通过（`Tests run: 3357, Failures: 0`）；小程序 `member-invite.test.ts` 8/8；负向注入三处（去掉结算幂等 / 去掉消费记录闸 / 关掉码过期）各自精确变红后还原，md5 一致 |
+
+⚠️ **未做设备级反作弊**：全仓没有设备指纹/同 IP 画像，写「同设备 24h 去重」只会得到一个恒真判据。
+当前可验证的约束是：同一 `userId` 只能绑一次 + 绑定前必须零消费 + 邀请人券只在真实支付后发。

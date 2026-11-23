@@ -1,14 +1,19 @@
 package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.common.dto.BindInviteRequest;
+import com.aicabinet.common.dto.MemberInviteSummaryDto;
 import com.aicabinet.common.dto.MemberProfileDto;
 import com.aicabinet.common.dto.MemberPointsLogDto;
 import com.aicabinet.common.dto.MemberPointsSummaryDto;
 import com.aicabinet.common.dto.PointsRedeemItemDto;
+import com.aicabinet.trade.service.MemberInviteService;
+import com.aicabinet.trade.service.MemberService;
 import com.aicabinet.trade.service.PointsRedeemService;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.service.ConsumerMemberFacade;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -25,11 +30,17 @@ public class MemberController {
 
     private final ConsumerMemberFacade memberFacade;
     private final PointsRedeemService pointsRedeemService;
+    private final MemberInviteService inviteService;
+    private final MemberService memberService;
 
     public MemberController(ConsumerMemberFacade memberFacade,
-                            PointsRedeemService pointsRedeemService) {
+                            PointsRedeemService pointsRedeemService,
+                            MemberInviteService inviteService,
+                            MemberService memberService) {
         this.memberFacade = memberFacade;
         this.pointsRedeemService = pointsRedeemService;
+        this.inviteService = inviteService;
+        this.memberService = memberService;
     }
 
     @GetMapping("/profile")
@@ -68,5 +79,28 @@ public class MemberController {
 
     private static Long userId(HttpServletRequest request) {
         return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+    }
+
+    // ── 邀请（营销 2） ─────────────────────────────────────
+
+    /**
+     * 我的邀请码 + 邀请进度。首次访问的会员在这里补建 member 行（没有行就拿不到码）。
+     */
+    @GetMapping("/invite/me")
+    public ApiResponse<MemberInviteSummaryDto> inviteMe(HttpServletRequest request) {
+        Long userId = userId(request);
+        memberService.createMember(userId);
+        return ApiResponse.ok(inviteService.summary(userId));
+    }
+
+    /**
+     * 绑定邀请人。错误口径：码无效 404、已绑/已有消费记录 409、绑自己被 400 —— 前端据此分文案。
+     */
+    @PostMapping("/invite/bind")
+    public ApiResponse<MemberInviteSummaryDto> bindInvite(HttpServletRequest request,
+                                                          @Valid @RequestBody BindInviteRequest body) {
+        Long userId = userId(request);
+        memberService.createMember(userId);
+        return ApiResponse.ok(inviteService.bind(userId, body.inviteCode()));
     }
 }

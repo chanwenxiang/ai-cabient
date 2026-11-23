@@ -51,7 +51,7 @@ class MemberServiceDepositLevelTest {
     @BeforeEach
     void setUp() {
         memberService = new MemberService(memberRepository, levelRuleRepository, pointsLogRepository,
-                rechargeOrderRepository, distributedLockService, null);
+                rechargeOrderRepository, distributedLockService, (invitee, inviter, order) -> null, null);
         ReflectionTestUtils.setField(memberService, "self", memberService);
     }
 
