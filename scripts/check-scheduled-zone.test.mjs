@@ -42,9 +42,11 @@ function javaSrc(cronDefault, withZone = true) {
 }
 
 function ymlSrc(envName, cronDefault) {
-  return ['aicabinet:', '  reconciliation:', `    scheduled-cron: \${${envName}:${cronDefault}}`].join(
-    '\n'
-  );
+  return [
+    'aicabinet:',
+    '  reconciliation:',
+    `    scheduled-cron: \${${envName}:${cronDefault}}`
+  ].join('\n');
 }
 
 const run = (javaText, ymlText) =>
@@ -55,13 +57,19 @@ const run = (javaText, ymlText) =>
 
 // 1) 一致 ⇒ 绿
 {
-  const offenders = run(javaSrc('0 30 10,14 * * *'), ymlSrc('RECON_SCHEDULED_CRON', '0 30 10,14 * * *'));
+  const offenders = run(
+    javaSrc('0 30 10,14 * * *'),
+    ymlSrc('RECON_SCHEDULED_CRON', '0 30 10,14 * * *')
+  );
   check('注解默认 == yml 默认 ⇒ 绿', offenders.length === 0, offenders.join('|'));
 }
 
 // 2) MA-406 真实形态：注解 10:30 / yml 01:30 ⇒ 红，且必须点名是关键
 {
-  const offenders = run(javaSrc('0 30 10,14 * * *'), ymlSrc('RECON_SCHEDULED_CRON', '0 30 1 * * *'));
+  const offenders = run(
+    javaSrc('0 30 10,14 * * *'),
+    ymlSrc('RECON_SCHEDULED_CRON', '0 30 1 * * *')
+  );
   check('注解与 yml 默认不一致 ⇒ 红', offenders.length === 1, offenders.join('|'));
   check(
     '报错必须点名属性键与两侧取值',
@@ -81,17 +89,38 @@ const run = (javaText, ymlText) =>
 // 4) 缺 zone= ⇒ 红（原有判据不得被本次改动拆掉）
 {
   const offenders = run(javaSrc('0 30 10,14 * * *', false), ymlSrc('ENV', '0 30 10,14 * * *'));
-  check('@Scheduled(cron) 缺 zone= ⇒ 红', offenders.some((o) => o.includes('missing zone=')), offenders.join('|'));
+  check(
+    '@Scheduled(cron) 缺 zone= ⇒ 红',
+    offenders.some((o) => o.includes('missing zone=')),
+    offenders.join('|')
+  );
 }
 
 // 5) 展平器与默认值解析：嵌套键、行内注释、裸值、无法解析的占位
 {
   const flat = flattenYml(
-    ['# 注释行', 'aicabinet:', '  schedule:', '    zone: Asia/Shanghai  # 行内注释', '  ratio: 1.5'].join('\n')
+    [
+      '# 注释行',
+      'aicabinet:',
+      '  schedule:',
+      '    zone: Asia/Shanghai  # 行内注释',
+      '  ratio: 1.5'
+    ].join('\n')
   );
-  check('flattenYml 展平嵌套键', flat.get('aicabinet.schedule.zone') === 'Asia/Shanghai', JSON.stringify([...flat]));
-  check('flattenYml 去行内注释', flat.get('aicabinet.ratio') === '1.5', String(flat.get('aicabinet.ratio')));
-  check('effectiveDefault 取 ${ENV:x} 的 x', effectiveDefault('${A:0 30 1 * * *}') === '0 30 1 * * *');
+  check(
+    'flattenYml 展平嵌套键',
+    flat.get('aicabinet.schedule.zone') === 'Asia/Shanghai',
+    JSON.stringify([...flat])
+  );
+  check(
+    'flattenYml 去行内注释',
+    flat.get('aicabinet.ratio') === '1.5',
+    String(flat.get('aicabinet.ratio'))
+  );
+  check(
+    'effectiveDefault 取 ${ENV:x} 的 x',
+    effectiveDefault('${A:0 30 1 * * *}') === '0 30 1 * * *'
+  );
   check('effectiveDefault 裸值原样', effectiveDefault('0 30 1 * * *') === '0 30 1 * * *');
   check('effectiveDefault 解析不了 ⇒ null（不猜）', effectiveDefault('${A:${B}}') === null);
 }

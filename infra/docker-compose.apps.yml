@@ -153,6 +153,9 @@ services:
       WECHAT_PLATFORM_CERT_AUTO_FETCH: ${WECHAT_PLATFORM_CERT_AUTO_FETCH:-true}
       # MA-407：微信商家转账（用户授权免确认）——场景/报备/授权回调业务参数
       WECHAT_TRANSFER_ENABLED: ${WECHAT_TRANSFER_ENABLED:-false}
+      # MA-407 收款模式：CONFIRM=用户确认收款（商家转账开通即可用）；AUTHORIZED=免确认（白名单产品）。
+      # 必须显式透传——否则「改 .env 却切不动模式」（yml 默认会把它吞掉）。
+      WECHAT_PAYOUT_MODE: ${WECHAT_PAYOUT_MODE:-CONFIRM}
       WECHAT_PAYOUT_SCENE_ID: ${WECHAT_PAYOUT_SCENE_ID:-1005}
       WECHAT_PAYOUT_REPORT_JOB: ${WECHAT_PAYOUT_REPORT_JOB:-商户经营者}
       WECHAT_PAYOUT_REWARD_NOTE: ${WECHAT_PAYOUT_REWARD_NOTE:-平台结算款提现}

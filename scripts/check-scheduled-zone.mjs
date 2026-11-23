@@ -69,10 +69,7 @@ export function flattenYml(text) {
     while (stack.length && stack[stack.length - 1].indent >= indent) stack.pop();
     stack.push({ indent, key });
     if (value === '') continue;
-    out.set(
-      stack.map((s) => s.key).join('.'),
-      value.replace(/^["']|["']$/g, '')
-    );
+    out.set(stack.map((s) => s.key).join('.'), value.replace(/^["']|["']$/g, ''));
   }
   return out;
 }
