@@ -178,8 +178,8 @@
 清缺口途中撞到一条比清单上任何缺口都更该先修的缺陷：**运营台 / 商户端的设备指令按钮，对当前唯一真实车队是假成功**。
 
 - **事实链**：将邑柜不接 MQTT，只连 `jiangyi-gateway` 的 WebSocket；我方已实现的 10 个 msgType 里**没有**自检、没有温控（`docs/JIANGYI_INTERFACE_CHECKLIST.md:30` 记「B WS 下行 17 条」，逐条对照）。
-- **代码路径**：`DeviceServiceClient` 只对**开门**做了 `isJiangyi` 分支（`:55` / `:72`）；`requestOpsCommand`（`:133`）与 `requestSetTargetTemp`（`:119`）直接发 device-service 的 MQTT ⇒ 发给没有订阅者的主题，接口当场回 200「已下发」，15s 后 `DeviceCommandTracker` 置 TIMEOUT。
-- **可达路径**：商户端 `POST /merchant/devices/{id}/commands`（`MerchantPortalController:169`）→ `AdminDeviceOpsService.executeForMerchant` → `reboot` → MQTT。**而将邑侧 `reboot`（§4.3.2.1）2026-10-23 就已实现并真机验过**（下发 → `rebootSure` → WS 断 → 约 28s 重连）。
+- **代码路径（行号指修复前 `2f13768d^`）**：`DeviceServiceClient` 只对**开门**做了 `isJiangyi` 分支（`:55` / `:72`）；`requestOpsCommand`（`:133`）与 `requestSetTargetTemp`（`:119`）直接发 device-service 的 MQTT ⇒ 发给没有订阅者的主题，接口当场回 200「已下发」，15s 后 `DeviceCommandTracker` 置 TIMEOUT。
+- **可达路径**：商户端 `POST /merchant/devices/{id}/commands`（`MerchantPortalController:166-171`，`deviceCommand`，`@PostMapping` 在 `:170`）→ `AdminDeviceOpsService.executeForMerchant` → `reboot` → MQTT。**而将邑侧 `reboot`（§4.3.2.1）2026-10-23 就已实现并真机验过**（下发 → `rebootSure` → WS 断 → 约 28s 重连）。
 - **修复**：新增单源能力表 `JiangyiCommandCapability`（GATEWAY / PLATFORM_ONLY / UNSUPPORTED）；`reboot` 转 `JiangyiDeviceOpsService`（复用「进行中业务」409 闸与审计，不另写第二份闸）；自检 / 设温明确 501；营业锁对将邑不再伪造 LOCK；温控计划写入侧拒绝启用（存量计划仍可停用）。
 - **类级收口**：门禁 `check:jiangyi-command-capability` —— 新增任何 `MQTT_CMD_*` 常量不声明将邑归属即红；15 断言夹具（真树绿 + 6 注入红）。
 
