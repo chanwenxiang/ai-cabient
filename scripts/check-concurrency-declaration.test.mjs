@@ -149,9 +149,18 @@ const WRITE_METHOD = `    public void updateStock(String deviceId) {
     '',
     '    public void payout(long requestId,'
   ];
-  const tailBad = ['                      Result result) {', '        walletMapper.updateById(row);', '    }', '}'];
+  const tailBad = [
+    '                      Result result) {',
+    '        walletMapper.updateById(row);',
+    '    }',
+    '}'
+  ];
   const bad = judge([
-    { file: 'X.java', content: [...head, ...tailBad].join('\n'), changedRanges: [{ start: 9, end: 9 }] }
+    {
+      file: 'X.java',
+      content: [...head, ...tailBad].join('\n'),
+      changedRanges: [{ start: 9, end: 9 }]
+    }
   ]);
   check(
     '多行签名方法被正确归属（不误报成上一个方法）',
