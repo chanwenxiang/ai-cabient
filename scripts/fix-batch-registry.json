@@ -2737,6 +2737,19 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "213dffae",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-405（备份自测不依赖宿主 python3 + _selftest 前缀隔离）",
+          "files": [
+            "scripts/backup-offsite-oss.sh"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
