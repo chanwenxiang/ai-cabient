@@ -12903,6 +12903,7 @@ export interface components {
             provider?: string;
             /** Format: date-time */
             occurredAt?: string;
+            explicitEmpty?: boolean;
         };
         ApiResponseVisionResultIngestResponseDto: {
             /** Format: int32 */
