@@ -158,6 +158,26 @@ function evaluate(src) {
     dispatchAt >= 0 && guardAt >= 0 && guardAt < dispatchAt,
     'requiresUserConfirmation() 必须在 channel.transfer( 之前判：建单后再判＝钱已锁渠道、本地已解冻'
   );
+
+  // ⑩ MA-409 终态白名单唯一真值源：官方 4012716434 逐字——终态=SUCCESS/FAIL/CANCELLED；
+  // CANCELING 是「撤销中（非终态），需查单确认」⇒ 混进终态判定＝渠道撤销中本地却已释放冻结。
+  check(
+    c.includes('isSuccessState') && c.includes('isTerminalFailState'),
+    '渠道终态必须经 isSuccessState/isTerminalFailState 唯一真值源判定'
+  );
+  check(
+    !/CANCELING/.test(c),
+    'WeChatTransferClient 里不得出现 CANCELING 字面量：它是非终态，混入终态判定＝撤销中就释放冻结'
+  );
+  check(
+    withdraw.includes('WeChatTransferClient.isSuccessState') &&
+      withdraw.includes('WeChatTransferClient.isTerminalFailState'),
+    '回调收口（handleTransferNotify）必须走 isSuccessState/isTerminalFailState 唯一真值源，不得手抄状态字面量'
+  );
+  check(
+    !/CANCELING"\s*\.\s*equals|equals\(\s*"CANCELING"/.test(withdraw),
+    '回调收口不得把 CANCELING 当终态失败（非终态，保持 PAYING 等查单收口）'
+  );
 }
 
 function readAll() {
@@ -251,8 +271,28 @@ function selfTest() {
     },
     'requiresUserConfirmation() 必须在 channel.transfer( 之前判'
   );
+  runFixture(
+    'MA-409 终态白名单混入 CANCELING',
+    (m) => {
+      m.client = m.client.replace(
+        'return "FAIL".equals(state) || "CANCELLED".equals(state);',
+        'return "FAIL".equals(state) || "CANCELLED".equals(state) || "CANCELING".equals(state);'
+      );
+    },
+    'CANCELING'
+  );
+  runFixture(
+    'MA-409 回调收口改回手抄字面量',
+    (m) => {
+      m.withdrawService = m.withdrawService.replace(
+        'WeChatTransferClient.isTerminalFailState(state)',
+        '"FAIL".equals(state) || "CANCELING".equals(state)'
+      );
+    },
+    '回调收口（handleTransferNotify）'
+  );
 
-  console.log('[check-wechat-transfer-channel] selftest: 正例绿、5 条负例全红，判据有效');
+  console.log('[check-wechat-transfer-channel] selftest: 正例绿、7 条负例全红，判据有效');
   if (process.exitCode) process.exit(process.exitCode);
 }
 

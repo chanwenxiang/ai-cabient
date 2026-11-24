@@ -227,7 +227,7 @@
     "check:jiangyi-receipt-offload": "node scripts/check-jiangyi-receipt-offload.test.mjs && node scripts/check-jiangyi-receipt-offload.mjs",
     "check:jiangyi-command-capability": "node scripts/check-jiangyi-command-capability.test.mjs && node scripts/check-jiangyi-command-capability.mjs",
     "check:status-write-cas": "node scripts/check-status-write-cas.test.mjs && node scripts/check-status-write-cas.mjs",
-    "check:wechat-transfer-channel": "node scripts/check-wechat-transfer-channel.mjs __selftest && node scripts/check-wechat-transfer-channel.mjs"
+    "check:wechat-transfer-channel": "node scripts/check-wechat-transfer-channel.mjs --selftest && node scripts/check-wechat-transfer-channel.mjs"
   },
   "engines": {
     "node": ">=24.18.0",

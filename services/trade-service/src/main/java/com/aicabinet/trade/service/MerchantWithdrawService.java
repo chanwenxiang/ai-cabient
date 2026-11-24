@@ -20,6 +20,7 @@ import com.aicabinet.trade.payout.PayoutChannelLimits;
 import com.aicabinet.trade.payout.PayoutChannelRegistry;
 import com.aicabinet.trade.payout.PayoutConfirmTicketStore;
 import com.aicabinet.trade.payout.PayoutConstants;
+import com.aicabinet.trade.payout.WeChatTransferClient;
 import com.aicabinet.trade.support.CsvCells;
 import com.aicabinet.trade.util.BizIds;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -830,13 +831,15 @@ public class MerchantWithdrawService {
             return Optional.empty();
         }
         long requestId = hit.get().getRequestId();
-        if ("SUCCESS".equals(state)) {
+        // 终态判定走渠道状态的唯一真值源（MA-409）：此前这里手抄了一份字面量且含 CANCELING
+        // ⇒ 渠道还在「撤销中」就落 FAILED 释放冻结。CANCELING 是非终态，等它走到 CANCELLED 再收口。
+        if (WeChatTransferClient.isSuccessState(state)) {
             finalizeFromChannel(requestId, true, transferBillNo, "微信转账到账（用户已确认收款）");
-        } else if ("FAIL".equals(state) || "CANCELLED".equals(state) || "CANCELING".equals(state)) {
+        } else if (WeChatTransferClient.isTerminalFailState(state)) {
             finalizeFromChannel(requestId, false, transferBillNo, "微信转账终态=" + state + "（回调）");
         } else {
-            // 非终态（WAIT_USER_CONFIRM / ACCEPTED / PROCESSING / TRANSFERING）：不动单据，
-            // 等下一次通知或定时查单——这里绝不能当失败处理（会误释放冻结）。
+            // 非终态（WAIT_USER_CONFIRM / ACCEPTED / PROCESSING / TRANSFERING / CANCELING）与未知 state：
+            // 不动单据，等下一次通知或定时查单——这里绝不能当失败处理（会误释放冻结）。
             log.info("wechat transfer notify 非终态忽略: requestId={}, state={}", requestId, state);
         }
         return Optional.of(requestId);

@@ -297,6 +297,28 @@ public class WeChatTransferClient {
         }
     }
 
+    /**
+     * 渠道单据状态的<b>唯一真值源</b>（官方 4012716434「发起转账」state 说明，2026-11-24 逐字核对）：
+     * <ul>
+     *   <li>终态成功：{@code SUCCESS}；</li>
+     *   <li>终态失败：{@code FAIL}、{@code CANCELLED}；</li>
+     *   <li>非终态（保持 PAYING，<b>绝不释放冻结</b>）：{@code ACCEPTED / PROCESSING / WAIT_USER_CONFIRM /
+     *       TRANSFERING / CANCELING}（原文「转账撤销中……需查单确认撤销的转账单据状态（非终态）」），
+     *       以及<b>任何未知或缺失</b>的 state。</li>
+     * </ul>
+     *
+     * <p>🔴 MA-409：终态必须用<b>白名单</b>判定。此前「终态失败」这条判据有三份手抄副本
+     * （查单应答判失败 / 建单应答判终态 / 回调收口里的字面量），其中两份把 {@code CANCELING} 当终态
+     * ⇒ 渠道还在撤销中，本地就已释放冻结。凡要判渠道状态一律走这两个方法，不得再抄字面量。
+     */
+    public static boolean isSuccessState(String state) {
+        return "SUCCESS".equals(state);
+    }
+
+    public static boolean isTerminalFailState(String state) {
+        return "FAIL".equals(state) || "CANCELLED".equals(state);
+    }
+
     /** 确认模式建单应答（非终态）。 */
     public record ConfirmBillResponse(String state, String transferBillNo, String packageInfo,
                                       String rawResponse) {
@@ -305,11 +327,11 @@ public class WeChatTransferClient {
         }
 
         public boolean isSuccess() {
-            return "SUCCESS".equals(state);
+            return isSuccessState(state);
         }
 
         public boolean isTerminalFail() {
-            return "FAIL".equals(state) || "CANCELLED".equals(state);
+            return isTerminalFailState(state);
         }
     }
 
@@ -328,26 +350,30 @@ public class WeChatTransferClient {
     }
 
     /**
-     * 转账应答。success=终态成功；pending=非终态（保持 PAYING）；
+     * 转账/查单应答。success=终态成功；pending=非终态（保持 PAYING）；
      * rejected=确定失败（可释放冻结）；failReason 为渠道失败原因。
+     *
+     * <p>三个谓词互斥且并集为全集：{@link #isSuccess()} 与 {@link #isTerminalFail()} 是白名单，
+     * 其余一律 {@link #isPending()} —— 未知/缺失 state 按「结果未定」处理（MA-409）。
      */
     public record TransferResponse(String state, String transferBillNo, String failReason,
                                     String rawResponse) {
         public boolean isSuccess() {
-            return "SUCCESS".equals(state);
+            return isSuccessState(state);
         }
 
+        /** 渠道终态失败（FAIL / CANCELLED）——<b>只有它</b>才允许上层释放冻结。 */
+        public boolean isTerminalFail() {
+            return isTerminalFailState(state);
+        }
+
+        /** 非终态：既非成功也非终态失败（含 CANCELING 与未知/缺失 state）⇒ 结果未定，保持 PAYING。 */
         public boolean isPending() {
-            return state != null && (state.equals("ACCEPTED") || state.equals("PROCESSING")
-                    || state.equals("TRANSFERING"));
-        }
-
-        public boolean isFail() {
-            return "FAIL".equals(state) || "CANCELLED".equals(state) || "CANCELING".equals(state);
+            return !isSuccess() && !isTerminalFail();
         }
 
         public Optional<String> describeFail() {
-            if (isFail()) {
+            if (isTerminalFail()) {
                 return Optional.of("微信转账终态=" + state
                         + (failReason != null ? "，原因=" + failReason : ""));
             }

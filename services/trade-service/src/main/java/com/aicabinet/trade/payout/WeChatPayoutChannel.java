@@ -153,14 +153,18 @@ public class WeChatPayoutChannel implements PayoutChannel {
             if (response.isSuccess()) {
                 return PayoutResult.paid(response.transferBillNo(), "微信商家转账成功（免确认）");
             }
-            if (response.isPending()) {
-                // 非终态：结果不确定，保持 PAYING（上层绝不释放冻结）
-                throw new PayoutPendingException(
-                        "微信转账非终态 state=" + response.state() + "，保持 PAYING 待查单",
-                        command.idemKey());
+            if (response.isTerminalFail()) {
+                // 只有渠道明确的终态失败（FAIL / CANCELLED）才允许释放冻结
+                return PayoutResult.rejected(response.describeFail()
+                        .orElse("微信转账失败 state=" + response.state()));
             }
-            return PayoutResult.rejected(response.describeFail()
-                    .orElse("微信转账失败 state=" + response.state()));
+            // 其余一律非终态/未知（ACCEPTED / PROCESSING / WAIT_USER_CONFIRM / TRANSFERING /
+            // CANCELING 及未知 state）：结果不确定，保持 PAYING（上层绝不释放冻结）。
+            // 🔴 MA-409：此前这里对「非成功且不在在途白名单」的状态兜底 rejected
+            //    ⇒ CANCELING 与任何未知 state 都被当失败释冻（方向错：不确定态必须兜底 Pending）。
+            throw new PayoutPendingException(
+                    "微信转账非终态 state=" + response.state() + "，保持 PAYING 待查单",
+                    command.idemKey());
         } catch (WeChatTransferClient.DefiniteFailure e) {
             return adjudicateDefiniteFailure(command, e);
         } catch (PayoutPendingException e) {
@@ -220,7 +224,7 @@ public class WeChatPayoutChannel implements PayoutChannel {
             if (bill.isSuccess()) {
                 return PayoutResult.paid(bill.transferBillNo(), "微信转账成功（查单裁决：单据已存在且已到账）");
             }
-            if (bill.isFail()) {
+            if (bill.isTerminalFail()) {
                 return PayoutResult.rejected("微信转账终态=" + bill.state() + "（查单裁决）");
             }
             throw new PayoutPendingException("单据已存在但仍在途 state=" + bill.state()
@@ -242,7 +246,7 @@ public class WeChatPayoutChannel implements PayoutChannel {
         WeChatTransferClient.TransferResponse bill = outcome.bill();
         String state = bill.state();
         boolean success = bill.isSuccess();
-        boolean failed = bill.isFail();
+        boolean failed = bill.isTerminalFail();
         String detail = bill.describeFail().orElse(state);
         return java.util.Optional.of(new BillState(state, success, failed,
                 bill.transferBillNo(), detail));
