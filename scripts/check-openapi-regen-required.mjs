@@ -104,7 +104,7 @@ const isDto = (p) =>
     /^services\/common\/.*\.java$/.test(p));
 
 const SHAPE_ANNOTATION =
-  /^\s*@(?:Get|Post|Put|Delete|Patch)Mapping\b|^\s*@RequestMapping\b|^\s*@(?:RequestParam|PathVariable|RequestBody|RequestHeader|ModelAttribute)\b/;
+  /^\s*@(?:Get|Post|Put|Delete|Patch)Mapping\b|^\s*@RequestMapping\b|^\s*@(?:RequestParam|PathVariable|RequestBody|ModelAttribute)\b/;
 const FIELD_DECL = /^\s*(?:private|protected)\s+[\w<>[\],.?\s]+\s+\w+\s*(?:=|;)/;
 
 const RECORD_DECL = /\brecord\s+[A-Za-z_$][\w$]*\s*(?:<[^<>]*>)?\s*\(/;
