@@ -193,6 +193,21 @@ public interface PaymentOperationMapper extends BaseTradeMapper<PaymentOperation
                                @Param("end") java.time.Instant end,
                                @Param("channel") String channel);
 
+    /** 日×渠道手续费账本净支出：CHANNEL_FEE 减 CHANNEL_FEE_REVERSAL。 */
+    @Select("""
+            SELECT COALESCE(SUM(CASE
+              WHEN operation_type = 'CHANNEL_FEE' THEN amount_cents
+              WHEN operation_type = 'CHANNEL_FEE_REVERSAL' THEN -amount_cents
+              ELSE 0 END), 0)
+            FROM payment_operation
+            WHERE status = 'COMPLETED'
+              AND created_at >= #{start} AND created_at < #{end}
+              AND UPPER(channel) = UPPER(#{channel})
+            """)
+    long sumChannelFeeBetween(@Param("start") java.time.Instant start,
+                              @Param("end") java.time.Instant end,
+                              @Param("channel") String channel);
+
     /**
      * 窗口内网关渠道（WECHAT/ALIPAY/MOCK）已完成充值退款合计（正数）。
      * 与 Mock/通道账单负向退款对齐。

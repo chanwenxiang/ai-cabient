@@ -53,10 +53,9 @@ public class FundBillService {
      * 填错一行会让平台侧通道费虚高十倍并可能亏穿。整数万分比（60 = 0.6%）配合上界钳制后，
      * 最坏情况也被限在 {@link #CHANNEL_FEE_BPS_MAX} 内。
      *
-     * <p>⚠️ <b>口径提醒</b>：这是<b>按实付金额估算的展示值</b>，不是渠道实际结算出来的费率。
-     * 真实通道费应以渠道账单为准（与 {@code PayoutReconciliationService} 同源问题：
-     * 本地口径 ≠ 与渠道对平）。把它做成可配是为了让运营能按<b>实际签约费率</b>校正展示值，
-     * 而不是让运营只能看着一个写死的 0.6% 猜。
+     * <p>⚠️ <b>口径提醒</b>：这是<b>按实付金额估算的值</b>，不是渠道实际结算出来的费率。
+     * 真实通道费应以渠道账单为准；账单没有费用列时，运营台展示与日结支出账本共用此估算。
+     * 把它做成可配是为了让运营能按<b>实际签约费率</b>校正，而不是只能看着写死的 0.6% 猜。
      */
     private static final int CHANNEL_FEE_BPS_DEFAULT = 60;
     /** 费率上界 1000 bps = 10%。超过即视为误填并回落默认，避免一个 0 头失误算成通道费倒挂。 */
@@ -133,7 +132,7 @@ public class FundBillService {
     }
 
     /** 按 bps 折算整数分：{@code gross * bps / 10000}，用 long 中间值避免 int 溢出。 */
-    private long estimateChannelFeeCents(long grossCents, int bps) {
+    static long estimateChannelFeeCents(long grossCents, int bps) {
         if (grossCents <= 0 || bps <= 0) {
             return 0L;
         }

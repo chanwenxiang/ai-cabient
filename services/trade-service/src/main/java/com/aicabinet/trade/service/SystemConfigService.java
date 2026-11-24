@@ -72,9 +72,9 @@ public class SystemConfigService {
     public static final String REFUND_AUTO_APPROVE_MAX_CENTS = "refund.auto_approve.max_cents";
     public static final String REFUND_SELF_PARTIAL_ENABLED = "refund.self.partial_enabled";
     /**
-     * 资金看板「通道费」估算费率（万分比/bps）；默认 60 = 0.6%。
-     *V309：原先硬编码在 {@code FundBillService}，运营无法按实际签约费率校正。
-     * ⚠️ 这是<b>展示用估算值</b>，不是渠道实际结算费率；上界 1000bps 由代码钳制（误填回落默认）。
+     * 资金看板与无账单费用列时的「通道费」估算费率（万分比/bps）；默认 60 = 0.6%。
+     * V309：原先硬编码在 {@code FundBillService}，运营无法按实际签约费率校正。
+     * ⚠️ 账单提供手续费时以实结为准；无费用列才用此值估算，上界 1000bps 由代码钳制。
      */
     public static final String FUND_CHANNEL_FEE_BPS = "fund.channel_fee_bps";
     /** 待支付订单超时自动关单小时数, 0=关闭自动关单. */
@@ -1112,7 +1112,7 @@ public class SystemConfigService {
         upsertIfAbsent(REFUND_AUTO_APPROVE_MAX_CENTS, "0",
                 "余额退款自动审批上限（分），0=关闭（全部人工审核）；≤该上限的申请提交后由系统账号立即审批并原路退款，不进入审批流");
         upsertIfAbsent(FUND_CHANNEL_FEE_BPS, "60",
-                "资金看板通道费估算费率（万分比，60=0.6%）；仅用于展示估算，真实费率以渠道账单为准；取值 0-1000，超界回落 60");
+                "资金看板与无账单费用列时的通道费估算费率（万分比，60=0.6%）；账单实结优先，取值 0-1000，超界回落 60");
         upsertIfAbsent(PRICING_TIME_WINDOW_ENABLED, "false",
                 "时段折扣总开关（默认关闭）；开启后指定时段内成交按比例打折");
         upsertIfAbsent(PRICING_TIME_WINDOW_START_HOUR, "0",

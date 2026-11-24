@@ -26,6 +26,12 @@ public final class PaymentOperationTypes {
     /** 退款出账。 */
     public static final String REFUND = "REFUND";
 
+    /** 平台渠道手续费支出（日结实结/估算账本）。 */
+    public static final String CHANNEL_FEE = "CHANNEL_FEE";
+
+    /** 平台渠道手续费冲回（重跑实结金额下降时）。 */
+    public static final String CHANNEL_FEE_REVERSAL = "CHANNEL_FEE_REVERSAL";
+
     /** 「进」类型 SQL 清单（含预授权冲抵）。 */
     public static final String INBOUND_TYPES_SQL_LIST =
             "'CHARGE', 'ADJUST_CHARGE', 'PREAUTH_CAPTURE'";

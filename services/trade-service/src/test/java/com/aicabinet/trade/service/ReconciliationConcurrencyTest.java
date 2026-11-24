@@ -43,7 +43,7 @@ class ReconciliationConcurrencyTest {
         ReconciliationServiceSupport support = new ReconciliationServiceSupport(
                 billLineRepository, paymentOperationRepository, rechargeRepository,
                 billProviderRegistry, new ObjectMapper(), cabinetMetrics, distributedLockService);
-        service = new ReconciliationService(reconRepository, support, null, null, null, auditService);
+        service = new ReconciliationService(reconRepository, support, null, null, null, auditService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

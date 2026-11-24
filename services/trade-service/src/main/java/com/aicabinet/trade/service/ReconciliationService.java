@@ -41,6 +41,7 @@ public class ReconciliationService {
     /** CB-020③：读配置通道费率（bps）做实结/配置差异告警；null 容错走默认 60bps（同 FundBillService）。 */
     private final SystemConfigService systemConfigService;
     private final AdminAuditService auditService;
+    private final ChannelFeeLedgerService channelFeeLedgerService;
 
     /** 费率差异告警的绝对阈值（bps）：实结费率与配置费率差超过 1% 即提示复核。 */
     static final long FEE_RATE_ALERT_ABS_BPS = 100;
@@ -52,13 +53,15 @@ public class ReconciliationService {
                                  @Lazy ReconciliationService self,
                                  OpsAlertDispatcher alertDispatcher,
                                  SystemConfigService systemConfigService,
-                                 AdminAuditService auditService) {
+                                 AdminAuditService auditService,
+                                 ChannelFeeLedgerService channelFeeLedgerService) {
         this.reconRepository = reconRepository;
         this.support = support;
         this.self = self;
         this.alertDispatcher = alertDispatcher;
         this.systemConfigService = systemConfigService;
         this.auditService = auditService;
+        this.channelFeeLedgerService = channelFeeLedgerService;
     }
 
     @Transactional(readOnly = true)
@@ -173,6 +176,13 @@ public class ReconciliationService {
                 .mapToLong(Long::longValue)
                 .sum();
         boolean feeProvided = platformLines.stream().anyMatch(l -> l.feeCents() != null);
+        long positiveGross = platformLines.stream()
+                .filter(line -> line.amountCents() > 0)
+                .mapToLong(PlatformBillLine::amountCents)
+                .sum();
+        ChannelFeeLedgerService.FeePosting feePosting = isChannelFeeLedgerChannel(channel)
+                ? channelFeeLedgerService.recordDailyFee(date, channel, feeProvided ? feeTotalCents : null, positiveGross)
+                : new ChannelFeeLedgerService.FeePosting(0L, "NONE");
 
         Set<String> ledgerOrderIds = collectLedgerOrderIds(start, end, channel);
         Set<String> platformOrderIds = new HashSet<>();
@@ -262,6 +272,9 @@ public class ReconciliationService {
             detail.put("mismatchCategories", categories);
             detail.put("channelFeeCents", feeProvided ? feeTotalCents : null);
             detail.put("channelFeeProvided", feeProvided);
+            detail.put("channelFeeLedgerCents", feePosting.amountCents());
+            detail.put("channelFeeLedgerSource", feePosting.source());
+            detail.put("cashNetCents", platformTotal - feePosting.amountCents());
             detail.put("reviewAction", categories.isEmpty()
                     ? "NONE"
                     : "FILTER_DETAIL_AND_RERUN_AFTER_GATEWAY_OR_LEDGER_FIX");
@@ -369,6 +382,10 @@ public class ReconciliationService {
      */
     private static boolean isAggregateBillChannel(String channel) {
         return "MOCK".equals(channel);
+    }
+
+    private static boolean isChannelFeeLedgerChannel(String channel) {
+        return CabinetConstants.PAY_CHANNEL_WECHAT.equals(channel) || "ALIPAY".equals(channel);
     }
 
     private Set<String> collectLedgerOrderIds(Instant start, Instant end, String channel) {

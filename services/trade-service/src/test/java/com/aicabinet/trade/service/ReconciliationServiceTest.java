@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -38,6 +39,7 @@ class ReconciliationServiceTest {
     @Mock private DistributedLockService distributedLockService;
     @Mock private SystemConfigService systemConfigService;
     @Mock private AdminAuditService auditService;
+    @Mock private ChannelFeeLedgerService channelFeeLedgerService;
 
     private ReconciliationService service;
 
@@ -46,7 +48,8 @@ class ReconciliationServiceTest {
         ReconciliationServiceSupport support = new ReconciliationServiceSupport(
                 billLineRepository, paymentOperationRepository, rechargeRepository,
                 billProviderRegistry, new ObjectMapper(), cabinetMetrics, distributedLockService);
-        service = new ReconciliationService(reconRepository, support, null, null, systemConfigService, auditService);
+        service = new ReconciliationService(reconRepository, support, null, null, systemConfigService, auditService,
+                channelFeeLedgerService);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),
@@ -418,7 +421,7 @@ class ReconciliationServiceTest {
     }
 
     @Test
-    void runDaily_feeAggregatedIntoRecon() {
+    void runDaily_feeAggregatedIntoRecon() throws Exception {
         // CB-020③：微信账单行手续费 100+50=150 应聚合写入 recon.channelFeeCents，金额对平时 status 不受费率影响
         LocalDate date = LocalDate.of(2024, 6, 5);
         when(reconRepository.findByReconDateAndChannel(date, "WECHAT")).thenReturn(Optional.empty());
@@ -436,12 +439,21 @@ class ReconciliationServiceTest {
             if (r.getReconId() == null) r.setReconId(20L);
             return r;
         });
+        when(channelFeeLedgerService.recordDailyFee(date, "WECHAT", 150L, 1000L))
+                .thenReturn(new ChannelFeeLedgerService.FeePosting(150L, "ACTUAL"));
 
         var result = service.runDaily(100000001L, date, "WECHAT");
 
         assertEquals("MATCHED", result.status());
+        verify(channelFeeLedgerService).recordDailyFee(date, "WECHAT", 150L, 1000L);
         verify(reconRepository, atLeastOnce()).save(argThat(r ->
                 Long.valueOf(150L).equals(r.getChannelFeeCents())));
+        ArgumentCaptor<PaymentReconciliation> reconCaptor = ArgumentCaptor.forClass(PaymentReconciliation.class);
+        verify(reconRepository, atLeastOnce()).save(reconCaptor.capture());
+        var detail = new ObjectMapper().readTree(reconCaptor.getValue().getDetail());
+        assertEquals(150L, detail.path("channelFeeLedgerCents").asLong());
+        assertEquals("ACTUAL", detail.path("channelFeeLedgerSource").asText());
+        assertEquals(850L, detail.path("cashNetCents").asLong());
         verify(billLineRepository, atLeastOnce()).save(argThat(line ->
                 line.getFeeCents() != null && line.getFeeCents() == 100L));
     }
