@@ -1623,6 +1623,8 @@ automator 0.12.1 的 `page.data(array)` / `page.text()` / `page.path()` 都不�
 | MA-410 | P2 | open | trade-service `UserConsentLogService` / `UserConsentLogMapper` | 同意日志在只读事务内 INSERT，数据库报 `cannot execute INSERT in a read-only transaction`，同意审计静默失败 | 2026-11-24 真实充值/下单日志多次出现 `UserConsentLogMapper.insertIgnoreConflict` PSQLException 25006；充值入账不受影响 | 验收后定位只读事务调用方，把同意日志写入移入独立写事务/REQUIRES_NEW，并补「只读调用不写库」回归用例 |
 | MA-411 | P2 | open | trade-service 充值入账 / 平台资金对账 | 充值按毛额足额贷记用户余额，但微信按 0.6% 净额结算；系统未单独记录充值渠道费，B6 现金对账会差渠道费 | 2026-11-24 真实充值 ¥3：微信基本账户 ¥2.98、用户余额 +¥3.00、`payment_operation` 仅 RECHARGE +300、无费用流水；`FundBillService` 60bps 估算只覆盖订单 | 验收后增加平台充值渠道费支出腿（账单实结优先、估算兜底），纳入日终资金对账；不得少给用户入账 |
 
+| MA-412 | P2 | open | trade-service `InventoryOpsService.stocktakeAdjust` | 批次账本柜机（含开门柜）调用整机盘点直接 409「请使用货道盘点」，但开门柜无货道且 lot 服务支持 SKU 盘点，运营无法清零幽灵库存 | 2026-11-24 `EG858564255060/100009` 实物为空、账面 1，`POST /inventory/stocktake` 返回 409；只能改走报损 `OTHER/SHRINKAGE` 清账 | 验收后为批次账本柜机提供 SKU/lot 级盘点入口（复用 `InventoryLotService.stocktakeAdjust`），按柜型分流错误文案并补回归用例 |
+
 > ⏳ **待配置前置检查（非已修缺陷，不占 MA 号）**：商户日报微信模板 `WECHAT_MERCHANT_DAILY_REPORT_TEMPLATE` 在 `infra/.env.production` / `.env` **均未配置**（`application.yml:224` 默认空，`MerchantDailyReportProperties.configured()==false` ⇒ `MerchantDailyReportNotifier:109` 跳过，当前生产微信日报从未发出）。用户复核 P2② 提示：微信**一次性订阅一次授权只能发一条**，若该模板是一次性订阅（零售类通常拿不到长期订阅），配了模板后第一天发成功、之后每天 43101，而 `MerchantDailyReportNotifier` 只记 WARN、调度摘要显示「送达 0 人」，商户端无提示（页面 `notify.vue:95` 却写「每日推送」）。**配置模板前必须**：①确认模板在微信公众平台是长期订阅（是→直接用）；②若一次性→商户端启动时补授权请求，**或**把 `notify.vue:95` 文案改为「每次授权推送一条」，避免承诺无法兑现。模板类型只能从微信后台查，代码无法判断。
 
 
