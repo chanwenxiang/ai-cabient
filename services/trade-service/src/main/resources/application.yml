@@ -253,6 +253,13 @@ aicabinet:
     enabled: ${WECHAT_WEB_ENABLED:true}
     app-id: ${WECHAT_WEB_APP_ID:}
     app-secret: ${WECHAT_WEB_APP_SECRET:}
+  # 微信公众号服务号模板消息（C1）：默认关闭，认证并配置模板后启用
+  wechat-official-account:
+    enabled: ${WECHAT_OFFICIAL_ACCOUNT_ENABLED:false}
+    app-id: ${WECHAT_OFFICIAL_ACCOUNT_APP_ID:}
+    app-secret: ${WECHAT_OFFICIAL_ACCOUNT_APP_SECRET:}
+    template-id: ${WECHAT_OFFICIAL_ACCOUNT_TEMPLATE_ID:}
+    url: ${WECHAT_OFFICIAL_ACCOUNT_URL:}
   minio:
     endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
     public-endpoint: ${MINIO_PUBLIC_ENDPOINT:}

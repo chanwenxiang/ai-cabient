@@ -15,6 +15,7 @@ import com.aicabinet.trade.config.RiskControlProperties;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.StagingProperties;
 import com.aicabinet.trade.config.WeChatMiniAppProperties;
+import com.aicabinet.trade.config.WeChatOfficialAccountProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.config.WeChatWebProperties;
 import org.springframework.boot.SpringApplication;
@@ -27,6 +28,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 @Import(InternalApiAuthInterceptor.class)
 @EnableConfigurationProperties({WeChatPayProperties.class, WeChatMiniAppProperties.class, WeChatWebProperties.class,
+        WeChatOfficialAccountProperties.class,
         // MA-407：微信商家转账（场景/报备/回调）业务参数
         com.aicabinet.trade.config.WeChatTransferProperties.class,
         MinioProperties.class, SecurityProperties.class, StagingProperties.class,
