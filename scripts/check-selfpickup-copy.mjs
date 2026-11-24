@@ -17,7 +17,7 @@
  *   R1 ①里每条新标签在位；R2 ②里同标签 + 类型名在位；R3 ③里逐条 UPDATE 在位，
  *      且**带 `AND dict_label = '<旧标签>'`**（不带就会把运营自定义过的标签当脏数据洗掉，
  *      也不幂等）；R4 一批**旧用户面词**在钉住的文件中不得再出现；R5 新叙事（tab 名、
- *      子页 hint、同级导航、菜单标题）在位。
+ *      子页 hint、左侧仓储菜单）在位，顶部同级导航不得重复渲染。
  *
  * 🔴 不动的东西：表名/列名/枚举值（`IN_TRANSIT`/`PARTIAL`/`OUTBOUND_SHIP` 等字面量）、
  *   锁 key、状态机判据、跨仓**调拨**那一段（真有运输，V314 的在途损耗口径保留）。
@@ -49,6 +49,7 @@ const FILES = {
   filterComposable: 'clients/admin-vue/src/composables/warehouse/useWarehouseListFilters.ts',
   routeActions: 'clients/admin-vue/src/composables/replenishment/useReplenishmentTaskActions.ts',
   menu: 'clients/admin-vue/src/config/menu.ts',
+  sidebar: 'clients/admin-vue/src/config/sidebar.ts',
   router: 'clients/admin-vue/src/router/index.ts',
   dashboard: 'clients/admin-vue/src/views/dashboard/DashboardView.vue',
   bigScreen: 'clients/admin-vue/src/views/dashboard/BigScreenView.vue',
@@ -239,16 +240,18 @@ for (const [key, words] of BANNED) {
   }
 }
 
+for (const needle of ['data-testid="warehouse-sibling-nav"', 'v-for="n in warehouseSiblings"']) {
+  if (src.warehouseView?.includes(needle)) {
+    problems.push('WarehouseView 又渲染了顶部同级导航——仓储页面切换只保留左侧菜单，避免两套入口');
+  }
+}
+
 // ── R5 新叙事在位（防只删不改）───────────────────────────────────────────────
 const REQUIRED = [
   ['warehouseView', 'label="已领未上柜"', 'transit tab 名不再是「已领未上柜」'],
-  [
-    'warehouseView',
-    'data-testid="warehouse-sibling-nav"',
-    '子页的同级导航被删掉了（拆页后只能回侧栏重找）'
-  ],
-  ['warehouseView', 'v-for="n in warehouseSiblings"', '同级导航条不再渲染兄弟页'],
   ['outboundComposable', '确认领货', '出库按钮没有回到「领货」动词'],
+  ['sidebar', "{ key: 'warehouse', label: '仓储', icon: House }", '左侧仓储菜单分组被删掉了'],
+  ['menu', "path: '/warehouse/master'", '左侧仓储菜单缺「仓库与库位」入口'],
   ['menu', "title: '领货与调拨'", '侧栏标题不是「领货与调拨」'],
   ['router', "title: '领货与调拨'", '路由 meta.title 与侧栏不同名（同一页三种叫法）'],
   ['mpPrep', '未上柜', '商户端备货页仍按「在途」展示扣减项'],
@@ -306,5 +309,5 @@ console.log(
   `${TAG} OK：铁律 80 / CB-074 的「领货 → 上柜」口径三处同改（shared-dict baseline / ` +
     `SysDictBootstrap 补种 / V415 带旧标签锚点的 UPDATE），${LABELS.length} 条标签 + ` +
     `${TYPE_NAMES.length} 个类型名逐条对账；旧「发运/签收/在途」用户面叙事在 ${BANNED.length} 个文件中已下线，` +
-    `新叙事（tab 名、菜单与路由同名、子页 hint、同级导航、商户端差额说明）在位`
+    `新叙事（tab 名、左侧仓储菜单、菜单与路由同名、子页 hint、商户端差额说明）在位，顶部同级导航未渲染`
 );

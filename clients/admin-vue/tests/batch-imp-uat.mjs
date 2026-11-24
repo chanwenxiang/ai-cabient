@@ -133,16 +133,28 @@ async function main() {
       desc: document.querySelector('[data-testid="warehouse-tab-desc"]')?.innerText || '',
       hint: document.querySelector('[data-testid="transit-flow-hint"]')?.innerText || '',
       pageHint: document.querySelector('.page-card-head .hint')?.innerText || '',
-      siblings: [
-        ...(document.querySelectorAll('[data-testid="warehouse-sibling-nav"] a') || [])
-      ].map((a) => a.innerText.trim()),
+      sidebarItems: [...document.querySelectorAll('.sidebar .el-menu-item')]
+        .map((item) => item.innerText.trim())
+        .filter((label) =>
+          [
+            '仓库与库位',
+            '采购与供应商',
+            '待索赔台账',
+            '仓库近效期预警',
+            '月结单台账',
+            '库存与盘点',
+            '供应商对账单',
+            '领货与调拨'
+          ].includes(label)
+        ),
+      topSiblingNavCount: document.querySelectorAll('[data-testid="warehouse-sibling-nav"]').length,
       overdueLabel:
         document.querySelector('[data-testid="transit-overdue-only"]')?.closest('label')
           ?.innerText || ''
     }));
     // 2026-10-03 transit 页去重：不渲染通用 desc（专属 transit-flow-hint 承载全部语义，避免同屏双提示）
     // 2026-10-29 铁律 80 / CB-074：仓→柜是自提自送，用户面不再出现「在途/发运/签收」，
-    //   tab 改叫「已领未上柜」；子页还必须有同级导航（拆页后原先只剩侧栏入口）。
+    //   tab 改叫「已领未上柜」；2026-11-24 用户订正导航只保留左侧仓储菜单。
     const whOk =
       wh.tabs.includes('仓间调拨') &&
       wh.tabs.includes('出库单') &&
@@ -151,7 +163,8 @@ async function main() {
       wh.desc === '' &&
       /未上柜|柜机|补货|回仓/.test(wh.hint) &&
       /仓→柜|未上柜/.test(wh.pageHint) &&
-      wh.siblings.includes('库存与盘点');
+      wh.sidebarItems.includes('库存与盘点') &&
+      wh.topSiblingNavCount === 0;
     const eWh = await shot(page, '01-warehouse-transit');
     record('B-01', '仓库分组+领货上柜文案', whOk ? 'PASS' : 'FAIL', JSON.stringify(wh), eWh);
     whOk ? pass++ : fail++;

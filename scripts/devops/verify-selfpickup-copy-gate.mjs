@@ -43,6 +43,7 @@ const F = {
   filters: `${ADMIN}/composables/warehouse/useWarehouseListFilters.ts`,
   routeActions: `${ADMIN}/composables/replenishment/useReplenishmentTaskActions.ts`,
   menu: `${ADMIN}/config/menu.ts`,
+  sidebar: `${ADMIN}/config/sidebar.ts`,
   router: `${ADMIN}/router/index.ts`,
   dashboard: `${ADMIN}/views/dashboard/DashboardView.vue`,
   bigScreen: `${ADMIN}/views/dashboard/BigScreenView.vue`,
@@ -67,6 +68,7 @@ const TARGETS = [
   F.filters,
   F.routeActions,
   F.menu,
+  F.sidebar,
   F.router,
   F.dashboard,
   F.bigScreen,
@@ -303,18 +305,25 @@ const INJECTS = [
   },
   // ── R5 新叙事在位 ──────────────────────────────────────────────────────────
   {
-    name: '子页同级导航被删',
+    name: '顶部同级导航被重新加回',
     file: F.view,
-    from: 'data-testid="warehouse-sibling-nav"',
-    to: 'data-testid="warehouse-page-nav"',
-    expect: '子页的同级导航被删掉了'
+    from: '      <el-empty\n        v-if="onlyNoVisibleTabs"',
+    to: '      <div data-testid="warehouse-sibling-nav"></div>\n\n      <el-empty\n        v-if="onlyNoVisibleTabs"',
+    expect: 'WarehouseView 又渲染了顶部同级导航'
   },
   {
-    name: '同级导航条不再渲染兄弟页',
-    file: F.view,
-    from: 'v-for="n in warehouseSiblings"',
-    to: 'v-for="n in warehouseSiblingRows"',
-    expect: '同级导航条不再渲染兄弟页'
+    name: '左侧仓储菜单分组被删',
+    file: F.sidebar,
+    from: "{ key: 'warehouse', label: '仓储', icon: House },",
+    to: "{ key: 'warehouse-hidden', label: '仓储', icon: House },",
+    expect: '左侧仓储菜单分组被删掉了'
+  },
+  {
+    name: '左侧仓库与库位入口被删',
+    file: F.menu,
+    from: "path: '/warehouse/master',",
+    to: "path: '/warehouse/master-hidden',",
+    expect: '左侧仓储菜单缺「仓库与库位」入口'
   },
   {
     name: '页面说明不再点破自提自送',

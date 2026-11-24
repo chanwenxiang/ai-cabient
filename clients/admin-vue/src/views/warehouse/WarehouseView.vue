@@ -359,21 +359,6 @@
         >
       </div>
 
-      <div
-        v-if="props.only?.length && warehouseSiblings.length > 1"
-        class="warehouse-siblings"
-        data-testid="warehouse-sibling-nav"
-      >
-        <router-link
-          v-for="n in warehouseSiblings"
-          :key="n.path"
-          :to="n.path"
-          class="warehouse-siblings__item"
-          :class="{ active: route.path === n.path }"
-          >{{ n.title }}</router-link
-        >
-      </div>
-
       <el-empty
         v-if="onlyNoVisibleTabs"
         description="当前账号无本页内容的查看权限，请联系管理员开通"
@@ -1057,18 +1042,6 @@ const props = defineProps<{ only?: string[]; title?: string; hint?: string }>();
  */
 const pageTitle = computed(
   () => props.title || NAV_ITEMS.find((n) => n.path === route.path)?.title || '仓库'
-);
-
-/**
- * 子页模式下的同级页签：原来只有旧整页有分组切换器（见 warehouse-tab-groups），
- * 拆成 4 个子页后子页里既没有分组条也没有别页入口，运营只能回侧栏重找——
- * 这里按 `config/menu.ts` 的「仓储」分组生成同级导航，标题单一出处、权限同样过滤。
- */
-const warehouseSiblings = computed(() =>
-  NAV_ITEMS.filter(
-    (n) =>
-      n.group === '仓储' && n.path.startsWith('/warehouse/') && (!n.perm || auth.hasPerm(n.perm))
-  )
 );
 
 /** 每个 tab 的一句用途说明（给不熟悉仓储域的运营照着找；改 tab 语义时同步改这里） */
@@ -1866,32 +1839,6 @@ function setInboundDialog(open: boolean) {
   gap: 10px 16px;
   margin: 0 0 12px;
   flex-shrink: 0;
-}
-.warehouse-siblings {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0 0 12px;
-  flex-shrink: 0;
-}
-.warehouse-siblings__item {
-  padding: 4px 12px;
-  border: 1px solid var(--el-border-color);
-  border-radius: 999px;
-  font-size: var(--admin-font-size-sm);
-  color: var(--el-text-color-regular);
-  text-decoration: none;
-  line-height: 1.6;
-}
-.warehouse-siblings__item:hover {
-  border-color: var(--el-color-primary);
-  color: var(--el-color-primary);
-}
-.warehouse-siblings__item.active {
-  border-color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
-  font-weight: 600;
 }
 .rule-help {
   display: flex;
