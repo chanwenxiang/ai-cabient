@@ -5,7 +5,10 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">投放计划</span>
-            <span class="hint">投放后消费者小程序首页（开门页）可拉取素材并回传曝光/完播/点击</span>
+            <HelpTip
+              content="投放后消费者小程序首页（开门页）可拉取素材并回传曝光/完播/点击。"
+              aria-label="投放计划说明"
+            />
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -251,7 +254,11 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="轮播素材">
+            <el-form-item>
+              <template #label>
+                轮播素材
+                <HelpTip content="按选择顺序轮播。" aria-label="轮播素材说明" />
+              </template>
               <el-select
                 v-model="form.assetIds"
                 multiple
@@ -265,7 +272,6 @@
                   :value="a.assetId"
                 />
               </el-select>
-              <div class="field-hint">按选择顺序轮播</div>
             </el-form-item>
           </el-col>
         </el-row>
@@ -284,6 +290,7 @@ import { Delete, EditPen, VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { DEFAULT_DATETIME_RANGE_TIME } from '@/utils/date-time-presets';

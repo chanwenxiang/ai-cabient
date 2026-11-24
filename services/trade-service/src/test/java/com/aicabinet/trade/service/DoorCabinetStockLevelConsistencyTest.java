@@ -242,7 +242,7 @@ class DoorCabinetStockLevelConsistencyTest {
                 mock(DisplaySnapshotHelper.class), mock(DeviceInfoMapper.class), null,
                 mock(UserInfoMapper.class), mock(PermissionService.class),
                 mock(MerchantScopeService.class), mock(AdminAuditService.class),
-                mock(WarehouseManagerMapper.class), null);
+                mock(WarehouseManagerMapper.class), mock(com.aicabinet.trade.mapper.WarehouseBinStockMapper.class), null);
         org.springframework.test.util.ReflectionTestUtils.setField(svc, "self", svc);
         return svc;
     }

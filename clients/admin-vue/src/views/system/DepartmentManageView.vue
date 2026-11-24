@@ -5,9 +5,10 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">部门管理</span>
-            <span class="hint"
-              >组织树 + 成员；审批可按部门指派。交易数据范围仍在「运营账号」里配商户/货柜</span
-            >
+            <HelpTip
+              content="组织树 + 成员；审批可按部门指派。交易数据范围仍在「运营账号」里配商户/货柜。"
+              aria-label="部门管理说明"
+            />
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -185,6 +186,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Edit, User } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import { displayLabel } from '@aicabinet/shared-dict';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable, type CrudPageParams } from '@/composables/useCrudTable';

@@ -33,6 +33,7 @@
           />
         </view>
         <text v-if="refundError" class="custom-error">{{ refundError }}</text>
+        <text v-if="refundLimitHint" class="refund-hint">{{ refundLimitHint }}</text>
         <view v-if="refundRequests.length" class="refund-list">
           <view v-for="r in refundRequests" :key="r.requestId" class="refund-item">
             <view>
@@ -236,7 +237,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { showError, showSuccess, showConfirm } from '@/utils/notify';
+import { showError, showSuccess, showConfirm, requestOrderSubscribe } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
 import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
@@ -281,14 +282,14 @@ const wechatRechargeEnabled = ref(false);
 const wechatPayLive = ref(false);
 const alipayPayLive = ref(false);
 const paymentModeHint = ref('');
+const subscribeTmplId = ref('');
 const mockEnabled = ref(false);
 const refundYuan = ref('');
 const refundAmountCents = ref(0);
 const refundError = ref('');
 const refundBusy = ref(false);
-// 退款下限与后端 ApplyBalanceRefundRequest @Min(100) 对齐（2026-10-23 实证：用户输 0.1 元，
-// 后端 400 但文案误报「amountCents不能为空」⇒ 前端先行拦截给准确提示）。
-const REFUND_MIN_CENTS = 100;
+// 退款下限由后端公开配置下发；null=未取到，客户端不预检，交服务端裁决。
+const refundMinCents = ref<number | null>(null);
 // V343 幂等键：金额变化即视为新意图 ⇒ 重新生成；提交失败保留原键（重试=同一意图，服务端按
 // (userId, idemKey) 重放去重），提交成功后金额清零触发 watch 自然换新键
 const refundIdemKey = ref<string | null>(null);
@@ -296,10 +297,14 @@ watch(refundAmountCents, () => {
   refundIdemKey.value = secureRandomToken();
 });
 const refundRequests = ref<BalanceRefundRequestDto[]>([]);
-// 上限由后端下发（recharge.max_cents / balance.refund.max_cents，0=不限制）。
-// 默认值与后端 seed（500_000 分）一致：配置取不到时行为与硬编码时代相同（fail-closed）。
+// 上限由后端下发；0/非法值由后端回落默认，前端使用同一正数上限口径。
 const rechargeMaxCents = ref(500_000);
 const refundMaxCents = ref(500_000);
+const refundLimitHint = computed(() => {
+  const min = refundMinCents.value;
+  if (min == null) return `单次申请不超过 ${fmtMoney(refundMaxCents.value)}`;
+  return `单次申请 ${fmtMoney(min)}–${fmtMoney(refundMaxCents.value)}`;
+});
 
 const pendingCount = computed(() => records.value.filter((r) => r.status === 'PENDING').length);
 const visibleRecords = computed(() =>
@@ -361,26 +366,24 @@ function onRefundYuan(e: unknown) {
     refundError.value = '请输入大于 0 的金额';
     return;
   }
-  if (Math.round(yuan * 100) < REFUND_MIN_CENTS) {
+  const cents = Math.round(yuan * 100);
+  if (refundMinCents.value != null && cents < refundMinCents.value) {
     refundAmountCents.value = 0;
-    refundError.value = '单次申请不低于 ¥1.00';
+    refundError.value = `单次申请不低于 ${fmtMoney(refundMinCents.value)}`;
     return;
   }
-  if (
-    refundMaxCents.value !== Number.POSITIVE_INFINITY &&
-    Math.round(yuan * 100) > refundMaxCents.value
-  ) {
+  if (cents > refundMaxCents.value) {
     refundAmountCents.value = 0;
     refundError.value = `单次申请不超过 ${fmtMoney(refundMaxCents.value)}`;
     return;
   }
-  const cents = yuanToCents(raw);
-  if (cents == null || cents <= 0) {
+  const normalized = yuanToCents(raw);
+  if (normalized == null || normalized <= 0) {
     refundAmountCents.value = 0;
     refundError.value = '请输入有效金额';
     return;
   }
-  refundAmountCents.value = cents;
+  refundAmountCents.value = normalized;
 }
 
 async function loadRefundRequests() {
@@ -455,10 +458,7 @@ function onCustomAmount(e: unknown) {
     customAmountError.value = '请输入大于 0 的金额';
     return;
   }
-  if (
-    rechargeMaxCents.value !== Number.POSITIVE_INFINITY &&
-    Math.round(yuan * 100) > rechargeMaxCents.value
-  ) {
+  if (Math.round(yuan * 100) > rechargeMaxCents.value) {
     selectedAmountCents.value = 0;
     customAmountError.value = `单次充值不超过 ${fmtMoney(rechargeMaxCents.value)}`;
     return;
@@ -472,11 +472,14 @@ function onCustomAmount(e: unknown) {
   selectedAmountCents.value = cents;
 }
 
-/** 解析后端下发的上限（分）。0=不限制 → Infinity；非法/负数 → 回退默认。 */
 function resolveLimitCents(raw: string | undefined, fallback: number): number {
   const n = Number(raw);
-  if (!Number.isFinite(n) || n < 0) return fallback;
-  return n === 0 ? Number.POSITIVE_INFINITY : n;
+  return Number.isSafeInteger(n) && n > 0 ? n : fallback;
+}
+
+function resolveRefundMinCents(raw: string | undefined): number | null {
+  const n = Number(raw);
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
 async function loadConfig() {
@@ -485,10 +488,12 @@ async function loadConfig() {
     mockEnabled.value = resolveMockEnabled(cfg?.mockEnabled);
     rechargeMaxCents.value = resolveLimitCents(cfg?.rechargeMaxCents, 500_000);
     refundMaxCents.value = resolveLimitCents(cfg?.balanceRefundMaxCents, 500_000);
+    refundMinCents.value = resolveRefundMinCents(cfg?.balanceRefundMinCents);
     alipayRechargeEnabled.value = resolveSandboxRecharge(cfg?.alipayRechargeEnabled);
     wechatPayLive.value = cfg?.wechatPayLive === 'true';
     alipayPayLive.value = cfg?.alipayPayLive === 'true';
     paymentModeHint.value = cfg?.paymentModeHint || '';
+    subscribeTmplId.value = String(cfg?.wechatSubscribeTemplateId || '').trim();
     wechatRechargeEnabled.value = resolveWechatRechargeVisible({
       wechatRechargeEnabled: cfg?.wechatRechargeEnabled,
       wechatPayLive: cfg?.wechatPayLive
@@ -497,6 +502,7 @@ async function loadConfig() {
     mockEnabled.value = false;
     rechargeMaxCents.value = 500_000;
     refundMaxCents.value = 500_000;
+    refundMinCents.value = null;
     alipayRechargeEnabled.value = false;
     wechatRechargeEnabled.value = false;
     wechatPayLive.value = false;
@@ -608,6 +614,7 @@ async function onWeChatRecharge() {
   if (!selectedAmountCents.value || loading.value) return;
   loading.value = true;
   try {
+    await requestOrderSubscribe(subscribeTmplId.value ? [subscribeTmplId.value] : undefined);
     const key = `wechat-recharge-${Date.now()}-${secureRandomToken(6)}`;
     const { mode } = await runWeChatRecharge(selectedAmountCents.value, key);
     showSuccess(mode === 'live' ? '充值已到账' : '充值成功');

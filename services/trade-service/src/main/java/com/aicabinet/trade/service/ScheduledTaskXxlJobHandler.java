@@ -136,6 +136,11 @@ public class ScheduledTaskXxlJobHandler {
         runKey("withdraw-paying-timeout");
     }
 
+    @XxlJob("withdrawFundingRetryJob")
+    public void withdrawFundingRetryJob() {
+        runKey("withdraw-funding-retry");
+    }
+
     @XxlJob("platformFundDailyJob")
     public void platformFundDailyJob() {
         runKey("platform-fund-daily");

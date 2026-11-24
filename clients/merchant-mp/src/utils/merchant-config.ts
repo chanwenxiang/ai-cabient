@@ -50,6 +50,24 @@ export async function loadMerchantFlags(opts?: {
   return inflight;
 }
 
+function nonNegativeCents(raw: unknown): number | null {
+  if (typeof raw !== 'string' && typeof raw !== 'number') return null;
+  const text = String(raw).trim();
+  if (!/^\d+$/.test(text)) return null;
+  const value = Number(text);
+  return Number.isSafeInteger(value) ? value : null;
+}
+
+/** 商户提现单笔下限（分）；null=未取到，由后端裁决；0=不限制。 */
+export function merchantWithdrawMinCents(): number | null {
+  return nonNegativeCents(cache?.merchantWithdrawMinCents);
+}
+
+/** 线长提现单笔下限（分）；语义同商户端。 */
+export function lineWithdrawMinCents(): number | null {
+  return nonNegativeCents(cache?.lineWithdrawMinCents);
+}
+
 /** 商户端经营分析图表（`merchant.charts.enabled`）。 */
 export function merchantChartsEnabled(): boolean {
   return enabled(cache?.chartsEnabled);

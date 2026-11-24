@@ -332,6 +332,7 @@ import { menuIcon } from '@/utils/menu-icon';
 import {
   availableCents,
   isPayReady,
+  parsePreauthCents,
   payReadyHint,
   resolveClientPreauthCents
 } from '@/utils/account';
@@ -510,8 +511,7 @@ onShow(async () => {
       wechatRechargeEnabled: cfg?.wechatRechargeEnabled,
       wechatPayLive: cfg?.wechatPayLive
     });
-    const p = Number(cfg?.preauthCents);
-    configPreauthCents.value = Number.isFinite(p) && p > 0 ? p : null;
+    configPreauthCents.value = parsePreauthCents(cfg?.preauthCents);
   } catch {
     mockRechargeEnabled.value = false;
     alipayRechargeEnabled.value = false;

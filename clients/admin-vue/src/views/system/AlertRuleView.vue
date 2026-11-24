@@ -5,9 +5,11 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">告警规则</span>
-            <span class="hint"
-              >与「参数配置」同源；仅白名单键会被调度读取，不可再新建任意自定义键</span
-            >
+            <span class="hint">仅白名单键可配置</span>
+            <HelpTip
+              content="与「参数配置」同源；仅白名单键会被调度读取，不可再新建任意自定义键。"
+              aria-label="告警规则说明"
+            />
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -203,6 +205,7 @@ import { Delete, EditPen } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable, type CrudPageParams } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';

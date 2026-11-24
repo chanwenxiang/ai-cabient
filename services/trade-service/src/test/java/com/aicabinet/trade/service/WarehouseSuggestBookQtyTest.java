@@ -88,7 +88,8 @@ class WarehouseSuggestBookQtyTest {
                 movementRepository, deviceInventoryRepository, taskRepository, routeRepository, skuCatalogRepository,
                 deviceSlotService, salesVelocityService, inTransitService, inventoryLotService, distributedLockService,
                 displaySnapshotHelper, deviceInfoRepository, null,
-                userInfoRepository, permissionService, merchantScopeService, auditService, warehouseManagerRepository, null);
+                userInfoRepository, permissionService, merchantScopeService, auditService, warehouseManagerRepository,
+                org.mockito.Mockito.mock(com.aicabinet.trade.mapper.WarehouseBinStockMapper.class), null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

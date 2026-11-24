@@ -5,7 +5,10 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">审批流配置</span>
-            <span class="hint">用节点图配置多级审批；指派支持部门 / 权限 / 角色 / 指定用户</span>
+            <HelpTip
+              content="用节点图配置多级审批；指派支持部门 / 权限 / 角色 / 指定用户。"
+              aria-label="审批流配置说明"
+            />
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -318,6 +321,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowDown, ArrowUp, Delete, EditPen, Share } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable, type CrudPageParams } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';

@@ -51,7 +51,8 @@ public class WeChatPlatformBillProvider implements PlatformBillProvider {
         if (downloadUrl == null || downloadUrl.isBlank()) {
             throw new IllegalStateException("wechat v3 bill missing download_url: " + resp);
         }
-        byte[] data = v3Client.download(downloadUrl);
+        byte[] data = v3Client.download(downloadUrl,
+                resp.path("hash_type").asText(null), resp.path("hash_value").asText(null));
         String csv = new String(data, StandardCharsets.UTF_8);
         if (csv.trim().startsWith("{")) {
             throw new IllegalStateException("wechat v3 bill download failed: " + csv);

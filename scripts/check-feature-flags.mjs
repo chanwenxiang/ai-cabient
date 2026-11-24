@@ -445,8 +445,8 @@ const EXPECTED_DYNAMIC_SITES = new Map([
   [
     scsRel,
     {
-      exprs: ['key', 'key', 'key'],
-      why: '配置服务自身的 getInt/getBoolean/getDouble 转发 self.getValue(key, …)，key 由调用方传入'
+      exprs: ['key', 'key', 'key', 'key'],
+      why: '配置服务自身的 getInt/getBoolean/getDouble 与公开配置非负整数解析均转发 self.getValue(key, …)，key 由调用方传入；公开面只下发库里真实存在的值，不伪造默认'
     }
   ],
   [

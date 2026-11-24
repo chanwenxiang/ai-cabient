@@ -4,8 +4,11 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">设备控制（信号 / 音量 / 柜门）</span>
-            <span class="hint">识别开门柜套件的远程控制；从「将邑对接」移入概览，随设备一起看</span>
+            <span class="title"
+              >设备控制（信号 / 音量 / 柜门）<HelpTip
+                content="识别开门柜套件的远程控制入口，已从「将邑对接」移入设备概览，随设备状态一起查看。"
+                aria-label="设备控制范围"
+            /></span>
           </div>
         </div>
       </div>
@@ -13,7 +16,10 @@
 
     <div class="jy-signal-row">
       <span>
-        信号强度：
+        信号强度<HelpTip
+          content="信号强度是将邑的可选功能；当前固件不回报时数值为空属正常，待厂商固件支持后才会出现。"
+          aria-label="信号强度说明"
+        />：
         <strong>{{
           signal?.signalStrength != null ? `${signal.signalStrength}/4` : '未上报（设备未回报）'
         }}</strong>
@@ -23,9 +29,6 @@
       </span>
       <el-button size="small" :loading="signalLoading" @click="loadSignal">刷新</el-button>
       <el-button size="small" :loading="pullLoading" @click="pullDeviceInfo">实时拉取</el-button>
-    </div>
-    <div class="jy-signal-hint">
-      信号强度是将邑的可选功能；实测当前固件不回报，数值为空属正常，待厂商固件支持后才会出现。
     </div>
 
     <div v-if="canEdit" class="jy-sound-row">
@@ -43,7 +46,10 @@
 
     <div class="jy-signal-row">
       <span>
-        门磁：
+        门磁<HelpTip
+          content="门磁为设备自报口径，仅作现场参考。「未知」=设备已回报但锁控读不出（固件初值），与「未上报」不同。"
+          aria-label="门磁状态说明"
+        />：
         <strong>门 {{ switchLabel(doorState?.doorState) }}</strong>
         ·
         <strong>锁 {{ switchLabel(doorState?.lockState) }}</strong>
@@ -64,10 +70,7 @@
         >
       </template>
     </div>
-    <div class="jy-signal-hint">
-      门磁是设备自报口径，仅作现场参考； 「未知」=
-      设备回报了但锁控读不出（固件初值），与「未上报」不同。 关门与重启均无回执，下发后需现场确认。
-    </div>
+    <div class="jy-signal-hint">关门与重启均无回执，下发后需现场确认。</div>
 
     <div v-if="canEdit" class="jy-actions">
       <el-popconfirm
@@ -116,6 +119,7 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { errorMessage, httpStatus, isUserDismiss } from '@/utils/error-message';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+import HelpTip from '@/components/HelpTip.vue';
 
 const props = defineProps<{ deviceId: string; canEdit: boolean }>();
 

@@ -4,11 +4,11 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">争议审核</span>
-            <span class="hint"
-              >识别争议可按低置信 / 兜底识别 / 重力错配分拣；同屏对照录像改 SKU
-              后一键落账或免单</span
-            >
+            <span class="title"
+              >争议审核<HelpTip
+                content="识别争议可按低置信 / 兜底识别 / 重力错配分拣；同屏对照录像改 SKU 后一键落账或免单。"
+                aria-label="争议审核口径"
+            /></span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -329,7 +329,12 @@
       <div v-if="selected" class="workbench-stack">
         <div class="workbench-grid">
           <section class="workbench-media">
-            <div class="items-title">会话录像</div>
+            <div class="items-title">
+              会话录像<HelpTip
+                content="内嵌的只是第 1 路画面；柜内左右两路完整录像与「拉取柜内视频」请用下方「柜机录像」。"
+                aria-label="会话录像范围"
+              />
+            </div>
             <div v-if="embedVideoUrl" class="video-wrap">
               <video :src="embedVideoUrl" controls playsinline class="session-video">
                 <track
@@ -356,15 +361,13 @@
             />
             <div v-else-if="videoLoading" class="video-loading">录像{{ UI_COPY.loading }}</div>
             <div v-else class="video-loading muted">尚未加载录像</div>
-            <el-alert
-              v-if="!embedVideoUrl && videoAttempted && !videoLoading"
-              type="info"
-              :closable="false"
-              show-icon
-              class="no-video-guide"
-              title="无录像时的结案步骤"
-              description="先点「重新加载录像」或「新窗口打开」再试；仍无法播放时，勾选「无录像 / 无法播放，仍结案」，再勾选「已对照录像核对」，然后处理结案。有录像时必须先观看并勾选核对。"
-            />
+            <div v-if="!embedVideoUrl && videoAttempted && !videoLoading" class="no-video-guide">
+              <span>无录像结案</span>
+              <HelpTip
+                content="先点「重新加载录像」或「新窗口打开」再试；仍无法播放时，勾选「无录像 / 无法播放，仍结案」，再勾选「已对照录像核对」，然后处理结案。有录像时必须先观看并勾选核对。"
+                aria-label="无录像结案步骤"
+              />
+            </div>
             <div class="workbench-media-actions">
               <el-button
                 v-if="selected.sessionId && auth.hasPerm('ops:device:video')"
@@ -589,13 +592,13 @@
         <div v-if="selected.status === 'OPEN'" class="workbench-settle">
           <div class="adjust-block">
             <div class="items-title">调整明细（落账依据）</div>
-            <el-alert
-              type="info"
-              :closable="false"
-              show-icon
-              title="对照左侧录像修改 SKU / 数量后，用「按调整明细落账」写回账单差额。"
-              class="suggest-alert"
-            />
+            <div class="suggest-alert">
+              <span>调整后落账</span>
+              <HelpTip
+                content="对照左侧录像修改 SKU / 数量后，用「按调整明细落账」写回账单差额。"
+                aria-label="调整明细落账说明"
+              />
+            </div>
             <div class="manual-lines">
               <div v-for="(line, index) in draftLines" :key="index" class="manual-line">
                 <el-select v-model="line.skuId" filterable placeholder="选择商品">
@@ -686,6 +689,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import OrderJiangyiVideoDialog from '@/components/order/OrderJiangyiVideoDialog.vue';
 import { useCrudTable } from '@/composables/useCrudTable';

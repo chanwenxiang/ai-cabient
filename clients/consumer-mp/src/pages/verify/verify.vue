@@ -124,6 +124,7 @@ import { fmtMoney } from '@aicabinet/shared-uni/format';
 import {
   availableCents,
   isPayReady,
+  parsePreauthCents,
   preauthYuanLabel,
   resolveClientPreauthCents
 } from '@/utils/account';
@@ -199,8 +200,7 @@ onShow(async () => {
     // 目标渠道其实已开通（例如用户签完约返回本页）⇒ 引导提示立即失效
     if (pendingChannel.value === 'WECHAT' && acc.payscoreEnabled) pendingChannel.value = '';
     if (pendingChannel.value === 'ALIPAY' && acc.alipayAgreementEnabled) pendingChannel.value = '';
-    const p = Number(cfg?.preauthCents);
-    configPreauthCents.value = Number.isFinite(p) && p > 0 ? p : null;
+    configPreauthCents.value = parsePreauthCents(cfg?.preauthCents);
   } catch (e) {
     err.value = e instanceof Error ? e.message : '加载账户失败';
   }

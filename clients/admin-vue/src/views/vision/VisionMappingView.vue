@@ -4,11 +4,11 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">识别映射</span>
-            <span class="hint">
-              端侧识别编号 → 商品的对应表；只有激活的映射参与结算推荐。识别在将邑端侧完成，
-              云端不做识别；「识别名称」是厂商模型类目名（多为拼音/英文缩写），核对商品请看「平台商品」中文名
-            </span>
+            <span class="title"
+              >识别映射<HelpTip
+                content="端侧识别编号 → 商品的对应表；只有激活的映射参与结算推荐。识别在将邑端侧完成，云端不做识别；「识别名称」是厂商模型类目名（多为拼音/英文缩写），核对商品请看「平台商品」中文名。"
+                aria-label="识别映射口径"
+            /></span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -89,10 +89,11 @@
               <div class="page-card-head">
                 <div class="page-card-head__meta">
                   <div class="page-card-head__title">
-                    <span class="title">映射复核（结算闸口）</span>
-                    <span class="hint">
-                      重训后识别编号整体平移；未复核的柜机识别结算暂停。先拉差异核对，再确认
-                    </span>
+                    <span class="title"
+                      >映射复核（结算闸口）<HelpTip
+                        content="重训后识别编号可能整体平移；未复核的柜机识别结算暂停。先拉取差异逐行核对，再确认应用。"
+                        aria-label="映射复核说明"
+                    /></span>
                   </div>
                 </div>
                 <div class="page-card-head__actions">
@@ -137,7 +138,12 @@
             >
               <el-row :gutter="16">
                 <el-col :span="11">
-                  <el-form-item label="从将邑模型带出">
+                  <el-form-item>
+                    <template #label
+                      >从将邑模型带出<HelpTip
+                        content="优先从下拉带出学成模型；旧模型可按地址手填，类目数须与文件行数一致。确认后会重算全部映射并认领该版本。"
+                        aria-label="模型带出说明"
+                    /></template>
                     <el-select
                       v-model="reviewModelPicked"
                       clearable
@@ -200,33 +206,29 @@
                   </el-form-item>
                 </el-col>
               </el-row>
-              <div class="field-hint">
-                优先从下拉带出（只含学成模型）；旧模型按地址手填，类目数须与文件行数一致；确认后重算全部映射并认领该版本。
-              </div>
             </el-form>
           </el-card>
         </el-tab-pane>
 
         <el-tab-pane label="预生成与激活" name="pregen">
-          <el-alert
-            class="jy-fallback-alert"
-            type="info"
-            :closable="false"
-            show-icon
-            title="classId 预生成/激活现为兜底"
-            description="结算主路径已改为 thirdPid 挂接（SKU↔将邑商品，识别上报的商品 ID 直接命中、不受重训平移）。本流程仅在识别未命中 thirdPid 时才需要；正常上新/上架请按「识别入驻」页步骤走。"
-          />
+          <el-alert class="jy-fallback-alert" type="info" :closable="false" show-icon>
+            <template #title
+              >classId 预生成/激活为兜底<HelpTip
+                content="结算主路径已改为 thirdPid 挂接（SKU↔将邑商品，识别上报的商品 ID 直接命中、不受重训平移）。本流程仅在识别未命中 thirdPid 时才需要；正常上新/上架请按「识别入驻」页步骤走。"
+                aria-label="classId 兜底说明"
+            /></template>
+          </el-alert>
           <!-- 预生成与激活：把流程写在最上面，按钮按步骤排 -->
           <el-card class="jy-model-card" shadow="never">
             <template #header>
               <div class="page-card-head">
                 <div class="page-card-head__meta">
                   <div class="page-card-head__title">
-                    <span class="title">预生成与激活</span>
-                    <span class="hint">
-                      ① 选模型 → ② 预生成（自动生成停用态对照表）→ ③ 到「识别对照表」逐行核对 → ④
-                      回这里点激活 → ⑤ 点下发推到柜机（柜机需在线）
-                    </span>
+                    <span class="title"
+                      >预生成与激活<HelpTip
+                        content="① 选模型 → ② 预生成（自动生成停用态对照表）→ ③ 到「识别对照表」逐行核对 → ④ 回这里点激活 → ⑤ 点下发推到柜机（柜机需在线）。"
+                        aria-label="预生成与激活步骤"
+                    /></span>
                   </div>
                 </div>
               </div>
@@ -258,7 +260,12 @@
                   </el-form-item>
                 </el-col>
                 <el-col :span="7">
-                  <el-form-item label="识别编号起点">
+                  <el-form-item>
+                    <template #label
+                      >识别编号起点<HelpTip
+                        content="厂商不同固件对 classes 行号的起点定义不同，预生成按此项换算每行识别编号；对照表和柜机对不上时，更换起点后重新预生成。"
+                        aria-label="识别编号起点说明"
+                    /></template>
                     <el-select v-model="classIdBase" style="width: 100%" @change="loadModels()">
                       <el-option label="第 1 行 = 编号 0" :value="0" />
                       <el-option label="第 1 行 = 编号 1" :value="1" />
@@ -273,11 +280,6 @@
                   </el-form-item>
                 </el-col>
               </el-row>
-              <div class="field-hint">
-                「识别编号起点」：厂商不同固件对 classes
-                行号的起点不同，预生成按它换算每行的识别编号；
-                对照表和柜机对不上就换另一边重新预生成。
-              </div>
             </el-form>
 
             <el-alert
@@ -335,14 +337,13 @@
         </el-tab-pane>
 
         <el-tab-pane label="识别对照表" name="table">
-          <el-alert
-            class="jy-fallback-alert"
-            type="info"
-            :closable="false"
-            show-icon
-            title="classId 对照表现为兜底"
-            description="结算主路径=thirdPid 挂接；本表只在识别未命中 thirdPid 时参与。核对商品请看「平台商品」中文名；「识别名称」为厂商模型原始类目名，「厂商品名」为解码后的中文。"
-          />
+          <el-alert class="jy-fallback-alert" type="info" :closable="false" show-icon>
+            <template #title
+              >classId 对照表为兜底<HelpTip
+                content="结算主路径=thirdPid 挂接；本表只在识别未命中 thirdPid 时参与。核对商品请看「平台商品」中文名；「识别名称」为厂商模型原始类目名，「厂商品名」为解码后的中文。"
+                aria-label="classId 对照表说明"
+            /></template>
+          </el-alert>
           <!-- 识别编号映射表 -->
           <div class="table-scroll">
             <div class="table-scroll-inner">
@@ -435,10 +436,11 @@
               <div class="page-card-head">
                 <div class="page-card-head__meta">
                   <div class="page-card-head__title">
-                    <span class="title">下发记录</span>
-                    <span class="hint"
-                      >SENT=已下发等待回执（600s 超时置 FAILED）；CONFIRMED=柜机已应用</span
-                    >
+                    <span class="title"
+                      >下发记录<HelpTip
+                        content="SENT=已下发等待回执（600s 超时置 FAILED）；CONFIRMED=柜机已应用。"
+                        aria-label="下发状态说明"
+                    /></span>
                   </div>
                 </div>
                 <div class="page-card-head__actions">
@@ -603,7 +605,16 @@
 
     <el-dialog v-model="editVisible" :title="isCreate ? '新增映射' : '编辑映射'" destroy-on-close>
       <el-form label-width="auto">
-        <el-form-item label="识别编号" required>
+        <el-form-item required>
+          <template #label
+            >识别编号<HelpTip
+              :content="
+                isCreate
+                  ? '填写模型文件里的编号；同一柜机不可重复。'
+                  : '模型文件里的编号，已创建后不可修改。'
+              "
+              aria-label="识别编号说明"
+          /></template>
           <el-input v-if="!isCreate" :model-value="editForm.classId" disabled />
           <el-input-number
             v-else
@@ -614,21 +625,24 @@
             controls-position="right"
             style="width: 100%"
           />
-          <div class="field-hint">
-            {{ isCreate ? '模型文件里的编号；同一柜机不可重复' : '模型文件里的编号，不可修改' }}
-          </div>
         </el-form-item>
-        <el-form-item label="识别名称">
+        <el-form-item>
+          <template #label
+            >识别名称<HelpTip
+              content="取设备详情「将邑接入 → 查厂商商品对照（只读）」的「识别名（classes 原文）」列。只作留档；结算判据是「识别编号 + 对应商品」。"
+              aria-label="识别名称说明"
+          /></template>
           <el-input
             v-model="editForm.textName"
             placeholder="classes 原文行名，如 kkkl_xb_qsnmw_pttz_330ml"
           />
-          <div class="field-hint">
-            取设备详情「将邑接入 → 查厂商商品对照（只读）」的「识别名（classes 原文）」列
-          </div>
-          <div class="field-hint">只作留档；结算判据是「识别编号 + 对应商品」</div>
         </el-form-item>
-        <el-form-item label="对应商品" required>
+        <el-form-item required>
+          <template #label
+            >对应商品<HelpTip
+              content="下拉只列出在售商品；已停用的历史挂接仍保留原值。"
+              aria-label="对应商品范围"
+          /></template>
           <el-select v-model="editForm.skuId" filterable style="width: 100%">
             <el-option
               v-for="s in skuSelectOptions"
@@ -637,7 +651,6 @@
               :value="s.skuId"
             />
           </el-select>
-          <div class="field-hint">只列出在售商品；已停用的历史挂接仍保留原值</div>
         </el-form-item>
         <el-form-item label="状态">
           <el-switch v-model="editForm.active" active-text="启用" inactive-text="停用" />
@@ -660,6 +673,7 @@ import { CircleCheck, CircleClose, EditPen } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { errorMessage } from '@/utils/error-message';
 import { formatDateTime } from '@aicabinet/shared-uni/format';

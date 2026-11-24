@@ -15,4 +15,17 @@
                           AND l.handover_status <> 'CANCELLED'
     ]]>
   </select>
+  <select id="sumAllocatedQtyByBin" resultType="int">
+    <![CDATA[
+    SELECT COALESCE(SUM(l.quantity), 0)
+    FROM warehouse_outbound_line l
+    JOIN warehouse_outbound o ON o.outbound_id = l.outbound_id
+    WHERE l.bin_id = #{binId}
+      AND l.sku_id = #{skuId}
+      AND l.batch_no = #{batchNo}
+      AND o.status IN ('DRAFT', 'PICKED')
+      AND l.handover_status <> 'CANCELLED'
+    ]]>
+  </select>
+
 </mapper>

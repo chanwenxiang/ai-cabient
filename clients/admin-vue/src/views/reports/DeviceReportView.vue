@@ -4,8 +4,11 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">设备经营报表</span>
-            <span class="hint">按设备汇总累计 / 今日订单、营收与会话</span>
+            <span class="title"
+              >设备经营报表<HelpTip
+                content="按设备汇总累计 / 今日订单、营收与会话；设备台账口径含未投放/已退役柜，运营工作台同名 KPI 只算投放柜。"
+                aria-label="设备经营报表口径"
+            /></span>
           </div>
         </div>
       </div>
@@ -290,6 +293,7 @@ import { AdminEndpoints } from '@/api/endpoints';
 import EChart from '@/components/EChart.vue';
 import { seriesOption, type EChartsOption } from '@/utils/echarts';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import { useCrudTable, type CrudPageParams } from '@/composables/useCrudTable';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
@@ -433,8 +437,8 @@ function deviceReportDeviceCountHint(ready: boolean) {
 function deviceReportOfflineHint(ready: boolean) {
   if (!ready) return UI_COPY.loading;
   // MA-008：本页 KPI 跟随设备台账＝全量（含未投放/已退役柜）；运营工作台同名 KPI 只算投放柜。
-  // 两侧口径都是刻意的（不许顺手对齐），差别必须写在页面上，否则运营会当成数据对不上。
-  if (offlineTotal.value) return '全量口径（含未投放/已退役柜；工作台只算投放柜）· 点击筛选离线';
+  // 两侧口径都是刻意的（不许顺手对齐），差别放在页头 HelpTip，避免运营误以为数据对不上。
+  if (offlineTotal.value) return '点击筛选离线';
   return '全部在线';
 }
 

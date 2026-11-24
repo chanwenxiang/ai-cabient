@@ -4,10 +4,11 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">销售报表</span>
-            <span class="hint"
-              >商品 / 货柜 / 商户 / 渠道 / 毛利 · 含退款与净营收 · 可按柜机筛选</span
-            >
+            <span class="title"
+              >销售报表<HelpTip
+                content="支持商品 / 货柜 / 商户 / 渠道 / 毛利维度；含退款与净营收，可按柜机筛选。"
+                aria-label="销售报表范围与口径"
+            /></span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -275,6 +276,7 @@ import type { TableColumnCtx } from 'element-plus';
 import { api, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import { useCrudTable, type CrudPageParams } from '@/composables/useCrudTable';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { useListCsv } from '@/composables/useListCsv';

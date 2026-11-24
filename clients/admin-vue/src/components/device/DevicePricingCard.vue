@@ -1,12 +1,12 @@
 <template>
   <div v-loading="loading" class="pricing-pane">
-    <el-alert
-      class="pricing-hint"
-      type="info"
-      :closable="false"
-      show-icon
-      title="单柜定价只影响本柜：覆盖价启用后，顾客在本柜下单按覆盖价结算（时段/清仓折扣仍会在其上叠加）；停用则恢复跟随商品库基准价。可改区间与限价规则与商户端一致。"
-    />
+    <el-alert class="pricing-hint" type="info" :closable="false" show-icon>
+      <template #title
+        >单柜定价：启用按覆盖价结算，停用恢复基准价<HelpTip
+          content="单柜定价只影响本柜：覆盖价启用后，顾客在本柜下单按覆盖价结算（时段/清仓折扣仍会在其上叠加）；停用则恢复跟随商品库基准价。可改区间与限价规则与商户端一致。"
+          aria-label="单柜定价说明"
+      /></template>
+    </el-alert>
     <el-table :data="rows" size="small" :row-key="(r: DevicePricingRow) => r.skuId">
       <el-table-column label="商品" min-width="200">
         <template #default="{ row }">
@@ -120,6 +120,7 @@
  * 低于进货成本仅黄色提示不阻断（拍板：清仓/引流打折放行，知情即可）。
  */
 import { toRef } from 'vue';
+import HelpTip from '@/components/HelpTip.vue';
 import { yuanTextZero as yuan, yuanToCents, centsToYuanNumber } from '@/utils/display';
 import { useDevicePricing, type DevicePricingRow } from '@/composables/device/useDevicePricing';
 

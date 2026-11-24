@@ -5,9 +5,10 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">活动效果分析</span>
-            <span class="hint"
-              >发券 → 核销 → 带动营收；「预算已用」为活动占用预算，「订单优惠」为订单实扣优惠</span
-            >
+            <HelpTip
+              content="发券 → 核销 → 带动营收；「预算已用」为活动占用预算，「订单优惠」为订单实扣优惠。"
+              aria-label="活动效果分析说明"
+            />
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -152,9 +153,10 @@
 
     <el-divider content-position="left">
       <span class="title">活动位效果（按展示位）</span>
-      <span class="hint">
-        人均与峰值只按已归因（有登录主体）的行算，未归因行单独列出——把它们混进分母会把人均压成假低值
-      </span>
+      <HelpTip
+        content="人均与峰值只按已归因（有登录主体）的行算，未归因行单独列出——把它们混进分母会把人均压成假低值。"
+        aria-label="活动位效果说明"
+      />
     </el-divider>
     <CrudTable :table="placementsCrud" empty-text="暂无打点数据（弹窗位打点随新版小程序生效）">
       <el-table-column
@@ -234,6 +236,7 @@ import { ref } from 'vue';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import CrudTable, { type CrudCsvOptions } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 

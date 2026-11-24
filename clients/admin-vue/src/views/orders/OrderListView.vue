@@ -4,11 +4,11 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">订单管理</span>
-            <span class="hint"
-              >支付 / 退款状态分列；未支付订单支持账龄追缴；可按订单或按商品行导出 ·
-              未勾选=服务端按当前筛选导出（表头为字段名），勾选行=前端导出（中文表头）</span
-            >
+            <span class="title"
+              >订单管理<HelpTip
+                content="支付 / 退款状态分列；未支付订单支持账龄追缴；可按订单或按商品行导出。未勾选=服务端按当前筛选导出（表头为字段名），勾选行=前端导出（中文表头）。"
+                aria-label="订单管理与导出口径"
+            /></span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -85,12 +85,10 @@
           @change="onHideZeroToggle"
         >
           隐藏零元单
-          <el-tooltip
+          <HelpTip
             content="多为开门未取货结案（金额为 0），开启后列表与导出均不展示；已退款 Tab 仍显示有退款额的单"
-            placement="top"
-          >
-            <span class="hide-zero-hint">?</span>
-          </el-tooltip>
+            aria-label="隐藏零元单说明"
+          />
         </el-checkbox>
       </el-form-item>
       <!-- 🔴 动作组必须是筛选行的**最后一项**：main.css 用 `margin-left:auto` 把「只含按钮」的项
@@ -700,9 +698,13 @@
       destroy-on-close
       append-to-body
     >
-      <p class="partial-hint">
-        指定要退的 SKU 数量；可按行选择是否回库（退货退款 / 仅退款不回库）。
-      </p>
+      <div class="partial-hint">
+        <span>退款范围</span>
+        <HelpTip
+          content="指定要退的 SKU 数量；可按行选择是否回库（退货退款 / 仅退款不回库）。"
+          aria-label="按行退款说明"
+        />
+      </div>
       <el-input
         v-model="partialReason"
         type="textarea"
@@ -777,6 +779,7 @@ import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import OrderJiangyiVideoDialog from '@/components/order/OrderJiangyiVideoDialog.vue';
 import { useCrudTable } from '@/composables/useCrudTable';

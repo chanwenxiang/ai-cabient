@@ -39,4 +39,7 @@ public class WarehouseOutboundLine {
     /** 目标货道（规划按货道拆行时写入） */
     private String slotId;
 
+    /** 规划时分配的仓库货位；发运扣减、取消回仓恢复。null=总仓未分配货位。 */
+    private Long binId;
+
 }

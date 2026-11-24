@@ -29,6 +29,12 @@ public class MerchantWithdrawRequest {
     private Instant reviewedAt;
     private String payoutRef;
     private String payoutMessage;
+    /** 备付恢复重试到期时刻；null=不参与自动重试。 */
+    private Instant nextPayoutRetryAt;
+    /** 已自动重试次数。 */
+    private Integer payoutRetryCount;
+    /** 最近一次备付不足/ NOT_ENOUGH 原因。 */
+    private String lastPayoutBlockReason;
     private Instant paidAt;
     private Instant createdAt;
     private Instant updatedAt;

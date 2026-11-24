@@ -134,15 +134,15 @@ public class NotificationService {
         }
         String title = render(tpl.getTitleTemplate(), params);
         String body = render(tpl.getBodyTemplate(), params);
-        if (!notifyPrefService.isEnabled(userId, tpl.getCategory())) {
-            return;
-        }
-
         List<String> channelList = channels(tpl.getChannels(), tpl.getChannel());
         if (channelList.contains(IN_APP)) {
             self.persistInAppLog(new NotificationLogDraft(tpl.getTemplateCode(), IN_APP,
                     new NotificationLogDraft.NotificationTarget(audience, userId, merchantId),
                     new NotificationLogDraft.NotificationContent(title, body, bizType, bizId)));
+        }
+        // 站内信是业务事实，先于外部渠道落库；偏好只控制微信/短信，不阻断消息中心。
+        if (!notifyPrefService.isEnabled(userId, tpl.getCategory())) {
+            return;
         }
         boolean hasExternal = channelList.stream().anyMatch(c -> !IN_APP.equals(c));
         if (!hasExternal || userId == null) {

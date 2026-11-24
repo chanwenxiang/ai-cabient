@@ -117,13 +117,17 @@ export function hasSubscribeTemplates(extra?: string[]) {
  *   （2026-10-23 第五轮审计：此前只读编译期 env，而 consumer-mp 全链路未配置该 env，
  *   订阅授权 100% 静默失效）。
  */
-export async function requestOrderSubscribe(extra?: string[]) {
+export async function requestOrderSubscribe(
+  extra?: string[]
+): Promise<'ok' | 'skipped' | 'failed'> {
   const tmplIds = mergeSubscribeTmplIds(extra);
-  if (!canSubscribeMessage() || !tmplIds.length) return;
-  await new Promise<void>((resolve) => {
+  if (!canSubscribeMessage() || !tmplIds.length) return 'skipped';
+  return await new Promise((resolve) => {
     uni.requestSubscribeMessage({
       tmplIds,
-      complete: () => resolve()
+      success: () => resolve('ok'),
+      fail: () => resolve('failed'),
+      complete: () => {}
     });
   });
 }

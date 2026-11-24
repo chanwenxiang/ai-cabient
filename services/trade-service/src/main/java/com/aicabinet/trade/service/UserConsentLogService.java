@@ -5,6 +5,8 @@ import com.aicabinet.trade.mapper.UserConsentLogMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 用户同意留痕（AU-149，V394）。
@@ -27,7 +29,8 @@ public class UserConsentLogService {
         this.consentLogMapper = consentLogMapper;
     }
 
-    /** 记录隐私政策同意（登录发 token 时调用；DB 层幂等，异常不阻断）。 */
+    /** 记录隐私政策同意；独立写事务避免 refreshSession 的只读事务拒绝 INSERT。 */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordPrivacyConsent(Long userId) {
         record(userId, UserConsentLog.TYPE_PRIVACY_POLICY, PRIVACY_POLICY_VERSION);
     }

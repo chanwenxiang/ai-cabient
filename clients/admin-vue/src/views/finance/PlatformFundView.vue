@@ -6,12 +6,10 @@
           <div class="page-card-head__title">
             <span class="title"
               >平台资金池<HelpTip
-                content="商户提现打款前会校验对应渠道账户备付余额；未登记账户为软启动（只告警不拦截）。充值=公司入金，归集=商户销售额转入，调整为差错更正（可正可负）"
+                content="商户提现打款前会校验对应渠道账户备付余额；未登记账户为软启动（只告警不拦截）。充值=公司入金，归集=商户销售额转入，调整为差错更正（可正可负）。渠道账户备付台账（CB-033）。"
                 aria-label="平台资金池口径"
             /></span>
-            <span class="hint"
-              >渠道账户备付台账（CB-033）；余额只回答「今天够不够付」，以渠道实盘为准</span
-            >
+            <span class="hint">备付余额仅供当日参考，以渠道实盘为准</span>
           </div>
         </div>
         <div class="page-card-head__actions">

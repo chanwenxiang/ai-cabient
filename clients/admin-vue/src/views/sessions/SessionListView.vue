@@ -4,11 +4,11 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">开门记录</span>
-            <span class="hint"
-              >按设备 / 会话状态筛选；活跃态超过 {{ STALE_MINUTES }} 分钟高亮滞留，便于日间跟进 ·
-              导出两种口径：未勾选=服务端按当前筛选导出（表头为字段名），勾选行=前端导出（中文表头）</span
-            >
+            <span class="title"
+              >开门记录<HelpTip
+                :content="`按设备 / 会话状态筛选；活跃态超过 ${STALE_MINUTES} 分钟高亮滞留，便于日间跟进。导出两种口径：未勾选=服务端按当前筛选导出（表头为字段名），勾选行=前端导出（中文表头）。`"
+                aria-label="开门记录与导出口径"
+            /></span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -365,6 +365,7 @@ import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import OrderJiangyiVideoDialog from '@/components/order/OrderJiangyiVideoDialog.vue';
 import { useCrudTable } from '@/composables/useCrudTable';

@@ -132,6 +132,14 @@
       "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
     },
     {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/reconciliation/WeChatFundBillCsvParser.java",
+      "sep": "\\\\R",
+      "kind": "reader",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
       "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDataManageService.java",
       "sep": ",",
       "kind": "writer",

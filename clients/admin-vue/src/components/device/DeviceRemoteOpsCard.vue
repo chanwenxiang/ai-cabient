@@ -6,6 +6,7 @@ import type {
 } from '@/composables/device/useDeviceRemoteOps';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
@@ -73,8 +74,11 @@ watch(
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">远程运维</span>
-            <span class="hint">远程指令 / 补货入口 / 退款与锁机 / 维修工单</span>
+            <span class="title"
+              >远程运维<HelpTip
+                content="汇总远程指令、补货入口、退款与锁机规则、维修工单；具体可用操作受设备类型与权限限制。"
+                aria-label="远程运维范围"
+            /></span>
           </div>
         </div>
       </div>

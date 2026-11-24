@@ -5,7 +5,10 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">消息记录</span>
-            <span class="hint">站内信发送记录；可手动向消费者 / 商户发信</span>
+            <HelpTip
+              content="站内信发送记录；可手动向消费者 / 商户发信。"
+              aria-label="消息记录说明"
+            />
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -172,6 +175,7 @@ import { Delete, Edit } from '@element-plus/icons-vue';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import {

@@ -119,7 +119,7 @@ class NotificationServiceTest {
     }
 
     @Test
-    void send_shouldSkipWhenPrefDisabled() {
+    void send_prefDisabled_stillPersistsInAppButSkipsExternal() {
         NotificationService service = service(false);
         when(templateRepository.findByCode("order_paid"))
                 .thenReturn(Optional.of(template("IN_APP,WECHAT_SUBSCRIBE,SMS", "ORDER")));
@@ -128,7 +128,7 @@ class NotificationServiceTest {
         service.notifyConsumer(100L, "order_paid",
                 Map.of("orderId", "O1", "amount", "12"), "ORDER", "O1");
 
-        verify(logRepository, never()).save(any(NotificationLog.class));
+        verify(logRepository).save(any(NotificationLog.class));
         verify(externalDispatcher, never()).dispatch(any());
     }
 

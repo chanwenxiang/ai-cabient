@@ -5,7 +5,11 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">素材库</span>
-            <span class="hint">素材库；柜机播放与曝光统计接入前仅支持后台预览</span>
+            <span class="hint">当前仅支持后台预览</span>
+            <HelpTip
+              content="素材库；柜机播放与曝光统计接入前仅支持后台预览。"
+              aria-label="素材库说明"
+            />
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -197,6 +201,7 @@ import { Delete, EditPen } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, authFetch } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { displayLabel } from '@aicabinet/shared-dict';

@@ -65,6 +65,7 @@ public class ExternalNotificationDispatcher {
             } catch (Exception e) {
                 log.warn("wechat notify failed userId={} template={}: {}",
                         msg.userId(), msg.templateCode(), e.toString());
+                saveFailedLog(msg, "WECHAT_SUBSCRIBE", e.toString());
             }
         }
         if (channelSwitch.smsEnabled()) {
@@ -80,6 +81,7 @@ public class ExternalNotificationDispatcher {
     private void sendWechat(NotificationDispatchMessage msg) {
         UserInfo user = userInfoRepository.findById(msg.userId()).orElse(null);
         if (user == null || user.getWxOpenId() == null || user.getWxOpenId().isBlank()) {
+            saveFailedLog(msg, "WECHAT_SUBSCRIBE", "用户未绑定微信 openid");
             return;
         }
         // MA-384：消费者模板缺失时 fail-closed——旧实现回落商户模板，两个 appid 不通用必 400；
@@ -88,6 +90,7 @@ public class ExternalNotificationDispatcher {
         if (templateId == null || templateId.isBlank()) {
             log.warn("wechat notify skipped: consumer template not configured userId={} templateCode={}",
                     msg.userId(), msg.templateCode());
+            saveFailedLog(msg, "WECHAT_SUBSCRIBE", "消费者订阅模板未配置");
             return;
         }
         boolean ok = weChatMiniAppClient.sendSubscribeMessage(
@@ -98,6 +101,8 @@ public class ExternalNotificationDispatcher {
                 MiniAppTarget.CONSUMER);
         if (ok) {
             saveLog(msg, "WECHAT_SUBSCRIBE");
+        } else {
+            saveFailedLog(msg, "WECHAT_SUBSCRIBE", "微信订阅消息发送失败");
         }
     }
 
@@ -198,21 +203,29 @@ public class ExternalNotificationDispatcher {
     private static final int WECHAT_THING_MAX_CHARS = 20;
 
     private void saveLog(NotificationDispatchMessage msg, String channel) {
+        saveLog(msg, channel, "SENT", msg.body());
+    }
+
+    private void saveFailedLog(NotificationDispatchMessage msg, String channel, String reason) {
+        saveLog(msg, channel, "FAILED", msg.body() + "（投递失败：" + reason + "）");
+    }
+
+    private void saveLog(NotificationDispatchMessage msg, String channel, String status, String body) {
         NotificationLog logEntry = new NotificationLog();
         logEntry.setTemplateCode(msg.templateCode());
         logEntry.setChannel(channel);
         logEntry.setAudience("CONSUMER");
         logEntry.setUserId(msg.userId());
         logEntry.setTitle(msg.title());
-        logEntry.setBody(msg.body());
+        logEntry.setBody(body);
         logEntry.setBizType(msg.bizType());
         logEntry.setBizId(msg.bizId());
         // SENT = 渠道已受理（阿里云 Code=OK / 微信 errcode=0），不代表用户已收到；
         // notification_log 没有投递回执字段，需要到达率时另接渠道回执查询。
-        logEntry.setStatus("SENT");
+        logEntry.setStatus(status);
         logEntry.setCreatedAt(Instant.now());
         logRepository.save(logEntry);
-        log.info("external notification sent channel={} template={} userId={}",
-                channel, msg.templateCode(), msg.userId());
+        log.info("external notification {} channel={} template={} userId={}",
+                status, channel, msg.templateCode(), msg.userId());
     }
 }

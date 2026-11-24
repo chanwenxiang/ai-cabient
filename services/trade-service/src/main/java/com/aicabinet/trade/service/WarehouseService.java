@@ -76,6 +76,7 @@ public class WarehouseService {
     private final MerchantScopeService merchantScopeService;
     private final AdminAuditService auditService;
     private final WarehouseManagerMapper warehouseManagerRepository;
+    private final WarehouseBinStockMapper binStockRepository;
     private final WarehouseService self;
 
     public WarehouseService(WarehouseMapper warehouseRepository,
@@ -102,6 +103,7 @@ public class WarehouseService {
                             MerchantScopeService merchantScopeService,
                             AdminAuditService auditService,
                             WarehouseManagerMapper warehouseManagerRepository,
+                            WarehouseBinStockMapper binStockRepository,
                             @Lazy WarehouseService self) {
         this.warehouseRepository = warehouseRepository;
         this.inventoryRepository = inventoryRepository;
@@ -127,6 +129,7 @@ public class WarehouseService {
         this.merchantScopeService = merchantScopeService;
         this.auditService = auditService;
         this.warehouseManagerRepository = warehouseManagerRepository;
+        this.binStockRepository = binStockRepository;
         this.self = self;
     }
 
@@ -942,6 +945,7 @@ public class WarehouseService {
     }
 
     private WarehouseOutboundDto doShipOutbound(Long operatorId, Long outboundId) {
+        // CONCURRENCY: 出库单 FOR UPDATE + 总仓/货位批次行 FOR UPDATE，按 sku/batch/bin 同序扣减。
         WarehouseOutbound outbound = requireOutboundForUpdate(outboundId);
         if (SHIPPED.equals(outbound.getStatus())) {
             return self.getOutbound(outboundId);
@@ -980,6 +984,7 @@ public class WarehouseService {
             recordWarehouseMovement(outbound.getWarehouseId(), line.getSkuId(), line.getBatchNo(),
                     new MovementSpec("OUTBOUND_SHIP", -line.getQuantity(), "WAREHOUSE_OUTBOUND",
                             String.valueOf(outboundId), operatorId));
+            deductBinStock(line);
             line.setHandoverStatus(IN_TRANSIT);
             outboundLineRepository.save(line);
         }
@@ -991,6 +996,38 @@ public class WarehouseService {
         outboundRepository.save(outbound);
         inTransitService.recordFromOutbound(outboundId, lines);
         return self.getOutbound(outboundId);
+    }
+
+    private void deductBinStock(WarehouseOutboundLine line) {
+        if (line.getBinId() == null) {
+            return;
+        }
+        WarehouseBinStock row = binStockRepository
+                .findByBinIdAndSkuIdAndBatchNoForUpdate(
+                        line.getBinId(), line.getSkuId(), line.getBatchNo())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT,
+                        "货位库存已变化，请刷新后重新领货出库"));
+        if (row.getQuantity() < line.getQuantity()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "货位库存不足，请刷新后重新领货出库");
+        }
+        row.setQuantity(row.getQuantity() - line.getQuantity());
+        row.setUpdatedAt(Instant.now());
+        binStockRepository.save(row);
+    }
+
+    private void restoreBinStock(WarehouseOutboundLine line) {
+        if (line.getBinId() == null) {
+            return;
+        }
+        WarehouseBinStock row = binStockRepository
+                .findByBinIdAndSkuIdAndBatchNoForUpdate(
+                        line.getBinId(), line.getSkuId(), line.getBatchNo())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT,
+                        "货位库存行缺失，无法回仓恢复"));
+        row.setQuantity(row.getQuantity() + line.getQuantity());
+        row.setUpdatedAt(Instant.now());
+        binStockRepository.save(row);
     }
 
     @Transactional(readOnly = true)
@@ -1079,6 +1116,7 @@ public class WarehouseService {
 
     private void cancelShippedDeviceLines(WarehouseOutbound outbound, List<WarehouseOutboundLine> deviceLines,
                                           String device, Long outboundId, Long operatorId) {
+        // CONCURRENCY: 出库单 FOR UPDATE + 总仓/货位批次行 FOR UPDATE，回仓与发运同序。
         // 审计批次4：与发运侧（doShipOutbound）同构——回仓加库存前按 (skuId,batchNo) 全局
         // 排序，两个取消单行序相反且共用批次时按同序取锁，消除 PG 死锁窗口。
         List<WarehouseOutboundLine> orderedLines = deviceLines.stream()
@@ -1093,6 +1131,7 @@ public class WarehouseService {
                 recordWarehouseMovement(outbound.getWarehouseId(), line.getSkuId(), line.getBatchNo(),
                         new MovementSpec("OUTBOUND_CANCEL", line.getQuantity(), "WAREHOUSE_OUTBOUND",
                                 String.valueOf(outboundId), operatorId));
+                restoreBinStock(line);
             }
             line.setHandoverStatus(STATUS_CANCELLED);
             outboundLineRepository.save(line);
@@ -1429,19 +1468,47 @@ public class WarehouseService {
             return null;
         }
         int take = Math.min(available, remaining);
+        int remainingToAllocate = take;
+        int lines = 0;
+        List<WarehouseBinStock> binRows = binStockRepository
+                .findByWarehouseIdAndSkuIdAndBatchNoForUpdate(warehouseId, skuId, lockedLot.getBatchNo());
+        for (WarehouseBinStock binRow : binRows) {
+            if (remainingToAllocate <= 0) {
+                break;
+            }
+            int reserved = outboundLineRepository.sumAllocatedQtyByBin(
+                    binRow.getBinId(), skuId, lockedLot.getBatchNo());
+            int binAvailable = Math.max(0, binRow.getQuantity() - reserved);
+            if (binAvailable <= 0) {
+                continue;
+            }
+            int binTake = Math.min(binAvailable, remainingToAllocate);
+            saveOutboundLine(outboundId, deviceId, skuId, lockedLot, slotId, binTake, binRow.getBinId());
+            remainingToAllocate -= binTake;
+            lines += 1;
+        }
+        if (remainingToAllocate > 0) {
+            saveOutboundLine(outboundId, deviceId, skuId, lockedLot, slotId, remainingToAllocate, null);
+            lines += 1;
+        }
+        return new FefoLotTake(take, lines);
+    }
+
+    private void saveOutboundLine(Long outboundId, String deviceId, String skuId,
+                                  WarehouseInventory lot, String slotId, int quantity, Long binId) {
         WarehouseOutboundLine line = new WarehouseOutboundLine();
         line.setOutboundId(outboundId);
         line.setDeviceId(deviceId);
         line.setSkuId(skuId);
-        line.setBatchNo(lockedLot.getBatchNo());
-        line.setExpiryDate(lockedLot.getExpiryDate());
-        line.setQuantity(take);
+        line.setBatchNo(lot.getBatchNo());
+        line.setExpiryDate(lot.getExpiryDate());
+        line.setQuantity(quantity);
         line.setPicked(false);
+        line.setBinId(binId);
         if (slotId != null && !slotId.isBlank()) {
             line.setSlotId(slotId.trim().toUpperCase());
         }
         outboundLineRepository.save(line);
-        return new FefoLotTake(take, 1);
     }
 
     /** 发运前按货道余量截断出库行；数量归零的行删除。 */

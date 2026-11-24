@@ -5,7 +5,10 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">用户反馈</span>
-            <span class="hint">回复为运营备注，不推送用户；用户可在「我的反馈」自行查看</span>
+            <HelpTip
+              content="回复为运营备注，不推送用户；用户可在「我的反馈」自行查看。"
+              aria-label="用户反馈说明"
+            />
           </div>
         </div>
       </div>
@@ -158,6 +161,7 @@ import { ChatDotRound, Delete } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useNavAccess } from '@/composables/useNavAccess';

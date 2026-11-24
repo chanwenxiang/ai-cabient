@@ -229,13 +229,12 @@ const INJECT = {
     expect: 'mine.vue'
   },
   Q: {
-    file: 'clients/consumer-mp/src/pages/result/result.vue',
-    from: 'function currentPageOptions(): Record<string, string> {',
+    file: 'clients/consumer-mp/src/pages/index/index.vue',
+    from: 'async function onScan() {\n  requestOpenSubscribe();',
     to:
-      '// 负向验证探针（Q1）：订阅调用不可从 tap 到达\n' +
-      'function probeRestore() {\n  void requestOrderSubscribe([]);\n}\n' +
-      'function currentPageOptions(): Record<string, string> {',
-    expect: 'result.vue'
+      '// 负向验证探针（Q2）：扫码手势在 await 后过期才请求订阅\n' +
+      'async function onScan() {\n  await safeScanCode();\n  requestOpenSubscribe();',
+    expect: 'index.vue'
   },
   R: {
     file: 'clients/merchant-mp/src/pages/prep-list/prep-list.vue',

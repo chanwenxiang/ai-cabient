@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">充值管理</span>
-            <span class="hint">按状态 / 用户筛选充值单；金额居中展示</span>
+            <HelpTip content="按状态 / 用户筛选充值单；金额居中展示。" aria-label="充值管理说明" />
           </div>
         </div>
       </div>
@@ -154,6 +154,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictOptions, dictTagType, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { yuanTextZero as yuan } from '@/utils/display';

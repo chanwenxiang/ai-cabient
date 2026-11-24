@@ -14,6 +14,7 @@ import { computed, reactive, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import { errorMessage } from '@/utils/error-message';
 import { yuanToCents } from '@/utils/display';
 
@@ -180,13 +181,19 @@ defineExpose({ open });
         <el-select v-model="form.reasonCategory" style="width: 100%">
           <el-option v-for="c in CATEGORIES" :key="c.value" :label="c.label" :value="c.value" />
         </el-select>
-        <div class="hint">用于定位「过期/破损/丢失」各占多少，选「其他」会把损耗归入兜底桶。</div>
+        <HelpTip
+          content="用于定位「过期/破损/丢失」各占多少，选「其他」会把损耗归入兜底桶。"
+          aria-label="原因分类说明"
+        />
       </el-form-item>
       <el-form-item label="责任方">
         <el-select v-model="form.responsibleParty" style="width: 100%">
           <el-option v-for="p in PARTIES" :key="p.value" :label="p.label" :value="p.value" />
         </el-select>
-        <div class="hint">「尚未认定」与「无责任方」是不同状态：前者还没查，后者是查过了。</div>
+        <HelpTip
+          content="「尚未认定」与「无责任方」是不同状态：前者还没查，后者是查过了。"
+          aria-label="责任方状态说明"
+        />
       </el-form-item>
       <el-form-item label="理赔单号">
         <el-input v-model="form.claimNo" placeholder="与供应商/物流结算单勾稽，可留空" />

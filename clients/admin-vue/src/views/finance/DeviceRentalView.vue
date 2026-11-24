@@ -6,13 +6,9 @@
           <div class="page-card-head__title">
             <span class="title"
               >设备租赁<HelpTip
-                content="押金是负债不是收入：登记→扣款抵欠（累计不超过本金）→退租结算返还；月租账单按月出账，逾期未付自动锁柜（欠租解锁不影响维修/风控锁）"
+                content="押金是负债不是收入：登记→扣款抵欠（累计不超过本金）→退租结算返还；月租账单按月出账，逾期未付自动锁柜（欠租解锁不影响维修/风控锁）。押金收据化 + 月租应收账单（CB-034）。ONLINE 从商户余额真扣；OFFLINE 仅收据化登记。"
                 aria-label="设备租赁口径"
             /></span>
-            <span class="hint"
-              >押金收据化 + 月租应收账单（CB-034）；登记即按收取方式处置：ONLINE
-              从商户余额真扣、OFFLINE 只做收据化登记</span
-            >
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -250,9 +246,7 @@
         </el-form-item>
         <el-form-item label="合同年数">
           <el-input-number v-model="registerForm.contractYears" :min="1" :max="20" :step="1" />
-          <span class="hint">
-            用于期满判定：押金已按月退完且满期才发期满奖励；余额未退完时结算仍扣安装费
-          </span>
+          <span class="hint">押金退完且满期才发期满奖励；未退完仍扣安装费</span>
         </el-form-item>
         <el-form-item label="未满期倒扣">
           <el-switch v-model="registerForm.installFeeClawbackEnabled" />

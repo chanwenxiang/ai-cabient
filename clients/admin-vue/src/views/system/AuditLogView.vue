@@ -5,7 +5,10 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">审计日志</span>
-            <span class="hint">管理写操作留痕；ID 默认升序，点击表头可切换升降序</span>
+            <HelpTip
+              content="管理写操作留痕；ID 默认升序，点击表头可切换升降序。"
+              aria-label="审计日志说明"
+            />
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -163,6 +166,7 @@ import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import type { PageResult } from '@aicabinet/shared-types';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import CrudTable, { type CrudCsvOptions } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 

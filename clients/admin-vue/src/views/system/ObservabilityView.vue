@@ -2,12 +2,13 @@
   <div class="observability">
     <div class="obs-header">
       <div>
-        <h2>日志中心</h2>
-        <p class="hint">
-          全栈容器日志与链路追踪（Grafana · Loki / Tempo）。日志按主题拆成 6 个页签（含 ERROR
-          计数与运营概览），切上面即可；看板与「DevOps 中心」共用同一个 Grafana
-          实例，这里只是把它嵌到系统模块里直达。
-        </p>
+        <h2>
+          日志中心
+          <HelpTip
+            content="全栈容器日志与链路追踪（Grafana · Loki / Tempo）。日志按主题拆成 6 个页签（含 ERROR 计数与运营概览），切上面即可；看板与「DevOps 中心」共用同一个 Grafana 实例，这里只是把它嵌到系统模块里直达。"
+            aria-label="日志中心说明"
+          />
+        </h2>
       </div>
       <div class="obs-actions">
         <el-button :icon="Refresh" :loading="loading" @click="load">刷新状态</el-button>
@@ -35,7 +36,7 @@
               {{ b.title }}
             </el-radio-button>
           </el-radio-group>
-          <span class="hint">{{ activeBoardMeta.hint }}</span>
+          <HelpTip :content="activeBoardMeta.hint" aria-label="当前看板说明" />
         </div>
       </template>
       <div ref="frameWrap" class="obs-frame-wrap">
@@ -92,6 +93,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 
 interface DevOpsTool {
   id: string;

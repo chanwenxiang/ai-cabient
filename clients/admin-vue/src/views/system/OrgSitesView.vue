@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">组织与点位</span>
-            <span class="hint">组织树 · 设备归属 · 点位场地合同</span>
+            <HelpTip content="组织树 · 设备归属 · 点位场地合同。" aria-label="组织与点位说明" />
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -547,14 +547,18 @@
             />
           </el-form-item>
         </div>
-        <el-form-item label="月费(元)">
+        <el-form-item>
+          <template #label>
+            月费(元)
+            <HelpTip content="用于「租金账单」出账；不会自动打款。" aria-label="月费用途说明" />
+          </template>
           <el-input-number
             v-model="contractForm.monthlyFeeYuan"
             :min="0"
             :step="10"
             style="width: 100%"
           />
-          <div class="field-hint">用于「租金账单」出账；不会自动打款</div>
+          <div class="field-hint">不会自动打款</div>
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="contractForm.remark" type="textarea" :rows="2" />

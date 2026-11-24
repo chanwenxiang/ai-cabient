@@ -18,7 +18,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TAG = '[check-admin-banner-ratchet]';
 const PRINT_ONLY = process.argv.includes('--print');
-export const BASELINE = 49;
+export const BASELINE = 45;
 const VIEWS_DIR = join(root, 'clients/admin-vue/src/views');
 const ALERT_RE = /<el-alert\b/g;
 

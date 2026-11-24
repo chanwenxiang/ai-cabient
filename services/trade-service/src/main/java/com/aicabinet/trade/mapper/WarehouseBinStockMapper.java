@@ -16,9 +16,19 @@ public interface WarehouseBinStockMapper extends BaseTradeMapper<WarehouseBinSto
             @Param("skuId") String skuId,
             @Param("batchNo") String batchNo);
 
+    List<WarehouseBinStock> findByWarehouseIdAndSkuIdAndBatchNoForUpdateRaw(
+            @Param("warehouseId") String warehouseId,
+            @Param("skuId") String skuId,
+            @Param("batchNo") String batchNo);
+
     default Optional<WarehouseBinStock> findByBinIdAndSkuIdAndBatchNoForUpdate(
             Long binId, String skuId, String batchNo) {
         return Optional.ofNullable(findByBinIdAndSkuIdAndBatchNoForUpdateRaw(binId, skuId, batchNo));
+    }
+
+    default List<WarehouseBinStock> findByWarehouseIdAndSkuIdAndBatchNoForUpdate(
+            String warehouseId, String skuId, String batchNo) {
+        return findByWarehouseIdAndSkuIdAndBatchNoForUpdateRaw(warehouseId, skuId, batchNo);
     }
 
     default List<WarehouseBinStock> findByBinIdOrderByExpiryDateAsc(Long binId) {

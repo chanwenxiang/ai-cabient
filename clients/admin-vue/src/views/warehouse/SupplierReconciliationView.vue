@@ -11,6 +11,7 @@ import { computed, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import { useAuthStore } from '@/stores/auth';
 import { centsToYuanDigits } from '@aicabinet/shared-uni/format';
 import { yuanText } from '@/utils/display';
@@ -161,10 +162,11 @@ function exportCsv() {
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">供应商月度对账单</span>
-            <span class="hint">
-              期初 + 本期新增应付 − 本期退货冲减 − 本期付款 = 期末。只读聚合，不动任何资金。
-            </span>
+            <span class="title"
+              >供应商月度对账单<HelpTip
+                content="期初 + 本期新增应付 − 本期退货冲减 − 本期付款 = 期末。只读聚合，不动任何资金。"
+                aria-label="供应商月度对账单说明"
+            /></span>
           </div>
         </div>
       </div>
@@ -270,8 +272,11 @@ function exportCsv() {
             <el-tag v-else type="danger" size="small">不一致，见顶部红条</el-tag>
           </el-descriptions-item>
         </el-descriptions>
-        <div class="hint" style="margin-top: 8px">
-          与供应商开票数的差异请线下人工核对（CSV 可导出）；系统内收票登记为二期范围。
+        <div style="margin-top: 8px">
+          开票差异<HelpTip
+            content="与供应商开票数的差异请线下人工核对（CSV 可导出）；系统内收票登记为二期范围。"
+            aria-label="开票差异说明"
+          />
         </div>
       </el-card>
     </template>

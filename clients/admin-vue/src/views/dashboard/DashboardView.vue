@@ -6,9 +6,10 @@
           <div class="page-card-head__meta">
             <div class="page-card-head__title">
               <span class="title">运营工作台</span>
-              <span class="hint"
-                >今日快照；分区对齐资金 / 履约 / 设备 / 进件；补货开门请在「补货调度」操作</span
-              >
+              <HelpTip
+                content="今日快照；分区对齐资金 / 履约 / 设备 / 进件；补货开门请在「补货调度」操作。"
+                aria-label="运营工作台说明"
+              />
             </div>
           </div>
           <div class="page-card-head__actions">
@@ -225,7 +226,10 @@
           <div class="page-card-head__meta">
             <div class="page-card-head__title">
               <span class="title">告警明细</span>
-              <span class="hint">按严重程度排序；上方分区对齐资金 / 履约 / 设备 / 进件待办</span>
+              <HelpTip
+                content="按严重程度排序；上方分区对齐资金 / 履约 / 设备 / 进件待办。"
+                aria-label="告警明细说明"
+              />
             </div>
           </div>
           <div class="page-card-head__actions">
@@ -298,6 +302,7 @@ import { Refresh, Right } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useNavAccess } from '@/composables/useNavAccess';

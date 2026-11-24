@@ -2,6 +2,7 @@
 import { centsToYuanNumber, yuanToCents } from '@/utils/display';
 import { computed } from 'vue';
 import AddressPicker from '@/components/AddressPicker.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import type { DeviceAssetForm } from '@/composables/device/useDeviceAsset';
 import { dictOptions } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
@@ -69,8 +70,11 @@ const dataFeeYuan = computed({
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">资产与投放</span>
-            <span class="hint">设备档案 / 投放位置 / 费用 / 生命周期</span>
+            <span class="title"
+              >资产与投放<HelpTip
+                content="维护设备档案、投放位置、费用与生命周期；保存资产仅更新当前设备。"
+                aria-label="资产与投放范围"
+            /></span>
           </div>
         </div>
         <el-button
@@ -117,7 +121,12 @@ const dataFeeYuan = computed({
           </el-form-item>
         </el-col>
         <el-col :xs="24" :sm="12" :md="8">
-          <el-form-item label="投放场景" required>
+          <el-form-item required>
+            <template #label
+              >投放场景<HelpTip
+                content="按办公/校园/工厂等投放场景打标，便于按场景做选品与运营。"
+                aria-label="投放场景说明"
+            /></template>
             <el-select
               v-model="asset.sceneType"
               :disabled="!canEditDevice"
@@ -132,11 +141,15 @@ const dataFeeYuan = computed({
                 :value="item.value"
               />
             </el-select>
-            <div class="field-hint">按投放场景打标（办公/校园/工厂等），便于按场景做选品与运营</div>
           </el-form-item>
         </el-col>
         <el-col :xs="24" :sm="12" :md="8">
-          <el-form-item label="设备序列号">
+          <el-form-item>
+            <template #label
+              >设备序列号<HelpTip
+                content="柜机联网后自动绑定；如需更换请联系平台解绑。未上报 IMEI 时将邑柜会展示厂商 SN。"
+                aria-label="设备序列号说明"
+            /></template>
             <div class="imei-field">
               <el-input
                 v-if="asset.imei || deviceSnFallback"
@@ -149,9 +162,6 @@ const dataFeeYuan = computed({
             </div>
             <p v-if="!asset.imei && deviceSnFallback" class="form-hint muted">
               将邑厂商 SN（厂商未上报 IMEI）
-            </p>
-            <p v-else-if="canEditDevice" class="form-hint muted">
-              柜机联网后自动绑定；如需更换请联系平台解绑
             </p>
           </el-form-item>
         </el-col>
@@ -248,7 +258,12 @@ const dataFeeYuan = computed({
       <div class="asset-group-title">投放位置</div>
       <el-row :gutter="12">
         <el-col :xs="24" :sm="24" :md="24">
-          <el-form-item label="投放地址">
+          <el-form-item>
+            <template #label
+              >投放地址<HelpTip
+                content="先选省/市/区，再填写详细地址，避免匹配到其他城市。"
+                aria-label="投放地址填写说明"
+            /></template>
             <AddressPicker
               v-model="asset.address"
               :disabled="!canEditDevice"
@@ -256,9 +271,8 @@ const dataFeeYuan = computed({
               @update:latitude="(v) => (asset.latitude = v ?? undefined)"
               @update:longitude="(v) => (asset.longitude = v ?? undefined)"
             />
-            <div class="field-hint">
-              先选省 / 市 / 区，再填写详细地址，否则容易被匹配到别的城市。
-              <template v-if="!geoConfigured">地图解析未启用时，可在下方直接填写坐标。</template>
+            <div v-if="!geoConfigured" class="field-hint">
+              地图解析未启用，可在下方直接填写坐标。
             </div>
           </el-form-item>
         </el-col>
@@ -309,7 +323,12 @@ const dataFeeYuan = computed({
           </el-form-item>
         </el-col>
         <el-col :xs="24" :sm="12" :md="8">
-          <el-form-item label="流量费（元/天）">
+          <el-form-item>
+            <template #label
+              >流量费（元/天）<HelpTip
+                content="不分租赁/买断，每日从商户钱包扣该金额。留空或 0 表示不收，不扣款、不记欠费、不锁柜；「组织与点位 → 费用账单」的流量费台账为人工回退通道，按日额 × 当月天数出账。"
+                aria-label="流量费扣费说明"
+            /></template>
             <el-input-number
               v-model="dataFeeYuan"
               :disabled="!canEditDevice"
@@ -320,9 +339,7 @@ const dataFeeYuan = computed({
               style="width: 100%"
             />
             <div class="field-hint">
-              每日从商户钱包扣该金额（不分租赁/买断）；留空或
-              0=这台柜不收，不扣款、不记欠费、不锁柜。 「组织与点位 →
-              费用账单」的流量费台账是人工回退通道，按日额 × 当月天数出账
+              每日从商户钱包扣费；留空或 0 表示不收，不扣款、不记欠费、不锁柜。
             </div>
           </el-form-item>
         </el-col>
@@ -455,11 +472,15 @@ const dataFeeYuan = computed({
 
     <el-dialog
       :model-value="bindDialogVisible"
-      title="绑定商户"
+      aria-label="绑定商户"
       destroy-on-close
       @update:model-value="emit('update:bindDialogVisible', $event)"
     >
-      <p class="dialog-hint">选择要绑定的商户。绑定成功后柜机将进入投放状态。</p>
+      <template #title
+        >绑定商户<HelpTip
+          content="选择要绑定的商户。绑定成功后柜机将进入投放状态。"
+          aria-label="绑定商户说明"
+      /></template>
       <el-select
         :model-value="bindMerchantId"
         filterable
@@ -562,11 +583,5 @@ const dataFeeYuan = computed({
 }
 .life-btn-wrap {
   display: inline-flex;
-}
-.dialog-hint {
-  margin: 0 0 12px;
-  font-size: var(--admin-font-size-table);
-  color: var(--el-text-color-secondary);
-  line-height: 1.5;
 }
 </style>

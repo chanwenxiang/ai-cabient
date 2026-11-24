@@ -2,8 +2,13 @@
   <div class="devops-hub">
     <div class="devops-header">
       <div>
-        <h2>DevOps 中心</h2>
-        <p class="hint">监控、CI/CD 与代码质量工具统一入口（集成在运营后台内）</p>
+        <h2>
+          DevOps 中心
+          <HelpTip
+            content="监控、CI/CD 与代码质量工具统一入口（集成在运营后台内）。"
+            aria-label="DevOps 中心说明"
+          />
+        </h2>
       </div>
       <el-button :icon="Refresh" :loading="loading" @click="load">刷新状态</el-button>
     </div>
@@ -49,7 +54,10 @@
       <template #header>
         <div class="grafana-panel-head">
           <span>Prometheus 常用查询（中文）</span>
-          <span class="hint">官方 UI 仅英文；点下方按钮会打开 Prometheus 并自动填入查询</span>
+          <HelpTip
+            content="官方 UI 仅英文；点下方按钮会打开 Prometheus 并自动填入查询。日常看图请用上方「Grafana」（已默认中文界面）。Prometheus 适合临时 PromQL 调试。"
+            aria-label="Prometheus 查询说明"
+          />
         </div>
       </template>
       <div class="prom-query-grid">
@@ -57,18 +65,16 @@
           {{ q.label }}
         </el-button>
       </div>
-      <p class="hint prom-note">
-        日常看图请用上方「Grafana」（已默认中文界面）。Prometheus 适合临时 PromQL 调试。
-      </p>
     </el-card>
 
     <el-card v-if="grafanaEmbedPath" ref="grafanaSection" class="grafana-panel" shadow="never">
       <template #header>
         <div class="grafana-panel-head">
           <span>Grafana · AI Cabinet 运营概览</span>
-          <span class="hint"
-            >同源嵌入；本地需先登录一次 Grafana（默认 admin/admin），其后 iframe 共用会话</span
-          >
+          <HelpTip
+            content="同源嵌入；本地需先登录一次 Grafana（默认 admin/admin），其后 iframe 共用会话。"
+            aria-label="Grafana 嵌入说明"
+          />
         </div>
       </template>
       <div class="grafana-frame-wrap">
@@ -95,6 +101,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 interface DevOpsTool {
   id: string;
   name: string;

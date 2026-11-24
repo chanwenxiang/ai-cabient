@@ -23,6 +23,14 @@ public interface PlatformFundFlowMapper extends BaseTradeMapper<PlatformFundFlow
             + "WHERE flow_type = #{flowType} AND created_at >= #{from} AND created_at < #{to}")
     long sumAmountByTypeBetween(String flowType, Instant from, Instant to);
 
+    @Select("SELECT COALESCE(SUM(amount_cents), 0) FROM platform_fund_flow "
+            + "WHERE account_id = #{accountId} AND created_at >= #{from} AND created_at < #{to}")
+    long sumAmountByAccountIdBetween(long accountId, Instant from, Instant to);
+
+    @Select("SELECT COUNT(*) FROM platform_fund_flow "
+            + "WHERE ref_type = #{refType} AND ref_id = #{refId}")
+    long countByRefTypeAndRefId(String refType, String refId);
+
     /** 指定类型在区间内的流水条数（0 = 尚未登记过归集，核对软启动用）。 */
     @Select("SELECT COUNT(*) FROM platform_fund_flow "
             + "WHERE flow_type = #{flowType} AND created_at >= #{from} AND created_at < #{to}")

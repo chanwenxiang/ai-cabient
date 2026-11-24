@@ -4,11 +4,12 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">商户与分账</span>
-            <span class="hint"
-              >余额支付默认「仅记账」入商户钱包；有微信交易号时可提交分账。功能包关闭后对应小程序入口与
-              API 一并失效。</span
-            >
+            <span class="title"
+              >商户与分账<HelpTip
+                content="余额支付默认「仅记账」入商户钱包；有微信交易号时可提交分账。"
+                aria-label="商户与分账说明"
+            /></span>
+            <span class="hint">功能包关闭后对应小程序入口与 API 一并失效</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -309,9 +310,10 @@
             </el-form-item>
             <el-form-item label="缺货阈值%">
               <el-input-number v-model="opsConfig.stockoutThresholdPct" :min="1" :max="100" />
-              <div class="hint" style="width: 100%">
-                仅对有货道柜生效（按货道货量占容量的比例判缺货）；开门柜按每个商品的「低库存阈值」判缺货/低库存，不受此项影响。
-              </div>
+              <HelpTip
+                content="仅对有货道柜生效（按货道货量占容量的比例判缺货）；开门柜按每个商品的「低库存阈值」判缺货/低库存，不受此项影响。"
+                aria-label="缺货阈值说明"
+              />
             </el-form-item>
             <el-form-item label="理货模式">
               <el-radio-group v-model="opsConfig.tallyMode">

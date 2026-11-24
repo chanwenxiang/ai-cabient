@@ -5,10 +5,11 @@
         <div class="page-card-head">
           <div class="page-card-head__meta">
             <div class="page-card-head__title">
-              <span class="title">异常中心</span>
-              <span class="hint"
-                >交易履约异常；SLA 超时仅筛选展示，无 webhook 催办（争议工单才有 SLA 推送）</span
-              >
+              <span class="title"
+                >异常中心<HelpTip
+                  content="交易履约异常；SLA 超时仅筛选展示，无 webhook 催办（争议工单才有 SLA 推送）。"
+                  aria-label="异常中心与 SLA 口径"
+              /></span>
             </div>
           </div>
           <div class="page-card-head__actions">
@@ -473,14 +474,12 @@
               "
               class="adjust-block"
             >
-              <div class="items-title">调整明细（落账依据）</div>
-              <el-alert
-                type="info"
-                :closable="false"
-                show-icon
-                title="对照左侧录像修改 SKU / 数量后，用「按调整明细落账」写回账单；也可免单退款。"
-                class="suggest-alert"
-              />
+              <div class="items-title">
+                调整明细（落账依据）<HelpTip
+                  content="对照左侧录像修改 SKU / 数量后，用「按调整明细落账」写回账单；也可免单退款。"
+                  aria-label="调整明细落账说明"
+                />
+              </div>
               <div class="manual-lines">
                 <div v-for="(line, index) in manualLines" :key="index" class="manual-line">
                   <el-select v-model="line.skuId" filterable placeholder="选择商品">
@@ -588,6 +587,7 @@ import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useNavAccess } from '@/composables/useNavAccess';

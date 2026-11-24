@@ -4,10 +4,9 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">进件工作台</span>
-            <span class="hint"
-              >仅登记外部门店号与进件状态，不推送到支付渠道<HelpTip
-                content="这里只登记外部门店号与进件状态并留痕，不调用微信/支付宝进件接口；记录须审批通过后才生效，审批中的记录走审批操作、不能重复提交。"
+            <span class="title"
+              >进件工作台<HelpTip
+                content="仅登记外部门店号与进件状态，不推送到支付渠道。这里只登记外部门店号与进件状态并留痕，不调用微信/支付宝进件接口；记录须审批通过后才生效，审批中的记录走审批操作、不能重复提交。"
                 aria-label="进件口径"
             /></span>
           </div>

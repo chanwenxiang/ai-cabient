@@ -5,7 +5,8 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">用户余额</span>
-            <span class="hint">按手机号 / 姓名 / ID 筛选；有权限可调整余额</span>
+            <span class="hint">有权限可调整余额</span>
+            <HelpTip content="按手机号 / 姓名 / ID 筛选。" aria-label="用户余额说明" />
           </div>
         </div>
       </div>
@@ -205,6 +206,7 @@ import { CircleCheck, Wallet } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';

@@ -64,6 +64,8 @@ public class SystemConfigService {
     public static final String RECHARGE_BONUS_PERCENT = "recharge.bonus.percent";
     /** 单次余额退款申请上限（分）；默认 ¥5000。DC-6：上限型键不允许 0=不限制（同 {@link #RECHARGE_MAX_CENTS}）。 */
     public static final String BALANCE_REFUND_MAX_CENTS = "balance.refund.max_cents";
+    /** 单次余额退款申请下限（分）；默认 ¥1，必须大于 0 且不超过当前上限。 */
+    public static final String BALANCE_REFUND_MIN_CENTS = "balance.refund.min_cents";
     /**
      * 余额退款自动审批上限（分）；默认 0 = 关闭（全部转人工审核）。
      * 大于 0 时，申请金额不超过该阈值的退款申请提交后立即由系统账号审批并执行原路退款，
@@ -491,7 +493,7 @@ public class SystemConfigService {
      */
     static final java.util.Set<String> FUND_GUARDED_KEYS = java.util.Set.of(
             REFUND_SELF_MAX_CENTS, RECHARGE_MAX_CENTS,
-            BALANCE_REFUND_MAX_CENTS, REFUND_AUTO_APPROVE_MAX_CENTS,
+            BALANCE_REFUND_MAX_CENTS, BALANCE_REFUND_MIN_CENTS, REFUND_AUTO_APPROVE_MAX_CENTS,
             MERCHANT_WITHDRAW_MIN_CENTS, MERCHANT_WITHDRAW_MAX_CENTS,
             MERCHANT_WITHDRAW_DAILY_LIMIT_CENTS, MERCHANT_WITHDRAW_REVIEW_THRESHOLD_CENTS,
             MERCHANT_WITHDRAW_FEE_CENTS, MERCHANT_WITHDRAW_FEE_BPS, MERCHANT_WITHDRAW_FEE_CAP_CENTS,
@@ -524,6 +526,7 @@ public class SystemConfigService {
             MERCHANT_WITHDRAW_FEE_BPS, (long) CommissionParamBounds.WITHDRAW_FEE_BPS_MAX,
             LINE_WITHDRAW_FEE_BPS, (long) CommissionParamBounds.WITHDRAW_FEE_BPS_MAX,
             BALANCE_REFUND_MAX_CENTS, (long) CommissionParamBounds.REFUND_LIMIT_CENTS_CEILING,
+            BALANCE_REFUND_MIN_CENTS, (long) CommissionParamBounds.REFUND_LIMIT_CENTS_CEILING,
             CHECKOUT_PREAUTH_CENTS, (long) CommissionParamBounds.PREAUTH_CENTS_CEILING,
             // MA-389：百分数，>100 无意义（接收方拿不回超过订单毛额）
             PROFIT_SHARING_RECEIVER_MAX_PERCENT, 100L);
@@ -580,6 +583,10 @@ public class SystemConfigService {
         if (parsed < 0 || parsed > Integer.MAX_VALUE) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "资金阈值配置 " + key + " 超出允许范围（0~" + Integer.MAX_VALUE + "，0=不限制）");
+        }
+        if (parsed == 0 && BALANCE_REFUND_MIN_CENTS.equals(key)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "退款下限配置 " + key + " 必须大于 0");
         }
         if (parsed == 0 && FUND_POSITIVE_LIMIT_KEYS.contains(key)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -739,6 +746,18 @@ public class SystemConfigService {
     }
 
     @Transactional(readOnly = true)
+    public int getBalanceRefundMinCents() {
+        int maxCents = getPositiveLimit(BALANCE_REFUND_MAX_CENTS, 500_000);
+        int minCents = getInt(BALANCE_REFUND_MIN_CENTS, 100);
+        if (minCents <= 0 || minCents > maxCents) {
+            log.warn("CONFIG {} has invalid minimum {} (max={}); falling back to {}",
+                    BALANCE_REFUND_MIN_CENTS, minCents, maxCents, Math.min(100, maxCents));
+            return Math.min(100, maxCents);
+        }
+        return minCents;
+    }
+
+    @Transactional(readOnly = true)
     public boolean getBoolean(String key, boolean defaultValue) {
         String raw = self.getValue(key, null);
         if (raw == null || raw.isBlank()) {
@@ -780,6 +799,7 @@ public class SystemConfigService {
                 String.valueOf(self.getPositiveLimit(RECHARGE_MAX_CENTS, 500_000)));
         map.put("balanceRefundMaxCents",
                 String.valueOf(self.getPositiveLimit(BALANCE_REFUND_MAX_CENTS, 500_000)));
+        map.put("balanceRefundMinCents", String.valueOf(self.getBalanceRefundMinCents()));
         // 沙箱: 已配置支付宝密钥, 或 mock 模式下允许走 mock 支付宝预下单
         boolean alipayOk = alipayProperties.isConfigured()
                 || (securityProperties.mockEnabled() && alipayProperties.enabled());
@@ -827,7 +847,7 @@ public class SystemConfigService {
 
     /**
      * 商户端配置下发（对称于 {@link #consumerPublicConfig()}）。
-     * <p>刻意只下发**非敏感的 UI 开关**（无金额、无凭据）；商户端请求本身带鉴权，
+     * <p>只下发**非敏感的 UI 开关与公开业务参数**（无凭据）；商户端请求本身带鉴权，
      * 但该端点与 C 端配置同样放在匿名 {@code /api/v2/public/**} 下以便首屏取用。</p>
      */
     @Transactional(readOnly = true)
@@ -835,6 +855,14 @@ public class SystemConfigService {
         Map<String, String> map = new LinkedHashMap<>();
         map.put("chartsEnabled",
                 String.valueOf(self.getBoolean(MERCHANT_CHARTS_ENABLED, false)));
+        String merchantWithdrawMin = nonNegativeIntConfig(MERCHANT_WITHDRAW_MIN_CENTS);
+        if (merchantWithdrawMin != null) {
+            map.put("merchantWithdrawMinCents", merchantWithdrawMin);
+        }
+        String lineWithdrawMin = nonNegativeIntConfig(LINE_WITHDRAW_MIN_CENTS);
+        if (lineWithdrawMin != null) {
+            map.put("lineWithdrawMinCents", lineWithdrawMin);
+        }
         // CB-018④：商户端客服触点（「我的」页帮助与客服入口；空串 ⇒ 前端不渲染该入口，fail-closed）
         map.put("servicePhone", self.getValue(MERCHANT_SERVICE_PHONE, "").trim());
         map.put("supportEmail", self.getValue(OPS_SUPPORT_EMAIL, "").trim());
@@ -849,6 +877,20 @@ public class SystemConfigService {
                 ? merchantDailyReportProperties.resolveTemplateId() : "";
         map.put("wechatDailyReportTemplateId", dailyReportTmpl);
         return map;
+    }
+
+    private String nonNegativeIntConfig(String key) {
+        String raw = self.getValue(key, null);
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            long value = Long.parseLong(raw.trim());
+            return value >= 0 && value <= Integer.MAX_VALUE ? String.valueOf(value) : null;
+        } catch (NumberFormatException ignored) {
+            // 非法存量值不在公开面伪造默认；前端交给后端权威判定。
+            return null;
+        }
     }
 
     /** 运营后台品牌（登录页无需鉴权）。 */
@@ -1016,6 +1058,7 @@ public class SystemConfigService {
     }
 
     private void ensureDefaults() {
+        // CONCURRENCY: config_key 主键唯一约束；existsById 仅避免覆盖，并发重复插入由唯一键拒绝。
         // MA-027：客服电话种子从 V55 的占位号 400-888-0018 换成**已通过微信支付客服电话认证**的
         // 实号 4000182992（见 docs/figures/payscore-form-fill-pack.md §55，账单详情页已展示该号；
         // 同一份 public-legal.json 的协议/隐私政策正文三处也写它）。
@@ -1044,7 +1087,7 @@ public class SystemConfigService {
         upsertIfAbsent(UNPAID_AUTO_CANCEL_HOURS, "48", "待支付订单超时自动关单小时数, 0=关闭");
         upsertIfAbsent(UNPAID_AUTO_BLACKLIST, FALSE, "待支付超时关单时是否自动拉黑用户");
         upsertIfAbsent(RECHARGE_AUTO_CANCEL_MINUTES, "30", "待支付充值单超时自动取消分钟数, 0=关闭");
-        upsertIfAbsent(RECHARGE_MAX_CENTS, "500000", "单次充值上限（分），默认 ¥5000，0=不限制");
+        upsertIfAbsent(RECHARGE_MAX_CENTS, "500000", "单次充值上限（分），默认 ¥5000；不允许 0，确需放宽请配置正数上限");
         // ── 提现参数（V307）：seed 值刻意对齐旧系统 easygo 与行业惯例 ──
         upsertIfAbsent(MERCHANT_WITHDRAW_MIN_CENTS, "1000",
                 "商户提现单笔下限（分），默认 ¥10（对齐旧系统 easygo 的 amount<1000 拒）；0=不限制");
@@ -1108,7 +1151,8 @@ public class SystemConfigService {
         // ── 设备租赁（CB-034）：欠租锁柜宽限天数 ──
         upsertIfAbsent(DEVICE_RENTAL_OVERDUE_LOCK_DAYS, "15",
                 "租赁日检：租金账期结束后宽限天数，超过即自动欠租锁柜；0=账期结束即锁");
-        upsertIfAbsent(BALANCE_REFUND_MAX_CENTS, "500000", "单次余额退款申请上限（分），默认 ¥5000，0=不限制");
+        upsertIfAbsent(BALANCE_REFUND_MAX_CENTS, "500000", "单次余额退款申请上限（分），默认 ¥5000；不允许 0，确需放宽请配置正数上限");
+        upsertIfAbsent(BALANCE_REFUND_MIN_CENTS, "100", "单次余额退款申请下限（分），默认 ¥1；必须大于 0 且不超过当前上限");
         upsertIfAbsent(REFUND_AUTO_APPROVE_MAX_CENTS, "0",
                 "余额退款自动审批上限（分），0=关闭（全部人工审核）；≤该上限的申请提交后由系统账号立即审批并原路退款，不进入审批流");
         upsertIfAbsent(FUND_CHANNEL_FEE_BPS, "60",

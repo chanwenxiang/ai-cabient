@@ -4,10 +4,11 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">补货调度</span>
-            <span class="hint"
-              >路线 / 履约取证 / 临期下架；签到 GPS、用时与理货明细可核对现场履约</span
-            >
+            <span class="title"
+              >补货调度<HelpTip
+                content="路线 / 履约取证 / 临期下架；签到 GPS、用时与理货明细可核对现场履约。"
+                aria-label="补货调度范围"
+            /></span>
           </div>
           <div class="kpi-tags">
             <button
@@ -73,15 +74,10 @@
       </div>
     </template>
 
-    <el-alert
-      v-if="tabDescription"
-      type="info"
-      :closable="false"
-      show-icon
-      class="tab-desc-hint"
-      data-testid="replenishment-tab-desc"
-      :title="tabDescription"
-    />
+    <div v-if="tabDescription" class="tab-desc-hint" data-testid="replenishment-tab-desc">
+      <span>当前页</span>
+      <HelpTip :content="tabDescription" aria-label="当前页用途说明" />
+    </div>
 
     <el-tabs v-model="tab" @tab-change="onTabChange">
       <el-tab-pane label="补货路线" name="routes">
@@ -724,6 +720,7 @@ import { AdminEndpoints } from '@/api/endpoints';
 import { errorMessage } from '@/utils/error-message';
 import RestockVideoDialog from '@/components/replenishment/RestockVideoDialog.vue';
 import CrudTable from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import PagePager from '@/components/PagePager.vue';
 // R10: ResizableDrawer unused
 import { useAdminListTable } from '@/composables/useAdminListTable';

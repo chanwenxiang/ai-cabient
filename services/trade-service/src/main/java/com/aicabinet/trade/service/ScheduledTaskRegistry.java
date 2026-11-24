@@ -149,6 +149,8 @@ public class ScheduledTaskRegistry {
         // finish() 静默丢弃，运营台看不见、不能启停、不能手动触发（门禁 Rule 4 已拦下）。
         register("withdraw-paying-timeout", "提现打款超时兜底", FINANCE, "每 10 分钟", 600,
                 reconciliationScheduler::failStalePayingWithdraws);
+        register("withdraw-funding-retry", "提现备付恢复重试", FINANCE, "每小时 20 分", 900,
+                reconciliationScheduler::retryFundingBlockedWithdraws);
         // CB-033 平台资金日检：备付金缺口推送 + 归集交叉核对（每渠道余额由人工登记/打款流水推进）
         register("platform-fund-daily", "平台资金日检", FINANCE, ScheduleZones.desc("每日 08:10"), 1800,
                 platformFundService::runDailyCheck);

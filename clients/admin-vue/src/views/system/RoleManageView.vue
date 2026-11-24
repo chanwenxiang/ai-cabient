@@ -5,7 +5,10 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">角色管理</span>
-            <span class="hint">角色与权限字符；商户权限码用于 API/角色授权，不驱动小程序导航</span>
+            <HelpTip
+              content="角色与权限字符；商户权限码用于 API/角色授权，不驱动小程序导航。"
+              aria-label="角色管理说明"
+            />
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -214,6 +217,7 @@ import { EditPen, Key, SwitchButton } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox, type ElTree } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useCrudTable } from '@/composables/useCrudTable';

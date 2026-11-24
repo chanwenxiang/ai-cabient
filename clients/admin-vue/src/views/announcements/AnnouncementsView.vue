@@ -5,7 +5,10 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">通知公告</span>
-            <span class="hint">仅 CMS 上架：发布后客户端打开公告列表可见，不主动推送</span>
+            <HelpTip
+              content="仅 CMS 上架：发布后客户端打开公告列表可见，不主动推送。"
+              aria-label="通知公告说明"
+            />
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -226,6 +229,7 @@ import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import type { OpenApiAnnouncement, OpenApiPageResultAnnouncement } from '@aicabinet/shared-types';
 import { get, post, put } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { errorMessage } from '@/utils/error-message';

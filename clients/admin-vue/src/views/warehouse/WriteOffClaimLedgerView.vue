@@ -11,6 +11,7 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
 import CrudTable from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { yuanText } from '@/utils/display';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
@@ -131,11 +132,12 @@ function locationLabel(r: ClaimRow) {
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">待索赔台账</span>
-            <span class="hint">
-              只列「责任方已认定 且 索赔额 &gt; 0」的记录；它不是「自动冲减供应商应付」——
-              追偿实际发生再走支付流程。
-            </span>
+            <span class="title"
+              >待索赔台账<HelpTip
+                content="只列「责任方已认定 且 索赔额 &gt; 0」的记录；追偿实际发生再走支付流程。"
+                aria-label="待索赔台账说明"
+            /></span>
+            <span class="hint">不自动冲减供应商应付</span>
           </div>
         </div>
       </div>

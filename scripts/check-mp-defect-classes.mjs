@@ -76,7 +76,7 @@
  *      漏掉 `menuIcon('member')` 这类动态拼接形态，删完静态还在、运行时全 404
  *      （2026-10-24 实证：28+21 个菜单图标误判，人工抽查才拦下）。【本次新增】
  *   Q. 订阅调用不在 tap 上下文：requestSubscribeMessage 族调用必须从模板
- *      @click/@tap 可达（含一级被调者），且宿主体内调用点之前不得有 await
+ *      @click/@tap 或扫码/确认/重试等用户手势事件可达（含一级被调者），且宿主体内调用点之前不得有 await
  *      （手势过期同样静默失败）。2026-10-24 三处同族收口：账单订阅 finishSession
  *      异步链（留置②）+ 两处争议订阅（DISPUTED 分支/onShow 恢复路径）。【本次新增】
  *   R. 幂等键容器建在提交函数体内：`function submit()` 体内 `new Map` 装 clientRequestNo——
@@ -822,7 +822,7 @@ function checkAssetExists(files, appSrc) {
  * ② index.vue 两处 requestDisputeSubscribe（finishSession DISPUTED 分支 + onShow
  *    恢复路径，本类落地时同步删除，通知收敛到结果页按钮/消息页横幅）。
  * 判据（机械两支）：
- *  Q1 可达性：调用宿主函数必须能从模板 @click/@tap 绑定到达（绑定表达式内
+ *  Q1 可达性：调用宿主函数必须能从模板 @click/@tap 或 scan/confirm/retry 手势事件绑定到达（绑定表达式内
  *     函数名 + 其体内一级被调者视为可达入口；两级以上包装不豁免——故意从紧）。
  *  Q2 手势过期：宿主体内调用点**之前**存在 await（直接前缀 `await fn(` 除外）——
  *    挂起后手势上下文已丢，同样静默失败。不同分支里的 await 也会命中（保守判）。
@@ -831,7 +831,7 @@ function checkAssetExists(files, appSrc) {
  */
 const SUBSCRIBE_CALL_RE =
   /\b(?:uni\.)?request(?:SubscribeMessage|OrderSubscribe|MerchantSubscribe)\s*\(/g;
-const TAP_BINDING_RE = /@(?:click|tap)(?:\.[\w-]+)*="([^"]+)"/g;
+const TAP_BINDING_RE = /@(?:click|tap|scan|confirm|retry)(?:\.[\w-]+)*="([^"]+)"/g;
 
 function checkSubscribeTapContext(files) {
   for (const f of files) {
@@ -870,7 +870,13 @@ function checkSubscribeTapContext(files) {
         const isReachable = reachable.has(b.name);
         // Q2：调用前有悬空 await（去掉紧贴调用的 `await ` 前缀后再判）
         const prefix = b.text.slice(0, m.index).replace(/await\s*$/, '');
-        const gestureExpired = isReachable && /\bawait\b/.test(prefix);
+        const callerGestureExpired = bodies.some((caller) => {
+          if (!tapBound.has(caller.name) || caller.name === b.name) return false;
+          const call = new RegExp(`\\b${b.name}\\s*\\(`).exec(caller.text);
+          if (!call) return false;
+          return /\bawait\b/.test(caller.text.slice(0, call.index).replace(/await\s*$/, ''));
+        });
+        const gestureExpired = isReachable && (/\bawait\b/.test(prefix) || callerGestureExpired);
         if (!isReachable || gestureExpired) {
           const line = b.line + b.text.slice(0, m.index).split('\n').length - 1;
           report(
@@ -878,7 +884,7 @@ function checkSubscribeTapContext(files) {
             f,
             line,
             !isReachable
-              ? `订阅调用 ${b.name} 不可从模板 @click/@tap 到达：requestSubscribeMessage 要求用户点击上下文，异步链/生命周期路径上部分基础库版本会静默失败（留置②与争议订阅同族）。修法：移到结果页/消息页等 tap 入口`
+              ? `订阅调用 ${b.name} 不可从模板点击/扫码/确认/重试手势到达：requestSubscribeMessage 要求用户点击上下文，异步链/生命周期路径上部分基础库版本会静默失败（留置②与争议订阅同族）。修法：移到用户手势入口`
               : `订阅调用前存在 await（${b.name} 体内调用点之前有异步挂起）：用户手势上下文已过期，弹窗会静默失败。修法：订阅调用前不得有任何 await`
           );
         }
@@ -1317,6 +1323,16 @@ const SELFTEST_CASES = [
     cls: 'Q',
     code: '// 参考 requestOrderSubscribe 的用法\nfunction other() {\n  noop();\n}',
     hit: false
+  },
+  {
+    cls: 'Q',
+    code: '<template>\n  <Scanner @scan="onScan" @confirm="confirmDevice" @retry="retryLastOpen" />\n</template>\nfunction requestOpenSubscribe() { void requestOrderSubscribe([]); }\nasync function onScan() { requestOpenSubscribe(); await scan(); }\nfunction confirmDevice() { requestOpenSubscribe(); }\nfunction retryLastOpen() { requestOpenSubscribe(); }',
+    hit: false
+  },
+  {
+    cls: 'Q',
+    code: '<template>\n  <Scanner @scan="onScan" />\n</template>\nasync function onScan() { await scan(); requestOpenSubscribe(); }\nfunction requestOpenSubscribe() { void requestOrderSubscribe([]); }',
+    hit: true
   },
   // ── R 幂等键容器建在提交函数体内 ──
   {

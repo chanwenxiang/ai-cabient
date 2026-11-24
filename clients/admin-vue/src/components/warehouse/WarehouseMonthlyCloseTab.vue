@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { ElMessage } from 'element-plus';
+import HelpTip from '@/components/HelpTip.vue';
 import type { AdminDynamicRow } from '@/types/admin-dynamic-row';
 import { errorMessage } from '@/utils/error-message';
 import { yuanText } from '@/utils/display';
@@ -306,7 +307,11 @@ function shelvedQtyText(row: {
       </el-table-column>
     </el-table>
     <template #footer>
-      <span class="muted">按领货流水逐条汇总，与「领货」列同源；领而未上取自出库单行上的差额</span>
+      <span
+        >汇总口径<HelpTip
+          content="按领货流水逐条汇总，与「领货」列同源；领而未上取自出库单行上的差额"
+          aria-label="领货明细汇总口径"
+      /></span>
     </template>
   </el-dialog>
 </template>

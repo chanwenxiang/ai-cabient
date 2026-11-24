@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.ReplenishmentSuggestDto;
 import com.aicabinet.trade.domain.Warehouse;
+import com.aicabinet.trade.domain.WarehouseBinStock;
 import com.aicabinet.trade.domain.WarehouseInventory;
 import com.aicabinet.trade.domain.WarehouseManager;
 import com.aicabinet.trade.domain.WarehouseOutbound;
@@ -79,6 +80,7 @@ class WarehouseServiceTest {
     @Mock private MerchantScopeService merchantScopeService;
     @Mock private AdminAuditService auditService;
     @Mock private WarehouseManagerMapper warehouseManagerRepository;
+    @Mock private WarehouseBinStockMapper binStockRepository;
 
     private WarehouseService warehouseService;
 
@@ -94,7 +96,8 @@ class WarehouseServiceTest {
                 movementRepository, deviceInventoryRepository, taskRepository, routeRepository, skuCatalogRepository,
                 deviceSlotService, salesVelocityService, inTransitService, inventoryLotService, distributedLockService,
                 displaySnapshotHelper, deviceInfoRepository, null,
-                userInfoRepository, permissionService, merchantScopeService, auditService, warehouseManagerRepository, null);
+                userInfoRepository, permissionService, merchantScopeService, auditService, warehouseManagerRepository,
+                binStockRepository, null);
         org.springframework.test.util.ReflectionTestUtils.setField(warehouseService, "self", warehouseService);
         Warehouse defaultWh = new Warehouse();
         defaultWh.setWarehouseId(TEST_WAREHOUSE_ID);
@@ -195,6 +198,81 @@ class WarehouseServiceTest {
         verify(outboundLineRepository).save(lineCaptor.capture());
         assertEquals(5, lineCaptor.getValue().getQuantity());
         verify(outboundRepository, never()).deleteById(anyLong());
+    }
+
+    @Test
+    void tryCreateOutboundFromLines_allocatesBinStockBeforeUnassignedRemainder() {
+        stubOutboundSave(506L);
+        WarehouseInventory lot = inventoryLot("SKU-1", "B1", 10);
+        WarehouseBinStock binRow = binStock(7L, "SKU-1", "B1", 4);
+        when(inventoryRepository.findByWarehouseIdAndSkuIdOrderByExpiryDateAsc(
+                TEST_WAREHOUSE_ID, "SKU-1")).thenReturn(List.of(lot));
+        when(inventoryRepository.findByWarehouseIdAndSkuIdAndBatchNoForUpdate(
+                TEST_WAREHOUSE_ID, "SKU-1", "B1")).thenReturn(Optional.of(lot));
+        when(outboundLineRepository.sumAllocatedQty(TEST_WAREHOUSE_ID, "SKU-1", "B1")).thenReturn(0);
+        when(binStockRepository.findByWarehouseIdAndSkuIdAndBatchNoForUpdate(
+                TEST_WAREHOUSE_ID, "SKU-1", "B1")).thenReturn(List.of(binRow));
+
+        warehouseService.tryCreateOutboundFromLines(
+                6L, null, 100L, Map.of("SKU-1", 6), TEST_WAREHOUSE_ID);
+
+        ArgumentCaptor<WarehouseOutboundLine> captor = ArgumentCaptor.forClass(WarehouseOutboundLine.class);
+        verify(outboundLineRepository, times(2)).save(captor.capture());
+        List<WarehouseOutboundLine> lines = captor.getAllValues();
+        assertEquals(7L, lines.get(0).getBinId());
+        assertEquals(4, lines.get(0).getQuantity());
+        assertNull(lines.get(1).getBinId());
+        assertEquals(2, lines.get(1).getQuantity());
+    }
+
+    @Test
+    void shipOutbound_deductsAllocatedBinStock() {
+        WarehouseOutbound outbound = outbound(507L, "PICKED");
+        WarehouseOutboundLine line = outboundLine(507L, 4, 7L, "READY");
+        line.setPicked(true);
+        WarehouseInventory lot = inventoryLot("SKU-1", "B1", 10);
+        WarehouseBinStock binRow = binStock(7L, "SKU-1", "B1", 4);
+        when(outboundRepository.findByIdForUpdate(507L)).thenReturn(Optional.of(outbound));
+        when(outboundRepository.findById(507L)).thenReturn(Optional.of(outbound));
+        when(outboundLineRepository.findByOutboundIdOrderByLineIdAsc(507L)).thenReturn(List.of(line));
+        when(inventoryRepository.findByWarehouseIdAndSkuIdAndBatchNoForUpdate(
+                TEST_WAREHOUSE_ID, "SKU-1", "B1")).thenReturn(Optional.of(lot));
+        when(binStockRepository.findByBinIdAndSkuIdAndBatchNoForUpdate(7L, "SKU-1", "B1"))
+                .thenReturn(Optional.of(binRow));
+
+        warehouseService.shipOutbound(1L, 507L);
+
+        assertEquals(6, lot.getQuantity());
+        assertEquals(0, binRow.getQuantity());
+        assertEquals("IN_TRANSIT", line.getHandoverStatus());
+        verify(binStockRepository).save(binRow);
+        verify(inTransitService).recordFromOutbound(eq(507L), anyList());
+    }
+
+    @Test
+    void cancelUnreceivedOutbound_restoresAllocatedBinStock() {
+        WarehouseOutbound outbound = outbound(508L, "SHIPPED");
+        WarehouseOutboundLine line = outboundLine(508L, 4, 7L, "IN_TRANSIT");
+        line.setDeviceId("CAB-1");
+        WarehouseInventory lot = inventoryLot("SKU-1", "B1", 6);
+        WarehouseBinStock binRow = binStock(7L, "SKU-1", "B1", 0);
+        when(outboundRepository.findByIdForUpdate(508L)).thenReturn(Optional.of(outbound));
+        when(outboundRepository.findById(508L)).thenReturn(Optional.of(outbound));
+        when(outboundLineRepository.findByOutboundIdOrderByLineIdAsc(508L)).thenReturn(List.of(line));
+        when(outboundLineRepository.findByOutboundIdAndDeviceIdOrderByLineIdAsc(508L, "CAB-1"))
+                .thenReturn(List.of(line));
+        when(inventoryRepository.findByWarehouseIdAndSkuIdAndBatchNoForUpdate(
+                TEST_WAREHOUSE_ID, "SKU-1", "B1")).thenReturn(Optional.of(lot));
+        when(binStockRepository.findByBinIdAndSkuIdAndBatchNoForUpdate(7L, "SKU-1", "B1"))
+                .thenReturn(Optional.of(binRow));
+
+        warehouseService.cancelUnreceivedOutbound(508L, 1L);
+
+        assertEquals(10, lot.getQuantity());
+        assertEquals(4, binRow.getQuantity());
+        assertEquals("CANCELLED", line.getHandoverStatus());
+        verify(binStockRepository).save(binRow);
+        verify(inTransitService).cancelOpenForDevice(508L, "CAB-1");
     }
 
     @Test
@@ -746,6 +824,34 @@ class WarehouseServiceTest {
         existing.setStatus("ACTIVE");
         existing.setCreatedAt(Instant.parse("2026-01-01T00:00:00Z"));
         return existing;
+    }
+
+    private static WarehouseBinStock binStock(Long binId, String skuId, String batchNo, int qty) {
+        WarehouseBinStock row = new WarehouseBinStock();
+        row.setBinId(binId);
+        row.setSkuId(skuId);
+        row.setBatchNo(batchNo);
+        row.setQuantity(qty);
+        return row;
+    }
+
+    private static WarehouseOutbound outbound(Long id, String status) {
+        WarehouseOutbound row = new WarehouseOutbound();
+        row.setOutboundId(id);
+        row.setWarehouseId(TEST_WAREHOUSE_ID);
+        row.setStatus(status);
+        return row;
+    }
+
+    private static WarehouseOutboundLine outboundLine(Long outboundId, int qty, Long binId, String handoverStatus) {
+        WarehouseOutboundLine line = new WarehouseOutboundLine();
+        line.setOutboundId(outboundId);
+        line.setSkuId("SKU-1");
+        line.setBatchNo("B1");
+        line.setQuantity(qty);
+        line.setBinId(binId);
+        line.setHandoverStatus(handoverStatus);
+        return line;
     }
 
     private static WarehouseInventory inventoryLot(String skuId, String batchNo, int qty, LocalDate expiryDate) {

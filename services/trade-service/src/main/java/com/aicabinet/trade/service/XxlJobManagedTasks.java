@@ -63,6 +63,7 @@ public final class XxlJobManagedTasks {
             "finance-margin",
             "ops-fee-bill-monthly",
             "withdraw-paying-timeout",
+            "withdraw-funding-retry",
             "platform-fund-daily",
             "device-rental-daily",
             "warehouse-monthly-close",

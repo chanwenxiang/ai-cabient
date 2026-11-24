@@ -6,10 +6,9 @@
           <div class="page-card-head__title">
             <span class="title"
               >资金账单<HelpTip
-                content="T+1：当日流水通常次日入账；通道费标注（实结）= 对账账单回填，未标注（估）= 按配置费率估算；平台抽成取自分账记账"
+                content="T+1：当日流水通常次日入账；通道费标注（实结）= 对账账单回填，未标注（估）= 按配置费率估算；平台抽成取自分账记账。日汇总拆费项 + 账务明细。"
                 aria-label="T+1 资金账单口径"
             /></span>
-            <span class="hint">日汇总拆费项 + 账务明细；T+1 入账节奏</span>
           </div>
         </div>
         <div class="page-card-head__actions">

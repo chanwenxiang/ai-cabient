@@ -1,6 +1,9 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.WriteOffRequest;
+import com.aicabinet.trade.domain.DeviceSkuInventory;
+import com.aicabinet.trade.domain.DeviceSkuInventoryId;
+import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
 import com.aicabinet.trade.mapper.InventoryWriteOffMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
@@ -12,8 +15,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Optional;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -88,25 +99,53 @@ class InventoryOpsConcurrencyTest {
     }
 
     @Test
-    void stocktakeAdjust_rejectsLotLedgerDeviceWithDirectionToSlotStocktake() {
-        org.mockito.Mockito.lenient()
-                .when(distributedLockService.tryLock(
-                        org.mockito.ArgumentMatchers.anyString(),
-                        org.mockito.ArgumentMatchers.anyLong(),
-                        org.mockito.ArgumentMatchers.anyLong()))
+    void stocktakeAdjust_lotLedgerDevice_delegatesSkuCountToLotService() {
+        when(distributedLockService.tryLock(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong()))
                 .thenReturn(true);
         when(lotService.deviceUsesLotLedger("CAB-LOT")).thenReturn(true);
+        when(skuCatalogRepository.findById("SKU-A")).thenReturn(Optional.of(new SkuCatalog()));
+        when(lotService.sellableQuantity("CAB-LOT", "SKU-A")).thenReturn(1);
 
-        var ex = org.junit.jupiter.api.Assertions.assertThrows(
-                org.springframework.web.server.ResponseStatusException.class,
-                () -> service.stocktakeAdjust(1L, new com.aicabinet.common.dto.StocktakeAdjustRequest(
-                        "CAB-LOT", "SKU-A", 5, null, null, null)));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                org.springframework.http.HttpStatus.CONFLICT, ex.getStatusCode());
-        org.junit.jupiter.api.Assertions.assertTrue(
-                String.valueOf(ex.getReason()).contains("货道盘点"),
-                "P1-2：lot 账本设备整机盲调必须被拒并指向货道盘点");
-        org.mockito.Mockito.verifyNoInteractions(inventoryRepository);
+        DeviceSkuInventoryId id = new DeviceSkuInventoryId("CAB-LOT", "SKU-A");
+        DeviceSkuInventory updated = new DeviceSkuInventory();
+        updated.setId(id);
+        updated.setQuantity(5);
+        when(inventoryRepository.findById(id)).thenReturn(Optional.empty(), Optional.of(updated));
+
+        DeviceSkuInventory result = service.stocktakeAdjust(1L,
+                new com.aicabinet.common.dto.StocktakeAdjustRequest(
+                        "CAB-LOT", "SKU-A", 5, null, null, null));
+
+        assertEquals(5, result.getQuantity());
+        verify(opsPolicyService).requirePhotoEvidence("CAB-LOT", true, null);
+        verify(lotService).stocktakeAdjust(eq("CAB-LOT"), eq("SKU-A"), eq(5), eq(1L), anyString());
+    }
+
+    @Test
+    void stocktakeAdjust_lotLedgerZeroDelta_syncsAggregateWithoutNewMovement() {
+        when(distributedLockService.tryLock(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong()))
+                .thenReturn(true);
+        when(lotService.deviceUsesLotLedger("CAB-LOT")).thenReturn(true);
+        when(skuCatalogRepository.findById("SKU-A")).thenReturn(Optional.of(new SkuCatalog()));
+        when(lotService.sellableQuantity("CAB-LOT", "SKU-A")).thenReturn(1);
+        DeviceSkuInventoryId id = new DeviceSkuInventoryId("CAB-LOT", "SKU-A");
+        DeviceSkuInventory existing = new DeviceSkuInventory();
+        existing.setId(id);
+        existing.setQuantity(1);
+        existing.setVersion(0);
+        when(inventoryRepository.findById(id)).thenReturn(Optional.of(existing));
+
+        service.stocktakeAdjust(1L, new com.aicabinet.common.dto.StocktakeAdjustRequest(
+                "CAB-LOT", "SKU-A", 1, null, null, 0L));
+
+        verify(lotService).syncAggregateInventory("CAB-LOT", "SKU-A");
+        verify(lotService, never()).stocktakeAdjust(anyString(), anyString(), anyInt(), anyLong(), anyString());
     }
 
     @Test
@@ -117,7 +156,6 @@ class InventoryOpsConcurrencyTest {
                         org.mockito.ArgumentMatchers.anyLong(),
                         org.mockito.ArgumentMatchers.anyLong()))
                 .thenReturn(true);
-        when(lotService.deviceUsesLotLedger("CAB-OLD")).thenReturn(false);
         when(skuCatalogRepository.findById("SKU-A")).thenReturn(java.util.Optional.empty());
 
         // 非 lot 设备不被闸门拦截；后续因 sku 不存在走 404（旧路径自洽）

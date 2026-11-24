@@ -42,6 +42,8 @@ public interface MerchantWithdrawRequestMapper extends BaseTradeMapper<MerchantW
         return update(null, Wrappers.<MerchantWithdrawRequest>lambdaUpdate()
                 .set(MerchantWithdrawRequest::getStatus, "PAYING")
                 .set(MerchantWithdrawRequest::getUpdatedAt, now)
+                .set(MerchantWithdrawRequest::getNextPayoutRetryAt, null)
+                .set(MerchantWithdrawRequest::getLastPayoutBlockReason, null)
                 .eq(MerchantWithdrawRequest::getRequestId, requestId)
                 .eq(MerchantWithdrawRequest::getStatus, fromStatus));
     }
@@ -59,7 +61,39 @@ public interface MerchantWithdrawRequestMapper extends BaseTradeMapper<MerchantW
                 .set(MerchantWithdrawRequest::getUpdatedAt, now)
                 .set(MerchantWithdrawRequest::getPayoutRef, payoutRef)
                 .set(MerchantWithdrawRequest::getPayoutMessage, payoutMessage)
+                .set(MerchantWithdrawRequest::getNextPayoutRetryAt, null)
+                .set(MerchantWithdrawRequest::getLastPayoutBlockReason, null)
                 .set("PAID".equals(toStatus), MerchantWithdrawRequest::getPaidAt, now)
+                .eq(MerchantWithdrawRequest::getRequestId, requestId)
+                .eq(MerchantWithdrawRequest::getStatus, "PAYING"));
+    }
+
+    /** 渠道已建单、等待用户确认：保持 PAYING，但显式清除自动重试登记。 */
+    default int markAwaitingUserConfirm(long requestId, Instant now, String channel,
+                                        String payoutRef, String payoutMessage) {
+        return update(null, Wrappers.<MerchantWithdrawRequest>lambdaUpdate()
+                .set(MerchantWithdrawRequest::getStatus, "PAYING")
+                .set(MerchantWithdrawRequest::getUpdatedAt, now)
+                .set(MerchantWithdrawRequest::getPayChannel, channel)
+                .set(MerchantWithdrawRequest::getPayoutRef, payoutRef)
+                .set(MerchantWithdrawRequest::getPayoutMessage, payoutMessage)
+                .set(MerchantWithdrawRequest::getNextPayoutRetryAt, null)
+                .set(MerchantWithdrawRequest::getLastPayoutBlockReason, null)
+                .eq(MerchantWithdrawRequest::getRequestId, requestId)
+                .eq(MerchantWithdrawRequest::getStatus, "PAYING"));
+    }
+
+    /** 打款失败：备付不足登记下一小时重试，其余失败显式清空重试字段。 */
+    default int markPayoutFailed(long requestId, Instant now, String payoutRef,
+                                 String payoutMessage, String blockReason, Instant nextRetryAt) {
+        return update(null, Wrappers.<MerchantWithdrawRequest>lambdaUpdate()
+                .set(MerchantWithdrawRequest::getStatus, "FAILED")
+                .set(MerchantWithdrawRequest::getUpdatedAt, now)
+                .set(MerchantWithdrawRequest::getPayoutRef, payoutRef)
+                .set(MerchantWithdrawRequest::getPayoutMessage, payoutMessage)
+                .set(MerchantWithdrawRequest::getNextPayoutRetryAt, nextRetryAt)
+                .set(MerchantWithdrawRequest::getLastPayoutBlockReason, blockReason)
+                .setSql(blockReason != null, "payout_retry_count = payout_retry_count + 1")
                 .eq(MerchantWithdrawRequest::getRequestId, requestId)
                 .eq(MerchantWithdrawRequest::getStatus, "PAYING"));
     }
@@ -179,6 +213,28 @@ public interface MerchantWithdrawRequestMapper extends BaseTradeMapper<MerchantW
             q.eq(MerchantWithdrawRequest::getStatus, status);
         }
         return selectList(q.orderByAsc(MerchantWithdrawRequest::getPaidAt));
+    }
+
+    /** 到期且明确因备付不足失败的微信提现单；每轮最多 100 单，避免长任务。 */
+    default List<MerchantWithdrawRequest> findFundingRetryCandidates(Instant now) {
+        return selectList(Wrappers.<MerchantWithdrawRequest>lambdaQuery()
+                .eq(MerchantWithdrawRequest::getPayChannel, "WECHAT")
+                .in(MerchantWithdrawRequest::getStatus, "APPROVED", "FAILED")
+                .isNotNull(MerchantWithdrawRequest::getLastPayoutBlockReason)
+                .le(MerchantWithdrawRequest::getNextPayoutRetryAt, now)
+                .orderByAsc(MerchantWithdrawRequest::getNextPayoutRetryAt)
+                .last("LIMIT 100"));
+    }
+
+    /** 备付不足跳过打款：保留原状态与冻结，只登记下一小时自动重试。 */
+    default int markFundingBlocked(long requestId, String reason, Instant nextRetryAt, Instant now) {
+        return update(null, Wrappers.<MerchantWithdrawRequest>lambdaUpdate()
+                .set(MerchantWithdrawRequest::getLastPayoutBlockReason, reason)
+                .set(MerchantWithdrawRequest::getNextPayoutRetryAt, nextRetryAt)
+                .setSql("payout_retry_count = payout_retry_count + 1")
+                .set(MerchantWithdrawRequest::getUpdatedAt, now)
+                .eq(MerchantWithdrawRequest::getRequestId, requestId)
+                .in(MerchantWithdrawRequest::getStatus, "APPROVED", "FAILED"));
     }
 
     /** 指定状态且 updatedAt 早于 cutoff 的提现单（打款超时扫描用，H38）。 */    default List<MerchantWithdrawRequest> findByStatusAndUpdatedAtBefore(String status, Instant cutoff) {

@@ -19,4 +19,6 @@ public interface WarehouseOutboundLineMapper extends BaseTradeMapper<WarehouseOu
 
         int sumAllocatedQty(@Param("warehouseId") String warehouseId, @Param("skuId") String skuId, @Param("batchNo") String batchNo);
 
+        int sumAllocatedQtyByBin(@Param("binId") Long binId, @Param("skuId") String skuId, @Param("batchNo") String batchNo);
+
 }

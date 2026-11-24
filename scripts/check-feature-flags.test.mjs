@@ -8,6 +8,7 @@
  *
  *   node scripts/check-feature-flags.test.mjs
  */
+import { readFileSync } from 'node:fs';
 import {
   makeReadRe,
   countPositiveLimitSites,
@@ -47,6 +48,18 @@ const REAL_SITES = [
   check(
     '普通读取点仍在同一正则视野内（未因扩面丢失）',
     /getValue\|getInt\|getBoolean\|getDouble\|getLong/.test(makeReadRe().source)
+  );
+  const scs = readFileSync(
+    new URL(
+      '../services/trade-service/src/main/java/com/aicabinet/trade/service/SystemConfigService.java',
+      import.meta.url
+    ),
+    'utf8'
+  );
+  check(
+    'SystemConfigService 的 4 个动态 key 读取点与 R4 登记一致',
+    (scs.match(/self\.getValue\(key,/g) || []).length === 4,
+    String((scs.match(/self\.getValue\(key,/g) || []).length)
   );
 }
 

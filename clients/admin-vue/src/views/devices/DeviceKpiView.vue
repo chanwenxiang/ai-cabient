@@ -4,8 +4,11 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">设备可用性</span>
-            <span class="hint">默认当天实时口径；选择日期后查询该日快照</span>
+            <span class="title"
+              >设备可用性<HelpTip
+                content="默认当天实时口径；选择日期后查询该日快照。"
+                aria-label="设备可用性统计口径"
+            /></span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -69,6 +72,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import { countText, hoursText, rateText } from '@/utils/display';
 
 interface DeviceKpiRow {

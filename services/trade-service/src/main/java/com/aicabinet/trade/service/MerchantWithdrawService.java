@@ -34,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -54,6 +55,7 @@ public class MerchantWithdrawService {
     private static final String PERM_OPS_FINANCE_VIEW = "ops:finance:view";
     private static final String STATUS_APPROVED = "APPROVED";
     private static final String WITHDRAW = "WITHDRAW";
+    private static final Duration FUNDING_RETRY_DELAY = Duration.ofHours(1);
 
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
@@ -626,20 +628,29 @@ public class MerchantWithdrawService {
      * 若该账户已被物理删除（不应发生，仅数据损坏），回落查主体默认账户并留日志。
      */
     public MerchantWithdrawRequestDto executePayout(long requestId) {
+        return executePayout(requestId, false);
+    }
+
+    /**
+     * @param channelAuthority true=自动恢复重试，不以本地资金池余额拦截，完全由渠道结果裁决
+     */
+    public MerchantWithdrawRequestDto executePayout(long requestId, boolean channelAuthority) {
         MerchantWithdrawRequest pending = requireRequest(requestId);
-        // CB-033 备付校验：台账已登记该渠道且余额不足（含在途待付）⇒ 跳过打款但不置失败/不解冻，
-        // 单据保持 APPROVED（充值登记后可再次 payout 重试）；未登记账户为软启动只告警。
-        if (platformFundService != null) {
+        // 人工打款仍用本地台账做提前拦截；自动恢复重试由渠道 NOT_ENOUGH/SUCCESS 裁决。
+        if (!channelAuthority && platformFundService != null) {
             long fee = pending.getFeeCents() == null ? 0L : pending.getFeeCents();
             long netCents = Math.max(0L, pending.getAmountCents() - fee);
             Optional<String> blocked = platformFundService.gatePayout(
                     pending.getPayChannel(), netCents, requestId);
             if (blocked.isPresent()) {
+                Instant now = Instant.now();
+                String reason = blocked.get();
+                withdrawMapper.markFundingBlocked(requestId, reason, now.plus(FUNDING_RETRY_DELAY), now);
                 auditService.appendLog(null, "MERCHANT_WITHDRAW_PAYOUT_BLOCKED", BIZ_MERCHANT_WITHDRAW,
                         String.valueOf(requestId),
-                        "备付不足跳过打款（保持 APPROVED，充值后可重试）；金额(分)=" + netCents
-                                + "；原因=" + blocked.get());
-                return toDto(pending);
+                        "备付不足跳过打款（保留原状态，1 小时后按渠道结果自动重试）；金额(分)=" + netCents
+                                + "；原因=" + reason);
+                return toDto(requireRequest(requestId));
             }
         }
         MerchantWithdrawRequest paying = self.markPaying(requestId);
@@ -654,6 +665,44 @@ public class MerchantWithdrawService {
                     Math.max(0L, paying.getAmountCents() - fee), requestId);
         }
         return dto;
+    }
+
+    /** 每小时扫描备付失败单并自动重试；渠道结果作为权威，本地台账不拦自动重试。 */
+    public int retryFundingBlockedWithdraws() {
+        Instant now = Instant.now();
+        List<MerchantWithdrawRequest> candidates = withdrawMapper.findFundingRetryCandidates(now);
+        int attempted = 0;
+        for (MerchantWithdrawRequest candidate : candidates) {
+            try {
+                attempted += runWithMerchantWalletLock(candidate.getMerchantId(), () -> {
+                    MerchantWithdrawRequest current = requireRequest(candidate.getRequestId());
+                    if (!Set.of(STATUS_APPROVED, "FAILED").contains(current.getStatus())
+                            || current.getLastPayoutBlockReason() == null
+                            || current.getLastPayoutBlockReason().isBlank()
+                            || current.getNextPayoutRetryAt() == null
+                            || current.getNextPayoutRetryAt().isAfter(Instant.now())) {
+                        return 0;
+                    }
+                    auditService.appendLog(null, "MERCHANT_WITHDRAW_PAYOUT_RETRY", BIZ_MERCHANT_WITHDRAW,
+                            String.valueOf(current.getRequestId()),
+                            "备付恢复自动重试；渠道结果作为权威；金额(分)=" + current.getAmountCents()
+                                    + "；上次原因=" + current.getLastPayoutBlockReason());
+                    self.executePayout(current.getRequestId(), true);
+                    return 1;
+                });
+            } catch (PayoutChannel.PayoutPendingException e) {
+                log.warn("funding retry remains PAYING requestId={} orderNo={} reason={}",
+                        candidate.getRequestId(), e.channelOrderNo(), e.getMessage());
+            } catch (Exception e) {
+                log.warn("funding retry failed requestId={} err={}", candidate.getRequestId(), e.toString());
+            }
+        }
+        return attempted;
+    }
+
+    private static boolean isFundingFailure(MerchantWithdrawPayoutService.PayoutResult result) {
+        String message = result.message() == null ? "" : result.message().toUpperCase(Locale.ROOT);
+        return message.contains("NOT_ENOUGH") || message.contains("备付金不足");
     }
 
     /**
@@ -701,6 +750,8 @@ public class MerchantWithdrawService {
         }
         request.setStatus("PAYING");
         request.setUpdatedAt(now);
+        request.setNextPayoutRetryAt(null);
+        request.setLastPayoutBlockReason(null);
         if ("FAILED".equals(previousStatus)) {
             // FAILED 落账时已释放冻结；重试打款前需重新冻结，保证 PAID consumeFrozen 口径
             merchantWalletService.freezeForWithdraw(request.getMerchantId(), request.getAmountCents(),
@@ -726,7 +777,8 @@ public class MerchantWithdrawService {
             // 🔴 三个「不做」：不落 PAID（钱没到账）、不释放冻结（钱已锁在渠道）、不解幂等键
             //    （用户确认后的回调/查单还要靠 out_bill_no 定位这笔）。
             request.setStatus("PAYING");
-            withdrawMapper.updateById(request);
+            withdrawMapper.markAwaitingUserConfirm(requestId, now, result.payChannel(),
+                    result.payoutRef(), trim(result.message()));
             // 🔴 票据 key 必须是**渠道单号（idem_key）**，不是 transfer_bill_no：
             //    读取点 confirmTicket() 用 request.getIdemKey() 反查，存的是 transfer_bill_no
             //    会导致「钱锁在渠道、商户却永远拿不到确认入口」（2026-11-23 复核发现）。
@@ -734,12 +786,17 @@ public class MerchantWithdrawService {
                     new PayoutConfirmTicketStore.Ticket(
                             requestId, result.payChannel(), result.confirmPackage(),
                             now.plusSeconds(24 * 3600)));
+            request.setNextPayoutRetryAt(null);
+            request.setLastPayoutBlockReason(null);
             return toDto(request);
         }
         if (result.success()) {
             request.setStatus("PAID");
             request.setPaidAt(now);
-            withdrawMapper.updateById(request);
+            request.setNextPayoutRetryAt(null);
+            request.setLastPayoutBlockReason(null);
+            withdrawMapper.finalizeIfPaying(requestId, "PAID", now,
+                    result.payoutRef(), trim(result.message()));
             // V308：拆分记账 —— 渠道实发净额，手续费单列一行（合计仍等于毛额）
             long feeCents = request.getFeeCents() == null ? 0L : request.getFeeCents();
             merchantWalletService.consumeFrozenSplit(
@@ -750,7 +807,16 @@ public class MerchantWithdrawService {
             return toDto(request);
         }
         request.setStatus("FAILED");
-        withdrawMapper.updateById(request);
+        boolean fundingFailure = isFundingFailure(result);
+        String blockReason = fundingFailure ? trim(result.message()) : null;
+        Instant nextRetryAt = fundingFailure ? now.plus(FUNDING_RETRY_DELAY) : null;
+        request.setLastPayoutBlockReason(blockReason);
+        request.setNextPayoutRetryAt(nextRetryAt);
+        if (fundingFailure) {
+            request.setPayoutRetryCount((request.getPayoutRetryCount() == null ? 0 : request.getPayoutRetryCount()) + 1);
+        }
+        withdrawMapper.markPayoutFailed(requestId, now, result.payoutRef(), trim(result.message()),
+                blockReason, nextRetryAt);
         // 打款失败即释放冻结，避免冻结悬挂（与人工 cancelFailed 解冻口径一致；日限额统计仍排除终态）
         merchantWalletService.releaseFrozen(request.getMerchantId(), request.getAmountCents(),
                 WITHDRAW, String.valueOf(request.getRequestId()), "提现打款失败释放");

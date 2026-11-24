@@ -6,7 +6,10 @@
           <div class="page-card-head__meta">
             <div class="page-card-head__title">
               <span class="title">数据分析</span>
-              <span class="hint">上方为今日 / 近 24 小时快照，不受下方趋势范围影响</span>
+              <HelpTip
+                content="上方为今日 / 近 24 小时快照，不受下方趋势范围影响。"
+                aria-label="数据分析说明"
+              />
             </div>
           </div>
           <div class="page-card-head__actions">
@@ -364,6 +367,7 @@ import { ElMessage } from 'element-plus';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import ChartPanel from '@/components/ChartPanel.vue';
 import EChart from '@/components/EChart.vue';
 import { useNavAccess } from '@/composables/useNavAccess';

@@ -4,9 +4,11 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">商户提现</span>
-            <!-- 打款模式由下方 payoutMode 提示条按后端真实配置说明，此处不再写死环境口径 -->
-            <span class="hint">手续费见系统参数 · 到账金额 = 申请金额 − 手续费</span>
+            <span class="title"
+              >商户提现<HelpTip
+                content="手续费以系统参数为准；到账金额 = 申请金额 − 手续费。具体打款模式、通道就绪状态与费率口径见下方状态区和「提现费率」。"
+                aria-label="商户提现说明"
+            /></span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -40,14 +42,12 @@
       </div>
     </template>
 
-    <div v-if="payoutMode?.note" class="payout-status">
+    <div v-if="payoutMode" class="payout-status">
       <el-alert :type="payoutMode.mockEnabled ? 'warning' : 'error'" :closable="false" show-icon>
         <template #title>
           <span class="payout-note"
-            >{{ payoutMode.note
-            }}<HelpTip
-              content="记账打款=审核通过仅标记成功、不向渠道真实转账；真实出款需所选通道（微信零钱/支付宝/银行代付）就绪。手续费按系统参数「全局档」计，单个商户可在「提现费率」页覆盖；已成立的提现单按申请时费率快照计，调价不追溯。销售款结算 T+1，次日出账时间起可申请提现；审核通过后由所选通道随即发起，本系统逐单审核打款、无批量出款截单时点。"
-              aria-label="打款模式与提现口径"
+            >{{ payoutModeLabel
+            }}<HelpTip :content="payoutModeHelp" aria-label="打款模式与提现口径"
           /></span>
         </template>
       </el-alert>
@@ -411,10 +411,7 @@
       <el-tab-pane v-if="auth.hasPerm('ops:config:edit')" label="提现费率" name="fee">
         <div class="rule-help">
           <span>提现费率口径</span>
-          <HelpTip
-            content="手续费在提现申请时快照：到账 = 申请额 − 固定费 − 申请额 × 万分比。全局默认 60 万分比（6‰，对齐老系统标准档）；此处只配单个商户的降档或免收。单笔上限 ¥10000 内 6‰ 最多 ¥60，封顶留 0=不封顶（配 ¥25/¥50 几乎永不触发）。"
-            aria-label="提现费率口径"
-          />
+          <HelpTip :content="feeRuleHelp" aria-label="提现费率口径" />
         </div>
         <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="loadFeePolicy">
           <el-form-item label="商户编号">
@@ -766,6 +763,13 @@ const PAYOUT_CHANNEL_LABELS: Record<string, string> = {
 };
 const PAYOUT_CHANNEL_ORDER = ['WECHAT', 'ALIPAY', 'BANK'];
 const payoutMode = ref<PayoutMode | null>(null);
+const payoutModeLabel = computed(() => (payoutMode.value?.mockEnabled ? '记账打款' : '真实出款'));
+const payoutModeHelp = computed(() => {
+  const note = payoutMode.value?.note?.trim();
+  const rule =
+    '记账打款=审核通过仅标记成功、不向渠道真实转账；真实出款需所选通道（微信零钱/支付宝/银行代付）就绪。手续费按系统参数「全局档」计，单个商户可在「提现费率」页覆盖；已成立的提现单按申请时费率快照计，调价不追溯。销售款结算 T+1，次日出账时间起可申请提现；审核通过后由所选通道随即发起，本系统逐单审核打款、无批量出款截单时点。';
+  return note ? `${note}\n${rule}` : rule;
+});
 const readinessItems = computed(() =>
   Object.entries(payoutMode.value?.channelReadiness ?? {})
     .map(([key, info]) => ({
@@ -814,6 +818,12 @@ const feeExampleCents = computed(() => {
   const raw =
     feeFlatCents.value + Math.floor((SAMPLE_WITHDRAW_CENTS * feeEffectiveBps.value) / 10000);
   return feeCapCents.value > 0 ? Math.min(raw, feeCapCents.value) : raw;
+});
+const feeRuleHelp = computed(() => {
+  const globalRule = feeLoaded.value
+    ? `当前全局档 ${feeGlobalBps.value} 万分比（${bpsText(feeGlobalBps.value)}），固定费 ${yuan(feeFlatCents.value)}，封顶 ${feeCapCents.value > 0 ? yuan(feeCapCents.value) : '不封顶'}。`
+    : '全局费率、固定费与封顶以系统参数中的当前值为准。';
+  return `手续费在提现申请时快照：到账 = 申请额 − 固定费 − 申请额 × 万分比，再受封顶约束。${globalRule}此处只配单个商户的降档或免收；单笔与单日限额也以系统参数为准，调价不追溯已成立提现单。`;
 });
 const keyword = ref('');
 const wdStatus = ref('');

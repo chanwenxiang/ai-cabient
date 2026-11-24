@@ -57,6 +57,7 @@ public final class ScheduleZones {
             Map.entry("finance-margin", "0 5 0 * * ?"),
             Map.entry("ops-fee-bill-monthly", "0 30 1 1 * ?"),
             Map.entry("withdraw-paying-timeout", "0 0/10 * * * ?"),
+            Map.entry("withdraw-funding-retry", "0 20 * * * ?"),
             Map.entry("platform-fund-daily", "0 10 8 * * ?"),
             Map.entry("device-rental-daily", "0 20 8 * * ?"),
             Map.entry("warehouse-monthly-close", "0 10 2 * * ?"),
@@ -116,6 +117,7 @@ public final class ScheduleZones {
             Map.entry("ops-fee-bill-monthly", Duration.ofDays(32)),            // 月 1 日 01:30 + 1 天
             Map.entry("warehouse-monthly-close", Duration.ofHours(26)),         // 日 02:10（拍板 A 每日幂等）+ 2h
             Map.entry("withdraw-paying-timeout", Duration.ofMinutes(30)),      // 10min ×3
+            Map.entry("withdraw-funding-retry", Duration.ofHours(3)),         // 60min ×3
             Map.entry("platform-fund-daily", Duration.ofHours(26)),            // 日 08:10 + 2h
             Map.entry("device-rental-daily", Duration.ofHours(26)),            // 日 08:20 + 2h
             // 2026-10-14 日结/月度三任务（V352/V356/V360）

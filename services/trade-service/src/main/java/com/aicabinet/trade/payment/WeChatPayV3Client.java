@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -34,21 +35,25 @@ public class WeChatPayV3Client {
     /** 仅用于对账单文件下载（读超时更长）。 */
     private final RestClient downloadRestClient;
 
+    @Autowired
     public WeChatPayV3Client(WeChatPayProperties properties,
                              WeChatPayV3Signer signer,
                              WeChatPlatformCertificateStore certificateStore,
                              ObjectMapper objectMapper) {
+        this(properties, signer, certificateStore, objectMapper, OutboundHttp.bulkDownload());
+    }
+
+    WeChatPayV3Client(WeChatPayProperties properties,
+                      WeChatPayV3Signer signer,
+                      WeChatPlatformCertificateStore certificateStore,
+                      ObjectMapper objectMapper,
+                      RestClient.Builder downloadRestClientBuilder) {
         this.properties = properties;
         this.signer = signer;
         this.certificateStore = certificateStore;
         this.objectMapper = objectMapper;
-        // R20-4（2026-11-12）：原先 RestClient.create() 无任何超时——下单/退款都在
-        // 「事务 + Redis 锁 + cabinet_order 行锁」内同步调微信，网关卡住即占满行锁与 Hikari 连接
-        // （20 个并发卡点打满全库）。3s 连接 / 10s 响应是微信官方建议量级。
-        // S1（2026-11-12）：超时值与构造方式收进 OutboundHttp，此处只声明「用哪个档位」。
         this.restClient = OutboundHttp.publicApi().build();
-        // 账单下载实测远超普通 RPC，单独走 60s 读档
-        this.downloadRestClient = OutboundHttp.bulkDownload().build();
+        this.downloadRestClient = downloadRestClientBuilder.build();
     }
 
     public JsonNode post(String path, Object body) {
@@ -152,13 +157,42 @@ public class WeChatPayV3Client {
         }
     }
 
-    public byte[] download(String url) {
-        // 对账单文件（几 MB，境外 CDN）比 API 慢得多：单独放宽到 60s，不复用 API 客户端的 10s
+    public byte[] download(String url, String hashType, String hashValue) {
+        URI uri = URI.create(url);
+        String path = uri.getRawPath()
+                + (uri.getRawQuery() == null ? "" : "?" + uri.getRawQuery());
+        String auth = buildAuthorization("GET", path, "");
         byte[] data = downloadRestClient.get()
-                .uri(URI.create(url))
+                .uri(uri)
+                .header("Authorization", auth)
+                .header("Accept", MediaType.APPLICATION_JSON_VALUE)
                 .retrieve()
                 .body(byte[].class);
-        return data != null ? data : new byte[0];
+        if (data == null) {
+            throw new IllegalStateException("wechat bill download returned empty body");
+        }
+        verifyHash(data, hashType, hashValue);
+        return data;
+    }
+
+    private static void verifyHash(byte[] data, String hashType, String expected) {
+        if (expected == null || expected.isBlank()) {
+            throw new IllegalStateException("wechat bill hash_value missing");
+        }
+        String algorithm = switch (hashType == null ? "" : hashType.trim().toUpperCase()) {
+            case "SHA1" -> "SHA-1";
+            case "SHA256" -> "SHA-256";
+            default -> throw new IllegalStateException("unsupported wechat bill hash_type: " + hashType);
+        };
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance(algorithm).digest(data);
+            String actual = java.util.HexFormat.of().formatHex(digest);
+            if (!expected.equalsIgnoreCase(actual)) {
+                throw new IllegalStateException("wechat bill hash mismatch");
+            }
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("wechat bill hash algorithm unavailable: " + algorithm, e);
+        }
     }
 
     public String createJsapiPrepayId(String openId, String outTradeNo, int totalCents, String description) {

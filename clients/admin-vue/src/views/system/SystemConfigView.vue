@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">参数配置</span>
-            <span class="hint">系统键值配置；支持导入导出</span>
+            <HelpTip content="系统键值配置；支持导入导出。" aria-label="参数配置说明" />
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -20,7 +20,10 @@
       <template #header>
         <div class="brand-card-head">
           <span>品牌外观</span>
-          <span class="hint">用于登录页、侧栏与浏览器标题；保存后刷新页面即可生效</span>
+          <HelpTip
+            content="用于登录页、侧栏与浏览器标题；保存后刷新页面即可生效。"
+            aria-label="品牌外观说明"
+          />
         </div>
       </template>
       <el-form label-width="auto" class="brand-form" @submit.prevent="saveBrand">
@@ -77,10 +80,11 @@
       <template #header>
         <div class="brand-card-head">
           <span>将邑接入（租户级）</span>
-          <span class="hint"
-            >一次下发覆盖租户下全部柜子的上报/WS 地址；⚠️
-            对厂商云共享状态生效，所有柜机随之切换</span
-          >
+          <span class="hint">⚠️ 影响租户全部柜机</span>
+          <HelpTip
+            content="一次下发覆盖租户下全部柜子的上报/WS 地址；对厂商云共享状态生效，所有柜机随之切换。"
+            aria-label="将邑接入说明"
+          />
         </div>
       </template>
       <el-form label-width="auto" class="brand-form" @submit.prevent="saveJiangyiDomain">
@@ -290,6 +294,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import type { UploadRequestOptions } from 'element-plus';
 import { api, authFetch } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable, type CrudPageParams } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';
@@ -793,6 +798,7 @@ const FUND_SENSITIVE_KEYS = [
   'refund.self.max_cents',
   'recharge.max_cents',
   'balance.refund.max_cents',
+  'balance.refund.min_cents',
   'refund.auto_approve.max_cents',
   'merchant.withdraw.min_cents',
   'merchant.withdraw.max_cents',

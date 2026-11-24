@@ -8,6 +8,8 @@ import {
   detectRuntimeEntryChannel,
   isPayReady,
   normalizeEntryChannel,
+  parsePreauthCents,
+  payReadyHint,
   preauthYuanLabel,
   resolveClientPreauthCents,
   resolveEntryChannel
@@ -84,6 +86,20 @@ describe('availableCents', () => {
   });
 });
 
+describe('parsePreauthCents', () => {
+  it('保留显式 0，拒绝空值、负数、小数与非数字', () => {
+    expect(parsePreauthCents(0)).toBe(0);
+    expect(parsePreauthCents(' 0 ')).toBe(0);
+    expect(parsePreauthCents('2000')).toBe(2000);
+    expect(parsePreauthCents(null)).toBeNull();
+    expect(parsePreauthCents(undefined)).toBeNull();
+    expect(parsePreauthCents('')).toBeNull();
+    expect(parsePreauthCents(-1)).toBeNull();
+    expect(parsePreauthCents(1.5)).toBeNull();
+    expect(parsePreauthCents('abc')).toBeNull();
+  });
+});
+
 describe('resolveClientPreauthCents', () => {
   it('柜机 preauthCents 优先级最高', () => {
     expect(resolveClientPreauthCents({ devicePreauthCents: 500, configPreauthCents: 800 })).toBe(
@@ -99,10 +115,20 @@ describe('resolveClientPreauthCents', () => {
     expect(resolveClientPreauthCents({ configPreauthCents: '900' })).toBe(900);
   });
 
-  it('全缺或非正数时用默认预授权', () => {
+  it('公共配置显式 0 关闭预授权，并压倒柜机正数门槛', () => {
+    expect(resolveClientPreauthCents({ configPreauthCents: 0, devicePreauthCents: 500 })).toBe(0);
+    expect(resolveClientPreauthCents({ configPreauthCents: '0', deviceDepositCents: 700 })).toBe(0);
+  });
+
+  it('DeviceStatus 已解析的 0 是有效值，不再回落默认', () => {
+    expect(resolveClientPreauthCents({ devicePreauthCents: 0 })).toBe(0);
+  });
+
+  it('全缺、非法值或柜机 deposit=0 时用默认预授权', () => {
     expect(resolveClientPreauthCents()).toBe(MIN_BALANCE_CENTS);
-    expect(resolveClientPreauthCents({ devicePreauthCents: 0 })).toBe(MIN_BALANCE_CENTS);
+    expect(resolveClientPreauthCents({ deviceDepositCents: 0 })).toBe(MIN_BALANCE_CENTS);
     expect(resolveClientPreauthCents({ devicePreauthCents: Number.NaN })).toBe(MIN_BALANCE_CENTS);
+    expect(resolveClientPreauthCents({ configPreauthCents: -1 })).toBe(MIN_BALANCE_CENTS);
   });
 
   it('默认值来自 shared-types 的 DEFAULT_PREAUTH_CENTS', () => {
@@ -118,6 +144,10 @@ describe('preauthYuanLabel', () => {
 
   it('非整数金额保留两位小数', () => {
     expect(preauthYuanLabel(2050)).toBe('20.50');
+  });
+
+  it('0 表示关闭预授权，不显示成 ¥0.01', () => {
+    expect(preauthYuanLabel(0)).toBe('0');
   });
 });
 
@@ -143,6 +173,12 @@ describe('isPayReady', () => {
   it('未开免密时按可用余额与门槛比较（刚好等于门槛算通过）', () => {
     expect(isPayReady(acc({ availableCents: 2000 }), 'WECHAT', 2000)).toBe(true);
     expect(isPayReady(acc({ availableCents: 1999 }), 'WECHAT', 2000)).toBe(false);
+  });
+
+  it('预授权关闭时不要求余额达到默认门槛', () => {
+    expect(isPayReady(acc({ availableCents: 0 }), 'WECHAT', 0)).toBe(true);
+    expect(isPayReady(acc({ availableCents: -100 }), null, 0)).toBe(true);
+    expect(payReadyHint(acc({ availableCents: 0 }), 'WECHAT', 0)).toContain('预授权已关闭');
   });
 
   it('未登录返回 false', () => {

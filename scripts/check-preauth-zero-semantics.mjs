@@ -10,7 +10,8 @@
  * 缺的只是这一层显式返回 0。
  *
  * 判据贴真实责任边界：① 显式 0 分支 return 0；② 正常 >0 分支仍在（防「全关」）；
- * ③ 下游 amount<=0 清预授权分支仍在。扫源码前先做**等长掩码**抹注释/字符串，
+ * ③ 下游 amount<=0 清预授权分支仍在；④ 消费者端解析器与 4 个入口必须保留 0，
+ * 不能再用 `>0 ? value : null` 回落 ¥20。扫源码前先做**等长掩码**抹注释/字符串，
  * 否则把 `fromDb == 0` 写进注释或日志就能造出假绿（铁律 84①）。
  *
  *   node scripts/check-preauth-zero-semantics.mjs
@@ -23,6 +24,13 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TAG = '[check-preauth-zero-semantics]';
 const SERVICE_REL =
   'services/trade-service/src/main/java/com/aicabinet/trade/service/ConsumerPreauthService.java';
+const CLIENT_FILES = {
+  account: 'clients/consumer-mp/src/utils/account.ts',
+  drawer: 'clients/consumer-mp/src/components/open-prep-drawer.vue',
+  verify: 'clients/consumer-mp/src/pages/verify/verify.vue',
+  mine: 'clients/consumer-mp/src/pages/mine/mine.vue',
+  index: 'clients/consumer-mp/src/pages/index/index.vue'
+};
 
 /** 等长掩码：注释与字符串字面量换成等长空格，保留换行（行号/偏移不漂移）。 */
 export function maskForScan(src) {
@@ -121,6 +129,71 @@ export function evaluateZeroSemantics(rawSrc) {
   return problems;
 }
 
+/** 消费者端同族判据：0 必须穿过解析器与四个入口，不能被 >0 静默回落。 */
+export function clientZeroSemanticsProblems(rawSources) {
+  const problems = [];
+  const sources = {};
+  for (const [name, raw] of Object.entries(rawSources || {})) {
+    sources[name] = typeof raw === 'string' ? maskForScan(raw) : '';
+  }
+  const account = sources.account || '';
+  const parseStart = account.indexOf('export function parsePreauthCents');
+  const resolveStart = account.indexOf('export function resolveClientPreauthCents');
+  const labelStart = account.indexOf('export function preauthYuanLabel');
+  const readyStart = account.indexOf('export function isPayReady');
+  const hintStart = account.indexOf('export function payReadyHint');
+  if (parseStart < 0 || resolveStart < 0 || labelStart < 0 || readyStart < 0 || hintStart < 0) {
+    problems.push('account.ts 缺 parse/resolve/label/isPayReady/payReadyHint 锚点——前端判据失效');
+    return problems;
+  }
+  const parseBlock = account.slice(parseStart, resolveStart);
+  const resolveBlock = account.slice(resolveStart, labelStart);
+  const labelBlock = account.slice(labelStart, readyStart);
+  const readyBlock = account.slice(readyStart, hintStart);
+  const hintBlock = account.slice(hintStart);
+
+  if (!/Number\.isSafeInteger\(value\)/.test(parseBlock) || !/value\s*>=\s*0/.test(parseBlock)) {
+    problems.push('parsePreauthCents 没保留显式 0（必须接受 >=0，而非 >0）');
+  }
+  const zeroBranch = resolveBlock.search(/if\s*\(\s*cfg\s*===\s*0\s*\)/);
+  const deviceBranch = resolveBlock.search(/const\s+device\s*=/);
+  if (zeroBranch < 0) {
+    problems.push('resolveClientPreauthCents 缺全局配置 0 → return 0 分支');
+  } else if (!/if\s*\(\s*cfg\s*===\s*0\s*\)\s*return\s+0\s*;/.test(resolveBlock)) {
+    problems.push('resolveClientPreauthCents 的全局 0 分支没有直接 return 0');
+  } else if (deviceBranch >= 0 && zeroBranch > deviceBranch) {
+    problems.push('resolveClientPreauthCents 的全局 0 分支位于柜机分支之后，无法压倒设备押金');
+  }
+  if (!/if\s*\(\s*device\s*!==\s*null\s*\)\s*return\s+device\s*;/.test(resolveBlock)) {
+    problems.push('resolveClientPreauthCents 没把 DeviceStatus 已解析的 0 当有效值');
+  }
+  if (!/if\s*\(\s*preauthCents\s*<=\s*0\s*\)\s*return/.test(labelBlock)) {
+    problems.push('preauthYuanLabel 缺 0=关闭分支，会把 0 显示成 ¥0.01');
+  }
+  if (!/preauthCents\s*<=\s*0\s*\|\|/.test(readyBlock)) {
+    problems.push('isPayReady 缺预授权关闭放行分支，仍会要求默认余额门槛');
+  }
+  if (!/if\s*\(\s*preauthCents\s*<=\s*0\s*\)\s*return/.test(hintBlock)) {
+    problems.push('payReadyHint 缺预授权关闭提示，会继续提示充值');
+  }
+
+  for (const name of ['drawer', 'verify', 'mine', 'index']) {
+    const src = sources[name];
+    if (!src) {
+      problems.push(`消费者端入口 ${name} 缺失——不得假绿`);
+      continue;
+    }
+    const target = name === 'index' ? 'status.preauthCents' : 'cfg?.preauthCents';
+    if (!src.includes(`parsePreauthCents(${target})`)) {
+      problems.push(`${name} 没走 parsePreauthCents(${target})，0 可能被静默回落`);
+    }
+    if (new RegExp(`Number\\s*\\(\\s*${target.replace('?', '\\?')}\\s*\\)`).test(src)) {
+      problems.push(`${name} 又直接用 Number(${target}) 解析，绕过 0 语义守卫`);
+    }
+  }
+  return problems;
+}
+
 function main() {
   const path = join(ROOT, SERVICE_REL);
   if (!existsSync(path)) {
@@ -128,12 +201,24 @@ function main() {
     process.exit(1);
   }
   const problems = evaluateZeroSemantics(readFileSync(path, 'utf8'));
+  const clientSources = {};
+  for (const [name, rel] of Object.entries(CLIENT_FILES)) {
+    const clientPath = join(ROOT, rel);
+    if (!existsSync(clientPath)) {
+      clientSources[name] = '';
+      continue;
+    }
+    clientSources[name] = readFileSync(clientPath, 'utf8');
+  }
+  problems.push(...clientZeroSemanticsProblems(clientSources));
   if (problems.length) {
     for (const p of problems) console.error(`${TAG} FAIL ${p}`);
     console.error(`${TAG} 共 ${problems.length} 项`);
     process.exit(1);
   }
-  console.log(`${TAG} OK：0=关闭预授权（显式分支 + 下游清预授权落点 + >0 正常分支）三锚点全绿`);
+  console.log(
+    `${TAG} OK：后端 0=关闭（显式分支 + 下游清预授权落点 + >0 正常分支）与消费者端 4 入口解析链全绿`
+  );
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {

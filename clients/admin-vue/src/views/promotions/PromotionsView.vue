@@ -5,10 +5,10 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">营销活动</span>
-            <span class="hint"
-              >v1 支持「商品立减 / 商品折扣 / 一口价」：指定参与商品、投放范围与时间窗；
-              命中活动价的订单不再叠加优惠券；启用前必须配置轮播横幅</span
-            >
+            <HelpTip
+              content="v1 支持「商品立减 / 商品折扣 / 一口价」：指定参与商品、投放范围与时间窗；命中活动价的订单不再叠加优惠券；启用前必须配置轮播横幅。"
+              aria-label="营销活动说明"
+            />
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -211,7 +211,14 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="参与商品" required>
+            <el-form-item required>
+              <template #label>
+                参与商品
+                <HelpTip
+                  content="只对选中 SKU 生效；活动价优于当前单价时才计价。"
+                  aria-label="参与商品说明"
+                />
+              </template>
               <el-select
                 v-model="form.skuIds"
                 multiple
@@ -228,11 +235,14 @@
                   :value="s.skuId"
                 />
               </el-select>
-              <div class="field-hint">只对选中 SKU 生效；活动价优于当前单价时才计价</div>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item :label="priceFieldLabel" required>
+            <el-form-item required>
+              <template #label>
+                {{ priceFieldLabel }}
+                <HelpTip :content="priceFieldHint" aria-label="活动价格说明" />
+              </template>
               <el-input-number
                 v-if="form.activityType === 'SKU_REDUCE'"
                 v-model="form.reduceYuan"
@@ -261,7 +271,6 @@
                 controls-position="right"
                 style="width: 100%"
               />
-              <div class="field-hint">{{ priceFieldHint }}</div>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -325,14 +334,20 @@
             /></el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="投放范围">
+            <el-form-item>
+              <template #label>
+                投放范围
+                <HelpTip
+                  content="指定商户 = 该商户名下所有柜机可参与活动。"
+                  aria-label="投放范围说明"
+                />
+              </template>
               <div class="scope-field">
                 <el-radio-group v-model="form.deviceScope">
                   <el-radio value="ALL">全部柜机</el-radio>
                   <el-radio value="SPECIFIC">指定柜机</el-radio>
                   <el-radio value="MERCHANT">指定商户</el-radio>
                 </el-radio-group>
-                <div class="field-hint">指定商户 = 该商户名下所有柜机可参与活动</div>
               </div>
             </el-form-item>
           </el-col>
@@ -420,7 +435,11 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="轮播顺序">
+            <el-form-item>
+              <template #label>
+                轮播顺序
+                <HelpTip content="数值小在前；相同值按活动编号。" aria-label="轮播顺序说明" />
+              </template>
               <el-input-number
                 v-model="placementForm.bannerSortOrder"
                 :min="0"
@@ -429,7 +448,6 @@
                 controls-position="right"
                 style="width: 100%"
               />
-              <div class="field-hint">数值小在前；相同值按活动编号</div>
             </el-form-item>
           </el-col>
           <el-col :span="8">
@@ -529,6 +547,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api, authFetch } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import {
   centsToYuanFixed,
   centsToYuanNumber,

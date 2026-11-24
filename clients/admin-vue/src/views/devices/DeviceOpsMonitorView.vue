@@ -4,12 +4,11 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">设备运维</span>
-            <span class="hint"
-              >与交易异常分流：离线 / 禁售 / 锁机等设备侧事件；事件 ID
-              默认升序，可在列表上方切换升降序 · 默认只查近 14 天事件（可用「时间」拉宽； 不选时「共
-              N 条」不是全量）</span
-            >
+            <span class="title"
+              >设备运维<HelpTip
+                content="与交易异常分流：离线 / 禁售 / 锁机等设备侧事件；事件 ID 默认升序，可在列表上方切换升降序。默认只查近 14 天事件（可用「时间」拉宽；不选时「共 N 条」不是全量）。"
+                aria-label="设备运维查询口径"
+            /></span>
           </div>
         </div>
       </div>
@@ -206,6 +205,7 @@ import { computed, onMounted, ref } from 'vue';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions } from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { useDictOptions } from '@/composables/useDictOptions';

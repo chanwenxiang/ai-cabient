@@ -25,6 +25,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -131,6 +132,28 @@ class SystemConfigFundKeyGuardTest {
         // 提现族 0 语义（免收/全部人工审核/不封顶）是 2026-10-16 拍板，不在 DC-6 范围
         service.upsert(SystemConfigService.MERCHANT_WITHDRAW_FEE_CENTS, "0", "d", 9L);
         verify(repository).save(any(SystemConfig.class));
+    }
+
+    @Test
+    void upsert_refundMin_zero_rejected400() {
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.upsert(SystemConfigService.BALANCE_REFUND_MIN_CENTS, "0", "d", 9L));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void getBalanceRefundMin_aboveMax_fallsBackToDefault() {
+        SystemConfig min = new SystemConfig();
+        min.setConfigKey(SystemConfigService.BALANCE_REFUND_MIN_CENTS);
+        min.setConfigValue("60000");
+        when(repository.findById(SystemConfigService.BALANCE_REFUND_MIN_CENTS)).thenReturn(Optional.of(min));
+        SystemConfig max = new SystemConfig();
+        max.setConfigKey(SystemConfigService.BALANCE_REFUND_MAX_CENTS);
+        max.setConfigValue("50000");
+        when(repository.findById(SystemConfigService.BALANCE_REFUND_MAX_CENTS)).thenReturn(Optional.of(max));
+
+        assertEquals(100, service.getBalanceRefundMinCents());
     }
 
     @Test
@@ -254,6 +277,36 @@ class SystemConfigFundKeyGuardTest {
         var consumer = service.consumerPublicConfig();
         assertEquals("500000", consumer.get("balanceRefundMaxCents"));
         assertEquals("500000", consumer.get("rechargeMaxCents"));
+    }
+
+    @Test
+    void publicConfigs_exposeWithdrawAndRefundMinimums() {
+        SystemConfig merchantMin = new SystemConfig();
+        merchantMin.setConfigKey("merchant.withdraw.min_cents");
+        merchantMin.setConfigValue("1000");
+        when(repository.findById("merchant.withdraw.min_cents")).thenReturn(Optional.of(merchantMin));
+        SystemConfig lineMin = new SystemConfig();
+        lineMin.setConfigKey("line.withdraw.min_cents");
+        lineMin.setConfigValue("500");
+        when(repository.findById("line.withdraw.min_cents")).thenReturn(Optional.of(lineMin));
+        SystemConfig refundMin = new SystemConfig();
+        refundMin.setConfigKey("balance.refund.min_cents");
+        refundMin.setConfigValue("200");
+        when(repository.findById("balance.refund.min_cents")).thenReturn(Optional.of(refundMin));
+
+        var merchant = service.merchantPublicConfig();
+        var consumer = service.consumerPublicConfig();
+
+        assertEquals("1000", merchant.get("merchantWithdrawMinCents"));
+        assertEquals("500", merchant.get("lineWithdrawMinCents"));
+        assertEquals("200", consumer.get("balanceRefundMinCents"));
+    }
+
+    @Test
+    void merchantPublicConfig_missingWithdrawMinimums_doesNotInventDefaults() {
+        var merchant = service.merchantPublicConfig();
+        assertNull(merchant.get("merchantWithdrawMinCents"));
+        assertNull(merchant.get("lineWithdrawMinCents"));
     }
 
     @Test

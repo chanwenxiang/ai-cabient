@@ -85,7 +85,7 @@
     },
     {
       "file": "clients/consumer-mp/src/pages/recharge/recharge.vue",
-      "count": 3
+      "count": 2
     },
     {
       "file": "clients/consumer-mp/src/utils/popup-seen.ts",

@@ -6,13 +6,12 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">月结单台账（审批锁账 + 差异处置）</span>
-            <span class="hint">
-              两步法：生成未审批（差异金额化）→ 审批锁单 → 逐行处置（进索赔台账 /
-              标记正常损耗）。盘亏走索赔或损耗，<b>不生成应付</b>。金额 = 差异件数 ×
-              目录采购成本（未配置成本的 SKU
-              行金额留空）。上方「仓库」既筛本列表也是生成目标，清空＝看全部仓库。
-            </span>
+            <span class="title"
+              >月结单台账（审批锁账 + 差异处置）<HelpTip
+                content="两步法：生成未审批（差异金额化）→ 审批锁单 → 逐行处置（进索赔台账 / 标记正常损耗）。金额 = 差异件数 × 目录采购成本。上方「仓库」既筛本列表也是生成目标，清空＝看全部仓库。"
+                aria-label="月结单台账说明"
+            /></span>
+            <span class="hint">盘亏不生成应付；未配置成本的 SKU 行金额留空</span>
           </div>
         </div>
       </div>

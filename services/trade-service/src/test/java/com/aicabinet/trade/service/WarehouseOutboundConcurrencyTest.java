@@ -59,7 +59,8 @@ class WarehouseOutboundConcurrencyTest {
                 deviceSlotService, salesVelocityService, inTransitService, inventoryLotService, distributedLockService,
                 displaySnapshotHelper,
                 null /*deviceInfo*/, null /*supplierId*/, null /*userInfo*/, null /*permission*/,
-                null /*scope*/, null /*audit*/, warehouseManagerRepository, null /*self*/);
+                null /*scope*/, null /*audit*/, warehouseManagerRepository,
+                org.mockito.Mockito.mock(com.aicabinet.trade.mapper.WarehouseBinStockMapper.class), null /*self*/);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

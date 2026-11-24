@@ -4,11 +4,11 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">设备管理</span>
-            <span class="hint"
-              >「可购买」=
-              在线且未锁机；「未锁机」只表示没锁营业，离线仍买不了。可批量锁机或解锁</span
-            >
+            <span class="title"
+              >设备管理<HelpTip
+                content="「可购买」=在线且未锁机；「未锁机」只表示没锁营业，离线仍买不了。可批量锁机或解锁。"
+                aria-label="设备状态与批量操作口径"
+            /></span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -405,11 +405,14 @@
       align-center
     >
       <el-form label-width="auto">
-        <el-form-item label="设备编号">
-          <p class="form-hint muted">
-            创建后由系统自动分配 EG 编号（EG+12 位数字，无序、不可修改）；柜机首次联网时将自动绑定
-            IMEI / 主板 SN
-          </p>
+        <el-form-item>
+          <template #label>
+            <span
+              >设备编号<HelpTip
+                content="创建后由系统自动分配 EG 编号（EG+12 位数字，无序、不可修改）；柜机首次联网时将自动绑定 IMEI / 主板 SN。"
+                aria-label="设备编号分配规则"
+            /></span>
+          </template>
         </el-form-item>
         <el-form-item label="设备名称">
           <el-input v-model="createForm.deviceName" placeholder="可选…" />
@@ -429,7 +432,14 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="投放场景" required>
+        <el-form-item required>
+          <template #label>
+            <span
+              >投放场景<HelpTip
+                content="必选：用于按场景选品与运营，创建后仍可在「资产与投放」修改。"
+                aria-label="投放场景用途"
+            /></span>
+          </template>
           <el-select
             v-model="createForm.sceneType"
             placeholder="请选择投放场景"
@@ -442,7 +452,6 @@
               :value="item.value"
             />
           </el-select>
-          <p class="form-hint muted">必选：用于按场景选品与运营，创建后仍可在「资产与投放」修改</p>
         </el-form-item>
         <el-form-item label="商户">
           <el-select
@@ -485,7 +494,14 @@
             @update:longitude="(v) => (createForm.longitude = v ?? undefined)"
           />
         </el-form-item>
-        <el-form-item label="点位坐标">
+        <el-form-item>
+          <template #label>
+            <span
+              >点位坐标<HelpTip
+                content="选择商户即视为柜机已部署，此时经纬度必填：补货签到靠坐标做地理围栏，缺坐标的柜机无法校验签到位置。"
+                aria-label="点位坐标填写口径"
+            /></span>
+          </template>
           <div style="display: flex; gap: 8px; width: 100%">
             <el-input-number
               v-model="createForm.latitude"
@@ -508,9 +524,6 @@
               placeholder="经度"
             />
           </div>
-          <p class="form-hint muted">
-            选择商户即视为柜机已部署，此时经纬度必填：补货签到靠坐标做地理围栏，缺坐标的柜机无法校验签到位置。
-          </p>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -568,6 +581,7 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import AddressPicker from '@/components/AddressPicker.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import { useCrudTable, type CrudPageParams } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';
 import type {

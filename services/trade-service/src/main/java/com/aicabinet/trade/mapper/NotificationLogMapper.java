@@ -22,6 +22,7 @@ public interface NotificationLogMapper extends BaseTradeMapper<NotificationLog> 
         return selectList(Wrappers.<NotificationLog>lambdaQuery()
                 .eq(NotificationLog::getAudience, "CONSUMER")
                 .eq(NotificationLog::getUserId, userId)
+                .eq(NotificationLog::getChannel, "IN_APP")
                 .orderByDesc(NotificationLog::getCreatedAt)
                 .last("LIMIT " + Math.min(Math.max(limit, 1), 100)));
     }
@@ -50,6 +51,7 @@ public interface NotificationLogMapper extends BaseTradeMapper<NotificationLog> 
         Long c = selectCount(Wrappers.<NotificationLog>lambdaQuery()
                 .eq(NotificationLog::getAudience, "CONSUMER")
                 .eq(NotificationLog::getUserId, userId)
+                .eq(NotificationLog::getChannel, "IN_APP")
                 .isNull(NotificationLog::getReadAt));
         return c == null ? 0L : c;
     }

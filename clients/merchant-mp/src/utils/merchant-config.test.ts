@@ -92,6 +92,30 @@ describe('商户端扩展功能开关读取器', () => {
     expect(m.merchantSubscribeEnabled()).toBe(true);
   });
 
+  it('提现下限从公开配置读取；缺失或非法时返回 null，0 表示不限制', async () => {
+    const empty = await fresh();
+    expect(empty.merchantWithdrawMinCents()).toBeNull();
+    expect(empty.lineWithdrawMinCents()).toBeNull();
+
+    merchantPublicConfig.mockResolvedValue({
+      merchantWithdrawMinCents: ' 10 ',
+      lineWithdrawMinCents: '0'
+    });
+    const configured = await fresh();
+    await configured.loadMerchantFlags();
+    expect(configured.merchantWithdrawMinCents()).toBe(10);
+    expect(configured.lineWithdrawMinCents()).toBe(0);
+
+    merchantPublicConfig.mockResolvedValue({
+      merchantWithdrawMinCents: 'abc',
+      lineWithdrawMinCents: '-1'
+    });
+    const invalid = await fresh();
+    await invalid.loadMerchantFlags();
+    expect(invalid.merchantWithdrawMinCents()).toBeNull();
+    expect(invalid.lineWithdrawMinCents()).toBeNull();
+  });
+
   it('refresh=true 会重新请求公开配置', async () => {
     merchantPublicConfig
       .mockResolvedValueOnce({ wechatSubscribeTemplateId: '' })

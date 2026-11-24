@@ -5,10 +5,11 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">选品诊断</span>
-            <span class="hint"
-              >动销诊断；下架会停售 SKU。替换 SKU 仅备注建议，不会改柜内在售商品 ·
-              「原价营收」＝明细原价合计（未扣券/优惠），与财务实收口径不同</span
-            >
+            <span class="hint">下架会停售 SKU</span>
+            <HelpTip
+              content="动销诊断；下架会停售 SKU。替换 SKU 仅备注建议，不会改柜内在售商品；「原价营收」＝明细原价合计（未扣券/优惠），与财务实收口径不同。"
+              aria-label="选品诊断说明"
+            />
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -151,6 +152,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { CircleCheck, CircleClose, Warning } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { displayLabel } from '@aicabinet/shared-dict';

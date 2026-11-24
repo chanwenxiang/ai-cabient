@@ -71,7 +71,8 @@ class WarehouseOutboundCancelledGuardTest {
                 deviceSlotService, salesVelocityService, inTransitService, inventoryLotService,
                 distributedLockService, displaySnapshotHelper,
                 null /*deviceInfo*/, null /*supplierId*/, null /*userInfo*/, null /*permission*/,
-                null /*scope*/, null /*audit*/, warehouseManagerRepository, null /*self*/);
+                null /*scope*/, null /*audit*/, warehouseManagerRepository,
+                org.mockito.Mockito.mock(com.aicabinet.trade.mapper.WarehouseBinStockMapper.class), null /*self*/);
         lenient().when(distributedLockService.tryLock(any(), anyLong(), anyLong())).thenReturn(true);
     }
 

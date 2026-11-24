@@ -5,7 +5,8 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">积分兑换管理</span>
-            <span class="hint">积分兑换优惠券商品；兑换后自动发券并扣积分</span>
+            <span class="hint">兑换后自动发券并扣积分</span>
+            <HelpTip content="积分兑换优惠券商品。" aria-label="积分兑换说明" />
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -183,9 +184,12 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="图标">
+            <el-form-item>
+              <template #label>
+                图标
+                <HelpTip content="用表情符号作为列表图标。" aria-label="图标说明" />
+              </template>
               <el-input v-model="form.coverEmoji" placeholder="表情符号，如 🎁" />
-              <div class="field-hint">用表情符号作为列表图标</div>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -241,6 +245,7 @@ import { EditPen, SwitchButton } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { displayLabel } from '@aicabinet/shared-dict';

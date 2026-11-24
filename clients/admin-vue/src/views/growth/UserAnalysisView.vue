@@ -5,7 +5,10 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">用户分析</span>
-            <span class="hint">活跃 / 新增 / 复购 / 沉睡 / 客单价（基于订单数据，无额外埋点）</span>
+            <HelpTip
+              content="活跃 / 新增 / 复购 / 沉睡 / 客单价（基于订单数据，无额外埋点）。"
+              aria-label="用户分析说明"
+            />
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -212,6 +215,7 @@ import { ElMessage } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useListCsv } from '@/composables/useListCsv';
 

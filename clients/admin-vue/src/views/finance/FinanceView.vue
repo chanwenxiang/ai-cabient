@@ -21,10 +21,9 @@
               <div class="page-card-head__title">
                 <span class="title"
                   >财务毛利<HelpTip
-                    content="今日数据实时计算；历史日在日切后固化，固化后即使修改采购成本也不回溯。可手动「固化昨日毛利」。日资金账单见「资金账单」菜单。"
+                    content="今日数据实时计算；历史日在日切后固化，固化后即使修改采购成本也不回溯。可手动「固化昨日毛利」。日资金账单见「资金账单」菜单。上方为今日快照；趋势与商品 TOP 受下方天数范围影响。"
                     aria-label="毛利固化规则"
                 /></span>
-                <span class="hint">上方为今日快照；趋势与商品 TOP 受下方天数范围影响</span>
               </div>
             </div>
             <div class="page-card-head__actions">

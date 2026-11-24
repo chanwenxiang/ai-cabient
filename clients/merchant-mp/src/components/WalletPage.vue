@@ -52,6 +52,7 @@
             />
           </view>
           <text v-if="maxWithdrawHint" class="withdraw-hint">{{ maxWithdrawHint }}</text>
+          <text v-if="minWithdrawHint" class="withdraw-hint">{{ minWithdrawHint }}</text>
           <!-- 2026-11-20：实名采集入口归位商户端。此处只在「有提现面」时显示状态，
                未实名给可点入口，避免再让用户去消费者小程序填证件号。 -->
           <view
@@ -222,6 +223,11 @@ import {
   validateWalletWithdrawMerchant
 } from '@/utils/money-ui-contracts';
 import { walletLedgerRefText, walletLedgerRemark, walletLedgerTitle } from '@/utils/wallet-display';
+import {
+  lineWithdrawMinCents,
+  loadMerchantFlags,
+  merchantWithdrawMinCents
+} from '@/utils/merchant-config';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 export type WalletPageRole = 'merchant' | 'line';
@@ -284,6 +290,14 @@ const maxWithdrawHint = computed(() =>
     ? ''
     : `最多可提现 ${fmtMoney(overview.value.availableCents)}`
 );
+const minWithdrawCents = computed(() =>
+  props.role === 'merchant' ? merchantWithdrawMinCents() : lineWithdrawMinCents()
+);
+const minWithdrawHint = computed(() => {
+  const min = minWithdrawCents.value;
+  if (min == null) return '';
+  return min > 0 ? `最低提现 ${fmtMoney(min)}` : '当前无单笔提现下限';
+});
 
 // H53：多商户绑定时的提现商户选择；单商户不渲染选择器、请求也不带 merchantId
 const { me, refresh: refreshMerchantMe } = useMerchantMe();
@@ -497,15 +511,14 @@ async function submitWithdraw() {
   const amountErr = validateWalletWithdrawAmount({
     amountCents,
     availableCents: available,
-    // 与后端 withdraw.min-amount-cents 默认（¥1）对齐的客户端预检
-    minAmountCents: 100
+    minAmountCents: minWithdrawCents.value ?? undefined
   });
   if (amountErr === 'INVALID_AMOUNT') {
     showError('请输入金额');
     return;
   }
   if (amountErr === 'BELOW_MIN_AMOUNT') {
-    showError('最低提现 ¥1.00');
+    showError(`最低提现 ${fmtMoney(minWithdrawCents.value ?? 0)}`);
     return;
   }
   if (amountErr === 'EXCEEDS_AVAILABLE') {
@@ -568,7 +581,10 @@ async function submitWithdraw() {
   }
 }
 
-onPageShow(load);
+onPageShow(async () => {
+  await loadMerchantFlags({ refresh: true });
+  await load();
+});
 
 /**
  * 提现审核 / 打款由运营与支付通道异步处理：还有未到终态的提现单时每 10 秒静默跟进一次，

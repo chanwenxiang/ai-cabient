@@ -4,10 +4,11 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">商品管理</span>
-            <span class="hint"
-              >主数据：SKU ID 纯数字且唯一，商品名称不可重复；识别入驻请到「识别入驻」</span
-            >
+            <span class="title"
+              >商品管理<HelpTip
+                content="商品主数据：SKU ID 由系统分配纯数字且唯一；商品名称不可重复。识别入驻请到「识别入驻」页按步骤完成挂接、采集与复核。"
+                aria-label="商品主数据说明"
+            /></span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -254,16 +255,28 @@
         type="info"
         :closable="false"
         show-icon
-        :title="`复制自「${cloneSource.sourceScope}」商品 ${cloneSource.sourceSkuId}，目标归属「${cloneSource.targetScope}」`"
-        description="条码/图片已清空（条码唯一不可共用）；价格/成本请按目标归属口径填写。保存后两边互不影响，识别仍走同一个将邑模型（两个 SKU 可挂将邑同一个商品）。"
-      />
+        description="条码/图片已清空；价格/成本请按目标归属口径填写。"
+      >
+        <template #title
+          >复制自「{{ cloneSource.sourceScope }}」商品 {{ cloneSource.sourceSkuId }}，目标归属「{{
+            cloneSource.targetScope
+          }}」<HelpTip
+            content="条码唯一，不能与源商品共用。保存后两边互不影响；识别仍走同一个将邑模型，两个 SKU 可挂将邑同一个商品。"
+            aria-label="复制商品说明"
+        /></template>
+      </el-alert>
       <el-form label-width="auto" class="sku-form" @submit.prevent>
         <div class="form-group-title">基础信息</div>
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="商品名称" required>
+            <el-form-item required>
+              <template #label
+                >商品名称<HelpTip
+                  v-if="!form.existing"
+                  content="保存后系统自动分配纯数字 SKU 编号。"
+                  aria-label="商品编号说明"
+              /></template>
               <el-input v-model="form.skuName" placeholder="如 农夫山泉饮用天然水" maxlength="60" />
-              <div v-if="!form.existing" class="field-hint">保存后系统自动分配纯数字编号</div>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -285,7 +298,12 @@
             </el-form-item>
           </el-col>
           <el-col :span="14">
-            <el-form-item label="条码" required>
+            <el-form-item required>
+              <template #label
+                >条码<HelpTip
+                  content="可接扫码枪直接扫包装；查询后自动填充名称/品牌/规格/单位（单位按规格尾缀命中字典时），已填过的内容不覆盖。"
+                  aria-label="条码查询说明"
+              /></template>
               <div class="barcode-field">
                 <el-input
                   v-model="form.barcode"
@@ -295,10 +313,6 @@
                 <el-button :loading="barcodeLookingUp" @click="lookupBarcode">
                   查官方资料
                 </el-button>
-              </div>
-              <div class="field-hint">
-                可接扫码枪直接扫包装；查询后自动填充名称 / 品牌 / 规格 /
-                单位（单位按规格尾缀命中字典时），已填过的内容不覆盖
               </div>
             </el-form-item>
           </el-col>
@@ -323,7 +337,12 @@
             </el-form-item>
           </el-col>
           <el-col :span="14">
-            <el-form-item label="件装数">
+            <el-form-item>
+              <template #label
+                >件装数<HelpTip
+                  content="填写每件的支数（如 1 箱=24 瓶则填 24）。采购下单/收货以「件」为单位，库存/销售以「支」为单位，成本自动折算为每支；默认 1 表示无箱规。"
+                  aria-label="件装数说明"
+              /></template>
               <!-- CB-061：采购按件、库存/销售按支，成本按支折；默认 1 表示无箱规 -->
               <el-input-number
                 v-model="form.packQty"
@@ -332,10 +351,6 @@
                 :step="1"
                 style="width: 100%"
               />
-              <div class="field-hint">
-                每件的支数（如 1 箱=24 瓶则填
-                24）；采购下单/收货以「件」为单位，库存/销售以「支」为单位，成本自动折算为每支
-              </div>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -360,16 +375,22 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="规格">
+            <el-form-item>
+              <template #label
+                >规格<HelpTip
+                  content="单位用英文缩写（ml / L / g / kg），保存时自动转换；同一名称可以有多种规格，名称+规格不能重复。"
+                  aria-label="规格填写说明"
+              /></template>
               <el-input v-model="form.spec" placeholder="如 550ml" maxlength="40" />
-              <div class="field-hint">
-                单位用英文缩写（ml / L / g /
-                kg），保存时自动转换；同一名称可以有多种规格，名称+规格不能重复
-              </div>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="经营归属">
+            <el-form-item>
+              <template #label
+                >经营归属<HelpTip
+                  content="月结、库存与对账报表按归属筛选；拿不准可留空为未分类。"
+                  aria-label="经营归属说明"
+              /></template>
               <!-- CB-036：字典 sku_operation_scope 维护取值；空=未分类 -->
               <el-select
                 v-model="form.operationScope"
@@ -384,13 +405,17 @@
                   :value="s.value"
                 />
               </el-select>
-              <div class="field-hint">月结/库存/对账报表按归属筛选；拿不准可留空为未分类</div>
             </el-form-item>
           </el-col>
         </el-row>
 
         <!-- CB-049 扩展：商品×场景上架限额——柜内该场景下此商品的上架合计（各货道最大容量之和）不得超过上限 -->
-        <div class="form-group-title">投放场景与上架限额</div>
+        <div class="form-group-title">
+          投放场景与上架限额<HelpTip
+            content="设置各场景下该商品的上架合计上限（各库存位最大容量之和）。例如东鹏在「校园」限 1 件、「工厂」限 5 件；柜机绑定商品时按所属场景校验。"
+            aria-label="场景上架限额说明"
+          />
+        </div>
         <el-row v-for="(lim, i) in form.sceneLimits" :key="`scene-${i}`" :gutter="12">
           <el-col :span="11">
             <el-form-item label="场景">
@@ -414,10 +439,6 @@
           </el-col>
         </el-row>
         <el-button size="small" @click="addSceneLimitRow">添加场景</el-button>
-        <div class="field-hint">
-          例：东鹏在「校园」限 1 件、「工厂」限 5 件。柜机绑定商品时按柜子所属场景校验：
-          该商品在此柜的上架数量不得超过此处上限。
-        </div>
 
         <div class="form-group-title">价格与效期</div>
         <el-row :gutter="16">
@@ -498,7 +519,12 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="临期价(元)">
+            <el-form-item>
+              <template #label
+                >临期价(元)<HelpTip
+                  content="库存进入临期窗口后先过期先售，按临期价结算；不填则维持原价。"
+                  aria-label="临期价说明"
+              /></template>
               <el-input-number
                 :model-value="
                   form.nearExpiryPriceCents == null
@@ -511,9 +537,6 @@
                 style="width: 100%"
                 @update:model-value="onNearExpiryPriceYuanChange"
               />
-              <div class="field-hint">
-                库存进入临期窗口后先过期先售，按临期价结算（不填则维持原价）
-              </div>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -598,6 +621,7 @@ import { api, authFetch } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { errorMessage } from '@/utils/error-message';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import SkuJiangyiLinkDialog from './SkuJiangyiLinkDialog.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useDictOptions } from '@/composables/useDictOptions';

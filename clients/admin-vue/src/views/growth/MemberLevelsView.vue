@@ -5,10 +5,10 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">会员等级规则</span>
-            <span class="hint"
-              >判级只看累计消费区间；积分倍率影响消费返分，积分门槛仅供 C
-              端「距下一档」进度展示</span
-            >
+            <HelpTip
+              content="判级只看累计消费区间；积分倍率影响消费返分，积分门槛仅供 C 端「距下一档」进度展示。"
+              aria-label="会员等级规则说明"
+            />
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -181,9 +181,15 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="下一档积分门槛">
+            <el-form-item>
+              <template #label>
+                下一档积分门槛
+                <HelpTip
+                  content="仅用于 C 端「距下一档还差多少分」，判级不读积分。"
+                  aria-label="下一档积分门槛说明"
+                />
+              </template>
               <el-input-number v-model="form.minPoints" :min="0" style="width: 100%" />
-              <div class="form-hint">仅用于 C 端「距下一档还差多少分」，判级不读积分</div>
             </el-form-item>
           </el-col>
         </el-row>
@@ -240,6 +246,7 @@ import { EditPen, SwitchButton } from '@element-plus/icons-vue';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 

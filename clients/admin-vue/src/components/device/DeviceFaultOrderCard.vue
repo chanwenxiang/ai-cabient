@@ -4,11 +4,11 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">故障记录（设备自报）</span>
-            <span class="hint"
-              >柜机固件自动上报的故障（如摄像头打开失败）；跨重启重复出现 =
-              硬件级问题，请现场检修或联系厂商售后</span
-            >
+            <span class="title"
+              >故障记录（设备自报）<HelpTip
+                content="柜机固件自动上报的故障（如摄像头打开失败）；跨重启重复出现通常为硬件级问题，请现场检修或联系厂商售后。"
+                aria-label="故障记录口径"
+            /></span>
           </div>
         </div>
         <el-button size="small" :loading="loading" @click="load">刷新</el-button>
@@ -49,6 +49,7 @@ import { onMounted, ref } from 'vue';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+import HelpTip from '@/components/HelpTip.vue';
 
 const props = defineProps<{ deviceId: string }>();
 

@@ -5,7 +5,8 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">运营账号</span>
-            <span class="hint">按手机号筛选；可分配角色与商户数据范围（绑定后仅可见对应设备）</span>
+            <span class="hint">绑定后仅可见对应设备</span>
+            <HelpTip content="按手机号筛选；可分配角色与商户数据范围。" aria-label="运营账号说明" />
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -312,9 +313,13 @@
         :closable="false"
         show-icon
         class="role-hint"
-        :title="resetPwdTarget?.name || resetPwdTarget?.phoneNumber || '目标账号'"
-        description="将为该运营账号设置新密码；不能重置当前登录账号。"
-      />
+        description="不能重置当前登录账号"
+      >
+        <template #title>
+          {{ resetPwdTarget?.name || resetPwdTarget?.phoneNumber || '目标账号' }}
+          <HelpTip content="将为该运营账号设置新密码。" aria-label="重置密码说明" />
+        </template>
+      </el-alert>
       <el-form label-width="auto" class="reset-pwd-form" @submit.prevent>
         <el-form-item label="新密码" required>
           <el-input

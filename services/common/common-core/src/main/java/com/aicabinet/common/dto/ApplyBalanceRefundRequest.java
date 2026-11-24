@@ -8,9 +8,12 @@ import jakarta.validation.constraints.Size;
  * {@code SystemConfigService.BALANCE_REFUND_MAX_CENTS}（DC-6 正数限额键）裁决，
  * 与充值侧 {@code RECHARGE_MAX_CENTS} 同构；DTO 再钉一个硬上限会让「上调限额」这件事
  * 在参数配置里根本调不动（Bean 校验先拦），两处口径互相矛盾。
+ *
+ * <p>下限同样由 {@code BALANCE_REFUND_MIN_CENTS} 在服务端裁决；DTO 只保留
+ * 「金额必须为正」的结构约束，避免前后端各写一份业务下限。</p>
  */
 public record ApplyBalanceRefundRequest(
-        @Min(100) int amountCents,
+        @Min(1) int amountCents,
         @Size(max = 200) String reason,
         /** 可选幂等键（V343）：客户端对同一提交意图保持不变；同键重放返回原单。≤64 字符。 */
         @Size(max = 64) String idemKey

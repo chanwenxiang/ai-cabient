@@ -61,25 +61,33 @@ export function availableCents(
 }
 
 /**
- * 解析开门预授权门槛（分）：
- * 1) 柜机 deposit / DeviceStatus.preauthCents
- * 2) 公共配置 checkout.preauth_cents
- * 3) 默认 DEFAULT_PREAUTH_CENTS
+ * 解析开门预授权门槛（分）：全局配置 0=关闭并压倒柜机；否则优先用 DeviceStatus
+ * 已解析值，再回落到柜机押金、全局正数配置与默认值。
  */
+export function parsePreauthCents(raw: unknown): number | null {
+  if (raw == null || String(raw).trim() === '') return null;
+  const value = Number(raw);
+  return Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
 export function resolveClientPreauthCents(opts?: {
   devicePreauthCents?: number | null;
   deviceDepositCents?: number | null;
   configPreauthCents?: number | string | null;
 }): number {
-  const device = Number(opts?.devicePreauthCents ?? opts?.deviceDepositCents);
-  if (Number.isFinite(device) && device > 0) return Math.floor(device);
-  const cfg = Number(opts?.configPreauthCents);
-  if (Number.isFinite(cfg) && cfg > 0) return Math.floor(cfg);
+  const cfg = parsePreauthCents(opts?.configPreauthCents);
+  if (cfg === 0) return 0;
+  const device = parsePreauthCents(opts?.devicePreauthCents);
+  if (device !== null) return device;
+  const deposit = parsePreauthCents(opts?.deviceDepositCents);
+  if (deposit !== null && deposit > 0) return deposit;
+  if (cfg !== null && cfg > 0) return cfg;
   return MIN_BALANCE_CENTS;
 }
 
 export function preauthYuanLabel(preauthCents: number = MIN_BALANCE_CENTS): string {
-  const yuan = Math.max(preauthCents, 1) / 100;
+  if (preauthCents <= 0) return '0';
+  const yuan = preauthCents / 100;
   return Number.isInteger(yuan) ? String(yuan) : yuan.toFixed(2);
 }
 
@@ -113,7 +121,7 @@ export function isPayReady(
   } else if (acc.passwordFreeReady) {
     return true;
   }
-  return availableCents(acc) >= Math.max(preauthCents, 1);
+  return preauthCents <= 0 || availableCents(acc) >= preauthCents;
 }
 
 export function payReadyHint(
@@ -130,6 +138,7 @@ export function payReadyHint(
   preauthCents: number = MIN_BALANCE_CENTS
 ): string {
   if (!acc) return '请先登录';
+  if (preauthCents <= 0) return '预授权已关闭，可直接开门';
   // 🔴 2026-10-20：删除旧版「未实名 ⇒ 需先完成实名认证」分支——V326（CB-014）后
   // 实名不是开门/开通前提（提现合规实名 2026-11-20 归位商户端「我的→实名认证」），
   // 旧分支会把免密未就绪的未实名用户误导去实名。

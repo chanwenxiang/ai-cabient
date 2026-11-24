@@ -101,6 +101,21 @@ class ExternalNotificationDispatcherTest {
     }
 
     @Test
+    void dispatch_wechatFailureIsLoggedWithoutBlockingInApp() {
+        ExternalNotificationDispatcher dispatcher = dispatcher(true, false);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user("openid-1", null)));
+        when(weChatMiniAppClient.sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap(), eq(MiniAppTarget.CONSUMER)))
+                .thenReturn(false);
+
+        dispatcher.dispatch(message());
+
+        ArgumentCaptor<NotificationLog> captor = ArgumentCaptor.forClass(NotificationLog.class);
+        verify(logRepository).save(captor.capture());
+        assertEquals("FAILED", captor.getValue().getStatus());
+        assertTrue(captor.getValue().getBody().contains("投递失败"));
+    }
+
+    @Test
     void dispatch_aliyunTemplatePath_mapsParamsAndUsesRegisteredCode() {
         // V441：CODE 来自模板行自身（未登记就不发），参数只保留模板声明的两组（不再注入 service_phone）
         ExternalNotificationDispatcher dispatcher = dispatcher(false, true);
@@ -302,8 +317,8 @@ class ExternalNotificationDispatcherTest {
     }
 
     @Test
-    void noSentLogWhenWechatRejectsSubscribeSend() {
-        // 微信侧同一条契约：sendSubscribeMessage 返回 false（errcode≠0）⇒ 无受理、不落 SENT
+    void failedLogWhenWechatRejectsSubscribeSend() {
+        // 微信侧 false（errcode≠0）⇒ 不落 SENT，但必须留 FAILED 供运营排查。
         ExternalNotificationDispatcher dispatcher = dispatcher(true, false);
         when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user("openid-1", null)));
         when(weChatMiniAppClient.sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap(),
@@ -311,7 +326,9 @@ class ExternalNotificationDispatcherTest {
 
         dispatcher.dispatch(message());
 
-        verify(logRepository, never()).save(any());
+        ArgumentCaptor<NotificationLog> captor = ArgumentCaptor.forClass(NotificationLog.class);
+        verify(logRepository).save(captor.capture());
+        assertEquals("FAILED", captor.getValue().getStatus());
     }
 
     @Test

@@ -7,10 +7,12 @@
             <div class="page-card-head__title">
               <span class="title"
                 >{{ pageTitle
-                }}<span v-if="tabDescription" data-testid="warehouse-tab-desc"
-                  ><HelpTip :content="tabDescription" aria-label="本页说明" /></span
+                }}<span v-if="tab !== 'transit'" data-testid="warehouse-tab-desc"
+                  ><HelpTip
+                    :content="[tabDescription, pageHint].filter(Boolean).join('；')"
+                    aria-label="本页说明" /></span
               ></span>
-              <span class="hint">{{ pageHint }}</span>
+              <span v-if="tab === 'transit'" class="hint">{{ pageHint }}</span>
             </div>
           </div>
           <div class="page-card-head__actions">
@@ -1053,7 +1055,7 @@ const TAB_DESC: Record<string, string> = {
   returns: '采购退货：把质量/临期问题的批次退回供应商并冲减应付',
   payables: '应付账款：按采购单汇总尚未结清的供应商货款',
   stocktakes: '盘点单：核对账面与实际数量，差异自动生成库存流水',
-  bins: '货位：仓内位置的独立台账——只有「入库到货位」会同步批次账，收货/出库/调拨/盘点不记货位、移库也不写流水 ⇒ 本页合计 ≠ 批次库存，不能拿来对账',
+  bins: '货位：出库规划优先分配已有货位库存，发运扣减、取消回仓恢复；未分配货位的总仓库存不写货位账，合计仍可能小于批次库存，不能替代总仓真值',
   inventory: '批次库存：按批次查看各仓现存量与有效期，先进先出发货',
   movements: '库存流水：每笔入库/出库/调拨/盘点的明细账，可对账追溯',
   monthly:

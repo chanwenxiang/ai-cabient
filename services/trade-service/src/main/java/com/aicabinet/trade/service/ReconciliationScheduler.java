@@ -14,6 +14,8 @@ public class ReconciliationScheduler {
     private static final String RECONCILIATION = "reconciliation";
     /** 提现 PAYING 超时兜底扫描任务 key（H38）。 */
     private static final String WITHDRAW_PAYING_TIMEOUT = "withdraw-paying-timeout";
+    /** 备付不足/NOT_ENOUGH 提现单恢复重试。 */
+    private static final String WITHDRAW_FUNDING_RETRY = "withdraw-funding-retry";
 
     private static final Logger log = LoggerFactory.getLogger(ReconciliationScheduler.class);
 
@@ -23,19 +25,22 @@ public class ReconciliationScheduler {
     private final WeChatRefundReconciler weChatRefundReconciler;
     private final MerchantWithdrawService merchantWithdrawService;
     private final LineWithdrawService lineWithdrawService;
+    private final PlatformFundBillReconciler platformFundBillReconciler;
 
     public ReconciliationScheduler(ReconciliationService reconciliationService,
                                    ReconciliationProperties properties,
                                    ScheduledTaskService taskService,
                                    WeChatRefundReconciler weChatRefundReconciler,
                                    MerchantWithdrawService merchantWithdrawService,
-                                   LineWithdrawService lineWithdrawService) {
+                                   LineWithdrawService lineWithdrawService,
+                                   PlatformFundBillReconciler platformFundBillReconciler) {
         this.reconciliationService = reconciliationService;
         this.properties = properties;
         this.taskService = taskService;
         this.weChatRefundReconciler = weChatRefundReconciler;
         this.merchantWithdrawService = merchantWithdrawService;
         this.lineWithdrawService = lineWithdrawService;
+        this.platformFundBillReconciler = platformFundBillReconciler;
     }
 
     // 2026-11-23 实证：01:30 拉「昨天」的微信 tradebill 会 500（账单次日 9 点后才生成）。
@@ -65,6 +70,8 @@ public class ReconciliationScheduler {
             var dto = reconciliationService.runDaily(null, yesterday, "WECHAT");
             summary = "对账 " + yesterday + " 完成，匹配 " + dto.matchedCount()
                     + " 笔，未匹配 " + dto.unmatchedCount() + " 笔，状态 " + dto.status();
+            var fundBill = platformFundBillReconciler.reconcile(yesterday);
+            summary += "；运营账户资金账单：" + fundBill.message();
             log.info("scheduled reconciliation completed for date={}", yesterday);
             // H42(c): 对账后推进 PROCESSING 微信退款状态（查单兜底，无退款回调入口）
             int advanced = weChatRefundReconciler.advanceProcessingRefunds();
@@ -79,6 +86,25 @@ public class ReconciliationScheduler {
             if (!failed) {
                 taskService.finish(RECONCILIATION, "SUCCESS", summary, start);
             }
+        }
+    }
+
+    /**
+     * 每小时重试备付失败单。渠道结果作为权威，NOT_ENOUGH 自动排下一小时。
+     */
+    @Scheduled(cron = "0 20 * * * ?", zone = "${aicabinet.schedule.zone:Asia/Shanghai}")
+    public void retryFundingBlockedWithdraws() {
+        long start = System.nanoTime();
+        if (!taskService.tryBegin(WITHDRAW_FUNDING_RETRY, 900)) {
+            return;
+        }
+        try {
+            int attempted = merchantWithdrawService.retryFundingBlockedWithdraws();
+            taskService.finish(WITHDRAW_FUNDING_RETRY, "SUCCESS",
+                    "备付恢复自动重试 " + attempted + " 单（渠道结果裁决）", start);
+        } catch (Exception e) {
+            taskService.finish(WITHDRAW_FUNDING_RETRY, "FAILED", e.getMessage(), start);
+            log.error("funding retry sweep failed", e);
         }
     }
 

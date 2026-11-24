@@ -126,8 +126,10 @@ public class BalanceRefundService {
      * 行为与接入前逐字节一致（fail-closed）。
      */
     public BalanceRefundRequestDto apply(Long userId, int amountCents, String reason, String idemKey) {
-        if (amountCents < 100) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款金额至少 ¥1.00");
+        int minCents = systemConfigService.getBalanceRefundMinCents();
+        if (amountCents < minCents) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "退款金额至少 ¥" + String.format("%.2f", minCents / 100.0));
         }
         // DC-6：上限型键 fail-safe——0/负数回落默认（不再有「不限制」形态）
         int maxCents = systemConfigService.getPositiveLimit(SystemConfigService.BALANCE_REFUND_MAX_CENTS, 500_000);

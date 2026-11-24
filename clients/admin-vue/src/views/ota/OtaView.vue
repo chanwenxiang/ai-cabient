@@ -4,10 +4,9 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">固件版本</span>
-            <span class="hint"
-              >支持发布与灰度；柜机需自行安装，后台不下发自动安装<HelpTip
-                content="灰度% 按 deviceId 哈希分桶命中（1–99 抽样，100=全量）；填了定向设备白名单时只推名单内设备（白名单优先于灰度）。后台只登记版本与下载地址，不推送安装，柜机自行下载安装；升级进度需开启 ota.progress.enabled，关闭时设备不上报、下方进度表为空表（不是页面故障）。"
+            <span class="title"
+              >固件版本<HelpTip
+                content="支持发布与灰度；柜机需自行安装，后台不下发自动安装。灰度% 按 deviceId 哈希分桶命中（1–99 抽样，100=全量）；填了定向设备白名单时只推名单内设备（白名单优先于灰度）。后台只登记版本与下载地址，不推送安装，柜机自行下载安装；升级进度需开启 ota.progress.enabled，关闭时设备不上报、下方进度表为空表（不是页面故障）。"
                 aria-label="固件发布口径"
             /></span>
           </div>
@@ -120,8 +119,11 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">升级进度</span>
-            <span class="hint">设备上报的下载/安装进度；未开启上报开关时设备不上报</span>
+            <span class="title"
+              >升级进度<HelpTip
+                content="设备上报的下载/安装进度；未开启 ota.progress.enabled 时设备不上报，这里显示空表不是页面故障。"
+                aria-label="升级进度说明"
+            /></span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -289,7 +291,7 @@
         <el-col :span="12">
           <el-form-item label="灰度比例">
             <el-input-number v-model="form.grayPercent" :min="1" :max="100" style="width: 100%" />
-            <div class="field-hint">按比例随机抽取柜机试用，100 表示全量</div>
+            <HelpTip content="按比例随机抽取柜机试用，100 表示全量" aria-label="灰度比例说明" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -309,7 +311,10 @@
                 :value="d.deviceId"
               />
             </el-select>
-            <div class="field-hint">指定后仅这些柜机收到该版本（优先于灰度比例）</div>
+            <HelpTip
+              content="指定后仅这些柜机收到该版本（优先于灰度比例）"
+              aria-label="定向设备说明"
+            />
           </el-form-item>
         </el-col>
         <el-col :span="24">

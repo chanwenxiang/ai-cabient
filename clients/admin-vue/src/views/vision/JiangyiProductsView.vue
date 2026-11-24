@@ -213,15 +213,11 @@ onMounted(async () => {
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">将邑商品</span>
-            <span class="hint"
-              >建档 → 手机采集（商户小程序）→ 审核 →
-              补货上架；本页负责建档、查状态、批量刷新与看驳回原因</span
-            >
-            <HelpTip
-              content="拍照采集必须在商户小程序「商品采集」完成（现场实物拍摄）；按厂商提示逐张拍、背景统一干净、平视居中；本页只做建档/查状态/批量刷新"
-              aria-label="采集与建档口径"
-            />
+            <span class="title"
+              >将邑商品<HelpTip
+                content="建档 → 手机采集（商户小程序）→ 审核 → 补货上架；本页负责建档、查状态、批量刷新与看驳回原因。拍照采集必须在商户小程序「商品采集」完成（现场实物拍摄）；按厂商提示逐张拍、背景统一干净、平视居中。"
+                aria-label="采集与建档口径"
+            /></span>
           </div>
         </div>
         <div class="page-card-head__actions">

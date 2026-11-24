@@ -11,6 +11,7 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
 import CrudTable from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { EMPTY_TEXT } from '@/utils/display';
@@ -140,10 +141,11 @@ function onDaysChange() {
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">仓库近效期预警</span>
-            <span class="hint">
-              这里只看仓库里的批次；柜机批次的到期预警在「补货预警」页（数据源不同）。本页含已过期批次——已过期的往往比临期更需要立刻处理。
-            </span>
+            <span class="title"
+              >仓库近效期预警<HelpTip
+                content="这里只看仓库里的批次；柜机批次的到期预警在「补货预警」页（数据源不同）。本页含已过期批次——已过期的往往比临期更需要立刻处理。"
+                aria-label="仓库近效期预警说明"
+            /></span>
           </div>
         </div>
       </div>

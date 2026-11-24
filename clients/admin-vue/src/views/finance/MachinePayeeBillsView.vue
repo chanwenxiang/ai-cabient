@@ -5,8 +5,11 @@
         <div class="page-card-head">
           <div class="page-card-head__meta">
             <div class="page-card-head__title">
-              <span class="title">机器账单</span>
-              <span class="hint">柜机费用月度账单与结清管理 · 手动出账 · 费用配置</span>
+              <span class="title"
+                >机器账单<HelpTip
+                  content="柜机费用月度账单与结清管理 · 手动出账 · 费用配置"
+                  aria-label="机器账单说明"
+              /></span>
             </div>
           </div>
         </div>

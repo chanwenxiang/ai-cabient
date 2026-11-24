@@ -532,7 +532,12 @@ import {
   productDetailEnabled,
   seedConsumerFlags
 } from '@/utils/feature-flags';
-import { isPayReady, resolveEntryChannel, type EntryChannel } from '@/utils/account';
+import {
+  isPayReady,
+  parsePreauthCents,
+  resolveEntryChannel,
+  type EntryChannel
+} from '@/utils/account';
 import { absoluteImageUrl, productGlyph, productThumb } from '@/utils/product-thumb';
 import { isSafeCampaignPath, openCampaignPath } from '@/utils/campaign-path';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
@@ -545,7 +550,8 @@ import {
   showDisputeResolvedToast,
   showError,
   showSuccess,
-  showConfirm
+  showConfirm,
+  requestOrderSubscribe
 } from '@/utils/notify';
 import { useHomeCatalog } from '@/composables/use-home-catalog';
 import { useSessionPoll } from '@/composables/use-session-poll';
@@ -699,6 +705,7 @@ const reviewTicket = ref<DisputeTicketDto | null>(null);
 const reviewCopy = computed(() => consumerDisputeReviewCopy(reviewTicket.value));
 // 2026-10-27 用户拍板：客服电话不写死，consumer.service_phone 配置下发（未配置=文案不提电话）
 const servicePhone = ref('');
+const subscribeTmplId = ref('');
 /**
  * 首页券包入口（扩展功能 `consumer.coupon_entry.enabled`）。
  * fail-closed：默认 false ⇒ 首页不渲染入口，与接入前完全一致。
@@ -1534,8 +1541,7 @@ async function prepareDeviceForOpen(cabinetId: string): Promise<boolean> {
   scanned.value = true;
   const status = await consumerApi.deviceStatus(cabinetId);
   deviceName.value = status.deviceName || cabinetId;
-  const pre = Number(status.preauthCents);
-  devicePreauthCents.value = Number.isFinite(pre) && pre > 0 ? pre : null;
+  devicePreauthCents.value = parsePreauthCents(status.preauthCents);
   const avail = applyDeviceAvailability(status);
   // C-2 收口：柜机被占用时，若占用会话本身就是当前用户的（超时后落库的幽灵会话），
   // 直接接管继续轮询，而不是把用户挡在「柜机正在被使用」外面——否则他既进不去也退不出。
@@ -1558,6 +1564,10 @@ async function openDeviceSession(cabinetId: string) {
   applyProductsResult(productsResult);
   await handleSessionOpenResult(cabinetId, sessionResult, createSessionPromise);
   openCreateInFlight.value = false;
+}
+
+function requestOpenSubscribe() {
+  void requestOrderSubscribe(subscribeTmplId.value ? [subscribeTmplId.value] : undefined);
 }
 
 async function startShoppingFlow(id: string, scanChannel?: string | null) {
@@ -1609,6 +1619,7 @@ function goCoupons() {
 }
 
 function retryLastOpen() {
+  requestOpenSubscribe();
   const id = lastFailedDeviceId.value;
   if (!id) return;
   landingError.value = '';
@@ -1668,6 +1679,7 @@ async function loadConsumerConfig() {
     seedConsumerFlags(cfg);
     const phone = cfg?.servicePhone || cfg?.['consumer.service_phone'];
     if (phone) servicePhone.value = phone;
+    subscribeTmplId.value = String(cfg?.wechatSubscribeTemplateId || '').trim();
     mockEnabled.value = resolveMockEnabled(cfg?.mockEnabled);
     couponEntryVisible.value = couponEntryEnabled();
     detailVisible.value = productDetailEnabled();
@@ -1760,6 +1772,7 @@ function onPrepCancel() {
 }
 
 async function onScan() {
+  requestOpenSubscribe();
   // C9：H5 无扫码实现，降级手动输入
   const raw = (await safeScanCode())?.trim() || '';
   if (!raw) {
@@ -1787,6 +1800,7 @@ async function onScan() {
 }
 
 function confirmDevice() {
+  requestOpenSubscribe();
   let raw = deviceInput.value;
   // #ifdef H5
   if (!raw.trim() && typeof document !== 'undefined') {

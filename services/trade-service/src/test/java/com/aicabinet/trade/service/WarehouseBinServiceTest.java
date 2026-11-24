@@ -6,6 +6,7 @@ import com.aicabinet.common.dto.UpsertWarehouseBinRequest;
 import com.aicabinet.trade.domain.Warehouse;
 import com.aicabinet.trade.domain.WarehouseBin;
 import com.aicabinet.trade.domain.WarehouseBinStock;
+import com.aicabinet.trade.domain.WarehouseOutboundLine;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.WarehouseBinMapper;
 import com.aicabinet.trade.mapper.WarehouseBinStockMapper;
@@ -26,7 +27,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -209,20 +209,14 @@ class WarehouseBinServiceTest {
     }
 
     /**
-     * D28-A4：仓库总库存的其余写入路径（收货/出库/调拨/核销/盘点都走这三个服务）结构上碰不到货位账，
-     * 所以「货位库存」页合计 ≠ 「批次库存」页是常态，不是偶发偏差。
+     * MA-413：仓库出库规划持有货位账依赖，发运/取消按出库行 binId 扣减/恢复。
+     * 未分配货位的总仓库存仍不写货位账，因此合计不要求恒等。
      */
     @Test
-    void stockWritingServicesHoldNoBinLedgerDependency() {
-        for (Class<?> svc : new Class<?>[] {
-                WarehouseService.class, WarehouseTransferService.class, InventoryOpsService.class}) {
-            for (java.lang.reflect.Field field : svc.getDeclaredFields()) {
-                assertFalse(field.getType().getSimpleName().startsWith("WarehouseBin"),
-                        svc.getSimpleName() + " 新持有了货位依赖 " + field.getType().getSimpleName()
-                                + "——若已在把这条链路接到货位账，请同步删掉 WarehouseBinService 类注释与"
-                                + " WarehouseView bins 页文案里的「不写货位账」表述");
-            }
-        }
+    void warehouseServiceTracksBinAllocations() throws Exception {
+        var field = WarehouseService.class.getDeclaredField("binStockRepository");
+        assertEquals("WarehouseBinStockMapper", field.getType().getSimpleName());
+        assertEquals(Long.class, WarehouseOutboundLine.class.getDeclaredField("binId").getType());
     }
 
     private static Warehouse warehouse() {

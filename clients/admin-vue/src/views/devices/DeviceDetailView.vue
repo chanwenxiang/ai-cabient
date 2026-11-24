@@ -17,11 +17,11 @@
             }}</el-tag>
             <el-tag v-if="metrics?.salesLocked" type="danger" size="small">已锁机</el-tag>
           </div>
-          <span class="page-hint"
-            >设备编号 {{ deviceId }} · 资产投放与远程运维<HelpTip
-              content="空字段有口径：将邑柜不显示柜内温度（厂商协议暂无法获取）；固件版本与 IMEI 厂商未提供时显示「厂商未提供」；序列号取绑定表 SN。缺货=库存为 0，低库存=有货但不超过低库存阈值（可逐商品调整）；「最近开门」= 最新一条开门记录的时间。"
-              aria-label="字段口径"
-          /></span>
+          <span class="page-hint">设备编号 {{ deviceId }}</span>
+          <HelpTip
+            content="空字段有口径：将邑柜不显示柜内温度（厂商协议暂无法获取）；固件版本与 IMEI 厂商未提供时显示「厂商未提供」；序列号取绑定表 SN。缺货=库存为 0，低库存=有货但不超过低库存阈值（可逐商品调整）；「最近开门」= 最新一条开门记录的时间。"
+            aria-label="字段口径"
+          />
         </div>
       </template>
       <template #extra>
@@ -40,8 +40,11 @@
           <div class="page-card-head">
             <div class="page-card-head__meta">
               <div class="page-card-head__title">
-                <span class="title">设备概览</span>
-                <span class="hint">运营指标 / 基础信息 / 投放位置 / 运行状态</span>
+                <span class="title"
+                  >设备概览<HelpTip
+                    content="运营指标 / 基础信息 / 投放位置 / 运行状态"
+                    aria-label="设备概览说明"
+                /></span>
               </div>
             </div>
           </div>

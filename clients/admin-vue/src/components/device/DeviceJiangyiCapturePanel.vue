@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { errorMessage } from '@/utils/error-message';
+import HelpTip from '@/components/HelpTip.vue';
 import { jiangyiPhaseText } from '@aicabinet/shared-uni/format';
 
 const props = defineProps<{ deviceId: string; canEdit: boolean }>();
@@ -197,7 +198,6 @@ onUnmounted(stopPoll);
     <div class="jy-panel">
       <div class="jy-panel-head">
         <div class="jy-panel-title">厂商侧在售核对（只读）</div>
-        <span class="jy-panel-hint">只读：核对上架结果，不改厂商数据</span>
         <el-button size="small" class="jy-panel-action" :loading="shelfLoading" @click="loadShelf"
           >读取厂商在售清单</el-button
         >
@@ -242,22 +242,22 @@ onUnmounted(stopPoll);
 
     <div class="jy-panel">
       <div class="jy-panel-head">
-        <div class="jy-panel-title">柜内采集</div>
-        <span class="jy-panel-hint">每柜同时只允许一个会话</span>
+        <div class="jy-panel-title">
+          柜内采集<HelpTip
+            content="每柜同时只允许一个采集会话；异常未结束时先取消会话，再重新开始。"
+            aria-label="柜内采集会话限制"
+          />
+        </div>
         <el-button size="small" class="jy-panel-action" :loading="listLoading" @click="loadList"
           >加载待采集商品</el-button
         >
       </div>
-      <el-alert type="info" :closable="false" show-icon title="操作规范" class="jy-panel-alert">
-        <template #default>
-          <div class="capture-rules">
-            <div>· 商品须已补货上架到该柜；每次只采集一个商品</div>
-            <div>· 开始录制后拉开柜门，拿出商品，在上下摄像头前缓慢转动展示各角度</div>
-            <div>· 放回原位、关好柜门后再点「结束采集」</div>
-            <div>· 上下摄像头各需 30~100 张有效画面，任一不足 30 张需重新采集</div>
-            <div>· 未结束会话占用该柜约 15 分钟，异常时点「取消会话」释放</div>
-          </div>
-        </template>
+      <el-alert type="info" :closable="false" show-icon class="jy-panel-alert">
+        <template #title
+          >操作规范<HelpTip
+            :content="'· 商品须已补货上架到该柜；每次只采集一个商品\n· 开始录制后拉开柜门，拿出商品，在上下摄像头前缓慢转动展示各角度\n· 放回原位、关好柜门后再点「结束采集」\n· 上下摄像头各需 30~100 张有效画面，任一不足 30 张需重新采集\n· 未结束会话占用该柜约 15 分钟，异常时点「取消会话」释放'"
+            aria-label="柜内采集操作规范"
+        /></template>
       </el-alert>
 
       <el-table v-if="products.length" :data="products" border size="small" class="jy-table">
@@ -346,27 +346,12 @@ onUnmounted(stopPoll);
   border-radius: 2px;
   background: var(--el-color-primary);
 }
-.jy-panel-hint {
-  font-size: var(--admin-font-size-sm);
-  color: var(--el-text-color-secondary);
-}
 /* 面板级动作放标题行右端：省掉一整行按钮，也让两个面板的头部对齐 */
 .jy-panel-action {
   margin-left: auto;
 }
-.jy-panel-alert :deep(.el-alert__description) {
-  margin-top: 2px;
-  line-height: 1.5;
-}
 .jy-meta {
   margin-bottom: 10px;
-}
-.capture-rules {
-  display: grid;
-  gap: 2px;
-  font-size: var(--admin-font-size-sm);
-  line-height: 1.6;
-  color: var(--el-text-color-regular);
 }
 .jy-table {
   margin-top: 10px;

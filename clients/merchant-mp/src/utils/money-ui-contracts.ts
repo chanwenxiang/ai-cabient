@@ -11,7 +11,7 @@ export type WalletWithdrawValidationError =
 export function validateWalletWithdrawAmount(input: {
   amountCents: number | null | undefined;
   availableCents: number;
-  /** 与后端 withdraw.min-amount-cents（默认 ¥1）对齐的客户端预检（P2）。 */
+  /** 后端公开配置下发的单笔下限；未取到时不做客户端预检，交给后端裁决。 */
   minAmountCents?: number;
 }): WalletWithdrawValidationError | null {
   if (input.amountCents == null || !Number.isFinite(input.amountCents) || input.amountCents <= 0) {

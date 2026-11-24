@@ -7,6 +7,7 @@ import { AdminEndpoints } from '@/api/endpoints';
 import { errorMessage } from '@/utils/error-message';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import VisionFlowSteps from '@/components/vision/VisionFlowSteps.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import DeviceJiangyiRestockPanel from '@/components/device/DeviceJiangyiRestockPanel.vue';
 import DeviceJiangyiCapturePanel from '@/components/device/DeviceJiangyiCapturePanel.vue';
 
@@ -321,10 +322,11 @@ onMounted(load);
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">识别开门柜套件</span>
-            <span class="hint">
-              挂接 → 采集（手机/柜内）→ 映射下发 → 整单上架；库存由补货/理货流程维护
-            </span>
+            <span class="title"
+              >识别开门柜套件<HelpTip
+                content="挂接 → 采集（手机/柜内）→ 映射下发 → 整单上架；库存由补货/理货流程维护。"
+                aria-label="识别开门柜套件范围"
+            /></span>
           </div>
         </div>
         <el-tag v-if="statusMeta" :type="statusMeta.type" size="small">{{
@@ -406,7 +408,10 @@ onMounted(load);
       <!-- 将邑入库激活（V16 §5.4.10）：仅未绑定设备的首次入库；BOUND 后已激活，再点会重复写厂商云 -->
       <div v-if="canEdit && binding.status === 'UNBOUND'" class="jy-bind-block">
         <div class="jy-section-label">
-          将邑入库激活（出厂新设备首次使用；对照铭牌「设备号」填写，运维小程序扫码激活的接口等价）
+          将邑入库激活<HelpTip
+            content="出厂新设备首次使用；对照铭牌「设备号」填写，运维小程序扫码激活与本入口等价。"
+            aria-label="将邑入库激活说明"
+          />
         </div>
         <div class="jy-form-row">
           <el-input
@@ -436,7 +441,12 @@ onMounted(load);
 
       <!-- UNBOUND：补接入绑定表单 -->
       <div v-if="binding.status === 'UNBOUND' && canEdit" class="jy-bind-block">
-        <div class="jy-section-label">接入平台（把该设备的服务地址指向我方平台）</div>
+        <div class="jy-section-label">
+          接入平台<HelpTip
+            content="把该设备的服务地址指向我方平台；长连接地址可选，留空时自动生成。"
+            aria-label="接入平台说明"
+          />
+        </div>
         <div class="jy-form-row">
           <el-input
             v-model="bindForm.domain"
@@ -470,22 +480,27 @@ onMounted(load);
 
       <!-- 商品对照：柜机识别上报的是「识别编号」，结算前必须换算成商品；表格统一在识别映射页维护 -->
       <div v-if="binding.status !== 'RETIRED'" class="jy-mapping-block">
-        <div class="jy-section-label">识别映射（识别编号 ↔ 平台商品）</div>
+        <div class="jy-section-label">
+          识别映射（识别编号 ↔ 平台商品）<HelpTip
+            content="对照表、模型预生成与启用统一在「识别映射」页维护。"
+            aria-label="识别映射维护入口"
+          />
+        </div>
         <div class="jy-mapping-entry">
-          <span class="jy-mapping-hint">
-            对照表、模型预生成与启用都在「识别映射」页维护；未挂接的识别会转争议处理。
-          </span>
+          <span class="jy-mapping-hint">未挂接的识别会转争议处理。</span>
           <el-button type="primary" plain size="small" @click="goMappings">去识别映射</el-button>
         </div>
       </div>
 
       <!-- 模型同步三连（预生成→启用→下发）统一在「识别映射」页维护；本卡不再复刻入口 -->
       <div v-if="binding.status === 'BOUND'" class="jy-mapping-block">
-        <div class="jy-section-label">识别模型同步（预生成对照 → 核对启用 → 下发柜机）</div>
+        <div class="jy-section-label">
+          识别模型同步（预生成对照 → 核对启用 → 下发柜机）<HelpTip
+            content="统一在「识别映射」页按柜机操作；新商品采集走手机拍照（商户小程序）或下方「柜内采集」面板。"
+            aria-label="识别模型同步说明"
+          />
+        </div>
         <div class="jy-mapping-entry">
-          <span class="jy-mapping-hint">
-            统一在「识别映射」页按柜机操作；新商品采集走手机拍照（商户小程序）或下方「柜内采集」面板。
-          </span>
           <el-button type="primary" plain size="small" @click="goMappings">去识别映射</el-button>
         </div>
       </div>
@@ -525,14 +540,13 @@ onMounted(load);
               {{ decode.vendorMatchedRows }} 行
             </span>
           </div>
-          <el-alert
-            v-if="decode"
-            type="info"
-            :closable="false"
-            show-icon
-            class="jy-tip"
-            title="这里只把识别编号翻成人话，方便逐条挂接平台商品；不改动对照表，条码相同也不会自动挂"
-          />
+          <el-alert v-if="decode" type="info" :closable="false" show-icon class="jy-tip">
+            <template #title
+              >只读解码，不自动挂接<HelpTip
+                content="这里只把识别编号翻成人话，方便逐条挂接平台商品；不改动对照表，条码相同也不会自动挂。"
+                aria-label="厂商商品解码说明"
+            /></template>
+          </el-alert>
           <el-table
             v-if="decode"
             :data="decode.rows || []"

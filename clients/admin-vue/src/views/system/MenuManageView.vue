@@ -4,11 +4,11 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">菜单管理</span>
-            <span class="hint"
-              >侧栏每一页挂一个权限码，但一个权限码可以被多页共用（见「侧栏页」列）：停用本行的菜单
-              C，共用它的全部侧栏页会一起隐藏。商户树只用于角色授权，不驱动小程序排版：定价/结算/争议/分析入口在「我的」，权限仍挂经营工具；采购入库与补货任务同一权限，勾选补货任务即可。</span
-            >
+            <span class="title"
+              >菜单管理<HelpTip
+                content="侧栏每一页挂一个权限码，但一个权限码可以被多页共用（见「侧栏页」列）：停用本行的菜单 C，共用它的全部侧栏页会一起隐藏。商户树只用于角色授权，不驱动小程序排版：定价/结算/争议/分析入口在「我的」，权限仍挂经营工具；采购入库与补货任务同一权限，勾选补货任务即可。"
+                aria-label="菜单管理说明"
+            /></span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -242,6 +242,7 @@ import { Delete, EditPen, Plus, CircleCheck } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import { NAV_ITEMS } from '@/config/menu';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';

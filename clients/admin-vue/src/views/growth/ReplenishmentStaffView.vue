@@ -5,7 +5,10 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">补货员效率</span>
-            <span class="hint">任务量 / 完成率 / 平均耗时 / 日均任务，用于排班与考核</span>
+            <HelpTip
+              content="任务量 / 完成率 / 平均耗时 / 日均任务，用于排班与考核。"
+              aria-label="补货员效率说明"
+            />
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -212,6 +215,7 @@
 import { ref, watch } from 'vue';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import CrudTable, { type CrudCsvOptions } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { displayLabel } from '@aicabinet/shared-dict';

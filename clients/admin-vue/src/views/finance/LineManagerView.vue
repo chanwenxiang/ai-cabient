@@ -4,9 +4,11 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">线长钱包</span>
-            <!-- 打款模式由下方 payoutMode 提示条按后端真实配置说明，此处不再写死环境口径 -->
-            <span class="hint">与商户分账解耦 · 地推完成入账赏金 · 收益实时入账可自助提现</span>
+            <span class="title"
+              >线长钱包<HelpTip
+                content="与商户分账解耦；地推任务完成后赏金幂等入账，收益实时入账后可自助提现。打款模式与通道状态见下方。"
+                aria-label="线长钱包说明"
+            /></span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -41,14 +43,12 @@
       </div>
     </template>
 
-    <div v-if="payoutMode?.note" class="payout-status">
+    <div v-if="payoutMode" class="payout-status">
       <el-alert :type="payoutMode.mockEnabled ? 'warning' : 'error'" :closable="false" show-icon>
         <template #title>
           <span class="payout-note"
-            >{{ payoutMode.note
-            }}<HelpTip
-              content="记账打款=审核通过仅标记成功、不向渠道真实转账；真实出款需所选通道（微信零钱/支付宝/银行代付）就绪。手续费按系统参数计，已成立的提现单按申请时费率快照计，调价不追溯。审核通过后由所选通道随即发起，本系统逐单审核打款、无批量出款截单时点；赏金入线长钱包幂等，不重复发放。"
-              aria-label="打款模式与提现口径"
+            >{{ payoutModeLabel
+            }}<HelpTip :content="payoutModeHelp" aria-label="打款模式与提现口径"
           /></span>
         </template>
       </el-alert>
@@ -577,7 +577,10 @@
                 v-model="form.wxOpenid"
                 placeholder="用于提现到微信零钱，可从提现记录复制"
               />
-              <div class="field-hint">该账号在微信侧的收款标识，提现打款到对应零钱账户</div>
+              <HelpTip
+                content="该账号在微信侧的收款标识，提现打款到对应零钱账户"
+                aria-label="微信收款账号说明"
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -1082,6 +1085,13 @@ const PAYOUT_CHANNEL_LABELS: Record<string, string> = {
 };
 const PAYOUT_CHANNEL_ORDER = ['WECHAT', 'ALIPAY', 'BANK'];
 const payoutMode = ref<PayoutMode | null>(null);
+const payoutModeLabel = computed(() => (payoutMode.value?.mockEnabled ? '记账打款' : '真实出款'));
+const payoutModeHelp = computed(() => {
+  const note = payoutMode.value?.note?.trim();
+  const rule =
+    '记账打款=审核通过仅标记成功、不向渠道真实转账；真实出款需所选通道（微信零钱/支付宝/银行代付）就绪。手续费按系统参数计，已成立的提现单按申请时费率快照计，调价不追溯。审核通过后由所选通道随即发起，本系统逐单审核打款、无批量出款截单时点；赏金入线长钱包幂等，不重复发放。';
+  return note ? `${note}\n${rule}` : rule;
+});
 const readinessItems = computed(() =>
   Object.entries(payoutMode.value?.channelReadiness ?? {})
     .map(([key, info]) => ({

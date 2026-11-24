@@ -25,6 +25,7 @@ const REAL_SRC = `
             MERCHANT_WITHDRAW_FEE_BPS, (long) CommissionParamBounds.WITHDRAW_FEE_BPS_MAX,
             LINE_WITHDRAW_FEE_BPS, (long) CommissionParamBounds.WITHDRAW_FEE_BPS_MAX,
             BALANCE_REFUND_MAX_CENTS, (long) CommissionParamBounds.REFUND_LIMIT_CENTS_CEILING,
+            BALANCE_REFUND_MIN_CENTS, (long) CommissionParamBounds.REFUND_LIMIT_CENTS_CEILING,
             CHECKOUT_PREAUTH_CENTS, (long) CommissionParamBounds.PREAUTH_CENTS_CEILING,
             PROFIT_SHARING_RECEIVER_MAX_PERCENT, 100L);
 
@@ -60,6 +61,11 @@ check('删元键条目 ⇒ 红', () => {
     ),
     problems.join('|')
   );
+});
+
+check('删退款下限天花板条目 ⇒ 红', () => {
+  const bad = REAL_SRC.replace(/^\s*BALANCE_REFUND_MIN_CENTS.*\n/m, '');
+  assert.ok(fundCeilingProblems(bad).some((p) => p.includes('BALANCE_REFUND_MIN_CENTS')));
 });
 
 check('元键混进整数守卫族 ⇒ 红', () => {

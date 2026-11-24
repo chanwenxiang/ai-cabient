@@ -153,6 +153,10 @@ INSERT INTO `xxl_job_info`(
 (132, 10, '提现打款超时兜底', now(), now(), 'aicabinet', '',
  'CRON', '0 0/10 * * * ?', 'DO_NOTHING', 'FAILOVER',
  'withdrawPayingTimeoutJob', '', 'SERIAL_EXECUTION', 900, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),
+-- 备付恢复重试：每小时按渠道结果重试 NOT_ENOUGH/备付不足单，失败不重复告警
+(146, 10, '提现备付恢复重试', now(), now(), 'aicabinet', '',
+ 'CRON', '0 20 * * * ?', 'DO_NOTHING', 'FAILOVER',
+ 'withdrawFundingRetryJob', '', 'SERIAL_EXECUTION', 900, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),
 -- CB-033 平台资金日检：备付金缺口推送 + 归集交叉核对
 (133, 10, '平台资金日检', now(), now(), 'aicabinet', '',
  'CRON', '0 10 8 * * ?', 'DO_NOTHING', 'FAILOVER',

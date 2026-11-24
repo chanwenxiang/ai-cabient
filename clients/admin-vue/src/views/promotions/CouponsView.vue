@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">优惠券</span>
-            <span class="hint">券定义与发券；面值 / 门槛等金额列居中</span>
+            <HelpTip content="券定义与发券；面值 / 门槛等金额列居中。" aria-label="优惠券说明" />
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -227,7 +227,11 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="有效天数" required>
+            <el-form-item required>
+              <template #label>
+                有效天数
+                <HelpTip content="自领取之日起算，到期自动失效。" aria-label="有效天数说明" />
+              </template>
               <el-input-number
                 v-model="createForm.validityDays"
                 :min="1"
@@ -235,7 +239,6 @@
                 controls-position="right"
                 style="width: 100%"
               />
-              <div class="field-hint">自领取之日起算，到期自动失效</div>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -339,14 +342,17 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="用户编号">
+        <el-form-item>
+          <template #label>
+            用户编号
+            <HelpTip content="在「用户管理」可查到该编号。" aria-label="用户编号说明" />
+          </template>
           <el-input-number
             v-model="issueForm.userId"
             :min="1"
             controls-position="right"
             style="width: 100%"
           />
-          <div class="field-hint">在「用户管理」可查到该编号</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -393,6 +399,7 @@ import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { yuanTextZero as yuan, yuanToCents, centsToYuanFixed } from '@/utils/display';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import HelpTip from '@/components/HelpTip.vue';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';

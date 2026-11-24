@@ -140,6 +140,7 @@ import {
   availableCents,
   isPayReady,
   normalizeEntryChannel,
+  parsePreauthCents,
   payReadyHint,
   preauthYuanLabel,
   resolveClientPreauthCents,
@@ -175,7 +176,7 @@ const alipayRechargeEnabled = ref(false);
 const alipayPayLive = ref(false);
 const wechatRechargeEnabled = ref(false);
 const wechatPayLive = ref(false);
-const payScoreSignEnabled = ref(true);
+const payScoreSignEnabled = ref(false);
 const configPreauthCents = ref<number | null>(null);
 const pickedChannel = ref<EntryChannel | null>(normalizeEntryChannel(props.entryChannel));
 
@@ -209,16 +210,15 @@ onMounted(async () => {
       wechatRechargeEnabled: cfg?.wechatRechargeEnabled,
       wechatPayLive: cfg?.wechatPayLive
     });
-    payScoreSignEnabled.value = cfg?.payScoreSignEnabled !== 'false';
-    const p = Number(cfg?.preauthCents);
-    configPreauthCents.value = Number.isFinite(p) && p > 0 ? p : null;
+    payScoreSignEnabled.value = cfg?.payScoreSignEnabled === 'true';
+    configPreauthCents.value = parsePreauthCents(cfg?.preauthCents);
   } catch {
     mockRechargeEnabled.value = false;
     alipayRechargeEnabled.value = false;
     alipayPayLive.value = false;
     wechatRechargeEnabled.value = false;
     wechatPayLive.value = false;
-    payScoreSignEnabled.value = true;
+    payScoreSignEnabled.value = false;
   }
 });
 
@@ -233,10 +233,10 @@ const preauthCents = computed(() =>
 );
 const needYuan = computed(() => preauthYuanLabel(preauthCents.value));
 /**
- * 开门前快捷充值金额：不低于当前生效的预授权门槛（柜机 > 公共配置 > 默认），
- * 保证预授权门槛高于 ¥20 时一次充值即可开门，而不是充完仍差一笔。
+ * 开门前快捷充值金额与当前生效的预授权门槛一致（柜机 > 公共配置 > 默认），
+ * 不再额外抬高到前端写死的金额。
  */
-const quickRechargeCents = computed(() => Math.max(preauthCents.value, 2000));
+const quickRechargeCents = computed(() => preauthCents.value);
 const quickRechargeYuan = computed(() => preauthYuanLabel(quickRechargeCents.value));
 /** 与后端开门预授权门槛对齐；免密未开通且可用余额不足时不可完成开门准备 */
 const balanceYuan = computed(() => fmtMoney(availableCents(account.value)));
