@@ -1231,6 +1231,7 @@
   - <https://pay.wechatpay.cn/doc/v2/merchant/4011989640> （⭕ 微信官方 · 企业付款到零钱：已停新商户开通、出款账户余额规则、单日 10 万/单用户 200 元）
   - <https://pay.weixin.qq.com/docs/merchant/products/batch-transfer-to-balance/introduction.html> （⭕ 微信官方 · 商家转账到零钱：运营账户出资、佣金报酬场景单笔 2 万须收款用户列表，2026-05 更新）
   - <https://pay.weixin.qq.com/doc/v3/merchant/4012711988> （⭕ 微信官方 · 新版商家转账：2025-01-15 上线、场景报备、≥2000 元强制实名、验密/免密额度，2026-08 更新）
+  - <https://pay.weixin.qq.com/doc/v3/merchant/4012716434> （⭕ 微信官方 · 发起转账（确认模式）：state 全集逐字——终态=SUCCESS/FAIL/CANCELLED；**CANCELING=撤销中（非终态）需查单确认**；ALREADY_EXISTS=「请通过查单接口确认转账结果」，2026-11-24 取证）
   - <https://finance.ce.cn/stock/gsgdbd/202207/11/t20220711_37855700.shtml> （🟡 复用 CB-007：友宝合伙人月结分成模式）
   - 旧系统 `WithdrawalController.java`（L157/342/494/819 四渠道）+ `WithdrawalAutoRetryTask.java` L47 + `ConstantUtils.DEDUCTION_PER_MILLAGE_RATE=6`（⭕ 源码）
   - 新系统 `MerchantWithdrawService.java` V307/V308 限额族 + `WithdrawFeeCalculator.java` + `WeChatPayoutChannel.java`（⭕ 源码）
