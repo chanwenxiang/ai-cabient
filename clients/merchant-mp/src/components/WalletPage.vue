@@ -115,7 +115,12 @@
             <text v-if="w.payoutRef || w.payoutMessage" class="row-sub"
               >回执 {{ w.payoutRef ? displayBizNo(w.payoutRef) : w.payoutMessage }}</text
             >
-            <text v-if="w.reviewRemark" class="row-sub fail">备注 {{ w.reviewRemark }}</text>
+            <text
+              v-if="w.reviewRemark && w.status !== 'PAID'"
+              class="row-sub"
+              :class="{ fail: w.status === 'FAILED' || w.status === 'REJECTED' }"
+              >备注 {{ w.reviewRemark }}</text
+            >
             <text v-if="w.paidAt || w.createdAt" class="row-sub">{{
               formatTime(w.paidAt || w.createdAt)
             }}</text>
@@ -740,31 +745,33 @@ defineExpose({ reload: load });
 .row-sub.fail {
   color: var(--color-danger);
 }
-/* MA-407 确认收款入口：整行可点（rpx 高 ≥ 88 才够手指命中），边框用品牌色强调「有动作待你处理」 */
+/* MA-407 确认收款入口：只有待确认单出现，满宽主按钮 + 88rpx 热区。 */
 .confirm-row {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 16rpx;
-  /* 满宽 + 88rpx：整行都是热区（微信触控规范），也让 check:mp-touch-target-ratchet 能量出短边 */
+  justify-content: center;
+  gap: 4rpx;
   width: 100%;
-  min-height: 88rpx;
+  min-height: 96rpx;
   box-sizing: border-box;
   margin-top: 14rpx;
   padding: 14rpx 20rpx;
   border: 1rpx solid var(--brand, #0d9488);
   border-radius: var(--radius-control);
+  background: var(--brand, #0d9488);
 }
 .confirm-btn {
   flex-shrink: 0;
   font-size: var(--font-size-body);
   font-weight: 600;
-  color: var(--brand, #0d9488);
+  color: var(--color-white);
 }
 .confirm-hint {
-  flex: 1;
   font-size: var(--font-size-sm);
-  color: var(--text-subtle, #94a3b8);
+  color: var(--color-white);
   line-height: 1.4;
+  text-align: center;
 }
 .status {
   color: var(--brand, #0d9488);
