@@ -98,16 +98,17 @@ public record DemoRequest(
     !!pickShapeHit(CTRL, ['            @RequestParam(name = "q") String q'], 'class C {}')
   );
   check(
-    'MA-409：@RequestHeader 形参不算形状行（header 参数从不出现在 spec，与 HttpServletRequest 同理）',
-    pickShapeHit(
+    'MA-409 实证修正：@RequestHeader 形参**算**形状行（本仓 springdoc 会把 header 渲染进生成类型'
+    + '——MA-408 漏重生成曾被 CI check-openapi-types 实抓）',
+    !!pickShapeHit(
       CTRL,
       ['        @RequestHeader(value = "Wechatpay-Serial", required = false) String serial'],
       'class C {}'
-    ) === undefined
+    )
   );
   check(
-    'MA-409：@RequestHeader 多值写法（value 省略）同样不判',
-    pickShapeHit(CTRL, ['        @RequestHeader String serial'], 'class C {}') === undefined
+    'MA-409：@RequestHeader 多值写法（value 省略）同样命中',
+    !!pickShapeHit(CTRL, ['        @RequestHeader String serial'], 'class C {}')
   );
   check(
     '普通 DTO 的 private 字段声明仍然命中（旧判据不回退）',

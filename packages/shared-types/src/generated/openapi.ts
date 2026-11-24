@@ -23936,6 +23936,7 @@ export interface operations {
                 "Wechatpay-Nonce": string;
                 "Wechatpay-Signature": string;
                 "Wechatpay-Serial"?: string;
+                "Wechatpay-Public-Key-Id"?: string;
             };
             path?: never;
             cookie?: never;
@@ -23987,6 +23988,7 @@ export interface operations {
                 "Wechatpay-Nonce": string;
                 "Wechatpay-Signature": string;
                 "Wechatpay-Serial"?: string;
+                "Wechatpay-Public-Key-Id"?: string;
             };
             path?: never;
             cookie?: never;
@@ -24014,6 +24016,7 @@ export interface operations {
                 "Wechatpay-Nonce": string;
                 "Wechatpay-Signature": string;
                 "Wechatpay-Serial"?: string;
+                "Wechatpay-Public-Key-Id"?: string;
             };
             path?: never;
             cookie?: never;
@@ -24041,6 +24044,7 @@ export interface operations {
                 "Wechatpay-Nonce": string;
                 "Wechatpay-Signature": string;
                 "Wechatpay-Serial"?: string;
+                "Wechatpay-Public-Key-Id"?: string;
             };
             path?: never;
             cookie?: never;
@@ -24114,6 +24118,7 @@ export interface operations {
                 "Wechatpay-Nonce": string;
                 "Wechatpay-Signature": string;
                 "Wechatpay-Serial"?: string;
+                "Wechatpay-Public-Key-Id"?: string;
             };
             path?: never;
             cookie?: never;
