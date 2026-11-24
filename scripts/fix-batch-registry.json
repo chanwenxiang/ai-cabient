@@ -2866,6 +2866,19 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "df94050e",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-409 伴随（openapi-regen 门禁 @RequestHeader 形参误报：header 参数不进 spec，从形状注解正则摘除——与 MA-074 HttpServletRequest 豁免同理）",
+          "files": [
+            "scripts/check-openapi-regen-required.mjs"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
