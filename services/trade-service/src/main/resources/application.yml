@@ -194,6 +194,7 @@ aicabinet:
     api-v3-key: ${WECHAT_API_V3_KEY:}
     merchant-serial-no: ${WECHAT_MCH_SERIAL:}
     private-key: ${WECHAT_PRIVATE_KEY:}
+    # 平台证书或微信支付公钥 PEM；使用公钥时将 auto-fetch 置 false
     platform-cert: ${WECHAT_PLATFORM_CERT:}
     platform-cert-auto-fetch: ${WECHAT_PLATFORM_CERT_AUTO_FETCH:true}
   # MA-407：微信商家转账（用户授权免确认模式）业务参数

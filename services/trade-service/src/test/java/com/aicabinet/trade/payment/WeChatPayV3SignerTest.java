@@ -28,6 +28,15 @@ class WeChatPayV3SignerTest {
     }
 
     @Test
+    void signAndVerify_wechatPayPublicKeyPem() {
+        String message = "GET\n/v3/certificates\n1700000000\nabc123\n\n";
+        String signature = signer.sign(message, keys.platformPrivateKeyPem());
+
+        assertTrue(signer.verify(message, signature, keys.platformPublicKeyPem()));
+        assertFalse(signer.verify(message + "tampered", signature, keys.platformPublicKeyPem()));
+    }
+
+    @Test
     void signJsapi_producesStableFormat() {
         String paySign = signer.signJsapi(
                 "wx1234567890",

@@ -14,7 +14,7 @@ public record WeChatPayProperties(
         String merchantSerialNo,
         /** 商户 API 私钥 PEM */
         String privateKey,
-        /** 微信支付平台证书 PEM（用于验签回调；留空时可自动拉取） */
+        /** 微信支付平台证书 PEM 或微信支付公钥 PEM（用于验签回调；留空时可自动拉取） */
         String platformCert,
         /** 是否自动从 /v3/certificates 拉取平台证书 */
         boolean platformCertAutoFetch

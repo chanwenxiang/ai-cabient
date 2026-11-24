@@ -22,8 +22,10 @@ public class WeChatNotifyController {
             @RequestHeader("Wechatpay-Timestamp") String timestamp,
             @RequestHeader("Wechatpay-Nonce") String nonce,
             @RequestHeader("Wechatpay-Signature") String signature,
-            @RequestHeader(value = "Wechatpay-Serial", required = false) String serial) {
-        paymentService.handleWeChatNotify(body, timestamp, nonce, signature, serial);
+            @RequestHeader(value = "Wechatpay-Serial", required = false) String serial,
+            @RequestHeader(value = "Wechatpay-Public-Key-Id", required = false) String publicKeyId) {
+        String keyId = serial == null || serial.isBlank() ? publicKeyId : serial;
+        paymentService.handleWeChatNotify(body, timestamp, nonce, signature, keyId);
         return ResponseEntity.noContent().build();
     }
 
@@ -39,8 +41,10 @@ public class WeChatNotifyController {
             @RequestHeader("Wechatpay-Timestamp") String timestamp,
             @RequestHeader("Wechatpay-Nonce") String nonce,
             @RequestHeader("Wechatpay-Signature") String signature,
-            @RequestHeader(value = "Wechatpay-Serial", required = false) String serial) {
-        paymentService.handleWeChatRefundNotify(body, timestamp, nonce, signature, serial);
+            @RequestHeader(value = "Wechatpay-Serial", required = false) String serial,
+            @RequestHeader(value = "Wechatpay-Public-Key-Id", required = false) String publicKeyId) {
+        String keyId = serial == null || serial.isBlank() ? publicKeyId : serial;
+        paymentService.handleWeChatRefundNotify(body, timestamp, nonce, signature, keyId);
         return ResponseEntity.noContent().build();
     }
 }

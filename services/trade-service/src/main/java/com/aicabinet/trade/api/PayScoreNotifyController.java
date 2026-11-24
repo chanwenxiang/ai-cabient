@@ -42,8 +42,10 @@ public class PayScoreNotifyController {
             @RequestHeader("Wechatpay-Timestamp") String timestamp,
             @RequestHeader("Wechatpay-Nonce") String nonce,
             @RequestHeader("Wechatpay-Signature") String signature,
-            @RequestHeader(value = "Wechatpay-Serial", required = false) String serial) {
-        JsonNode event = notifyService.parseAndVerify(body, timestamp, nonce, signature, serial);
+            @RequestHeader(value = "Wechatpay-Serial", required = false) String serial,
+            @RequestHeader(value = "Wechatpay-Public-Key-Id", required = false) String publicKeyId) {
+        String keyId = serial == null || serial.isBlank() ? publicKeyId : serial;
+        JsonNode event = notifyService.parseAndVerify(body, timestamp, nonce, signature, keyId);
         if (PayScoreOrderNotifyService.isOrderEvent(event)) {
             payScoreOrderNotifyService.handleOrderNotify(event);
         } else {

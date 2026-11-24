@@ -55,8 +55,10 @@ public class WechatPayoutNotifyController {
             @RequestHeader("Wechatpay-Timestamp") String timestamp,
             @RequestHeader("Wechatpay-Nonce") String nonce,
             @RequestHeader("Wechatpay-Signature") String signature,
-            @RequestHeader(value = "Wechatpay-Serial", required = false) String serial) {
-        JsonNode data = verifyOrRelease(body, timestamp, nonce, signature, serial);
+            @RequestHeader(value = "Wechatpay-Serial", required = false) String serial,
+            @RequestHeader(value = "Wechatpay-Public-Key-Id", required = false) String publicKeyId) {
+        String keyId = serial == null || serial.isBlank() ? publicKeyId : serial;
+        JsonNode data = verifyOrRelease(body, timestamp, nonce, signature, keyId);
         String outAuthorizationNo = data.path("out_authorization_no").asText(null);
         String state = data.path("state").asText(null);
         String authorizationId = data.path("authorization_id").asText(null);
@@ -88,8 +90,10 @@ public class WechatPayoutNotifyController {
             @RequestHeader("Wechatpay-Timestamp") String timestamp,
             @RequestHeader("Wechatpay-Nonce") String nonce,
             @RequestHeader("Wechatpay-Signature") String signature,
-            @RequestHeader(value = "Wechatpay-Serial", required = false) String serial) {
-        JsonNode data = verifyOrRelease(body, timestamp, nonce, signature, serial);
+            @RequestHeader(value = "Wechatpay-Serial", required = false) String serial,
+            @RequestHeader(value = "Wechatpay-Public-Key-Id", required = false) String publicKeyId) {
+        String keyId = serial == null || serial.isBlank() ? publicKeyId : serial;
+        JsonNode data = verifyOrRelease(body, timestamp, nonce, signature, keyId);
         String outBillNo = data.path("out_bill_no").asText(null);
         String state = data.path("state").asText(null);
         String transferBillNo = data.path("transfer_bill_no").asText(null);

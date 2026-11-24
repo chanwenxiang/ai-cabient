@@ -222,7 +222,7 @@ public class WeChatPayV3Client {
                                          String signature, String serial) {
         Optional<String> certPem = certificateStore.resolveCertificatePem(serial);
         if (certPem.isEmpty()) {
-            log.warn("wechat platform cert not available serial={}, skip notify signature verify", serial);
+            log.warn("wechat verification key not available keyId={}, skip notify signature verify", serial);
             return false;
         }
         String message = timestamp + "\n" + nonce + "\n" + body + "\n";

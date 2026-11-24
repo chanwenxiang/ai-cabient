@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.cert.X509Certificate;
 import java.util.Base64;
 import java.util.Date;
@@ -18,7 +19,8 @@ import java.util.Date;
 /** 测试用 RSA 密钥与自签证书生成（仅 test scope）。 */
 public final class WeChatPayTestKeys {
 
-    public record Material(String merchantPrivateKeyPem, String platformPrivateKeyPem, String platformCertPem) {}
+    public record Material(String merchantPrivateKeyPem, String platformPrivateKeyPem,
+                           String platformCertPem, String platformPublicKeyPem) {}
 
     public static Material generate() {
         try {
@@ -27,7 +29,7 @@ public final class WeChatPayTestKeys {
             String merchantPem = toPkcs8Pem(merchant.getPrivate());
             String platformPem = toPkcs8Pem(platform.getPrivate());
             String platformCertPem = selfSignedCertPem(platform);
-            return new Material(merchantPem, platformPem, platformCertPem);
+            return new Material(merchantPem, platformPem, platformCertPem, toPublicKeyPem(platform.getPublic()));
         } catch (Exception e) {
             throw new IllegalStateException("generate wechat test keys failed", e);
         }
@@ -43,6 +45,12 @@ public final class WeChatPayTestKeys {
         String body = Base64.getMimeEncoder(64, "\n".getBytes(StandardCharsets.UTF_8))
                 .encodeToString(privateKey.getEncoded());
         return "-----BEGIN PRIVATE KEY-----\n" + body + "\n-----END PRIVATE KEY-----";
+    }
+
+    private static String toPublicKeyPem(PublicKey publicKey) {
+        String body = Base64.getMimeEncoder(64, "\n".getBytes(StandardCharsets.UTF_8))
+                .encodeToString(publicKey.getEncoded());
+        return "-----BEGIN PUBLIC KEY-----\n" + body + "\n-----END PUBLIC KEY-----";
     }
 
     private static String selfSignedCertPem(KeyPair keyPair) throws Exception {

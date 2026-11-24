@@ -10,6 +10,7 @@ import java.security.PublicKey;
 import java.security.Signature;
 import java.security.cert.CertificateFactory;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 
 @Component
@@ -54,6 +55,15 @@ public class WeChatPayV3Signer {
     }
 
     private static PublicKey loadPublicKey(String pem) throws GeneralSecurityException {
+        if (pem.contains("BEGIN PUBLIC KEY")) {
+            String normalized = pem
+                    .replace("-----BEGIN PUBLIC KEY-----", "")
+                    .replace("-----END PUBLIC KEY-----", "")
+                    .replace("\\n", "")
+                    .replaceAll("\\s", "");
+            byte[] decoded = Base64.getDecoder().decode(normalized);
+            return KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(decoded));
+        }
         String normalized = pem.contains("BEGIN CERTIFICATE")
                 ? pem
                 : "-----BEGIN CERTIFICATE-----\n" + pem + "\n-----END CERTIFICATE-----";

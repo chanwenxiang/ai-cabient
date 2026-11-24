@@ -52,6 +52,18 @@ class WeChatPlatformCertificateStoreTest {
     }
 
     @Test
+    void resolveCertificatePem_staticPublicKey_noAutoFetch() {
+        WeChatPayProperties props = properties(true, keys.platformPublicKeyPem(), false);
+        WeChatPlatformCertificateStore store = new WeChatPlatformCertificateStore(props, v3Client, aead);
+
+        Optional<String> pem = store.resolveCertificatePem("PUB_KEY_ID_TEST");
+
+        assertTrue(pem.isPresent());
+        assertEquals(keys.platformPublicKeyPem(), pem.get());
+        verifyNoInteractions(v3Client);
+    }
+
+    @Test
     void refresh_loadsEncryptedCertificatesFromApi() throws Exception {
         WeChatPayProperties props = properties(true, "", true);
         WeChatPlatformCertificateStore store = new WeChatPlatformCertificateStore(props, v3Client, aead);
