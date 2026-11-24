@@ -2879,6 +2879,21 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "fbe2f81e",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-409 伴随（补生成 openapi.ts 的 Wechatpay-Public-Key-Id 头部形状：MA-408 漏重生成被 CI 实抓；@RequestHeader 豁免实证证伪回滚）",
+          "files": [
+            "packages/shared-types/src/generated/openapi.ts",
+            "scripts/check-openapi-regen-required.mjs",
+            "scripts/check-openapi-regen-required.test.mjs"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [

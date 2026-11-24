@@ -98,8 +98,8 @@ public record DemoRequest(
     !!pickShapeHit(CTRL, ['            @RequestParam(name = "q") String q'], 'class C {}')
   );
   check(
-    'MA-409 实证修正：@RequestHeader 形参**算**形状行（本仓 springdoc 会把 header 渲染进生成类型'
-    + '——MA-408 漏重生成曾被 CI check-openapi-types 实抓）',
+    'MA-409 实证修正：@RequestHeader 形参**算**形状行（本仓 springdoc 会把 header 渲染进生成类型' +
+      '——MA-408 漏重生成曾被 CI check-openapi-types 实抓）',
     !!pickShapeHit(
       CTRL,
       ['        @RequestHeader(value = "Wechatpay-Serial", required = false) String serial'],
