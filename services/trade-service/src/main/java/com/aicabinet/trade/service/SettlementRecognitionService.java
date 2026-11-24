@@ -165,8 +165,13 @@ public class SettlementRecognitionService {
         if (!recognition.items().isEmpty()) {
             return false;
         }
-        // 竞品口径：识别为空且政策允许自动零结 → 未取货/拿了又放回，自动零结；
-        // 政策关闭时生产仍进争议（防摄像头静默失败）。
+        // 端侧明确完成识别且回传 0 件，与缺报/超时/静默失败的空结果不是同一件事。
+        if (recognition.explicitEmpty()) {
+            log.info("explicit empty recognition auto-complete session={} device={}",
+                    session.getSessionId(), session.getDeviceId());
+            return true;
+        }
+        // 其它空结果仍受策略控制：政策关闭时生产进争议，防摄像头静默失败。
         if (shouldAutoCompleteEmptyCart()) {
             log.info("empty cart auto-complete session={} device={}",
                     session.getSessionId(), session.getDeviceId());

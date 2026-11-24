@@ -115,6 +115,32 @@ class VisionResultIngestServiceTest {
     }
 
     @Test
+    void ingest_explicitEmptyFlag_isPreserved() {
+        stubFindById("S-EXPLICIT-EMPTY", SessionState.RECOGNIZING, SessionState.COMPLETED);
+        VisionRecognitionResultDto request = new VisionRecognitionResultDto(
+                "S-EXPLICIT-EMPTY", DEVICE_ID, null, null, List.of(), 0.0, false,
+                "jiangyi:verified", List.of(), "JIANGYI", null, true);
+
+        service.ingest(request);
+
+        assertTrue(capturedResult().explicitEmpty());
+    }
+
+    @Test
+    void ingest_explicitEmptyWithItems_rejected() {
+        stubFindById("S-EXPLICIT-BAD", SessionState.RECOGNIZING, SessionState.COMPLETED);
+        VisionRecognitionResultDto request = new VisionRecognitionResultDto(
+                "S-EXPLICIT-BAD", DEVICE_ID, null, null,
+                List.of(new VisionRecognitionResultDto.Item("SKU-A", 1, 0.99)),
+                0.99, false, "jiangyi:verified", List.of(), "JIANGYI", null, true);
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class, () -> service.ingest(request));
+
+        assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
+        verify(sessionService, never()).completeAsyncRecognition(any(), any());
+    }
+
+    @Test
     void ingest_explicitTaskId_isPreserved() {
         stubFindById("S-TASK", SessionState.RECOGNIZING, SessionState.COMPLETED);
         VisionRecognitionResultDto request = new VisionRecognitionResultDto(

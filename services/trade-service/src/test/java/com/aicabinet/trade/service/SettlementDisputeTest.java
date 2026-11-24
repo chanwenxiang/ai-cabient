@@ -196,6 +196,24 @@ class SettlementDisputeTest {
         verifyNoInteractions(disputeService);
     }
 
+    @Test
+    void explicitEmptyRecognition_zeroSettlesEvenWhenPolicyDisabled() {
+        ShoppingSession session = session("S-EXPLICIT-EMPTY");
+
+        when(orderRepository.findBySessionId("S-EXPLICIT-EMPTY")).thenReturn(java.util.Optional.empty());
+        when(userValidationService.canChargeViaPasswordFree(any(), any())).thenReturn(true);
+        stubSettleCollaborators();
+
+        var recognition = new RecognitionOutcome(
+                "T-explicit-empty", List.of(), 0f, false, "jiangyi:verified", List.of(), true);
+
+        var order = settlementService.processRecognitionResult(session, recognition, true);
+
+        assertNotNull(order);
+        assertEquals(0, order.totalAmountCents());
+        verifyNoInteractions(disputeService);
+    }
+
     /** 会话上残留的重力字段不再参与判定：空明细 + 政策关闭 → 依旧进争议。 */
     @Test
     void emptyRecognition_withLegacyGravityJson_stillEscalates() {

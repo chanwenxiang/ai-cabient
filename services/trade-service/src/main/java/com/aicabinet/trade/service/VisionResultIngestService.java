@@ -225,6 +225,10 @@ public class VisionResultIngestService {
                     + VisionRecognitionResultDto.MODEL_VERSION_MAX_LENGTH
                     + " 字符，超长会被平台拒收，请上报真实且不超长的版本号");
         }
+        if (request.explicitEmpty()
+                && ((request.items() != null && !request.items().isEmpty()) || request.needReview())) {
+            throw badRequest("explicitEmpty=true 仅表示端侧明确完成识别且结果为 0 件，不能同时带商品或要求人工复核");
+        }
         // AU-039：整体置信度同样必须在值域内——结算侧拿它比「全局自动结算门槛」，
         // 百分数形态（如 99.0）恒高于门槛 ⇒ 低置信转人工的闸被整体绕过
         checkConfidence(request.overallConfidence(), "overallConfidence");
@@ -281,7 +285,8 @@ public class VisionResultIngestService {
                 (float) request.overallConfidence(),
                 request.needReview(),
                 request.modelVersion().trim(),
-                classes);
+                classes,
+                request.explicitEmpty());
     }
 
     private static boolean isBlank(String value) {

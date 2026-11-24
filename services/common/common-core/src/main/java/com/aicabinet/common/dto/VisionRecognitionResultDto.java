@@ -23,6 +23,8 @@ import java.util.List;
  * @param detectedClasses  端侧检出的原始类名（可空，用于类名→SKU 映射排查）
  * @param provider         识别提供商标识（如 QUECTEL）
  * @param occurredAt       端侧识别完成时间（可空）
+ * @param explicitEmpty    端侧是否明确完成识别且结果为 0 件；仅空数组可为 true，
+ *                         与缺报、超时或识别失败的空结果区分
  */
 public record VisionRecognitionResultDto(
         String sessionId,
@@ -35,8 +37,16 @@ public record VisionRecognitionResultDto(
         String modelVersion,
         List<String> detectedClasses,
         String provider,
-        Instant occurredAt
+        Instant occurredAt,
+        boolean explicitEmpty
 ) {
+    public VisionRecognitionResultDto(String sessionId, String deviceId, String taskId, String traceId,
+                                      List<Item> items, double overallConfidence, boolean needReview,
+                                      String modelVersion, List<String> detectedClasses, String provider,
+                                      Instant occurredAt) {
+        this(sessionId, deviceId, taskId, traceId, items, overallConfidence, needReview,
+                modelVersion, detectedClasses, provider, occurredAt, false);
+    }
     /**
      * {@code recognition_result.model_version} 的列宽。
      *

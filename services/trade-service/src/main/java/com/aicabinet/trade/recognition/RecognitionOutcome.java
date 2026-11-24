@@ -13,5 +13,11 @@ public record RecognitionOutcome(
         float overallConfidence,
         boolean needReview,
         String modelVersion,
-        List<String> detectedClasses
-) {}
+        List<String> detectedClasses,
+        boolean explicitEmpty
+) {
+    public RecognitionOutcome(String taskId, List<RecognizedItem> items, float overallConfidence,
+                              boolean needReview, String modelVersion, List<String> detectedClasses) {
+        this(taskId, items, overallConfidence, needReview, modelVersion, detectedClasses, false);
+    }
+}

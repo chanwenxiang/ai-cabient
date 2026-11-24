@@ -142,7 +142,10 @@ class DeviceReportControllerTest {
     }
 
     @Test
-    void emptyFormsArchivesAsEmpty() {
+    void emptyFormsArchivesAsEmptyAndForwardsExplicitZeroItems() {
+        when(trade.edgeResults(any())).thenReturn(new VisionResultIngestResponseDto(
+                true, VisionIngestOutcome.PROCESSED, "ok", SESSION_ID, null, "COMPLETED"));
+
         controller.addRecognitionGoods(authedRequest(), new DeviceReportController.RecognitionRequest(
                 SESSION_ID, null, null, List.of()));
 
@@ -150,6 +153,23 @@ class DeviceReportControllerTest {
         assertEquals("EMPTY_FORMS", archived.outcome());
         assertEquals(0, archived.formCount());
         assertNull(archived.vendorAmountCents(), "空报文不带价 → 与 0 元单区分");
+        ArgumentCaptor<com.aicabinet.common.dto.VisionRecognitionResultDto> forwarded =
+                ArgumentCaptor.forClass(com.aicabinet.common.dto.VisionRecognitionResultDto.class);
+        verify(trade).edgeResults(forwarded.capture());
+        assertEquals(List.of(), forwarded.getValue().items());
+        assertTrue(forwarded.getValue().explicitEmpty());
+        verify(trade, never()).recognizeTimeout(eq(SESSION_ID), eq(DEVICE_ID),
+                eq(TradeInternalClient.CAUSE_EMPTY_FORMS), isNull());
+        verify(commandTracker).complete(eq(CommandTracker.Kind.CLOSE), eq(SESSION_ID), eq(DEVICE_ID));
+    }
+
+    @Test
+    void missingFormsFailsClosedInsteadOfPretendingExplicitEmpty() {
+        controller.addRecognitionGoods(authedRequest(), new DeviceReportController.RecognitionRequest(
+                SESSION_ID, null, null, null));
+
+        assertEquals("EMPTY_FORMS", captureArchive().outcome());
+        verify(trade, never()).edgeResults(any());
         verify(trade).recognizeTimeout(eq(SESSION_ID), eq(DEVICE_ID),
                 eq(TradeInternalClient.CAUSE_EMPTY_FORMS), isNull());
     }

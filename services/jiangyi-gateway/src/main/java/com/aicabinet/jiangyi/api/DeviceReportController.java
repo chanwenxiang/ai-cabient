@@ -292,10 +292,10 @@ public class DeviceReportController {
             }
 
             items = recognitionNormalizer.normalize(deviceId, body.forms());
-            if (items.isEmpty()) {
-                // forms 空 = 没识别到商品（合法）；映射未命中 = fail-closed。
-                // 两者对 trade 的处置相同：立即转人工审核，不等 10 分钟扫描。
-                boolean isMiss = body.forms() != null && !body.forms().isEmpty();
+            boolean explicitEmpty = body.forms() != null && body.forms().isEmpty();
+            if (items.isEmpty() && !explicitEmpty) {
+                // 映射未命中或 forms 缺失仍 fail-closed；只有设备明确回传空数组才代表 0 件。
+                boolean isMiss = body.forms() != null;
                 outcome = isMiss ? OUTCOME_MAPPING_MISS : OUTCOME_EMPTY_FORMS;
                 boolean handled = tradeInternalClient.recognizeTimeout(sessionId, deviceId,
                         isMiss ? TradeInternalClient.CAUSE_CLASS_MAPPING_MISS
@@ -304,6 +304,9 @@ public class DeviceReportController {
                 log.warn("jiangyi recognition {} deviceId={} sessionId={} handled={}",
                         outcome, deviceId, sessionId, handled);
                 return ok();
+            }
+            if (explicitEmpty) {
+                outcome = OUTCOME_EMPTY_FORMS;
             }
             VisionRecognitionResultDto result = new VisionRecognitionResultDto(
                     sessionId,
@@ -317,7 +320,8 @@ public class DeviceReportController {
                             .map(TradeInternalClient.JiangyiDeviceView::modelName).orElse(null)),
                     null,
                     "JIANGYI",
-                    Instant.now());
+                    Instant.now(),
+                    explicitEmpty);
             boolean forwarded = false;
             try {
                 var response = tradeInternalClient.edgeResults(result);
@@ -332,7 +336,9 @@ public class DeviceReportController {
                         deviceId, sessionId, e);
             }
             if (forwarded) {
-                outcome = OUTCOME_FORWARDED;
+                if (!explicitEmpty) {
+                    outcome = OUTCOME_FORWARDED;
+                }
                 // 受理结论已回：关门兜底使命完成
                 commandTracker.complete(CommandTracker.Kind.CLOSE, sessionId, deviceId);
             } else {
