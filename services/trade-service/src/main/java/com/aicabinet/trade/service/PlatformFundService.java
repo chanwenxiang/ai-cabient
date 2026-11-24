@@ -106,7 +106,7 @@ public class PlatformFundService {
     public PlatformFundAccount createAccount(String channel, String accountName, long initialBalanceCents,
                                              Long operatorId, String remark) {
         String ch = normalizeChannel(channel);
-        if (accountMapper.findByChannel(ch).isPresent()) {
+        if (findAccount(ch).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "该渠道已登记平台资金账户，请直接在原账户上登记充值");
         }
@@ -219,12 +219,13 @@ public class PlatformFundService {
      */
     public Optional<String> gatePayout(String channel, long netCents, Long excludeRequestId) {
         String ch = channel == null ? "" : channel.trim();
-        PlatformFundAccount account = accountMapper.findByChannel(ch).orElse(null);
+        PlatformFundAccount account = findAccount(channel).orElse(null);
         if (account == null || !"ACTIVE".equals(account.getStatus())) {
             // 软启动：未登记台账 ⇒ 不拦截（否则上线首日拦死全部提现），但提醒登记。
-            alertDispatcher.trySend(ALERT_SHORT, "平台资金池未登记",
-                    "打款通道 " + ch + " 尚未登记平台资金台账账户，备付校验未生效。"
-                            + "请尽快在运营台「资金账单-平台资金池」登记账户与余额", java.util.Map.of());
+            alertDispatcher.trySend(ALERT_SHORT, "平台资金池台账未登记（不影响放行）",
+                    "打款通道 " + ch + " 尚未登记平台资金台账账户；本次提现仍按软启动规则放行，"
+                            + "但备付校验与资金池流水不会生效。可在运营台「资金账单-平台资金池」登记账户与余额。",
+                    java.util.Map.of());
             return Optional.empty();
         }
         long pending = withdrawMapper.sumNetPendingByChannel(ch, excludeRequestId);
@@ -244,14 +245,11 @@ public class PlatformFundService {
     /** 提现打款成功后登记流出。永不抛异常（见类注释边界 3）。 */
     public void recordPayoutQuietly(String channel, long netCents, long requestId) {
         try {
-            PlatformFundAccount account = accountMapper.findByChannel(
-                    channel == null ? "" : channel.trim()).orElse(null);
+            PlatformFundAccount account = findAccount(channel).orElse(null);
             if (account == null) {
+                // gatePayout 已在发起前提醒过；到账后再发一条只会制造重复告警，不改变资金事实。
                 log.warn("platform fund account missing for payout, flow not recorded: channel={}, requestId={}",
                         channel, requestId);
-                alertDispatcher.trySend(ALERT_SHORT, "平台资金池未登记（打款未入账）",
-                        "打款成功但通道 " + channel + " 未登记台账，资金池余额未扣减；"
-                                + "请登记账户后用人工调整补平", java.util.Map.of());
                 return;
             }
             recordFlow(account, PlatformFundFlow.TYPE_PAYOUT, -netCents,
@@ -317,7 +315,7 @@ public class PlatformFundService {
             if (!"ACTIVE".equals(account.getStatus())) {
                 continue;
             }
-            long pending = withdrawMapper.sumNetPendingByChannel(account.getChannel(), null);
+            long pending = withdrawMapper.sumNetPendingByChannel(canonicalChannel(account.getChannel()), null);
             long need = pending + bufferCents;
             if (account.getBalanceCents() < need) {
                 alertDispatcher.trySend(ALERT_PLAN, "备付金缺口",
@@ -364,11 +362,32 @@ public class PlatformFundService {
         return String.format(java.util.Locale.ROOT, "%.2f", cents / 100.0);
     }
 
+    private Optional<PlatformFundAccount> findAccount(String channel) {
+        String display = normalizeChannel(channel);
+        Optional<PlatformFundAccount> exact = accountMapper.findByChannel(display);
+        return exact.isPresent() ? exact : accountMapper.findByChannel(canonicalChannel(display));
+    }
+
     private static String normalizeChannel(String channel) {
         if (channel == null || channel.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "渠道不能为空");
         }
-        return channel.trim().toUpperCase(java.util.Locale.ROOT);
+        String value = channel.trim().toUpperCase(java.util.Locale.ROOT);
+        return switch (value) {
+            case "WECHAT", "微信" -> "微信";
+            case "ALIPAY", "支付宝" -> "支付宝";
+            case "BANK", "银行", "银行卡" -> "银行";
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不支持的渠道：" + channel);
+        };
+    }
+
+    private static String canonicalChannel(String channel) {
+        return switch (normalizeChannel(channel)) {
+            case "微信" -> "WECHAT";
+            case "支付宝" -> "ALIPAY";
+            case "银行" -> "BANK";
+            default -> throw new IllegalStateException("unreachable channel");
+        };
     }
 
     private static String trim(String s) {

@@ -79,7 +79,19 @@ class PlatformFundServiceTest {
         when(accountMapper.findByChannel("WECHAT")).thenReturn(Optional.empty());
 
         assertThat(service.gatePayout("WECHAT", 1_000L, 9L)).isEmpty();
-        verify(alertDispatcher).trySend(eq(PlatformFundService.ALERT_SHORT), anyString(), contains("未登记"), any());
+        verify(alertDispatcher).trySend(eq(PlatformFundService.ALERT_SHORT),
+                eq("平台资金池台账未登记（不影响放行）"), contains("未登记"), any());
+    }
+
+    @Test
+    void gatePayout_chineseStoredChannel_matchesWechatAndQueriesCanonicalPending() {
+        PlatformFundAccount account = wechatAccount(10_000L);
+        account.setChannel("微信");
+        when(accountMapper.findByChannel("微信")).thenReturn(Optional.of(account));
+        when(withdrawMapper.sumNetPendingByChannel("WECHAT", 9L)).thenReturn(2_000L);
+
+        assertThat(service.gatePayout("WECHAT", 5_000L, 9L)).isEmpty();
+        verify(withdrawMapper).sumNetPendingByChannel("WECHAT", 9L);
     }
 
     @Test
@@ -115,13 +127,13 @@ class PlatformFundServiceTest {
     // ── recordPayoutQuietly ───────────────────────────────────────────────
 
     @Test
-    void recordPayout_missingAccount_alertsAndDoesNotThrow() {
+    void recordPayout_missingAccount_doesNotRepeatGateAlert() {
         when(accountMapper.findByChannel("WECHAT")).thenReturn(Optional.empty());
 
         service.recordPayoutQuietly("WECHAT", 5_000L, 42L);
 
         verify(flowMapper, never()).insert(any(PlatformFundFlow.class));
-        verify(alertDispatcher).trySend(eq(PlatformFundService.ALERT_SHORT), anyString(), contains("未扣减"), any());
+        verify(alertDispatcher, never()).trySend(anyString(), anyString(), anyString(), any());
     }
 
     @Test
@@ -200,6 +212,24 @@ class PlatformFundServiceTest {
     }
 
     @Test
+    void createAccount_chineseChannel_storesReadableChinese() {
+        when(accountMapper.findByChannel("微信")).thenReturn(Optional.empty());
+        when(accountMapper.findByChannel("WECHAT")).thenReturn(Optional.empty());
+
+        service.createAccount("微信", "微信运营账户", 0L, 77L, null);
+
+        ArgumentCaptor<PlatformFundAccount> captor = ArgumentCaptor.forClass(PlatformFundAccount.class);
+        verify(accountMapper).insert(captor.capture());
+        assertThat(captor.getValue().getChannel()).isEqualTo("微信");
+    }
+
+    @Test
+    void createAccount_unknownChannel_rejected() {
+        assertThatThrownBy(() -> service.createAccount("OTHER", "未知渠道", 0L, 77L, null))
+                .hasMessageContaining("不支持的渠道");
+    }
+
+    @Test
     void createAccount_duplicateChannel_conflict() {
         when(accountMapper.findByChannel("WECHAT")).thenReturn(Optional.of(wechatAccount(0L)));
 
@@ -231,6 +261,18 @@ class PlatformFundServiceTest {
         service.runDailyCheck();
 
         verify(alertDispatcher).trySend(eq(PlatformFundService.ALERT_PLAN), anyString(), contains("请今日充值"), any());
+    }
+
+    @Test
+    void dailyCheck_chineseAccount_queriesCanonicalPendingChannel() {
+        PlatformFundAccount account = wechatAccount(100_000L);
+        account.setChannel("微信");
+        when(accountMapper.selectList(null)).thenReturn(List.of(account));
+        when(withdrawMapper.sumNetPendingByChannel("WECHAT", null)).thenReturn(0L);
+
+        service.runDailyCheck();
+
+        verify(withdrawMapper).sumNetPendingByChannel("WECHAT", null);
     }
 
     @Test

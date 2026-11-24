@@ -83,7 +83,11 @@
     <el-dialog v-model="createVisible" title="新建资金池账户" width="440px">
       <el-form label-width="90px">
         <el-form-item label="渠道" required>
-          <el-input v-model="createForm.channel" placeholder="如 WECHAT / ALIPAY / BANK" />
+          <el-select v-model="createForm.channel" placeholder="请选择渠道" style="width: 100%">
+            <el-option label="微信" value="微信" />
+            <el-option label="支付宝" value="支付宝" />
+            <el-option label="银行" value="银行" />
+          </el-select>
         </el-form-item>
         <el-form-item label="账户名称">
           <el-input v-model="createForm.accountName" placeholder="如 微信运营账户" />
