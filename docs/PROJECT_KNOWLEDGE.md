@@ -5,7 +5,7 @@
 > **维护 Skill**：`.cursor/skills/project-knowledge/SKILL.md`  
 > **已解决问题 Skill**：`.cursor/skills/solved-problems-playbook/SKILL.md`  
 > **封装流程 Skill**：`.cursor/skills/encapsulate-solved-problem/SKILL.md`  
-> **最后校准**：2026-11-25（§2 迁移与 trade 单测规模已按当日实测回填）
+> **最后校准**：2026-11-26（§2 迁移与 trade 单测规模、最终部署验收已按实测回填）
 
 ---
 
@@ -36,7 +36,7 @@
 |------|--------|------|
 | Flyway 迁移 | **505** 个 V 脚本（仅 `services/trade-service`），最新 **V512**（2026-11-25 合并后实扫） | 合入前查重号；门禁拦同号；勿再写已占用版本号 |
 | trade Controllers | **94** | `*Controller.java`（2026-11-17 实测） |
-| trade 单测 | **539** `*Test.java`（2026-11-25 全量 3444 例） | 含大量并发测；全量 `mvn -o -pl services/trade-service -am test` |
+| trade 单测 | **539** `*Test.java`（2026-11-25 全量 3523 例） | 含大量并发测；全量 `mvn -o -pl services/trade-service -am test` |
 | admin-vue 业务视图 | **85** `.vue` | `src/views`（2026-11-17 实测） |
 | consumer-mp / merchant-mp | 独立 uni-app | 分包 + `preloadRule`；H5 `:3002` / `:3001` |
 | shared packages | types / api / dict / rbac / uni | 改 API 后 `pnpm gen:api-types` |
@@ -687,6 +687,15 @@ gross − member − activity − coupon = total      （部分退款单例外�
 ---
 
 ## 12. Changelog（按日追加，新条目在上）
+
+### 2026-11-26（最终 dev 部署与运行态验收）
+
+- **部署**：`6258566d` 的 trade/device/jiangyi/gateway/HAProxy 已重建；两个 trade 副本均使用 `ai-cabinet/trade-service:6258566d397a23424eb4a4803e449856090ffd7e` 且 healthy，宿主 8080 端口冲突已消除。公网 health/admin 均 200，trade 双副本、device、jiangyi 近 30 分钟 ERROR 均为 0。
+- **数据库与资金**：Flyway 高水位 V512、失败迁移 0；`uq_platform_fund_payout_ref` 与 `uq_platform_fund_bill_ref` 已在现网存在。`checkout.preauth_cents=0` 与日结数据保持原状，本轮未修改、未补跑。
+- **通知**：V508 后已审计开启 `notify.wechat.enabled=true`，`system_config_history` 与 `admin_audit_log` 各 1 行；双端 token/订阅模板此前已验证。`notify.sms.enabled=false`、`notify.async.enabled=false` 未改；真实安全收件人的微信实发仍未验证。
+- **运行态底座**：PostgreSQL 16.16 + 修复版 gosu、EMQX 6.3.3 受信 8883/续期 hook、device-service TLS、MinIO 内网代理隔离、UFW 与异地备份均保持验收状态。
+- **部署来源说明**：断点续跑复用了与 `6258566d` 代码等价的服务器 `727067ee` 源码，并覆盖 `6258566d` 生产 overlay；镜像 tag 与容器均为 `6258566d`。下次从干净 git 归档正常部署会统一源码元数据。
+- **仍未验证/未修**：真实微信送达、短信 6 个模板 CODE/webhook、云安全组 RAM/控制台取证、真实云托管 PostgreSQL/Redis 切换与 RTO/RPO、修复版 PostgreSQL 镜像完整 Trivy 复扫、MinIO AIStor 许可、逐设备 TLS 凭据、备份告警邮件实达、最终 A/B 拓扑与 24 小时 soak。正式生产前仍需按既定口径恢复预授权 2000 分，但本轮遵用户要求未动。**本地 dev 已提交，未推送。**
 
 ### 2026-11-25（MA-449–460 与早期 P0/P1 代码修复批次）
 
