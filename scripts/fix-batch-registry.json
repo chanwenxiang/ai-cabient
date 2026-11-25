@@ -2993,6 +2993,41 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "51f1ceab",
+      "report": "docs/PROJECT_KNOWLEDGE.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "微信/支付宝账单 rawDetail 统一序列化为 JSON 字符串，修复 JSONB 写入失败并补真库往返 IT",
+          "files": [
+            "docs/PROJECT_KNOWLEDGE.md",
+            "services/trade-service/src/main/java/com/aicabinet/trade/reconciliation/AlipayBillCsvParser.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/reconciliation/PlatformBillLine.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/reconciliation/WeChatBillCsvParser.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/integration/PaymentPlatformBillLineJsonSqlIT.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/reconciliation/AlipayBillCsvParserTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/reconciliation/WeChatBillCsvParserTest.java",
+            "scripts/check-docker-tests-guarded.mjs"
+          ]
+        },
+        {
+          "id": "MinIO unsigned-trailer 请求拦截与应用网络隔离，应用/宿主/Prometheus 统一经代理",
+          "files": [
+            "infra/docker-compose.apps.yml",
+            "infra/docker-compose.full.yml",
+            "infra/docker-compose.yml",
+            "infra/gateway/minio-proxy.conf",
+            "infra/monitoring/prometheus-full.yml",
+            "infra/monitoring/prometheus.compose.yml",
+            "package.json",
+            "scripts/check-minio-proxy-isolation.mjs",
+            "scripts/check-minio-proxy-isolation.test.mjs"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [

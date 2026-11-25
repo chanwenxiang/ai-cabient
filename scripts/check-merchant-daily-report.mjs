@@ -89,8 +89,8 @@ export function methodBody(source, signature) {
 
 export function merchantDailyReportProblems({ notifier, scheduler, placeholders }) {
   const problems = [];
-  const n = maskComments(notifier);
-  const s = maskComments(scheduler);
+  const n = maskComments(notifier.replace(/\r\n/g, '\n'));
+  const s = maskComments(scheduler.replace(/\r\n/g, '\n'));
 
   // A 模板 id 只从配置取
   if (!/resolveTemplateId\s*\(/.test(n)) {

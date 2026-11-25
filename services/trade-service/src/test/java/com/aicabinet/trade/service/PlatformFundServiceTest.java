@@ -9,6 +9,7 @@ import com.aicabinet.trade.mapper.PlatformFundFlowMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -24,6 +25,8 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -55,8 +58,13 @@ class PlatformFundServiceTest {
         Clock clock = Clock.fixed(Instant.parse("2026-10-12T00:00:00Z"), ZoneId.of("Asia/Shanghai"));
         taskService = mock(ScheduledTaskService.class);
         when(taskService.tryBegin(anyString(), anyLong())).thenReturn(true);
+        PlatformFundService self = mock(PlatformFundService.class);
         service = new PlatformFundService(accountMapper, flowMapper, withdrawMapper, splitMapper,
-                systemConfigService, alertDispatcher, taskService, clock);
+                systemConfigService, alertDispatcher, taskService, clock, self);
+        doAnswer(invocation -> {
+            service.recordPayout(invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2));
+            return null;
+        }).when(self).recordPayout(anyString(), anyLong(), anyString());
         when(systemConfigService.getDouble(anyString(), anyDouble()))
                 .thenAnswer(inv -> inv.getArgument(1));
         when(flowMapper.insert(any(PlatformFundFlow.class))).thenReturn(1);
@@ -150,6 +158,39 @@ class PlatformFundServiceTest {
         assertThat(captor.getValue().getAmountCents()).isEqualTo(-5_000L);
         assertThat(captor.getValue().getFlowType()).isEqualTo(PlatformFundFlow.TYPE_PAYOUT);
         assertThat(captor.getValue().getRefId()).isEqualTo("42");
+    }
+
+    @Test
+    void recordPayout_duplicateRef_isNotAnAlert() {
+        PlatformFundService self = mock(PlatformFundService.class);
+        PlatformFundService duplicateService = new PlatformFundService(accountMapper, flowMapper,
+                withdrawMapper, splitMapper, systemConfigService, alertDispatcher, taskService,
+                Clock.systemDefaultZone(), self);
+        doThrow(new DuplicateKeyException("duplicate payout ref"))
+                .when(self).recordPayout("WECHAT", 5_000L, "42");
+        when(flowMapper.countByRefTypeAndRefId(PlatformFundService.FLOW_REF_MERCHANT_WITHDRAW, "42"))
+                .thenReturn(1L);
+
+        duplicateService.recordPayoutQuietly("WECHAT", 5_000L, 42L);
+
+        verify(alertDispatcher, never()).trySend(anyString(), anyString(), anyString(), any());
+    }
+
+    @Test
+    void recordPayout_otherDuplicateKey_stillAlerts() {
+        PlatformFundService self = mock(PlatformFundService.class);
+        PlatformFundService duplicateService = new PlatformFundService(accountMapper, flowMapper,
+                withdrawMapper, splitMapper, systemConfigService, alertDispatcher, taskService,
+                Clock.systemDefaultZone(), self);
+        doThrow(new DuplicateKeyException("primary key"))
+                .when(self).recordPayout("WECHAT", 5_000L, "42");
+        when(flowMapper.countByRefTypeAndRefId(PlatformFundService.FLOW_REF_MERCHANT_WITHDRAW, "42"))
+                .thenReturn(0L);
+
+        duplicateService.recordPayoutQuietly("WECHAT", 5_000L, 42L);
+
+        verify(alertDispatcher).trySend(eq(PlatformFundService.ALERT_SHORT),
+                eq("平台资金池流水登记失败"), contains("唯一键异常"), any());
     }
 
     // ── 台账登记 ──────────────────────────────────────────────────────────

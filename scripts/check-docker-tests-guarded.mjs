@@ -98,6 +98,13 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/PlatformFundPayoutIdempotencySqlIT.java',
+    {
+      job: 'integration',
+      why: 'failsafe 跑（*IT.java）；真 PG 八线程带外层事务并发实证同一提现只扣一次余额、只留一条 PAYOUT 流水，内层唯一键回滚不污染外层提交，人工无引用充值不受限制'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/InventoryConsistencyR18IT.java',
     {
       job: 'integration',

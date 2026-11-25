@@ -34,6 +34,9 @@ PG_DB="${PG_DB:-aicabinet}"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/aicabinet}"
 KEEP_DAYS="${KEEP_DAYS:-7}"
 BACKUP_REMOTE_CMD="${BACKUP_REMOTE_CMD:-}"
+STATE_FILE="${STATE_FILE:-}"
+STALE_HOURS="${STALE_HOURS:-30}"
+ALERTED=0
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
 TARGET_DIR="$BACKUP_DIR/$STAMP"
@@ -42,8 +45,37 @@ FINAL_FILE="$TARGET_DIR/${PG_DB}.dump"
 
 log() { echo "[$(date '+%F %T')] $*"; }
 die() { log "ERROR: $*"; exit 1; }
+alert() {
+  local level="$1"; shift
+  local msg="$*"
+  echo "[$(date '+%F %T')] ALERT[$level] $msg" >&2
+  if [ -n "${BACKUP_ALERT_CMD:-}" ]; then
+    # shellcheck disable=SC2086
+    $BACKUP_ALERT_CMD "$level" "$msg" || echo "[$(date '+%F %T')] WARN: BACKUP_ALERT_CMD 执行失败" >&2
+  fi
+}
+on_exit() {
+  local code=$?
+  if [ "$code" -ne 0 ] && [ "$ALERTED" -eq 0 ]; then
+    alert CRITICAL "数据库备份失败（exit=$code，目录=$BACKUP_DIR）—— 本次没有完整异地备份"
+  fi
+  exit "$code"
+}
+trap on_exit EXIT
 
 mkdir -p "$TARGET_DIR"
+[ -n "$STATE_FILE" ] || STATE_FILE="$BACKUP_DIR/.last-success-epoch"
+if [ -f "$STATE_FILE" ]; then
+  LAST="$(cat "$STATE_FILE" 2>/dev/null || echo 0)"
+  case "$LAST" in ''|*[!0-9]*) LAST=0 ;; esac
+  if [ "$LAST" -gt 0 ]; then
+    NOW_S="$(date +%s)"
+    AGE_H=$(( (NOW_S - LAST) / 3600 ))
+    if [ "$AGE_H" -gt "$STALE_HOURS" ]; then
+      alert WARN "距上次完整备份已 ${AGE_H} 小时（阈值 ${STALE_HOURS}h）—— 请查前几日 cron 日志"
+    fi
+  fi
+fi
 
 log "pg_dump container=$PG_CONTAINER db=$PG_DB -> $FINAL_FILE"
 docker exec "$PG_CONTAINER" pg_dump -U "$PG_USER" -d "$PG_DB" -Fc --no-owner > "$TMP_FILE" \
@@ -56,15 +88,26 @@ mv "$TMP_FILE" "$FINAL_FILE"
 log "local backup ok size=${SIZE}B file=$FINAL_FILE"
 
 if [ -n "$BACKUP_REMOTE_CMD" ]; then
+  case "$BACKUP_REMOTE_CMD" in
+    *[[:space:]]*) die "BACKUP_REMOTE_CMD 必须是单个脚本路径，不能带内联参数；请用包装脚本" ;;
+  esac
+  [ -f "$BACKUP_REMOTE_CMD" ] || die "远端归档钩子不存在: $BACKUP_REMOTE_CMD"
   log "remote archive: $BACKUP_REMOTE_CMD $FINAL_FILE"
-  "$BACKUP_REMOTE_CMD" "$FINAL_FILE" || die "远端归档失败（本地备份已保留，但异地副本缺失）"
+  if [ -x "$BACKUP_REMOTE_CMD" ]; then
+    "$BACKUP_REMOTE_CMD" "$FINAL_FILE" || die "远端归档失败（本地备份已保留，但异地副本缺失）"
+  else
+    log "WARN: 钩子不可执行，改用 /bin/bash 调用（部署链仍会尝试修正权限）"
+    /bin/bash "$BACKUP_REMOTE_CMD" "$FINAL_FILE" || die "远端归档失败（本地备份已保留，但异地副本缺失）"
+  fi
 else
-  log "WARN: BACKUP_REMOTE_CMD 未配置 —— 仅有本机副本；单机故障即备份全失。"
-  log "WARN: 请配置异地归档（MinIO mc cp / wal-g / rsync 等）后重跑，或确认本机副本满足 RPO。"
+  ALERTED=1
+  alert CRITICAL "BACKUP_REMOTE_CMD 未配置 —— 仅有本机副本，单机故障即备份全失"
+  exit 1
 fi
 
 # 本地保留窗口：原子完成才清理，失败不影响本次备份有效性
 find "$BACKUP_DIR" -maxdepth 1 -mindepth 1 -type d -name '20*' -mtime "+$KEEP_DAYS" -exec rm -rf {} + 2>/dev/null \
   || log "WARN: 旧备份清理失败（不影响本次备份）"
 
-log "backup finished dir=$TARGET_DIR"
+date +%s > "$STATE_FILE"
+log "backup finished dir=$TARGET_DIR state=$STATE_FILE"

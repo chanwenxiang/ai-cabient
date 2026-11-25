@@ -11,7 +11,7 @@ services:
     mem_limit: ${POSTGRES_MEM_LIMIT:-1g}
     stop_grace_period: 60s
     restart: unless-stopped
-    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea # 钉 digest
+    image: postgres:16-alpine@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d # 钉 digest
     environment:
       POSTGRES_DB: aicabinet
       POSTGRES_USER: aicabinet
@@ -35,7 +35,7 @@ services:
     mem_limit: ${REDIS_MEM_LIMIT:-512m}
     stop_grace_period: 30s
     restart: unless-stopped
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe
     ports: ["127.0.0.1:6379:6379"]
     # L2-4：Redis 密码（dev 默认 devredis；与 trade/device 的 SPRING_DATA_REDIS_PASSWORD 对齐）
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-devredis}"]
@@ -58,13 +58,15 @@ services:
   emqx:
     stop_grace_period: 30s
     restart: unless-stopped
-    image: emqx/emqx:5.8.6
+    image: emqx/emqx:6.3.3@sha256:54778dba62a5cbcb03ca381c9bceb3d8a87cab9e3da155ed3607d994454df900
     ports:
       # 开发栈仅绑定回环：MQTT/控制台不暴露局域网（手机真机联调走网关 :80 的业务接口即可）
       - "127.0.0.1:${EMQX_MQTT_PORT:-11883}:1883"
       - "127.0.0.1:${EMQX_MQTT_TLS_PORT:-18883}:8883"
       - "127.0.0.1:${EMQX_DASHBOARD_PORT:-28083}:18083"
     environment:
+      EMQX_NODE_NAME: ${EMQX_NODE_NAME:-emqx@127.0.0.1}
+      EMQX_HOST: ${EMQX_HOST:-127.0.0.1}
       # EMQX 5 无 allow_anonymous 键（4.x 遗留变量会被静默忽略）；配置认证器后无凭据连接一律拒绝。
       # 设备/服务账号见 docker/emqx/auth-bootstrap.dev.csv（dev 默认口令，勿用于生产）。
       EMQX_AUTHENTICATION__1__MECHANISM: password_based
@@ -527,7 +529,7 @@ services:
     stop_grace_period: 30s
     # R15-M1/R19-P3#12：当初只补了 base，full 栈入口漏了 ⇒ 宿主重启后全站 100% 不可达（R19 实测复发）。
     restart: unless-stopped
-    image: nginx:alpine
+    image: nginx:alpine@sha256:b50897d5c7b1aa08067c3d90c5e8b3e47ec4e3c91c91446f67820228f7b41e34
     # R19-5（2026-11-12）：默认绑回环——dev 栈 AICABINET_MOCK_ENABLED=true 且万能码可登任意号，
     # 绑 0.0.0.0 等于同网段任何人拿超管。真机联调显式叠加 `-f docker-compose.lan.yml`。
     ports: ["${GATEWAY_PUBLISH:-127.0.0.1:80:80}"] # 全栈对外唯一 HTTP

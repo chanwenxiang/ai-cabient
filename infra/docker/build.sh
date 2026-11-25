@@ -7,5 +7,6 @@ cd "$ROOT"
 
 docker build -f infra/docker/trade-service.Dockerfile -t "ai-cabinet/trade-service:${TAG}" .
 docker build -f infra/docker/device-service.Dockerfile -t "ai-cabinet/device-service:${TAG}" .
+docker build -f infra/docker/postgres.Dockerfile -t "ai-cabinet/postgres:16-gosu-fixed" .
 
-echo "Built ai-cabinet/*:${TAG}"
+echo "Built ai-cabinet/*:${TAG} and ai-cabinet/postgres:16-gosu-fixed"

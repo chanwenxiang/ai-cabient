@@ -24,7 +24,6 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
-  statSync,
   writeFileSync,
   rmSync
 } from 'node:fs';
@@ -93,9 +92,13 @@ const runGate = () => {
 
 const replaceIn = (rel, from, to) => {
   const p = join(sandbox, rel);
-  const src = readFileSync(p, 'utf8');
-  if (!src.includes(from)) throw new Error(`夹具锚点不唯一/不存在：${rel} :: ${from.slice(0, 60)}`);
-  writeFileSync(p, src.replace(from, to), 'utf8');
+  const src = readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
+  const normalizedFrom = from.replace(/\r\n/g, '\n');
+  const normalizedTo = to.replace(/\r\n/g, '\n');
+  if (!src.includes(normalizedFrom)) {
+    throw new Error(`夹具锚点不唯一/不存在：${rel} :: ${normalizedFrom.slice(0, 60)}`);
+  }
+  writeFileSync(p, src.replace(normalizedFrom, normalizedTo), 'utf8');
 };
 
 const results = [];
@@ -215,9 +218,13 @@ step('S7', '隐式命名的 @RequestParam(required=false) String deviceId 且不
   return 'R4 命中（隐式命名）';
 });
 
-step('S8', '把已修端点的范围下推退回 null → R4 红（证明修复是承重的）', () => {
+step('S8', 'CRLF 工作树把已修端点的范围下推退回 null → R4 红（证明修复是承重的）', () => {
   writeFileSync(join(sandbox, REL_CTRL), readFileSync(join(ROOT, REL_CTRL)));
-  writeFileSync(join(sandbox, REL_REPLENISH_SVC), readFileSync(join(ROOT, REL_REPLENISH_SVC)));
+  const replenishmentPath = join(sandbox, REL_REPLENISH_SVC);
+  writeFileSync(
+    replenishmentPath,
+    readFileSync(join(ROOT, REL_REPLENISH_SVC), 'utf8').replace(/\r?\n/g, '\r\n')
+  );
   replaceIn(
     REL_REPLENISH_SVC,
     [

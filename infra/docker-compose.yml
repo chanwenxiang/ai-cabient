@@ -15,7 +15,7 @@ services:
   postgres:
     logging: *default-logging
     stop_grace_period: 60s
-    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea # AU-192：钉 digest（= 2026-10 本地实测版）
+    image: postgres:16-alpine@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d # 钉 digest
     restart: unless-stopped
     environment:
       POSTGRES_DB: aicabinet
@@ -33,7 +33,7 @@ services:
   redis:
     logging: *default-logging
     stop_grace_period: 30s
-    image: redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499 # 钉 digest
+    image: redis:7-alpine@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe # 钉 digest
     restart: unless-stopped
     ports:
       - "127.0.0.1:6379:6379"
@@ -56,7 +56,7 @@ services:
   emqx:
     logging: *default-logging
     stop_grace_period: 30s
-    image: emqx/emqx:5.8.6@sha256:a1e3d10fa1dcc8c94325b815a93b5b5974253a97cb36470b44e47d5d3ef9cd13 # 钉 digest
+    image: emqx/emqx:6.3.3@sha256:54778dba62a5cbcb03ca381c9bceb3d8a87cab9e3da155ed3607d994454df900 # 钉 digest
     restart: unless-stopped
     ports:
       # Host ports avoid Windows Hyper-V reserved range ~1822–1921 (includes 1883/8883/18083).
@@ -65,6 +65,8 @@ services:
       - "127.0.0.1:${EMQX_MQTT_TLS_PORT:-18883}:8883"
       - "127.0.0.1:${EMQX_DASHBOARD_PORT:-28083}:18083"
     environment:
+      EMQX_NODE_NAME: ${EMQX_NODE_NAME:-emqx@127.0.0.1}
+      EMQX_HOST: ${EMQX_HOST:-127.0.0.1}
       # 认证：内置数据库 + bootstrap 种子（5.8+ 支持）。EMQX 5 无 allow_anonymous 键，
       # 配置了认证器后无凭据连接一律拒绝。
       EMQX_AUTHENTICATION__1__MECHANISM: password_based
@@ -198,7 +200,7 @@ services:
     # R15-M1：gateway 是 base 栈对外唯一 HTTP 入口，宿主重启后必须自动拉起
     #（AU-148 目标「入口自动拉起」此前漏了入口本身）。
     restart: unless-stopped
-    image: nginx:alpine@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2 # 钉 digest
+    image: nginx:alpine@sha256:b50897d5c7b1aa08067c3d90c5e8b3e47ec4e3c91c91446f67820228f7b41e34 # 钉 digest
     ports:
       # 生产（2026-10-21 实证）：宿主 nginx 接管 0.0.0.0:80/443（cabinet.easygovm.com vhost），
       # gateway 必须让位绑 127.0.0.1:8180（.env.production 设 GATEWAY_PUBLISH）；

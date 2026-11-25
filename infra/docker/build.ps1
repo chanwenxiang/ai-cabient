@@ -12,7 +12,9 @@ Write-Host "Building from $Root"
 
 docker build -f infra/docker/trade-service.Dockerfile -t "ai-cabinet/trade-service:$Tag" .
 docker build -f infra/docker/device-service.Dockerfile -t "ai-cabinet/device-service:$Tag" .
+docker build -f infra/docker/postgres.Dockerfile -t "ai-cabinet/postgres:16-gosu-fixed" .
 
 Write-Host "Done:"
 Write-Host "  ai-cabinet/trade-service:$Tag"
 Write-Host "  ai-cabinet/device-service:$Tag"
+Write-Host "  ai-cabinet/postgres:16-gosu-fixed"

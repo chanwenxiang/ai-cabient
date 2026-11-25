@@ -18,8 +18,8 @@ function assert(cond, message) {
 }
 
 const real = {
-  notifier: readFileSync(NOTIFIER_FILE, 'utf8'),
-  scheduler: readFileSync(SCHEDULER_FILE, 'utf8'),
+  notifier: readFileSync(NOTIFIER_FILE, 'utf8').replace(/\r\n/g, '\n'),
+  scheduler: readFileSync(SCHEDULER_FILE, 'utf8').replace(/\r\n/g, '\n'),
   placeholders: settlementCopyPlaceholders().placeholders
 };
 
@@ -27,6 +27,12 @@ assert(real.notifier.length > 2000, '真实 MerchantDailyReportNotifier.java 读
 assert(real.scheduler.length > 5000, '真实 MerchantDailyIncomeNotifyScheduler.java 读取失败');
 assert(real.placeholders.includes('orders'), 'V499 文案占位符解析失败（应含 {orders}）');
 assert(merchantDailyReportProblems(real).length === 0, '真实仓面必须绿');
+const crlf = {
+  ...real,
+  notifier: real.notifier.replace(/\n/g, '\r\n'),
+  scheduler: real.scheduler.replace(/\n/g, '\r\n')
+};
+assert(merchantDailyReportProblems(crlf).length === 0, 'CRLF 工作树不得误报 sentToday 缺失');
 
 function inject(patch, label, expectedFragment) {
   const mutated = { ...real, ...patch };
@@ -126,4 +132,4 @@ const emptyMerge = real.scheduler.replace(
 assert(emptyMerge !== real.scheduler, '注入⑪锚点 putIfAbsent 找不到');
 inject({ scheduler: emptyMerge }, '注入⑪扩集合空转', '空转');
 
-console.log(`${TAG} OK：${checks} 项断言全过（真树绿 / 八种注入红 / 注释不误判）`);
+console.log(`${TAG} OK：${checks} 项断言全过（真树绿 / CRLF 绿 / 八种注入红 / 注释不误判）`);

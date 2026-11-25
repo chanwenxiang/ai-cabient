@@ -1,0 +1,8 @@
+services:
+  postgres:
+    restart: unless-stopped
+    stop_grace_period: 60s
+    image: ai-cabinet/postgres:16-gosu-fixed
+    build:
+      context: ..
+      dockerfile: infra/docker/postgres.Dockerfile
