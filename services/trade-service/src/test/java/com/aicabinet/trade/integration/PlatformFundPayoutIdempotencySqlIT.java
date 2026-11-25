@@ -141,7 +141,7 @@ class PlatformFundPayoutIdempotencySqlIT {
             }
             assertTrue(ready.await(10, TimeUnit.SECONDS));
             start.countDown();
-            await().atMost(10, TimeUnit.SECONDS).until(() -> blockedBalanceUpdates() == replicas);
+            await().atMost(10, TimeUnit.SECONDS).until(() -> blockedAccountLocks() == replicas);
             accountLock.rollback();
             for (Future<?> future : futures) {
                 future.get(30, TimeUnit.SECONDS);
@@ -159,12 +159,13 @@ class PlatformFundPayoutIdempotencySqlIT {
                 "SELECT remark FROM platform_fund_account WHERE channel = ?", String.class, CHANNEL));
     }
 
-    private int blockedBalanceUpdates() {
+    private int blockedAccountLocks() {
         Integer count = jdbc.queryForObject("""
                 SELECT count(*) FROM pg_stat_activity
                 WHERE datname = current_database()
                   AND wait_event_type = 'Lock'
-                  AND query LIKE 'UPDATE platform_fund_account SET balance_cents%'
+                  AND (query LIKE 'SELECT%FROM platform_fund_account%FOR UPDATE%'
+                       OR query LIKE 'UPDATE platform_fund_account SET balance_cents%')
                 """, Integer.class);
         return count == null ? 0 : count;
     }
