@@ -64,6 +64,8 @@ services:
       MINIO_SIM_RETENTION_DAYS: ${MINIO_SIM_RETENTION_DAYS:-7}
       MINIO_VIDEO_RETENTION_DAYS: ${MINIO_VIDEO_RETENTION_DAYS:-30}
       MINIO_ARCHIVE_RETENTION_DAYS: ${MINIO_ARCHIVE_RETENTION_DAYS:-180}
+    networks:
+      - minio-internal
     profiles: ["apps"]
     logging:
       driver: json-file
@@ -118,7 +120,7 @@ services:
       # AU-183：模型 classes.txt 的 SSRF 白名单（逗号分隔），默认只放将邑域；OSS 托管时按 probe 真实 host 填
       AICABINET_JIANGYI_MODEL_SYNC_ALLOWED_HOSTS: ${AICABINET_JIANGYI_MODEL_SYNC_ALLOWED_HOSTS:-hunanjysmart.com}
       JIANGYI_PUBLIC_BASE_URL: ${JIANGYI_PUBLIC_BASE_URL:-}
-      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ENDPOINT: http://minio-proxy:9000
       MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-http://localhost:9000}
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}

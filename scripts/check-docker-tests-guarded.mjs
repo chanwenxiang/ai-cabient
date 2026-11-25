@@ -91,6 +91,13 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/PaymentPlatformBillLineJsonSqlIT.java',
+    {
+      job: 'integration',
+      why: 'failsafe 跑（*IT.java）；真 PG JSONB 实证微信账单 rawDetail 序列化为 JSON 字符串后可插入并按原文读回，防止 CSV 原文直接写 JSONB 导致日终对账 500'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/InventoryConsistencyR18IT.java',
     {
       job: 'integration',

@@ -1,5 +1,6 @@
 package com.aicabinet.trade.reconciliation;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -122,6 +123,24 @@ class WeChatBillCsvParserTest {
         assertEquals(1, lines.size());
         assertEquals("ORD-OK", lines.get(0).merchantOrderNo());
         assertEquals(350, lines.get(0).amountCents());
+    }
+
+    @Test
+    void parse_rawDetail_isJsonString() throws Exception {
+        String[] cols = new String[25];
+        Arrays.fill(cols, "");
+        cols[5] = "4200001234";
+        cols[6] = "ORD-JSON";
+        cols[12] = "3.50";
+        String rawLine = "`" + String.join(",`", cols) + "`";
+        String csv = "交易时间,微信订单号,商户订单号,...\n" + rawLine;
+
+        List<PlatformBillLine> lines = WeChatBillCsvParser.parse(csv, LocalDate.of(2024, 1, 15));
+
+        assertEquals(1, lines.size());
+        String rawDetail = lines.get(0).rawDetail();
+        assertTrue(new ObjectMapper().readTree(rawDetail).isTextual());
+        assertEquals(rawLine, new ObjectMapper().readTree(rawDetail).asText());
     }
 
     @Test

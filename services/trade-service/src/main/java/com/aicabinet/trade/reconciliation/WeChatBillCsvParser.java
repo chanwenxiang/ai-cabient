@@ -50,7 +50,7 @@ public final class WeChatBillCsvParser {
                     String platformTradeNo = cols[5].trim();
                     result.add(new PlatformBillLine(
                             platformTradeNo, merchantOrderNo, amountCents, tradeTime, "WECHAT",
-                            parseFeeCents(cols), line
+                            parseFeeCents(cols), PlatformBillLine.jsonRawDetail(line)
                     ));
                 } catch (RuntimeException e) {
                     // 非金额异常同样不得静默：旧式 catch(Exception) + log.debug 把整行吞掉且生产不输出

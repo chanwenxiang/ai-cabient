@@ -687,6 +687,12 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-25（对账 JSONB 与 MinIO 请求隔离）
+
+- 微信/支付宝账单 `rawDetail` 统一序列化为 JSON 字符串，新增真实 PostgreSQL JSONB 往返 IT，修复日终对账明细写入 `invalid input syntax for type json`。
+- MinIO 只接入内网，应用、宿主端口与 Prometheus 统一经 `minio-proxy`；拒绝 unsigned-trailer 请求，补代理隔离门禁与负向夹具。
+- 两项修复已在集成工作区合并，相关单测、IT、Compose 与门禁通过；**尚未提交、未部署**。
+
 ### 2026-11-24（夜间收口：同意留痕 / 批次盘点 / 货位出库）
 
 - **MA-410**：隐私同意留痕改 `REQUIRES_NEW`，refresh 只读事务不再触发 25006；注销仍加入外层写事务避免行锁互斥。
