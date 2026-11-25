@@ -5,7 +5,7 @@
 > **维护 Skill**：`.cursor/skills/project-knowledge/SKILL.md`  
 > **已解决问题 Skill**：`.cursor/skills/solved-problems-playbook/SKILL.md`  
 > **封装流程 Skill**：`.cursor/skills/encapsulate-solved-problem/SKILL.md`  
-> **最后校准**：2026-10-07（§2 规模数字已按当日实测回填）
+> **最后校准**：2026-11-25（§2 迁移与 trade 单测规模已按当日实测回填）
 
 ---
 
@@ -34,9 +34,9 @@
 
 | 维度 | 当前值 | 备注 |
 |------|--------|------|
-| Flyway 迁移 | **502** 个 V 脚本（仅 `services/trade-service`），最新 **V509**（2026-11-25 门禁实扫） | 合入前查重号；门禁拦同号；勿再写已占用版本号 |
+| Flyway 迁移 | **505** 个 V 脚本（仅 `services/trade-service`），最新 **V512**（2026-11-25 合并后实扫） | 合入前查重号；门禁拦同号；勿再写已占用版本号 |
 | trade Controllers | **94** | `*Controller.java`（2026-11-17 实测） |
-| trade 单测 | **516** `*Test.java`（2026-11-17 全量 3214 例） | 含大量并发测；全量 `mvn -o -pl services/trade-service -am test` |
+| trade 单测 | **539** `*Test.java`（2026-11-25 全量 3444 例） | 含大量并发测；全量 `mvn -o -pl services/trade-service -am test` |
 | admin-vue 业务视图 | **85** `.vue` | `src/views`（2026-11-17 实测） |
 | consumer-mp / merchant-mp | 独立 uni-app | 分包 + `preloadRule`；H5 `:3002` / `:3001` |
 | shared packages | types / api / dict / rbac / uni | 改 API 后 `pnpm gen:api-types` |
@@ -45,7 +45,7 @@
 | 审计门禁 | `pnpm check:audit-gates` | 新建脚本须进 `ci.yml` |
 | 将邑开门柜接入 | `services/jiangyi-gateway` **:8083**（全栈 Docker `127.0.0.1:18084`） | 模式一外采套件，CB-022；方案+现状速查 `docs/JIANGYI_GATEWAY_DESIGN.md`；`JIANGYI_JWT_SECRET` 未配置则 fail-closed 503 |
 
-> **最后校准**：2026-10-17（Flyway/Controllers/单测/视图/总册 五行为**当日实测**，其余行沿用上次校准）。
+> **最后校准**：2026-11-25（Flyway 与 trade 单测两行当日实测；其余行沿用上次校准）。
 > ⚠️ **规模数字会漂移** —— 读到过期的数字时，先按上面的命令实测再下结论，不要引用历史值。
 
 更细文件级清单：[CODEBASE_INVENTORY.md](CODEBASE_INVENTORY.md)；测试底稿：[CODEBASE_FOUNDATION.md](CODEBASE_FOUNDATION.md)。
@@ -694,8 +694,41 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - **库存/仓储**：作废补货任务与作废出库拒绝完成；采购收货按仓/批分配并逐批退货；月结审批/编辑行锁；同键多出库行 remainder 只分配一次；货位移库校验占用库存。
 - **启动/发布/可观测**：字典种子加 PostgreSQL transaction advisory lock；HAProxy 每 500ms 主动探测 trade 健康并摘除假死副本；发布链按 SHA 构建 trade/device/jiangyi 并逐副本验镜像与健康；调度失败显式计数接入 Prometheus；备份钩子权限/bash 回退/新鲜度告警收口。
 - **其它代码项**：通知 FAILED 状态约束、同意日志代理外兜底、缺资金账单软结果、商户提现配置响应式、表格 stable gutter、CORS 严格 HTTPS origin、支付分运行时就绪、服务号日志脱敏、HA 示例强制生产覆盖层。
-- **验证**：普通全量单测 trade 3476 / device 62 / jiangyi 165 / simulator 13 全绿；采购分配、字典双启动、通知约束、同意日志 SQL 失败、资金唯一索引等真库 IT 通过；HAProxy 隔离假死测试 12/12；187 聚合门禁通过；admin/merchant 类型检查与生产构建通过。最终隔离 mapper 改动另有 14 条定向复验。**未重跑完整 clean verify/failsafe 长套件，未提交、未推送。**
+- **验证**：普通全量单测 trade 3476 / device 62 / jiangyi 165 / simulator 13 全绿；采购分配、字典双启动、通知约束、同意日志 SQL 失败、资金唯一索引等真库 IT 通过；HAProxy 隔离假死测试 12/12；187 聚合门禁通过；admin/merchant 类型检查与生产构建通过。最终隔离 mapper 改动另有 14 条定向复验。**已提交 `8549e6b8`；未重跑完整 clean verify/failsafe 长套件、未推送。**
 - **rawDetail 修复部署**：17:18 按用户授权在隔离 worktree 仅取 `51f1ceab` 的三个 parser 修复构建 trade 镜像 `sha256:0e1ac347…`，只重建 trade，其他服务容器 ID 不变；回滚标签 `ai-cabinet/trade-service:rollback-20261125-171632`。17:21 补跑账单日 2026-11-24：reconId=5、2300/2300、diff0、2/2 MATCHED、JSONB 明细2、实结手续费14分；重跑仍同主行/明细/手续费，幂等通过。MA-431 自动失败告警代码仍未部署。
+### 2026-11-25（主机与中间件运行态收口）
+
+- 服务器启用 UFW（仅放行 22/80/443），清理 20.14GB Docker 构建缓存，根盘 78%→约 31%；安装 23 个主机/Docker 更新并重启，`reboot-required=false`，PostgreSQL/EMQX/MinIO/trade/device 均 healthy、公网 200。
+- PostgreSQL 升 16.16，`gosu` 换为 Alpine Go 1.26.9 构建；升级前完整 dump→OSS，真实数据卷演练与升级后计数/Flyway V506 一致。EMQX 升 6.3.3，8883 受信证书、续期 hook、强 node cookie、Dashboard 改密均验证；device-service 经 Docker 内证书同名别名走 `ssl://cabinet.easygovm.com:8883`，`MQTT_ALLOW_TCP=false`，重启后 0 ERROR、2 个后端连接正常。
+- MinIO 已摘默认网，应用经代理；危险头 403、认证列桶成功、Prometheus 目标 up。微信双端 token 与订阅模板实测有效，但 `notification_log` 约束尚未升 V508，通知开关保持关闭；短信按用户选择暂缓。
+
+### 2026-11-25（日报门禁 CRLF 兼容）
+
+- `check-merchant-daily-report` 与设备范围沙箱夹具统一 CRLF→LF，修复 Windows 工作树把 `sentToday` 正则误判为缺失、以及 S8 负向注入空转的假红；测试增加 CRLF 正例，日报 37 项、设备范围 10 项断言通过，原负向仍红；完整 `check:audit-gates` 链通过。
+
+### 2026-11-25（提现资金台账幂等）
+
+- 采用 peer `V509` 的 PAYOUT/资金账单唯一索引，删除本分支冲突的 V507；人工充值/归集/调整不受限制。
+- `recordPayout` 改 `REQUIRES_NEW` 独立事务并接入 peer `PlatformFundFlowService` 行锁，余额调整与流水插入同事务；重复回调/查单只保留一条流水，其他唯一键异常仍告警，不把已成功打款改成失败。
+- 真库红绿对照：修前八路并发写 8 条流水；修后强制八个内外层事务同卡账户行锁再释放，7 路内层唯一键冲突回滚且外层仍可提交，最终 1 条流水、余额 10000→9500。合并前 21 个单测 + 2 个 IT、六模块全量通过；最终合并树全量待跑。现网只读预检 V506、提现流水 0、重复组 0。**已提交 `9294d141`，V509 尚未部署。**
+
+### 2026-11-25（基础镜像更新与 EMQX 6.3.3）
+
+- nginx 更新到 `sha256:b50897d5…`，隔离扫描 High/Critical 为 0；redis 更新到 `sha256:7f7d30b7…`，High/Critical 为 0且基础系统脱离 EOSL。
+- PostgreSQL 官方 `sha256:f2f98726…` 仍带 Go 1.24.6 构建的 `gosu` critical；新增钉住该基线的派生镜像，以 Alpine `gosu=1.19-r6`（Go 1.26.9，官方 CVE 修复范围外）替换。真实数据卷演练后服务器已升 16.16，Flyway V506、订单 2/用户 14/资金流水 1 与升级前一致；完整 Trivy 复扫待做。**仓库改动已提交 `9294d141`。**
+- EMQX 从已 EOL 的 5.8.6 升级到 6.3.3，补 `EMQX_NODE_NAME/EMQX_HOST`；现有认证与 ACL 启动兼容。6.3.3 扫描 0 critical/73 high，优于旧镜像 9 critical/154 high。
+- 生产 overlay 的 8883 改用现有 `cabinet.easygovm.com` Let’s Encrypt 证书，node cookie 与 Dashboard 凭据改为生产环境强制配置；新增证书同步/续期 deploy-hook 脚本。服务器已切 EMQX 6.3.3，受信握手、续期 dry-run/真实 hook、设备后端重连均通过；默认 `admin/public` 已改为随机强密码（旧登录 401、新登录 200）。**仓库改动已提交 `9294d141`。**
+
+### 2026-11-25（备份失败告警与防复发）
+
+- `backup-database.sh` 增加钩子不可执行时的 `/bin/bash` 兜底、完整成功时间戳、30 小时新鲜度检查和失败告警；新增 Alertmanager 备份告警包装脚本，支持 `--dry-run`。
+- 当前测试服务器已实测完整 dump→OSS 上传，本地/远端均 1,296,718 字节；失败告警接入现有邮件通道。**仓库改动已提交 `9294d141`；服务器已按等效脚本修复并验证，业务容器未因备份脚本重建。**
+
+### 2026-11-25（对账 JSONB 与 MinIO 请求隔离）
+
+- 微信/支付宝账单 `rawDetail` 统一序列化为 JSON 字符串，新增真实 PostgreSQL JSONB 往返 IT，修复日终对账明细写入 `invalid input syntax for type json`。
+- MinIO 只接入内网，应用、宿主端口与 Prometheus 统一经 `minio-proxy`；拒绝 unsigned-trailer 请求，补代理隔离门禁与负向夹具。
+- 两项修复已在集成工作区合并并提交为 `51f1ceab`，相关单测、IT、Compose 与门禁通过。MinIO 已部署：默认网直连失败、代理正常 200/危险头 403、认证列桶成功、Prometheus 目标 up；rawDetail 由另一会话部署，本会话未补跑日结。
 
 ### 2026-11-24（夜间收口：同意留痕 / 批次盘点 / 货位出库）
 

@@ -143,7 +143,7 @@ services:
     # AU-148（批次 10）：常驻服务重启自愈——宿主重启后入口/依赖自动拉起
     restart: unless-stopped
     stop_grace_period: 30s
-    image: emqx/emqx:5.8.6
+    image: emqx/emqx:6.3.3@sha256:54778dba62a5cbcb03ca381c9bceb3d8a87cab9e3da155ed3607d994454df900
     environment:
       # B-11(v2)：EMQX 5 没有 allow_anonymous / EMQX_AUTH__USER__* 这些 4.x 键，写了对 5.x 无效——
       # 且 5.x 未配置任何认证器时默认放行匿名连接。改为显式认证（内置库 + bootstrap 种子）+
@@ -160,13 +160,23 @@ services:
       EMQX_AUTHORIZATION__SOURCES__1__TYPE: file
       EMQX_AUTHORIZATION__SOURCES__1__ENABLE: "true"
       EMQX_AUTHORIZATION__SOURCES__1__PATH: /opt/emqx/etc/aicabinet-acl.conf
+      EMQX_LISTENERS__SSL__DEFAULT__SSL_OPTIONS__CERTFILE: /opt/emqx/etc/certs/aicabinet/fullchain.pem
+      EMQX_LISTENERS__SSL__DEFAULT__SSL_OPTIONS__KEYFILE: /opt/emqx/etc/certs/aicabinet/privkey.pem
+      EMQX_NODE_COOKIE: ${EMQX_NODE_COOKIE:?set a strong random EMQX_NODE_COOKIE in .env.production}
+      EMQX_DASHBOARD__DEFAULT_USERNAME: ${EMQX_DASHBOARD_USERNAME:?set EMQX_DASHBOARD_USERNAME}
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: ${EMQX_DASHBOARD_PASSWORD:?set a strong EMQX_DASHBOARD_PASSWORD}
+    networks:
+      default:
+        aliases:
+          - ${EMQX_TLS_DOMAIN:-cabinet.easygovm.com}
     volumes:
       - ./docker/emqx/aicabinet-acl.conf:/opt/emqx/etc/aicabinet-acl.conf:ro
       - ./docker/emqx/auth-bootstrap.production.csv:/opt/emqx/etc/aicabinet-auth-bootstrap.csv:ro
+      - /etc/aicabinet/tls/${EMQX_TLS_DOMAIN:-cabinet.easygovm.com}:/opt/emqx/etc/certs/aicabinet:ro
     ports:
       # 审计 P2-11：显式端口策略（原缺省=继承 base 层回环，真机接入必然手改、无门禁看护）。
       # 设备 MQTT：TCP 1883 仅供不支持 TLS 的柜机过渡——绑业务网卡（env 可覆盖绑定地址）；
-      # TLS 8883 为目标形态（需先落地 truststore 供给链，见审计 P2-10）。
+      # TLS 8883 使用 cabinet.easygovm.com 的 Let’s Encrypt 证书；设备客户端仍需按实际接入方式配置信任与主机名。
       # Dashboard 18083 只许回环（运维本机访问，绝不暴露）。
       # 轮换提醒（P1-6）：改凭据后必须 up -d --force-recreate emqx，restart 不会重导 bootstrap。
       - "${EMQX_MQTT_BIND:-127.0.0.1}:${EMQX_MQTT_PORT:-11883}:1883"

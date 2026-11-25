@@ -10,9 +10,12 @@ import com.aicabinet.trade.util.YuanFen;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -70,8 +73,9 @@ public class PlatformFundService {
     private final Clock clock;
     private final ScheduledTaskService taskService;
     private final PlatformFundFlowService flowService;
+    private final PlatformFundService self;
 
-    @Autowired // 双构造器必须显式指定 Spring 注入点：用 7 参版（内部造默认 Clock），Clock bean 未注册不能注 8 参版
+    @Autowired
     public PlatformFundService(PlatformFundAccountMapper accountMapper,
                                PlatformFundFlowMapper flowMapper,
                                MerchantWithdrawRequestMapper withdrawMapper,
@@ -79,9 +83,10 @@ public class PlatformFundService {
                                SystemConfigService systemConfigService,
                                OpsAlertDispatcher alertDispatcher,
                                ScheduledTaskService taskService,
-                               PlatformFundFlowService flowService) {
+                               PlatformFundFlowService flowService,
+                               @Lazy PlatformFundService self) {
         this(accountMapper, flowMapper, withdrawMapper, splitMapper, systemConfigService,
-                alertDispatcher, taskService, flowService, Clock.systemDefaultZone());
+                alertDispatcher, taskService, flowService, Clock.systemDefaultZone(), self);
     }
 
     public PlatformFundService(PlatformFundAccountMapper accountMapper,
@@ -92,7 +97,8 @@ public class PlatformFundService {
                                OpsAlertDispatcher alertDispatcher,
                                ScheduledTaskService taskService,
                                PlatformFundFlowService flowService,
-                               Clock clock) {
+                               Clock clock,
+                               PlatformFundService self) {
         this.accountMapper = accountMapper;
         this.flowMapper = flowMapper;
         this.withdrawMapper = withdrawMapper;
@@ -102,6 +108,7 @@ public class PlatformFundService {
         this.taskService = taskService;
         this.flowService = flowService;
         this.clock = clock;
+        this.self = self;
     }
 
     // ── 台账登记（运营台） ────────────────────────────────────────────────
@@ -235,18 +242,19 @@ public class PlatformFundService {
 
     /** 提现打款成功后登记流出。永不抛异常（见类注释边界 3）。 */
     public void recordPayoutQuietly(String channel, long netCents, long requestId) {
+        String refId = String.valueOf(requestId);
         try {
-            PlatformFundAccount account = findAccount(channel).orElse(null);
-            if (account == null) {
-                // gatePayout 已在发起前提醒过；到账后再发一条只会制造重复告警，不改变资金事实。
-                log.warn("platform fund account missing for payout, flow not recorded: channel={}, requestId={}",
-                        channel, requestId);
+            self.recordPayout(channel, netCents, refId);
+        } catch (DuplicateKeyException e) {
+            if (flowMapper.countByRefTypeAndRefId(FLOW_REF_MERCHANT_WITHDRAW, refId) > 0) {
+                log.info("platform fund payout flow already recorded: channel={}, requestId={}", channel, requestId);
                 return;
             }
-            if (!recordFlow(account, PlatformFundFlow.TYPE_PAYOUT, -netCents,
-                    FLOW_REF_MERCHANT_WITHDRAW, String.valueOf(requestId), null, "商户提现打款")) {
-                log.info("platform fund payout flow duplicate ignored requestId={}", requestId);
-            }
+            log.error("platform fund payout flow duplicate key without existing ref: channel={}, requestId={}",
+                    channel, requestId, e);
+            alertDispatcher.trySend(ALERT_SHORT, "平台资金池流水登记失败",
+                    "打款成功但台账唯一键异常：channel=" + channel + " requestId=" + requestId
+                            + "，请人工核对补录", java.util.Map.of());
         } catch (Exception e) {
             // 🔴 台账写失败绝不能把已成功的打款改成失败（那等于否认资金事实）——只告警由人工补
             log.error("platform fund payout flow failed: channel={}, requestId={}", channel, requestId, e);
@@ -254,6 +262,22 @@ public class PlatformFundService {
                     "打款成功但台账登记异常：channel=" + channel + " requestId=" + requestId
                             + "，请人工核对补录；异常=" + e.getMessage(), java.util.Map.of());
         }
+    }
+
+    // 打款已成功，台账独立提交；唯一键冲突回滚不能牵连调用方事务。
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordPayout(String channel, long netCents, String refId) {
+        PlatformFundAccount account = findAccount(channel).orElse(null);
+        if (account == null) {
+            log.warn("platform fund account missing for payout, flow not recorded: channel={}, requestId={}",
+                    channel, refId);
+            return;
+        }
+        if (flowMapper.countByRefTypeAndRefId(FLOW_REF_MERCHANT_WITHDRAW, refId) > 0) {
+            return;
+        }
+        recordFlow(account, PlatformFundFlow.TYPE_PAYOUT, -netCents,
+                FLOW_REF_MERCHANT_WITHDRAW, refId, null, "商户提现打款");
     }
 
     // ── 每日任务：备付计划 + 归集核对 ─────────────────────────────────────

@@ -1,5 +1,6 @@
 package com.aicabinet.trade.reconciliation;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 
 /**
@@ -16,4 +17,10 @@ public record PlatformBillLine(
         String tradeType,
         Long feeCents,
         String rawDetail
-) {}
+) {
+    private static final ObjectMapper JSON = new ObjectMapper();
+
+    public static String jsonRawDetail(String rawLine) {
+        return JSON.valueToTree(rawLine).toString();
+    }
+}

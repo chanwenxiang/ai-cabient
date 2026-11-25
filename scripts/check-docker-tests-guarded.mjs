@@ -91,6 +91,20 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/PaymentPlatformBillLineJsonSqlIT.java',
+    {
+      job: 'integration',
+      why: 'failsafe 跑（*IT.java）；真 PG JSONB 实证微信账单 rawDetail 序列化为 JSON 字符串后可插入并按原文读回，防止 CSV 原文直接写 JSONB 导致日终对账 500'
+    }
+  ],
+  [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/PlatformFundPayoutIdempotencySqlIT.java',
+    {
+      job: 'integration',
+      why: 'failsafe 跑（*IT.java）；真 PG 八线程带外层事务并发实证同一提现只扣一次余额、只留一条 PAYOUT 流水，内层唯一键回滚不污染外层提交，人工无引用充值不受限制'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/InventoryConsistencyR18IT.java',
     {
       job: 'integration',

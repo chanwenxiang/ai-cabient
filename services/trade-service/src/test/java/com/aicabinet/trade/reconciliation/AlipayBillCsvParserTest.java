@@ -1,5 +1,6 @@
 package com.aicabinet.trade.reconciliation;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -14,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class AlipayBillCsvParserTest {
 
     @Test
-    void parseCsv_extractsAlipayTradeLines() {
+    void parseCsv_extractsAlipayTradeLines() throws Exception {
         String csv = """
                 #支付宝业务明细查询
                 #类型：业务明细
@@ -28,6 +29,10 @@ class AlipayBillCsvParserTest {
         assertEquals("ORD-ALIPAY-1", lines.get(0).merchantOrderNo());
         assertEquals(350, lines.get(0).amountCents());
         assertEquals("ALIPAY", lines.get(0).tradeType());
+        String rawDetail = lines.get(0).rawDetail();
+        assertTrue(new ObjectMapper().readTree(rawDetail).isTextual());
+        assertEquals("2024011522001234567890,ORD-ALIPAY-1,交易,汽水,2024-01-15 10:00:00,2024-01-15 10:00:01,,,,,,3.50,3.50",
+                new ObjectMapper().readTree(rawDetail).asText());
     }
 
     @Test
