@@ -3177,6 +3177,20 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "6258566d",
+      "report": "docs/PROJECT_KNOWLEDGE.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "生产 trade 多副本部署移除宿主 8080 端口，避免 scale 端口冲突",
+          "files": [
+            "infra/docker-compose.production.yml"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
