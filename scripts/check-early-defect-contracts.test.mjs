@@ -24,7 +24,7 @@ const cases = [
     'MA-424',
     'fundBill',
     (s) =>
-      s.replace(
+      s.replaceAll(
         'return WeChatFundBillCsvParser.parse("", date);',
         'throw new IllegalStateException();'
       )
@@ -66,7 +66,9 @@ const cases = [
   ['MA-445', 'official', (s) => s.replaceAll('maskOpenId(openId)', 'openId')]
 ];
 for (const [id, key, mutate] of cases) {
-  const changed = { ...sources, [key]: mutate(sources[key]) };
+  const mutatedSource = mutate(sources[key]);
+  assert.notEqual(mutatedSource, sources[key], `${id} 负向夹具必须真实改写源码`);
+  const changed = { ...sources, [key]: mutatedSource };
   assert.ok(
     findEarlyDefectViolations(changed).some((problem) => problem.startsWith(id)),
     `${id} 负向夹具必须报错`
