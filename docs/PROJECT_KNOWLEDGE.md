@@ -691,7 +691,7 @@ gross − member − activity − coupon = total      （部分退款单例外�
 ### 2026-11-26（最终 dev 部署与运行态验收）
 
 - **部署**：`6258566d` 的 trade/device/jiangyi/gateway/HAProxy 已重建；两个 trade 副本均使用 `ai-cabinet/trade-service:6258566d397a23424eb4a4803e449856090ffd7e` 且 healthy，宿主 8080 端口冲突已消除。公网 health/admin 均 200，trade 双副本、device、jiangyi 近 30 分钟 ERROR 均为 0。
-- **数据库与资金**：Flyway 高水位 V512、失败迁移 0；`uq_platform_fund_payout_ref` 与 `uq_platform_fund_bill_ref` 已在现网存在。`checkout.preauth_cents=0` 与日结数据保持原状，本轮未修改、未补跑。
+- **数据库与资金**：Flyway 高水位 V512、失败迁移 0；`uq_platform_fund_payout_ref` 与 `uq_platform_fund_bill_ref` 已在现网存在。`checkout.preauth_cents=0` 未改；2026-11-24 日结已于 2026-11-25 17:22 完成（reconId=5、MATCHED、2/0、diff0、手续费 14 分），本轮未重复补跑。
 - **通知**：V508 后已审计开启 `notify.wechat.enabled=true`，`system_config_history` 与 `admin_audit_log` 各 1 行；双端 token/订阅模板此前已验证。`notify.sms.enabled=false`、`notify.async.enabled=false` 未改；真实安全收件人的微信实发仍未验证。
 - **运行态底座**：PostgreSQL 16.16 + 修复版 gosu、EMQX 6.3.3 受信 8883/续期 hook、device-service TLS、MinIO 内网代理隔离、UFW 与异地备份均保持验收状态。
 - **部署来源说明**：断点续跑复用了与 `6258566d` 代码等价的服务器 `727067ee` 源码，并覆盖 `6258566d` 生产 overlay；镜像 tag 与容器均为 `6258566d`。下次从干净 git 归档正常部署会统一源码元数据。
