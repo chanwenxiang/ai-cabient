@@ -23,6 +23,7 @@ mkdirSync(DIR, { recursive: true });
 
 const INV = 'InventoryService.java';
 const LOT = 'InventoryLotService.java';
+const OPS = 'InventoryOpsService.java';
 const REL = (name) => `services/trade-service/src/main/java/com/aicabinet/trade/service/${name}`;
 
 const goodInv = `class InventoryService {
@@ -38,6 +39,18 @@ const goodLot = `class InventoryLotService {
     var lots = lotRepository.findByDeviceIdAndSkuIdOrderByExpiryDateAsc(deviceId, skuId);
     return new FefoDeductResult("B");
   }
+  private void doStocktakeAdjust(String deviceId, String skuId, int countedQuantity, Long operatorId, String refId) {
+    boolean skuHasLot = hasLotForSku(deviceId, skuId);
+    if (!skuHasLot) materializeUntrackedInventory(deviceId, skuId);
+    int current = skuHasLot ? lotRepository.sumSellableQuantity(deviceId, skuId) : 0;
+  }
+}`;
+const goodOps = `class InventoryOpsService {
+  private DeviceSkuInventory doStocktakeAdjust(Long operatorId, StocktakeAdjustRequest request) {
+    int current = lotService.hasLotForSku(request.deviceId(), request.skuId())
+      ? lotService.sellableQuantity(request.deviceId(), request.skuId()) : 0;
+    return null;
+  }
 }`;
 
 const gate = await import(
@@ -46,6 +59,7 @@ const gate = await import(
 
 writeFileSync(join(DIR, INV), goodInv);
 writeFileSync(join(DIR, LOT), goodLot);
+writeFileSync(join(DIR, OPS), goodOps);
 assert.deepEqual(gate.evaluate(BOX), [], '基线应为绿');
 
 // R1：退回设备级判据
@@ -87,6 +101,31 @@ assert.ok(
 // 注释里的旧写法不得造假红
 writeFileSync(join(DIR, INV), `// deviceUsesLotLedger(x)\n${goodInv}`);
 writeFileSync(join(DIR, LOT), goodLot);
+writeFileSync(join(DIR, OPS), goodOps);
 assert.deepEqual(gate.evaluate(BOX), [], '注释遮蔽失败');
 
-console.log('[check-inventory-sku-ledger.test] OK：6 项断言全过（R1/R2/R3 负向）');
+// R4：盘点退回设备级判据
+writeFileSync(
+  join(DIR, OPS),
+  goodOps.replace(
+    'hasLotForSku(request.deviceId(), request.skuId())',
+    'deviceUsesLotLedger(request.deviceId())'
+  )
+);
+assert.ok(
+  gate.evaluate(BOX).some((e) => e.includes('R4')),
+  'R4 未判红'
+);
+
+// R5：盘点不先补建裸库存
+writeFileSync(join(DIR, OPS), goodOps);
+writeFileSync(
+  join(DIR, LOT),
+  goodLot.replace('if (!skuHasLot) materializeUntrackedInventory(deviceId, skuId);', '')
+);
+assert.ok(
+  gate.evaluate(BOX).some((e) => e.includes('R5')),
+  'R5 未判红'
+);
+
+console.log('[check-inventory-sku-ledger.test] OK：8 项断言全过（R1/R2/R3/R4/R5 负向）');

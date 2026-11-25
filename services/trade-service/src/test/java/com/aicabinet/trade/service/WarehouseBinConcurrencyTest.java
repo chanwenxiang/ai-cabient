@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.BinMoveRequest;
+import com.aicabinet.trade.mapper.WarehouseOutboundLineMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.WarehouseBinMapper;
 import com.aicabinet.trade.mapper.WarehouseBinStockMapper;
@@ -26,6 +27,7 @@ class WarehouseBinConcurrencyTest {
     @Mock private WarehouseMapper warehouseRepository;
     @Mock private SkuCatalogMapper skuCatalogRepository;
     @Mock private WarehouseService warehouseService;
+    @Mock private WarehouseOutboundLineMapper outboundLineMapper;
     @Mock private DistributedLockService distributedLockService;
 
     private WarehouseBinService service;
@@ -33,7 +35,8 @@ class WarehouseBinConcurrencyTest {
     @BeforeEach
     void setUp() {
         service = new WarehouseBinService(permissionService, binRepository, binStockRepository,
-                warehouseRepository, skuCatalogRepository, warehouseService, distributedLockService);
+                warehouseRepository, skuCatalogRepository, warehouseService, outboundLineMapper,
+                distributedLockService);
     }
 
     @Test

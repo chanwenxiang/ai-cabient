@@ -37,7 +37,7 @@ public class JiangyiProductStatePollScheduler {
         this.taskService = taskService;
     }
 
-    @Scheduled(fixedRate = 60_000)
+    @Scheduled(fixedRate = 60_000, initialDelay = 30000)
     public void pollReviewingProducts() {
         long start = System.nanoTime();
         if (!taskService.tryBegin(TASK_KEY, 600)) {

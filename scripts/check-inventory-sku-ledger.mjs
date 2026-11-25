@@ -25,6 +25,8 @@ const REL_INV =
   'services/trade-service/src/main/java/com/aicabinet/trade/service/InventoryService.java';
 const REL_LOT =
   'services/trade-service/src/main/java/com/aicabinet/trade/service/InventoryLotService.java';
+const REL_OPS =
+  'services/trade-service/src/main/java/com/aicabinet/trade/service/InventoryOpsService.java';
 
 /** 等长空格遮蔽注释与字符串，避免注释里的旧写法造成假红。 */
 export function maskComments(src) {
@@ -98,16 +100,28 @@ export function evaluate(root = ROOT) {
   const errors = [];
   const invPath = join(root, REL_INV);
   const lotPath = join(root, REL_LOT);
-  for (const p of [invPath, lotPath]) {
+  const opsPath = join(root, REL_OPS);
+  for (const p of [invPath, lotPath, opsPath]) {
     if (!existsSync(p)) return [`缺文件：${relative(root, p)}——扫描面塌了`];
   }
   const inv = maskComments(readFileSync(invPath, 'utf8'));
   const lot = maskComments(readFileSync(lotPath, 'utf8'));
+  const ops = maskComments(readFileSync(opsPath, 'utf8'));
   const deduct = methodBody(inv, 'doDeductForOrder(String deviceId, List<RecognizedItem> items,');
   const fefo = methodBody(lot, 'doDeductFefo(String deviceId, String skuId, int quantity,');
+  const stocktakeOps = methodBody(
+    ops,
+    'doStocktakeAdjust(Long operatorId, StocktakeAdjustRequest request)'
+  );
+  const stocktakeLot = methodBody(
+    lot,
+    'doStocktakeAdjust(String deviceId, String skuId, int countedQuantity,'
+  );
 
   if (!deduct) errors.push('R0 找不到 InventoryService#doDeductForOrder——扫描面塌了');
   if (!fefo) errors.push('R0 找不到 InventoryLotService#doDeductFefo——扫描面塌了');
+  if (!stocktakeOps) errors.push('R0 找不到 InventoryOpsService#doStocktakeAdjust——扫描面塌了');
+  if (!stocktakeLot) errors.push('R0 找不到 InventoryLotService#doStocktakeAdjust——扫描面塌了');
   if (deduct && /deviceUsesLotLedger\s*\(/.test(deduct)) {
     errors.push('R1 扣减又用回设备级 deviceUsesLotLedger( —— 同柜其他 SKU 的裸库存会再次被判 409');
   }
@@ -127,6 +141,20 @@ export function evaluate(root = ROOT) {
     } else if (query >= 0 && materialize > query) {
       errors.push('R3 补建发生在读取批次之后——并发下会把刚补的批次漏掉');
     }
+  }
+  for (const [name, body] of [
+    ['InventoryOpsService', stocktakeOps],
+    ['InventoryLotService', stocktakeLot]
+  ]) {
+    if (body && /deviceUsesLotLedger\s*\(/.test(body)) {
+      errors.push(`R4 ${name} 盘点又用回设备级 deviceUsesLotLedger( —— 混合批次柜会按错 SKU 基准`);
+    }
+    if (body && !/hasLotForSku\s*\(/.test(body)) {
+      errors.push(`R4 ${name} 盘点没有按柜+SKU 判批次 hasLotForSku( —— 裸库存会被误读成 0`);
+    }
+  }
+  if (stocktakeLot && !/materializeUntrackedInventory\s*\(/.test(stocktakeLot)) {
+    errors.push('R5 盘点没有先补建裸库存批次——无批次 SKU 的减盘会无法扣减');
   }
   return errors;
 }

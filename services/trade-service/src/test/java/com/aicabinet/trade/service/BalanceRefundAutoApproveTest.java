@@ -156,7 +156,7 @@ class BalanceRefundAutoApproveTest {
         when(systemConfigService.getInt(AUTO_KEY, 0)).thenReturn(10_000);
         stubApplicantFunds();
         stubPersistedRequest();
-        doReturn("RF-MOCK").when(paymentService)
+        doReturn(new PaymentService.ChannelRefundResult("RF-MOCK", "SUCCESS")).when(paymentService)
                 .refundRechargeChannelPartial(anyString(), anyInt(), anyString(), anyString());
 
         BalanceRefundRequestDto dto = service.apply(USER_ID, 600, "不想要了");
@@ -179,7 +179,7 @@ class BalanceRefundAutoApproveTest {
         when(systemConfigService.getInt(AUTO_KEY, 0)).thenReturn(600);
         stubApplicantFunds();
         stubPersistedRequest();
-        doReturn("RF-MOCK").when(paymentService)
+        doReturn(new PaymentService.ChannelRefundResult("RF-MOCK", "SUCCESS")).when(paymentService)
                 .refundRechargeChannelPartial(anyString(), anyInt(), anyString(), anyString());
 
         assertEquals("REFUNDED", service.apply(USER_ID, 600, "边界").status());
@@ -235,6 +235,20 @@ class BalanceRefundAutoApproveTest {
         verify(accountMapper, never()).save(any());
         verify(balanceLedgerService, never()).recordFreezeOnly(anyLong(), any());
         verify(approvalWorkflowService, never()).start(anyString(), anyString(), any(), anyString());
+    }
+
+    @Test
+    void apply_replayPrecedesChangedDynamicLimits() {
+        when(systemConfigService.getInt(AUTO_KEY, 0)).thenReturn(0);
+        when(systemConfigService.getBalanceRefundMinCents()).thenReturn(1000);
+        BalanceRefundRequest existing = pending();
+        when(requestMapper.findByUserIdAndIdemKey(USER_ID, "intent-1")).thenReturn(existing);
+
+        BalanceRefundRequestDto dto = service.apply(USER_ID, 600, "限额调整后重放", "intent-1");
+
+        assertEquals(Long.valueOf(REQ_ID), dto.requestId());
+        verify(systemConfigService, never()).getPositiveLimit(anyString(), anyInt());
+        verify(requestMapper, never()).insert(any(BalanceRefundRequest.class));
     }
 
     /** 无键（老客户端）行为不变：仍走新建 + 审批实例，不做幂等查询。 */

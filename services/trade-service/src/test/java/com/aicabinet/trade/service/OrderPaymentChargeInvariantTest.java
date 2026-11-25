@@ -39,6 +39,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
@@ -133,6 +134,7 @@ class OrderPaymentChargeInvariantTest {
 
         // 锁与订单/会话/用户
         lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
+        lenient().when(payScoreService.resolveChargeChannel(any(), any())).thenReturn(PayChannels.BALANCE);
         lenient().when(userInfoRepository.findById(USER_ID)).thenReturn(Optional.of(new UserInfo()));
         lenient().when(sessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(session()));
         lenient().when(cabinetOrderRepository.findByIdForUpdate(ORDER_ID)).thenReturn(Optional.of(order()));
@@ -240,6 +242,7 @@ class OrderPaymentChargeInvariantTest {
         user.setPayscoreEnabled(true);
         user.setPayscoreContractId("PS-CONTRACT");
         when(userInfoRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(payScoreService.resolveChargeChannel(any(), eq(PayChannels.WECHAT))).thenReturn(PayChannels.WECHAT);
         OrderPaymentService s = buildService(false);
 
         // 严格入口：只在扫码入口渠道上有合约时才走渠道腿；无入口一律余额（不跨渠道回落）

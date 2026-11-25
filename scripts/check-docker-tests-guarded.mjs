@@ -378,6 +378,15 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/service/StartupStateSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
+        '真 PG 从空库执行 Flyway 后核启动状态 SQL 约束，避免仅单测/编译通过'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/BalanceRefundResumeDebitSqlIT.java',
     {
       job: 'integration',
@@ -518,6 +527,33 @@ const GUARDED = new Map([
         'A 集双扫注解与编程式检查（ops:audit:recent 非注解用法是既有反例）+ C 集前端引用 ⇒ ' +
         'B∖(A∪C)/A∖ALL/C∖ALL/C∩非ACTIVE 全 0；含插入假幽灵码的负向自测（必须报出再回滚），' +
         '防查询写错时门禁恒真绿'
+    }
+  ],
+  [
+    'services/trade-service/src/test/java/com/aicabinet/trade/service/StartupStateSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；MA-422/460/442 的真库回归：通知 FAILED 约束、' +
+        '双实例空库字典种子 advisory lock、同意日志 SQL 失败不穿代理、平台资金 PAYOUT 唯一索引'
+    }
+  ],
+  [
+    'services/trade-service/src/test/java/com/aicabinet/trade/service/WarehouseMonthlyCloseSheetConcurrencyIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；MA-452 真 PG 并发实证仓+月 advisory xact lock 与月结行锁：' +
+        '双 ensureDraft 只建一单、approve/edit 竞态不把 APPROVED 写回 DRAFT、regenerate/approve 不删已审批单'
+    }
+  ],
+  [
+    'services/trade-service/src/test/java/com/aicabinet/trade/service/ProcurementReceiveAllocationSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；MA-451 真 PG 钉 V510 唯一 sku+batch 历史流水回填、歧义跳过、' +
+        '退货按原仓批分配与空分配 409 fail-closed'
     }
   ]
 ]);

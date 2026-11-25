@@ -53,9 +53,43 @@ class PaymentServiceTest {
     private PaymentService paymentService;
     private WeChatPayProperties weChatPayProperties;
     private SecurityProperties securityProperties;
+    private final java.util.List<PaymentOperation> savedOperations = new java.util.ArrayList<>();
 
     @BeforeEach
     void setUp() {
+        savedOperations.clear();
+        lenient().doAnswer(invocation -> {
+            PaymentOperation operation = invocation.getArgument(0);
+            savedOperations.add(operation);
+            return 1;
+        }).when(paymentOperationRepository).save(any(PaymentOperation.class));
+        lenient().when(paymentOperationRepository.findByIdempotencyKey(anyString()))
+                .thenAnswer(invocation -> savedOperations.stream()
+                        .filter(operation -> invocation.getArgument(0).equals(operation.getIdempotencyKey()))
+                        .reduce((first, second) -> second));
+        lenient().when(paymentOperationRepository.findByIdempotencyKeyForUpdate(anyString()))
+                .thenAnswer(invocation -> savedOperations.stream()
+                        .filter(operation -> invocation.getArgument(0).equals(operation.getIdempotencyKey()))
+                        .reduce((first, second) -> second));
+        lenient().when(paymentOperationRepository.updateRefundContextJson(anyString(), anyString(), anyString(), anyString()))
+                .thenAnswer(invocation -> {
+                    savedOperations.stream()
+                            .filter(operation -> invocation.getArgument(0).equals(operation.getOperationId()))
+                            .reduce((first, second) -> second)
+                            .ifPresent(operation -> operation.setRefundContextJson(invocation.getArgument(3)));
+                    return 1;
+                });
+        lenient().when(paymentOperationRepository.finishProcessingRefund(anyString(), anyString(), anyString(), anyString()))
+                .thenAnswer(invocation -> {
+                    savedOperations.stream()
+                            .filter(operation -> invocation.getArgument(0).equals(operation.getOperationId()))
+                            .reduce((first, second) -> second)
+                            .ifPresent(operation -> {
+                                operation.setStatus(invocation.getArgument(3));
+                                operation.setReason(invocation.getArgument(2));
+                            });
+                    return 1;
+                });
         weChatPayProperties = new WeChatPayProperties(
                 false, "", "", "", "", "", "", "", true);
         securityProperties = new SecurityProperties(true);
@@ -184,7 +218,6 @@ class PaymentServiceTest {
 
         when(rechargeOrderRepository.findByIdForUpdate("R002")).thenReturn(Optional.of(order));
         when(userAccountRepository.findByIdForUpdate(10001L)).thenReturn(Optional.of(account));
-        when(paymentOperationRepository.findByIdempotencyKey(anyString())).thenReturn(Optional.empty());
         PaymentOperation operation = new PaymentOperation();
         operation.setOperationId("BL-REFUND");
         when(balanceLedgerService.change(10001L, -500, "RECHARGE_REFUND", "R002",
@@ -223,7 +256,6 @@ class PaymentServiceTest {
 
         when(rechargeOrderRepository.findByIdForUpdate("R010")).thenReturn(Optional.of(order));
         when(userAccountRepository.findByIdForUpdate(10001L)).thenReturn(Optional.of(account));
-        when(paymentOperationRepository.findByIdempotencyKey(anyString())).thenReturn(Optional.empty());
         when(paymentOperationRepository.findByIdempotencyKey("recharge-bonus:R010"))
                 .thenReturn(Optional.of(bonusOp));
 
@@ -261,7 +293,6 @@ class PaymentServiceTest {
 
         when(rechargeOrderRepository.findByIdForUpdate("R-PART")).thenReturn(Optional.of(order));
         when(userAccountRepository.findByIdForUpdate(10001L)).thenReturn(Optional.of(account));
-        when(paymentOperationRepository.findByIdempotencyKey(anyString())).thenReturn(Optional.empty());
         PaymentOperation op = new PaymentOperation();
         op.setOperationId("BL-REFUND-R-PART");
         when(balanceLedgerService.change(any(), anyInt(), anyString(), anyString(), anyString(), anyString()))
@@ -445,7 +476,6 @@ class PaymentServiceTest {
         order.setChannel("WECHAT");
         order.setWxTransactionId(null);
         when(rechargeOrderRepository.findByIdForUpdate("R-WX-BF")).thenReturn(Optional.of(order));
-        when(paymentOperationRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
         when(paymentOperationRepository.findRechargeCreditGatewayTradeNo("R-WX-BF"))
                 .thenReturn(Optional.of("WX-RECHARGE-TXN"));
 
@@ -454,6 +484,94 @@ class PaymentServiceTest {
         assertEquals("WX-RECHARGE-TXN", order.getWxTransactionId());
         verify(rechargeOrderRepository, atLeastOnce()).save(order);
         verify(weChatPayClient).createRefund(eq("R-WX-BF"), anyString(), eq(200), eq(500), eq("test"));
+    }
+
+    @Test
+    void refundRecharge_timeoutThenProcessing_doesNotCompensateDebit() {
+        useConfiguredWeChatPay();
+        RechargeOrder order = paidOrder("R-WX-TIMEOUT", 10001L, 500);
+        order.setChannel("WECHAT");
+        order.setWxTransactionId("WX-TXN-TIMEOUT");
+        UserAccount account = new UserAccount();
+        account.setUserId(10001L);
+        account.setBalanceCents(1000);
+        when(rechargeOrderRepository.findByIdForUpdate("R-WX-TIMEOUT")).thenReturn(Optional.of(order));
+        when(rechargeOrderRepository.findById("R-WX-TIMEOUT")).thenReturn(Optional.of(order));
+        when(userAccountRepository.findByIdForUpdate(10001L)).thenReturn(Optional.of(account));
+        when(balanceLedgerService.change(eq(10001L), eq(-500), eq("RECHARGE_REFUND"), eq("R-WX-TIMEOUT"),
+                anyString(), anyString())).thenReturn(new PaymentOperation());
+        when(weChatPayClient.createRefund(anyString(), anyString(), anyInt(), anyInt(), anyString()))
+                .thenThrow(new RuntimeException("read timeout"));
+        com.aicabinet.trade.payment.WeChatPayV3Client v3 = mock(com.aicabinet.trade.payment.WeChatPayV3Client.class);
+        when(weChatPayClient.v3()).thenReturn(v3);
+        ObjectNode processing = new ObjectMapper().createObjectNode();
+        processing.put("status", "PROCESSING");
+        when(v3.queryRefund("R-WX-TIMEOUT", PaymentService.fullRefundNo(order))).thenReturn(processing);
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> paymentService.refundRecharge("R-WX-TIMEOUT", "timeout refund"));
+
+        assertEquals(HttpStatus.CONFLICT, error.getStatusCode());
+        verify(balanceLedgerService, never()).change(eq(10001L), eq(500), eq("RECHARGE_REFUND_COMPENSATE"),
+                anyString(), anyString(), anyString());
+        assertEquals(0, order.getRefundedCents());
+    }
+
+    @Test
+    void confirmRechargeChannelRefund_repeatedSuccess_finalizesAmountOnlyOnce() {
+        RechargeOrder order = paidOrder("R-WX-IDEMPOTENT", 10001L, 500);
+        order.setChannel("WECHAT");
+        RefundResumeService.RechargeRefundContext context = RefundResumeService.rechargeContext(
+                "R-WX-IDEMPOTENT", "RF-WX-IDEMPOTENT", 200, 0, false, "refund");
+        PaymentOperation pending = new PaymentOperation();
+        pending.setOperationId("OP-WX-IDEMPOTENT");
+        pending.setOperationType("RECHARGE_REFUND");
+        pending.setStatus("COMPLETED");
+        pending.setAmountCents(200);
+        pending.setIdempotencyKey("RECHARGE-REFUND:R-WX-IDEMPOTENT:200:RF-WX-IDEMPOTENT");
+        pending.setRefundContextJson(RefundResumeService.rechargeContextJson(context));
+        PaymentOperation finalized = new PaymentOperation();
+        finalized.setOperationId(pending.getOperationId());
+        finalized.setOperationType("RECHARGE_REFUND");
+        finalized.setStatus("COMPLETED");
+        finalized.setAmountCents(200);
+        finalized.setIdempotencyKey(pending.getIdempotencyKey());
+        finalized.setRefundContextJson(RefundResumeService.rechargeContextJson(
+                RefundResumeService.withRechargeLocalStatus(context, "CHANNEL_FINALIZED")));
+        when(rechargeOrderRepository.findByIdForUpdate("R-WX-IDEMPOTENT")).thenReturn(Optional.of(order));
+        when(paymentOperationRepository.findByIdempotencyKeyForUpdate(pending.getIdempotencyKey()))
+                .thenReturn(Optional.of(pending), Optional.of(finalized));
+        when(paymentOperationRepository.updateRefundContextJson(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(1);
+
+        assertTrue(paymentService.confirmRechargeChannelRefund(
+                "R-WX-IDEMPOTENT", pending, "SUCCESS", "refund [refund:SUCCESS]"));
+        assertTrue(paymentService.confirmRechargeChannelRefund(
+                "R-WX-IDEMPOTENT", finalized, "SUCCESS", "refund [refund:SUCCESS]"));
+
+        assertEquals(200, order.getRefundedCents());
+        verify(rechargeOrderRepository, times(1)).save(order);
+    }
+
+    @Test
+    void refundRechargeChannelPartial_processingDoesNotFinalizeRecharge() {
+        useConfiguredWeChatPay();
+        RechargeOrder order = paidOrder("R-WX-PROCESSING", 10001L, 500);
+        order.setChannel("WECHAT");
+        order.setWxTransactionId("WX-TXN-PROCESSING");
+        when(rechargeOrderRepository.findByIdForUpdate("R-WX-PROCESSING")).thenReturn(Optional.of(order));
+        ObjectNode response = new ObjectMapper().createObjectNode();
+        response.put("status", "PROCESSING");
+        when(weChatPayClient.createRefund(anyString(), anyString(), anyInt(), anyInt(), anyString()))
+                .thenReturn(response);
+
+        PaymentService.ChannelRefundResult result = paymentService.refundRechargeChannelPartial(
+                "R-WX-PROCESSING", 200, "test", "RF-TEST-PROCESSING");
+
+        assertEquals("PROCESSING", result.status());
+        assertEquals(0, order.getRefundedCents());
+        verify(rechargeOrderRepository, never()).save(order);
+        verify(paymentOperationRepository).save(any(PaymentOperation.class));
     }
 
     @Test
@@ -472,7 +590,6 @@ class PaymentServiceTest {
         order.setChannel("ALIPAY");
         order.setAlipayTradeNo(null);
         when(rechargeOrderRepository.findByIdForUpdate("R-ALI-BF")).thenReturn(Optional.of(order));
-        when(paymentOperationRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
         when(paymentOperationRepository.findRechargeCreditGatewayTradeNo("R-ALI-BF"))
                 .thenReturn(Optional.empty());
         ObjectNode remote = new ObjectMapper().createObjectNode();

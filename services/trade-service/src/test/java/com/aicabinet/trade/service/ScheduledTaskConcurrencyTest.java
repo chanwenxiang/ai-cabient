@@ -26,7 +26,7 @@ class ScheduledTaskConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        service = new ScheduledTaskService(taskRepository, registry, lockService, auditService, false);
+        service = new ScheduledTaskService(taskRepository, registry, lockService, auditService, null, false);
     }
 
     @Test

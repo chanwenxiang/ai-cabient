@@ -28,10 +28,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -139,6 +141,40 @@ class OrderPaymentRefundRetryTraceTest {
     }
 
     @Test
+    void retry_wechatQuerySuccess_restoresContextAndResumesDownstream() {
+        PaymentOperation trace = trace("O-RT-CONTEXT", "rk-context", "WECHAT");
+        RefundResumeService.OrderRefundContext context = RefundResumeService.fullContext(
+                "O-RT-CONTEXT", true, 800, "原退款");
+        trace.setRefundContextJson(RefundResumeService.orderContextJson(context));
+        RefundResumeService refundResumeService = mock(RefundResumeService.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "refundResumeService", refundResumeService);
+        when(weChatPayClient.v3()).thenReturn(weChatPayV3Client);
+        when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
+        PaymentOperation completed = new PaymentOperation();
+        completed.setOperationId("OP-CONTEXT-COMPLETED");
+        completed.setOrderId("O-RT-CONTEXT");
+        completed.setOperationType("REFUND");
+        completed.setStatus("COMPLETED");
+        completed.setIdempotencyKey("rk-context");
+        completed.setRefundContextJson(trace.getRefundContextJson());
+        when(paymentOperationRepository.findByIdempotencyKey("rk-context"))
+                .thenReturn(Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(completed));
+        when(paymentOperationRepository.findByIdempotencyKey("REFUND:INIT:rk-context")).thenReturn(Optional.empty());
+        when(cabinetOrderRepository.selectById("O-RT-CONTEXT")).thenReturn(order("O-RT-CONTEXT"));
+        when(paymentOperationRepository.findCompletedPaymentOpsByOrderId(anyString()))
+                .thenReturn(Collections.emptyList());
+        when(weChatPayV3Client.queryRefund(eq("O-RT-CONTEXT"), anyString())).thenReturn(json("SUCCESS"));
+        when(cabinetOrderRepository.findByIdForUpdate("O-RT-CONTEXT")).thenReturn(Optional.of(order("O-RT-CONTEXT")));
+
+        assertTrue(service.retryFromInitiatedTrace(trace));
+
+        ArgumentCaptor<PaymentOperation> saved = ArgumentCaptor.forClass(PaymentOperation.class);
+        verify(paymentOperationRepository).save(saved.capture());
+        assertEquals(trace.getRefundContextJson(), saved.getValue().getRefundContextJson());
+        verify(refundResumeService).resumeOrderRefund(any(PaymentOperation.class));
+    }
+
+    @Test
     void retry_wechatQueryAbnormal_doesNotResubmit() {
         PaymentOperation t = trace("O-RT-2", "rk2", "WECHAT");
         when(weChatPayClient.v3()).thenReturn(weChatPayV3Client);
@@ -236,6 +272,100 @@ class OrderPaymentRefundRetryTraceTest {
         assertEquals("REFUND", saved.getValue().getOperationType());
         assertEquals(0, o.getRefundedCents(), "已退金额不得累加——钱没退成功");
         verify(cabinetOrderRepository, never()).updateById(any());
+    }
+
+    @Test
+    void finalize_processingStatus_doesNotAdvanceLocalRefundOrDownstream() {
+        CabinetOrder o = order("O-PROC-1");
+        when(cabinetOrderRepository.findByIdForUpdate("O-PROC-1")).thenReturn(Optional.of(o));
+        when(paymentOperationRepository.findByIdempotencyKey("rk-proc")).thenReturn(Optional.empty());
+
+        OrderPaymentService.OrderRefundPrep prep = new OrderPaymentService.OrderRefundPrep(
+                "O-PROC-1", 10001L, 800, 800, "退款", "rk-proc", "WECHAT", "PT-O-PROC-1", 800, false, true);
+
+        assertFalse(service.finalizeLiveOrderRefund(prep, "PROCESSING"));
+        ArgumentCaptor<PaymentOperation> saved = ArgumentCaptor.forClass(PaymentOperation.class);
+        verify(paymentOperationRepository).save(saved.capture());
+        assertEquals("REFUND_PROCESSING", saved.getValue().getStatus());
+        assertEquals(0, o.getRefundedCents());
+        verify(cabinetOrderRepository, never()).updateById(any());
+        verify(memberService, never()).clawbackPointsOnRefund(anyLong(), anyInt(), anyString(), anyString());
+    }
+
+    @Test
+    void confirmProcessing_successAdvancesLocalRefundExactlyOnce() {
+        CabinetOrder o = order("O-PROC-2");
+        PaymentOperation pending = new PaymentOperation();
+        pending.setOperationId("OP-PROC-2");
+        pending.setOrderId("O-PROC-2");
+        pending.setUserId(10001L);
+        pending.setOperationType("REFUND");
+        pending.setAmountCents(800);
+        pending.setChannel("WECHAT");
+        pending.setStatus("REFUND_PROCESSING");
+        pending.setIdempotencyKey("rk-proc-2");
+        pending.setGatewayTradeNo("00123456780098765432");
+        pending.setReason("退款 [refund:PROCESSING]");
+        when(paymentOperationRepository.finishProcessingRefund(
+                "OP-PROC-2", "退款 [refund:PROCESSING]", "退款 [refund:SUCCESS]", "COMPLETED"))
+                .thenReturn(1);
+        when(cabinetOrderRepository.findByIdForUpdate("O-PROC-2")).thenReturn(Optional.of(o));
+        when(paymentOperationRepository.findByIdempotencyKey("rk-proc-2:BALANCE"))
+                .thenReturn(Optional.empty());
+
+        assertTrue(service.confirmProcessingOrderRefund(pending));
+        assertEquals(800, o.getRefundedCents());
+        verify(memberService).clawbackPointsOnRefund(10001L, 800, "O-PROC-2", "rk-proc-2");
+    }
+
+    @Test
+    void repeatedProcessing_touchesSameRowConditionallyWithoutAdvancingRefund() {
+        CabinetOrder o = order("O-PROC-4");
+        PaymentOperation pending = new PaymentOperation();
+        pending.setOperationId("OP-PROC-4");
+        pending.setOrderId("O-PROC-4");
+        pending.setStatus("REFUND_PROCESSING");
+        pending.setIdempotencyKey("rk-proc-4");
+        pending.setReason("退款 [refund:PROCESSING]");
+        when(cabinetOrderRepository.findByIdForUpdate("O-PROC-4")).thenReturn(Optional.of(o));
+        when(paymentOperationRepository.findByIdempotencyKey("rk-proc-4"))
+                .thenReturn(Optional.of(pending));
+        OrderPaymentService.OrderRefundPrep prep = new OrderPaymentService.OrderRefundPrep(
+                "O-PROC-4", 10001L, 800, 800, "退款", "rk-proc-4", "WECHAT", "PT-O-PROC-4", 800, false, true);
+
+        assertFalse(service.finalizeLiveOrderRefund(prep, "PROCESSING"));
+
+        verify(paymentOperationRepository).touchProcessingRefund(
+                "OP-PROC-4", "退款 [refund:PROCESSING]", "退款 [refund:PROCESSING]");
+        assertEquals(0, o.getRefundedCents());
+        verify(cabinetOrderRepository, never()).updateById(any());
+    }
+
+    @Test
+    void retryAfterProcessing_successPromotesSameOperationWithoutDoubleRefund() {
+        CabinetOrder o = order("O-PROC-3");
+        PaymentOperation pending = new PaymentOperation();
+        pending.setOperationId("OP-PROC-3");
+        pending.setOrderId("O-PROC-3");
+        pending.setStatus("REFUND_PROCESSING");
+        pending.setIdempotencyKey("rk-proc-3");
+        pending.setReason("退款 [refund:PROCESSING]");
+        when(cabinetOrderRepository.findByIdForUpdate("O-PROC-3")).thenReturn(Optional.of(o));
+        when(paymentOperationRepository.findByIdempotencyKey("rk-proc-3"))
+                .thenReturn(Optional.of(pending));
+        when(paymentOperationRepository.finishProcessingRefund(
+                "OP-PROC-3", "退款 [refund:PROCESSING]", "退款 [refund:SUCCESS]", "COMPLETED"))
+                .thenReturn(1);
+        OrderPaymentService.OrderRefundPrep prep = new OrderPaymentService.OrderRefundPrep(
+                "O-PROC-3", 10001L, 800, 800, "退款", "rk-proc-3", "WECHAT", "PT-O-PROC-3", 800, false, true);
+
+        assertTrue(service.finalizeLiveOrderRefund(prep, "SUCCESS"));
+        pending.setStatus("COMPLETED");
+        assertTrue(service.finalizeLiveOrderRefund(prep, "SUCCESS"));
+
+        assertEquals(800, o.getRefundedCents());
+        verify(cabinetOrderRepository).updateById(o);
+        verify(paymentOperationRepository, never()).save(any(PaymentOperation.class));
     }
 
     @Test

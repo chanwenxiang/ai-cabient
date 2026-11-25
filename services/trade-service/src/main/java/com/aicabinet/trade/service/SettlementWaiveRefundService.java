@@ -83,10 +83,17 @@ public class SettlementWaiveRefundService {
             if (prep == null) {
                 return 0;
             }
-            if (prep.refundCents() > 0) {
-                orderPaymentService.refundOrder(prep.order(), prep.refundCents(), prep.reason());
+            RefundResumeService.OrderRefundContext context = RefundResumeService.fullContext(
+                    prep.order().getOrderId(), restoreInventory, prep.refundCents(), prep.reason());
+            if (prep.refundCents() > 0
+                    && !orderPaymentService.refundOrder(prep.order(), prep.refundCents(), prep.reason(),
+                    null, context)) {
+                throw new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.CONFLICT, "退款尚未确认，请稍后重试");
             }
-            return self.finalizeWaiveRefund(prep);
+            int refunded = self.finalizeWaiveRefund(prep);
+            orderPaymentService.markRefundContextDone(prep.order().getOrderId(), context.resumeToken());
+            return refunded;
         });
     }
 

@@ -32,6 +32,7 @@
       "authMode": "SIGNATURE_BYPASS",
       "whitelist": "trade",
       "signature": "v3 验签链（CB-064）",
+      "nonceReleaseRequired": true,
       "outcome": "支付分授权/订单事件（只进不退 R20-P2-5）"
     },
     {

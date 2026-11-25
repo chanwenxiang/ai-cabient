@@ -60,6 +60,13 @@
       "why": "网关 trade-no 内部查询（订单查单号提取，非用户面）"
     },
     {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/mapper/PaymentOperationMapper.java",
+      "limit": "50",
+      "count": 1,
+      "cls": "BATCH",
+      "why": "微信 PROCESSING 退款查单调度单批（WeChatRefundReconciler 内部消费）"
+    },
+    {
       "file": "services/trade-service/src/main/java/com/aicabinet/trade/mapper/WalletLedgerMapper.java",
       "limit": "200",
       "count": 1,

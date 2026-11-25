@@ -143,4 +143,28 @@ const CTRL = (rel) => readFileSync(resolve(ROOT, rel), 'utf8');
   );
 }
 
+// 8) 支付分回调处理失败不归还 nonce ⇒ 红
+{
+  const mappings = REGISTRY.entries.map((e) => ({
+    path: e.path,
+    file: e.controller,
+    method: 'POST'
+  }));
+  const p = evaluate(
+    mappings,
+    REGISTRY,
+    TRADE_WEB,
+    GATEWAY_WEB,
+    () => true,
+    (rel) =>
+      rel.endsWith('PayScoreNotifyController.java')
+        ? CTRL(rel).replace('notifyService.releaseNonce(nonce);', '')
+        : CTRL(rel)
+  );
+  assert(
+    p.some((x) => x.includes('payscore/notify') && x.includes('nonce 未归还')),
+    `支付分 nonce 不归还须红：${p.join('|')}`
+  );
+}
+
 console.log(`${TAG} OK：${checks} 项断言全过`);

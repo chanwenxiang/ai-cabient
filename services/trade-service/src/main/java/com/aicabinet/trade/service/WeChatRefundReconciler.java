@@ -3,7 +3,6 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.domain.PaymentOperation;
 import com.aicabinet.trade.mapper.PaymentOperationMapper;
 import com.aicabinet.trade.payment.WeChatPayClient;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,13 +30,39 @@ public class WeChatRefundReconciler {
     private final PaymentOperationMapper paymentOperationMapper;
     private final WeChatPayClient weChatPayClient;
     private final OpsAlertDispatcher opsAlertDispatcher;
+    private final OrderPaymentService orderPaymentService;
+    private final PaymentService paymentService;
+    private final BalanceRefundService balanceRefundService;
+    private final RefundResumeService refundResumeService;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public WeChatRefundReconciler(PaymentOperationMapper paymentOperationMapper,
                                   WeChatPayClient weChatPayClient,
-                                  OpsAlertDispatcher opsAlertDispatcher) {
+                                  OpsAlertDispatcher opsAlertDispatcher,
+                                  OrderPaymentService orderPaymentService,
+                                  PaymentService paymentService,
+                                  BalanceRefundService balanceRefundService,
+                                  RefundResumeService refundResumeService) {
         this.paymentOperationMapper = paymentOperationMapper;
         this.weChatPayClient = weChatPayClient;
         this.opsAlertDispatcher = opsAlertDispatcher;
+        this.orderPaymentService = orderPaymentService;
+        this.paymentService = paymentService;
+        this.balanceRefundService = balanceRefundService;
+        this.refundResumeService = refundResumeService;
+    }
+
+    public WeChatRefundReconciler(PaymentOperationMapper paymentOperationMapper,
+                                  WeChatPayClient weChatPayClient,
+                                  OpsAlertDispatcher opsAlertDispatcher,
+                                  OrderPaymentService orderPaymentService) {
+        this.paymentOperationMapper = paymentOperationMapper;
+        this.weChatPayClient = weChatPayClient;
+        this.opsAlertDispatcher = opsAlertDispatcher;
+        this.orderPaymentService = orderPaymentService;
+        this.paymentService = null;
+        this.balanceRefundService = null;
+        this.refundResumeService = null;
     }
 
     /** @return 推进的退款笔数 */
@@ -45,14 +70,7 @@ public class WeChatRefundReconciler {
         if (!isWeChatConfigured()) {
             return 0;
         }
-        List<PaymentOperation> pending = paymentOperationMapper.selectList(
-                Wrappers.<PaymentOperation>lambdaQuery()
-                        .eq(PaymentOperation::getStatus, "COMPLETED")
-                        .eq(PaymentOperation::getChannel, "WECHAT")
-                        .like(PaymentOperation::getReason, PROCESSING_MARKER)
-                        .isNotNull(PaymentOperation::getGatewayTradeNo)
-                        .ne(PaymentOperation::getGatewayTradeNo, "")
-                        .last("LIMIT 50"));
+        List<PaymentOperation> pending = paymentOperationMapper.findWechatRefundsAwaitingConfirmation();
         int advanced = 0;
         for (PaymentOperation op : pending) {
             String outTradeNo = resolveOutTradeNo(op);
@@ -67,14 +85,63 @@ public class WeChatRefundReconciler {
                 if (status.isBlank() || "PROCESSING".equalsIgnoreCase(status)) {
                     continue;
                 }
-                op.setReason(op.getReason().replace(PROCESSING_MARKER, "[refund:" + status + "]"));
-                paymentOperationMapper.updateById(op);
-                advanced++;
+                String nextReason = op.getReason().replace(PROCESSING_MARKER, "[refund:" + status + "]");
+                if ("REFUND_PROCESSING".equals(op.getStatus())) {
+                    if ("SUCCESS".equalsIgnoreCase(status)) {
+                        if (op.getOrderId() != null) {
+                            if (orderPaymentService.confirmProcessingOrderRefund(op)) {
+                                advanced++;
+                            }
+                        } else if (advanceRechargeRefund(op, status, nextReason)) {
+                            advanced++;
+                        }
+                    } else if ("ABNORMAL".equalsIgnoreCase(status)) {
+                        if (op.getOrderId() != null) {
+                            int changed = paymentOperationMapper.finishProcessingRefund(
+                                    op.getOperationId(), op.getReason(), nextReason, "REFUND_FAILED");
+                            if (changed > 0) {
+                                advanced++;
+                            }
+                        } else if (advanceRechargeRefund(op, status, nextReason)) {
+                            advanced++;
+                        }
+                    }
+                } else if ("COMPLETED".equals(op.getStatus()) && "ABNORMAL".equalsIgnoreCase(status)) {
+                    if (refundResumeService != null) {
+                        refundResumeService.recordLegacyAbnormalTrace(op);
+                    } else {
+                        op.setReason(nextReason);
+                        paymentOperationMapper.updateById(op);
+                    }
+                    advanced++;
+                } else if ("COMPLETED".equals(op.getStatus()) && "SUCCESS".equalsIgnoreCase(status)
+                        && op.getOrderId() == null) {
+                    if (advanceRechargeRefund(op, status, nextReason)) {
+                        advanced++;
+                    }
+                } else if ("REFUND_FAILED".equals(op.getStatus()) && "ABNORMAL".equalsIgnoreCase(status)
+                        && op.getOrderId() == null) {
+                    if (advanceRechargeRefund(op, status, nextReason)) {
+                        advanced++;
+                    }
+                } else if ("COMPLETED".equals(op.getStatus()) && "SUCCESS".equalsIgnoreCase(status)
+                        && op.getOrderId() != null) {
+                    orderPaymentService.resumeCompletedOrderRefund(op.getIdempotencyKey());
+                    advanced++;
+                } else {
+                    op.setReason(nextReason);
+                    paymentOperationMapper.updateById(op);
+                    advanced++;
+                }
                 if ("ABNORMAL".equalsIgnoreCase(status)) {
                     log.error("wechat refund abnormal confirmed opId={} outRefundNo={}",
                             op.getOperationId(), op.getGatewayTradeNo());
-                    opsAlertDispatcher.send("WECHAT_REFUND_ABNORMAL", "微信退款异常（对账确认）",
-                            "opId=" + op.getOperationId() + " outRefundNo=" + op.getGatewayTradeNo() + " 需人工介入");
+                    boolean legacyLocalRefund = "COMPLETED".equals(op.getStatus());
+                    opsAlertDispatcher.send(legacyLocalRefund
+                                    ? "WECHAT_REFUND_ABNORMAL_LEGACY_LOCAL_REVIEW" : "WECHAT_REFUND_ABNORMAL",
+                            "微信退款异常（对账确认）",
+                            "opId=" + op.getOperationId() + " outRefundNo=" + op.getGatewayTradeNo()
+                                    + (legacyLocalRefund ? " 存量本地已退，须人工核对券/分账/订单冲正" : " 本地未记已退"));
                 } else {
                     log.info("wechat refund advanced opId={} status={}", op.getOperationId(), status);
                 }
@@ -83,6 +150,23 @@ public class WeChatRefundReconciler {
             }
         }
         return advanced;
+    }
+
+    private boolean advanceRechargeRefund(PaymentOperation op, String status, String nextReason) {
+        if (paymentService == null || !paymentService.confirmRechargeChannelRefund(
+                resolveOutTradeNo(op), op, status, nextReason)) {
+            return false;
+        }
+        boolean success = "SUCCESS".equalsIgnoreCase(status);
+        if (balanceRefundService != null && balanceRefundService.hasChannelSlice(op.getGatewayTradeNo())) {
+            if (success) {
+                balanceRefundService.confirmChannelSliceSuccess(op.getGatewayTradeNo());
+            } else {
+                balanceRefundService.failChannelSlice(op.getGatewayTradeNo(), nextReason);
+            }
+        }
+        paymentService.markRechargeRefundContextDone(op);
+        return true;
     }
 
     private boolean isWeChatConfigured() {

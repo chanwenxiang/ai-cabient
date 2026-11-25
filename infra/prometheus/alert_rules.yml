@@ -267,6 +267,21 @@ groups:
           summary: "定时任务执行失败"
           description: "{{ $labels.code_namespace }}#{{ $labels.code_function }} 近 1 小时执行失败（{{ $labels.error }}）"
 
+      - alert: ScheduledTaskRecordedFailure
+        # 任务体 catch 后只 finish(FAILED) 不重抛时，Micrometer 的 outcome 仍是 SUCCESS；
+        # 这里消费 ScheduledTaskService 显式写入的失败计数，覆盖对账等吞异常任务。
+        expr: sum by (task_key) (
+                increase(aicabinet_scheduled_task_failures_total[1h])
+              ) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: backend
+          biz: scheduler
+        annotations:
+          summary: "托管定时任务记录失败"
+          description: "{{ $labels.task_key }} 近 1 小时有执行失败记录，请查 scheduled_task.last_message"
+
       - alert: ScheduledTaskStale
         # 判据来自 ScheduledTaskStaleMonitor：以 scheduled_task.last_run_at 为准（不看调度台），
         # 已扣除进程停机期。阈值按任务分级，故此处只消费聚合值，避免阈值在两处漂移。

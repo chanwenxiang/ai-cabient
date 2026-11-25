@@ -11,6 +11,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -42,15 +43,20 @@ public class SysDictBootstrap implements ApplicationRunner {
 
     private final SysDictTypeMapper typeRepository;
     private final SysDictDataMapper dataRepository;
+    private final JdbcTemplate jdbcTemplate;
 
-    public SysDictBootstrap(SysDictTypeMapper typeRepository, SysDictDataMapper dataRepository) {
+    public SysDictBootstrap(SysDictTypeMapper typeRepository, SysDictDataMapper dataRepository,
+                            JdbcTemplate jdbcTemplate) {
         this.typeRepository = typeRepository;
         this.dataRepository = dataRepository;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
+        jdbcTemplate.queryForList(
+                "SELECT pg_advisory_xact_lock(hashtext('aicabinet:sys_dict_bootstrap'))");
         if (typeRepository.count() == 0) {
             int sort = 1;
             for (Map.Entry<String, SeedType> entry : seedCatalog().entrySet()) {
@@ -207,13 +213,13 @@ public class SysDictBootstrap implements ApplicationRunner {
         map.put("coupon_status", t("用户券状态", m(
                 CabinetConstants.COUPON_STATUS_UNUSED, "待使用", CabinetConstants.COUPON_STATUS_USED, "已使用", CabinetConstants.COUPON_STATUS_EXPIRED, "已过期")));
         // R20 P3-1 第 14 批：OTA 发布/设备升级进度（升级域=OtaService ALLOWED_PROGRESS_STATUS 白名单，
-        // normalizeProgressStatus 对白名单外 fail-closed 抛错，设备自由文本入不了库）；通知发送域单值 SENT（3 处硬编码写点+实体默认，零 FAILED）。
+        // normalizeProgressStatus 对白名单外 fail-closed 抛错，设备自由文本入不了库）；通知发送域含投递失败留痕。
         map.put("ota_release_status", t("OTA 发布状态", m(
                 "DRAFT", "草稿", "PUBLISHED", "已发布", "UNPUBLISHED", "已下架")));
         map.put("ota_upgrade_status", t("OTA 升级状态", m(
                 "IDLE", "未开始", "DOWNLOADING", "下载中", "INSTALLING", "安装中", "SUCCESS", "成功", "FAILED", "失败")));
         map.put("notification_log_status", t("通知发送状态", m(
-                "SENT", "已发送")));
+                "SENT", "已发送", "FAILED", "投递失败")));
         // R20 P3-1 第 15 批：线路链（V133/V358 重建后的新模型）。line_device {ACTIVE,INACTIVE} 恰等
         // active_inactive_status 通用族（bind=ACTIVE/unbind=INACTIVE）直接复用；读侧遗留 BOUND 为 V129 前旧表
         // 死值容忍（无写点，CHECK 不影响读）。

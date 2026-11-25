@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.ScheduledTaskDto;
 import com.aicabinet.trade.domain.ScheduledTask;
 import com.aicabinet.trade.mapper.ScheduledTaskMapper;
 import org.junit.jupiter.api.Test;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -25,7 +26,7 @@ class ScheduledTaskServiceTest {
 
     private ScheduledTaskService service(boolean xxlEnabled) {
         when(registry.get(anyString())).thenReturn(java.util.Optional.empty());
-        return new ScheduledTaskService(mapper, registry, locks, audit, xxlEnabled);
+        return new ScheduledTaskService(mapper, registry, locks, audit, null, xxlEnabled);
     }
 
     @Test
@@ -114,6 +115,21 @@ class ScheduledTaskServiceTest {
         assertEquals("过期优惠券 3 张", row.getLastMessage());
         verify(mapper).save(row);
         verify(locks).unlock("job:coupon-expire");
+    }
+
+    @Test
+    void finish_failedIncrementsDedicatedFailureCounter() {
+        ScheduledTask row = new ScheduledTask();
+        row.setTaskKey("reconciliation");
+        when(mapper.findByIdForUpdate("reconciliation")).thenReturn(java.util.Optional.of(row));
+        SimpleMeterRegistry meters = new SimpleMeterRegistry();
+        ScheduledTaskService svc = new ScheduledTaskService(mapper, registry, locks, audit, meters, false);
+
+        svc.finish("reconciliation", "FAILED", "tradebill 500", System.nanoTime());
+        svc.finish("reconciliation", "SUCCESS", "ok", System.nanoTime());
+
+        assertEquals(1.0, meters.get("aicabinet.scheduled.task.failures")
+                .tag("task_key", "reconciliation").counter().count());
     }
 
     /**

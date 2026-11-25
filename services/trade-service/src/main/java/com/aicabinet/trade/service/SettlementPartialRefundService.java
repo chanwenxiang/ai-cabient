@@ -102,8 +102,11 @@ public class SettlementPartialRefundService {
         // 不得被 M02 的「订单+金额」键误判为重放而静默跳过渠道退款
         String idemKeyOverride = "REFUND:" + order.getOrderId() + ":" + refundCents
                 + ":L:" + fingerprint;
+        String refundReason = reason == null ? "按行部分退款" : reason;
+        RefundResumeService.OrderRefundContext context = RefundResumeService.partialContext(
+                order.getOrderId(), refundLines, defaultRestore, refundCents, refundReason);
         boolean channelExecuted = orderPaymentService.refundOrder(order, refundCents,
-                reason == null ? "按行部分退款" : reason, idemKeyOverride);
+                refundReason, idemKeyOverride, context);
         if (!channelExecuted) {
             // 渠道退款已完成（幂等命中）不能直接 409：第一次可能只完成了渠道/支付流水，
             // 本地行、应付、状态还没收尾。这里按同一指纹恢复本地 prepare/finalize。
@@ -116,7 +119,9 @@ public class SettlementPartialRefundService {
         }
         PartialRefundPrep prep = self.preparePartialRefund(order.getOrderId(), refundLines,
                 defaultRestore, priorRefundedBeforeChannel);
-        return self.finalizePartialRefund(prep);
+        PartialRefundResult result = self.finalizePartialRefund(prep);
+        orderPaymentService.markRefundContextDone(order.getOrderId(), context.resumeToken());
+        return result;
     }
 
     /** AU-175：退款行集指纹（排序后 sku:qty 拼接的 SHA-256 前 16 位），同行集同额才视为重放。 */
@@ -145,7 +150,7 @@ public class SettlementPartialRefundService {
      * ③prepare 已跑（请求行已被扣到不足）⇒ 只补 finalize。若行仍足够而无法判断是否已 prepare，
      * 保持原 409（宁可让人工核，也不重复退款）。</p>
      */
-    private PartialRefundResult resumeLocalPartialRefund(String orderId,
+    public PartialRefundResult resumeLocalPartialRefund(String orderId,
                                                          List<OrderRefundRequest.PartialRefundLine> refundLines,
                                                          boolean defaultRestore,
                                                          int refundCents) {

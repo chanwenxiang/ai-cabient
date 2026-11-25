@@ -7,6 +7,7 @@ import com.aicabinet.trade.domain.Warehouse;
 import com.aicabinet.trade.domain.WarehouseBin;
 import com.aicabinet.trade.domain.WarehouseBinStock;
 import com.aicabinet.trade.domain.WarehouseOutboundLine;
+import com.aicabinet.trade.mapper.WarehouseOutboundLineMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.WarehouseBinMapper;
 import com.aicabinet.trade.mapper.WarehouseBinStockMapper;
@@ -45,6 +46,7 @@ class WarehouseBinServiceTest {
     @Mock private WarehouseMapper warehouseRepository;
     @Mock private SkuCatalogMapper skuCatalogRepository;
     @Mock private WarehouseService warehouseService;
+    @Mock private WarehouseOutboundLineMapper outboundLineMapper;
     @Mock private DistributedLockService distributedLockService;
 
     private WarehouseBinService service;
@@ -53,7 +55,7 @@ class WarehouseBinServiceTest {
     void setUp() {
         service = new WarehouseBinService(permissionService, binRepository,
                 binStockRepository, warehouseRepository, skuCatalogRepository, warehouseService,
-                distributedLockService);
+                outboundLineMapper, distributedLockService);
         when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
     }
 
@@ -168,6 +170,24 @@ class WarehouseBinServiceTest {
                 .findFirst()
                 .orElseThrow();
         assertEquals(4, target.getQuantity());
+    }
+
+    @Test
+    void moveBetweenBins_shouldRejectMovingAllocatedStock() {
+        WarehouseBin from = bin(1L, "WH-001", "A-01", null);
+        WarehouseBin to = bin(2L, "WH-001", "A-02", null);
+        WarehouseBinStock row = binStock(from, "SKU-A", "B1", LocalDate.now().plusDays(30), 10);
+        when(binRepository.findById(1L)).thenReturn(Optional.of(from));
+        when(binRepository.findById(2L)).thenReturn(Optional.of(to));
+        when(binStockRepository.findByBinIdAndSkuIdAndBatchNoForUpdate(1L, "SKU-A", "B1"))
+                .thenReturn(Optional.of(row));
+        when(outboundLineMapper.sumAllocatedQtyByBin(1L, "SKU-A", "B1")).thenReturn(8);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.moveBetweenBins(1L, new BinMoveRequest(1L, 2L, "SKU-A", "B1", 4)));
+
+        assertTrue(ex.getMessage().contains("可用库存不足"));
+        assertEquals(10, row.getQuantity());
     }
 
     @Test

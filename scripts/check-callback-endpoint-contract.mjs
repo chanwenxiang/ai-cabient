@@ -75,6 +75,11 @@ export function evaluate(mappings, registry, tradeWebSrc, gatewayWebSrc, existsF
         `登记路径漂移：${e.path} 在 ${e.controller.split('/').pop()} 源码中找不到（路径字面量变了要同步登记）`
       );
     }
+    if (e.nonceReleaseRequired && !/releaseNonce\s*\(\s*nonce\s*\)/.test(src)) {
+      problems.push(
+        `nonce 未归还：${e.path} 处理失败后必须 releaseNonce(nonce)，否则渠道重投会被误判重放`
+      );
+    }
     if (e.authMode === 'SIGNATURE_BYPASS') {
       if (!tradeWebSrc.includes(e.path)) {
         problems.push(

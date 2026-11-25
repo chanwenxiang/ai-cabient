@@ -43,6 +43,9 @@ public class RefundRetryScheduler {
     private final WeChatRefundReconciler weChatRefundReconciler;
     private final ScheduledTaskService taskService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private RefundResumeService refundResumeService;
+
     public RefundRetryScheduler(PaymentOperationMapper paymentOperationMapper,
                                 OrderPaymentService orderPaymentService,
                                 WeChatRefundReconciler weChatRefundReconciler,
@@ -53,7 +56,7 @@ public class RefundRetryScheduler {
         this.taskService = taskService;
     }
 
-    @Scheduled(fixedRate = 60_000)
+    @Scheduled(fixedRate = 60_000, initialDelay = 58000)
     public void run() {
         long start = System.nanoTime();
         if (!taskService.tryBegin(REFUND_RETRY, 600)) {
@@ -64,12 +67,15 @@ public class RefundRetryScheduler {
         try {
             int closed = closeStaleInitiated();
             int advanced = weChatRefundReconciler.advanceProcessingRefunds();
+            int resumed = refundResumeService == null ? 0 : refundResumeService.resumePendingCompletedRefunds(20);
             int exhausted = exhaustOverdue();
-            if (closed <= 0 && advanced <= 0 && exhausted <= 0) {
+            if (closed <= 0 && advanced <= 0 && resumed <= 0 && exhausted <= 0) {
                 return;
             }
-            summary = "退款重试闭环 " + closed + " 笔，查单推进 " + advanced + " 笔，耗尽转人工 " + exhausted + " 笔";
-            log.info("refund retry closed={} advanced={} exhausted={}", closed, advanced, exhausted);
+            summary = "退款重试闭环 " + closed + " 笔，查单推进 " + advanced + " 笔，下游补跑 "
+                    + resumed + " 笔，耗尽转人工 " + exhausted + " 笔";
+            log.info("refund retry closed={} advanced={} resumed={} exhausted={}",
+                    closed, advanced, resumed, exhausted);
         } catch (Exception e) {
             failed = true;
             taskService.finish(REFUND_RETRY, "FAILED", e.getMessage(), start);

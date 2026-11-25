@@ -31,6 +31,10 @@ public interface PlatformFundFlowMapper extends BaseTradeMapper<PlatformFundFlow
             + "WHERE ref_type = #{refType} AND ref_id = #{refId}")
     long countByRefTypeAndRefId(String refType, String refId);
 
+    @Select("SELECT COUNT(*) FROM platform_fund_flow "
+            + "WHERE flow_type = #{flowType} AND ref_id = #{refId}")
+    long countByFlowTypeAndRefId(String flowType, String refId);
+
     /** 指定类型在区间内的流水条数（0 = 尚未登记过归集，核对软启动用）。 */
     @Select("SELECT COUNT(*) FROM platform_fund_flow "
             + "WHERE flow_type = #{flowType} AND created_at >= #{from} AND created_at < #{to}")

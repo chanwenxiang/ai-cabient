@@ -15,7 +15,9 @@
 import {
   effectiveDefault,
   findCronDefaultMismatches,
-  flattenYml
+  findTimingContractViolations,
+  flattenYml,
+  TIMING_CONTRACTS
 } from './check-scheduled-zone.mjs';
 
 let pass = 0;
@@ -123,6 +125,127 @@ const run = (javaText, ymlText) =>
   );
   check('effectiveDefault 裸值原样', effectiveDefault('0 30 1 * * *') === '0 30 1 * * *');
   check('effectiveDefault 解析不了 ⇒ null（不猜）', effectiveDefault('${A:${B}}') === null);
+}
+
+// 6) 调度时刻契约：日任务固定 cron、提醒避开深夜、高频任务首次执行错峰
+function timingSources() {
+  const byFile = new Map();
+  for (const contract of TIMING_CONTRACTS) {
+    if (contract.xxlCron != null) {
+      const lines = byFile.get(contract.file) ?? [`class ${contract.file.replace('.java', '')} {`];
+      lines.push(
+        '  static final Map<String, String> XXL_CRON_BY_TASK = Map.ofEntries(',
+        `    Map.entry("${contract.taskKey}", "${contract.xxlCron}")`,
+        '  );'
+      );
+      byFile.set(contract.file, lines);
+      continue;
+    }
+    const attrs = contract.cron
+      ? `cron = "${contract.cron}", zone = "Asia/Shanghai"`
+      : `fixedRate = 60000, initialDelay = ${contract.initialDelay}`;
+    const lines = byFile.get(contract.file) ?? [`class ${contract.file.replace('.java', '')} {`];
+    lines.push(`  @Scheduled(${attrs})`, `  public void ${contract.method}() {}`);
+    byFile.set(contract.file, lines);
+  }
+  return [...byFile].map(([rel, lines]) => ({ rel, text: [...lines, '}'].join('\n') }));
+}
+
+{
+  const sources = timingSources();
+  const offenders = findTimingContractViolations(sources);
+  check('完整调度时刻契约 ⇒ 绿', offenders.length === 0, offenders.join('|'));
+  const commentDecoy = sources.map((src) =>
+    src.rel === 'GrowthLogArchiveScheduler.java'
+      ? {
+          ...src,
+          text: src.text.replace(
+            '  @Scheduled(cron = "0 0 3 * * *", zone = "Asia/Shanghai")',
+            '  // @Scheduled(fixedRate = 86400000)\n  @Scheduled(cron = "0 0 3 * * *", zone = "Asia/Shanghai")'
+          )
+        }
+      : src
+  );
+  check(
+    '注释里的假 @Scheduled 不能骗过契约',
+    findTimingContractViolations(commentDecoy).length === 0
+  );
+  check(
+    '日任务 cron 常量钉住 03:00 / 04:00',
+    TIMING_CONTRACTS.find((c) => c.file === 'GrowthLogArchiveScheduler.java')?.cron ===
+      '0 0 3 * * *' &&
+      TIMING_CONTRACTS.find((c) => c.file === 'SkuReviewScheduler.java')?.cron === '0 0 4 * * *'
+  );
+  check(
+    '提醒 cron 常量钉住 00:05/06:05/12:05/18:05',
+    TIMING_CONTRACTS.filter((c) =>
+      ['PointsExpiryScheduler.java', 'CouponExpiryReminderScheduler.java'].includes(c.file)
+    ).every((c) => c.cron === '0 5 0,6,12,18 * * *')
+  );
+  check(
+    '日结 Spring 与 XXL cron 常量钉住 10:30/14:30',
+    TIMING_CONTRACTS.find((c) => c.file === 'ReconciliationScheduler.java')?.cron ===
+      '0 30 10,14 * * *' &&
+      TIMING_CONTRACTS.find((c) => c.file === 'ScheduleZones.java')?.xxlCron === '0 30 10,14 * * ?'
+  );
+
+  const xxlDrift = sources.map((src) =>
+    src.rel === 'ScheduleZones.java'
+      ? { ...src, text: src.text.replace('0 30 10,14 * * ?', '0 30 1 * * ?') }
+      : src
+  );
+  const xxlOffenders = findTimingContractViolations(xxlDrift);
+  check(
+    '日结 XXL cron 退回 01:30 ⇒ 红',
+    xxlOffenders.some((o) => o.includes('XXL_CRON_BY_TASK[reconciliation]') && o.includes('应为')),
+    xxlOffenders.join('|')
+  );
+
+  const dailyDrift = sources.map((src) =>
+    src.rel === 'GrowthLogArchiveScheduler.java'
+      ? {
+          ...src,
+          text: src.text.replace(
+            '@Scheduled(cron = "0 0 3 * * *", zone = "Asia/Shanghai")',
+            '@Scheduled(fixedRate = 86400000)'
+          )
+        }
+      : src
+  );
+  const dailyOffenders = findTimingContractViolations(dailyDrift);
+  check(
+    '日任务退回 fixedRate ⇒ 红',
+    dailyOffenders.some(
+      (o) => o.includes('GrowthLogArchiveScheduler.java') && o.includes('cron 应为')
+    ),
+    dailyOffenders.join('|')
+  );
+
+  const noStagger = sources.map((src) =>
+    src.rel === 'DevicePresenceService.java'
+      ? { ...src, text: src.text.replace(', initialDelay = 20000', '') }
+      : src
+  );
+  const staggerOffenders = findTimingContractViolations(noStagger);
+  check(
+    '高频任务删 initialDelay ⇒ 红',
+    staggerOffenders.some(
+      (o) => o.includes('DevicePresenceService.java') && o.includes('initialDelay 应为')
+    ),
+    staggerOffenders.join('|')
+  );
+
+  const duplicateStagger = sources.map((src) =>
+    src.rel === 'CompensationTaskScheduler.java'
+      ? { ...src, text: src.text.replace('initialDelay = 5000', 'initialDelay = 10000') }
+      : src
+  );
+  const duplicateOffenders = findTimingContractViolations(duplicateStagger);
+  check(
+    '两个高频任务 initialDelay 相同 ⇒ 红',
+    duplicateOffenders.some((o) => o.includes('未错峰')),
+    duplicateOffenders.join('|')
+  );
 }
 
 console.log(`\n[check-scheduled-zone.test] ${pass} 通过 / ${fail} 失败`);

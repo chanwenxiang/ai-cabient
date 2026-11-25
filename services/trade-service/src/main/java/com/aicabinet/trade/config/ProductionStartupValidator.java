@@ -112,7 +112,7 @@ public class ProductionStartupValidator {
         validateSmsMockCode();
         validateCookieSecurity();
         rejectDefaultMinioCredentials();
-        rejectLocalhostCorsInProd();
+        validateCorsOriginsInProd();
         if (isStagingProfile()) {
             validateStagingProfile();
         } else {
@@ -381,15 +381,32 @@ public class ProductionStartupValidator {
         }
     }
 
-    private void rejectLocalhostCorsInProd() {
+    private void validateCorsOriginsInProd() {
         if (!isProdProfile() || corsProperties.allowedOrigins() == null || corsProperties.allowedOrigins().isEmpty()) {
             return;
         }
-        boolean hasLocalhost = corsProperties.allowedOrigins().stream()
-                .anyMatch(o -> o != null && (o.contains("localhost") || o.contains("127.0.0.1")));
-        if (hasLocalhost) {
-            throw new IllegalStateException(
-                    "Production CORS_ORIGIN must not include localhost/127.0.0.1; set real ops domain(s)");
+        for (String raw : corsProperties.allowedOrigins()) {
+            if (raw == null || raw.isBlank()) {
+                throw new IllegalStateException("Production CORS_ORIGIN contains a blank origin");
+            }
+            String origin = raw.trim();
+            if ("*".equals(origin) || origin.contains("localhost") || origin.contains("127.0.0.1")) {
+                throw new IllegalStateException(
+                        "Production CORS_ORIGIN must not include wildcard/localhost/127.0.0.1; set real ops domain(s)");
+            }
+            java.net.URI uri;
+            try {
+                uri = java.net.URI.create(origin);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalStateException("Production CORS_ORIGIN is not a valid origin: " + origin);
+            }
+            if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null
+                    || uri.getUserInfo() != null || uri.getQuery() != null || uri.getFragment() != null
+                    || (uri.getRawPath() != null && !uri.getRawPath().isEmpty())
+                    || (uri.getPort() != -1 && (uri.getPort() <= 0 || uri.getPort() > 65535))) {
+                throw new IllegalStateException(
+                        "Production CORS_ORIGIN must be an HTTPS origin without path/query: " + origin);
+            }
         }
     }
 

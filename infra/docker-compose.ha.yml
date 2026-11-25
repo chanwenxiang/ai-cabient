@@ -3,10 +3,13 @@
 # 前置：定时任务已用 ScheduledTaskService.tryBegin（Redis）选举；Flyway 有 PG advisory lock。
 # 详见 docs/HIGH_AVAILABILITY.md
 #
-# 用法（仓库根目录）：
-#   docker compose -p ai-cabinet \
+# 生产/预发用法（仓库根目录）：必须叠 production 与 prod-managed，避免继承 dev/mock/弱口令。
+#   bash scripts/check-prod-env-secrets.sh infra/.env.production
+#   docker compose -p ai-cabinet --env-file infra/.env.production \
 #     -f infra/docker-compose.yml \
 #     -f infra/docker-compose.apps.yml \
+#     -f infra/docker-compose.production.yml \
+#     -f infra/docker-compose.prod-managed.yml \
 #     -f infra/docker-compose.ha.yml \
 #     --profile apps up -d --scale trade-service=2
 #

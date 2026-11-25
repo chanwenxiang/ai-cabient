@@ -1,6 +1,10 @@
 package com.aicabinet.trade.integration;
 
+import com.aicabinet.trade.domain.PaymentOperation;
+import com.aicabinet.trade.mapper.PaymentOperationMapper;
 import com.aicabinet.trade.service.BalanceRefundService;
+import com.aicabinet.trade.service.PaymentService;
+import com.aicabinet.trade.service.RefundResumeService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * FS-20（第四轮审计 2026-10-18）：余额退款「续退补扣」不变量。
@@ -63,6 +68,45 @@ class BalanceRefundResumeDebitSqlIT {
     @Autowired
     private BalanceRefundService balanceRefundService;
 
+    @Autowired
+    private PaymentService paymentService;
+
+    @Autowired
+    private PaymentOperationMapper paymentOperationMapper;
+
+    @Test
+    @DisplayName("充值退款重复确认只累加一次已退额，上下文可继续收尾")
+    void repeatedRechargeConfirmation_finalizesAmountOnlyOnce() {
+        String orderId = "RC-730-C";
+        String refundNo = "RF-730-C";
+        String idemKey = "RECHARGE-REFUND:" + orderId + ":200:" + refundNo;
+        RefundResumeService.RechargeRefundContext context = RefundResumeService.rechargeContext(
+                orderId, refundNo, 200, 0, false, "IT 充值退款");
+        jdbc.update("INSERT INTO recharge_order (order_id, user_id, amount_cents, channel, status, paid_at, idempotency_key) "
+                + "VALUES (?, ?, 600, 'WECHAT', 'PAID', NOW(), ?)", orderId, USER, "IT-730-C");
+        jdbc.update("INSERT INTO payment_operation (operation_id, user_id, operation_type, amount_cents, channel, "
+                        + "status, idempotency_key, gateway_trade_no, reason, refund_context_json) "
+                        + "VALUES ('OP-730-C', ?, 'RECHARGE_REFUND', 200, 'WECHAT', 'REFUND_PROCESSING', ?, ?, ?, CAST(? AS jsonb))",
+                USER, idemKey, refundNo, "充值退款 [refund:PROCESSING] #" + orderId,
+                RefundResumeService.rechargeContextJson(context));
+        PaymentOperation operation = paymentOperationMapper.findByIdempotencyKey(idemKey).orElseThrow();
+
+        assertTrue(paymentService.confirmRechargeChannelRefund(orderId, operation, "SUCCESS",
+                "充值退款 [refund:SUCCESS] #" + orderId));
+        assertTrue(paymentService.confirmRechargeChannelRefund(orderId, operation, "SUCCESS",
+                "充值退款 [refund:SUCCESS] #" + orderId));
+
+        assertEquals(200, jdbc.queryForObject("SELECT refunded_cents FROM recharge_order WHERE order_id = ?",
+                Integer.class, orderId));
+        assertEquals("CHANNEL_FINALIZED", RefundResumeService.parseRechargeContext(
+                jdbc.queryForObject("SELECT refund_context_json::text FROM payment_operation WHERE operation_id = 'OP-730-C'",
+                        String.class)).orElseThrow().localStatus());
+        assertTrue(paymentService.markRechargeRefundContextDone(operation));
+        assertEquals("DONE", RefundResumeService.parseRechargeContext(
+                jdbc.queryForObject("SELECT refund_context_json::text FROM payment_operation WHERE operation_id = 'OP-730-C'",
+                        String.class)).orElseThrow().localStatus());
+    }
+
     @Test
     @DisplayName("续退补扣只应扣一次未成功额度（余额必须等于流水口径）")
     void resumeDebitMustDeductRemainingOnlyOnce() {
@@ -81,7 +125,7 @@ class BalanceRefundResumeDebitSqlIT {
 
         List<Map<String, Object>> ledger = jdbc.queryForList(
                 "SELECT operation_type, amount_cents, balance_before_cents, balance_after_cents "
-                        + "FROM payment_operation WHERE idempotency_key = 'BALANCE_REFUND_RESUME:' || ?", REQUEST_NO);
+                        + "FROM payment_operation WHERE idempotency_key = 'BALANCE_REFUND_RESUME:' || ? || ':1'", REQUEST_NO);
         Integer balance = jdbc.queryForObject(
                 "SELECT balance_cents FROM user_account WHERE user_id = ?", Integer.class, USER);
         String state = jdbc.queryForObject(

@@ -202,9 +202,11 @@ public class ScheduledTaskRegistry {
         }
         register("coupon-expire", "优惠券过期处理", MARKETING, ScheduleZones.desc("每日 02:00"), 600,
                 couponService::expireOverdueCoupons);
-        register("points-expiry", "积分过期管理", MARKETING, ScheduleZones.desc("每 6 小时"), 600,
+        register("points-expiry", "积分过期管理", MARKETING,
+                ScheduleZones.desc("每日 00:05、06:05、12:05、18:05"), 600,
                 pointsExpiryScheduler::scan);
-        register("coupon-expiry-remind", "优惠券临期提醒", MARKETING, ScheduleZones.desc("每 6 小时"), 600,
+        register("coupon-expiry-remind", "优惠券临期提醒", MARKETING,
+                ScheduleZones.desc("每日 00:05、06:05、12:05、18:05"), 600,
                 couponExpiryReminderScheduler::scan);
         register("growth-log-archive", "增长日志归档", SYSTEM, ScheduleZones.desc("每日 03:00"), 600,
                 growthLogArchiveScheduler::archive);

@@ -154,7 +154,7 @@ trade-service (healthy)  ← 核心：DB 迁移 + Actuator UP
         ↓
 ├── device-service (healthy)
 ├── jiangyi-gateway (:8083，将邑端侧识别 / 设备直连)
-└── gateway (:80 → trade-service:8080)
+└── gateway (:80 → trade-lb:8080 → trade-service 副本，主动健康摘除)
 ```
 
 ### 查看健康状态

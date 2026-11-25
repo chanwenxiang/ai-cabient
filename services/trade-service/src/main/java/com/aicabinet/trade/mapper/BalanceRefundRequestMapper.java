@@ -18,6 +18,16 @@ public interface BalanceRefundRequestMapper extends BaseTradeMapper<BalanceRefun
         return Optional.ofNullable(selectByIdForUpdateRaw(requestId));
     }
 
+    default int failIfProcessing(Long requestId, String nextStatus, String failReason,
+                                java.time.Instant updatedAt) {
+        return update(null, Wrappers.<BalanceRefundRequest>lambdaUpdate()
+                .eq(BalanceRefundRequest::getRequestId, requestId)
+                .eq(BalanceRefundRequest::getStatus, "PROCESSING")
+                .set(BalanceRefundRequest::getStatus, nextStatus)
+                .set(BalanceRefundRequest::getFailReason, failReason)
+                .set(BalanceRefundRequest::getUpdatedAt, updatedAt));
+    }
+
     default Optional<BalanceRefundRequest> findByRequestNo(String requestNo) {
         return Optional.ofNullable(selectOne(Wrappers.<BalanceRefundRequest>lambdaQuery()
                 .eq(BalanceRefundRequest::getRequestNo, requestNo)));

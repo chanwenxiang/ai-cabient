@@ -28,4 +28,24 @@ public interface BalanceRefundAllocationMapper extends BaseTradeMapper<BalanceRe
                 .eq(BalanceRefundAllocation::getAllocationId, allocationId)
                 .set(BalanceRefundAllocation::getStatus, status));
     }
+
+    /** 渠道幂等号反查切片；重复确认/失败只推进一次。 */
+    default java.util.Optional<BalanceRefundAllocation> findByOutRefundNo(String outRefundNo) {
+        return java.util.Optional.ofNullable(selectOne(Wrappers.<BalanceRefundAllocation>lambdaQuery()
+                .eq(BalanceRefundAllocation::getOutRefundNo, outRefundNo)));
+    }
+
+    default java.util.Optional<BalanceRefundAllocation> findByOutRefundNoForUpdate(String outRefundNo) {
+        return java.util.Optional.ofNullable(selectOne(Wrappers.<BalanceRefundAllocation>lambdaQuery()
+                .eq(BalanceRefundAllocation::getOutRefundNo, outRefundNo)
+                .last("FOR UPDATE")));
+    }
+
+    /** 切片状态 CAS，防止迟到 SUCCESS 覆盖 ABNORMAL/FAILED。 */
+    default int updateStatusIfCurrent(Long allocationId, String expectedStatus, String nextStatus) {
+        return update(null, Wrappers.<BalanceRefundAllocation>lambdaUpdate()
+                .eq(BalanceRefundAllocation::getAllocationId, allocationId)
+                .eq(BalanceRefundAllocation::getStatus, expectedStatus)
+                .set(BalanceRefundAllocation::getStatus, nextStatus));
+    }
 }

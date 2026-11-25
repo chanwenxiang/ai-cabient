@@ -8,6 +8,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -25,10 +27,16 @@ class UserConsentLogServiceTest {
 
     @Mock private UserConsentLogMapper consentLogMapper;
 
+    private UserConsentLogService service() {
+        UserConsentLogService service = new UserConsentLogService(consentLogMapper, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        return service;
+    }
+
     @Test
     void privacyConsent_requiresNewTransaction_refreshStaysReadOnly() throws Exception {
         Transactional consentTx = UserConsentLogService.class
-                .getMethod("recordPrivacyConsent", Long.class)
+                .getMethod("recordPrivacyConsentInNewTransaction", Long.class)
                 .getAnnotation(Transactional.class);
         assertNotNull(consentTx);
         assertEquals(Propagation.REQUIRES_NEW, consentTx.propagation());
@@ -41,7 +49,7 @@ class UserConsentLogServiceTest {
     }
 
     @Test
-    void accountDelete_joinsWritableOuterTransaction() throws Exception {
+    void accountDelete_doesNotStartIndependentTransaction() throws Exception {
         Transactional tx = UserConsentLogService.class
                 .getMethod("recordAccountDelete", Long.class)
                 .getAnnotation(Transactional.class);
@@ -49,15 +57,67 @@ class UserConsentLogServiceTest {
     }
 
     @Test
+    void accountDelete_withinTransaction_defersWriteUntilAfterCommit() {
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            service().recordAccountDelete(100L);
+
+            verify(consentLogMapper, never()).insertIgnoreConflict(anyLong(), anyString(), anyString());
+            assertEquals(1, TransactionSynchronizationManager.getSynchronizations().size());
+            TransactionSynchronization synchronization = TransactionSynchronizationManager.getSynchronizations().get(0);
+            synchronization.afterCommit();
+
+            verify(consentLogMapper).insertIgnoreConflict(100L,
+                    UserConsentLog.TYPE_ACCOUNT_DELETE, UserConsentLogService.PRIVACY_POLICY_VERSION);
+        } finally {
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    void accountDelete_afterCommitFailure_doesNotThrowOrRollbackDeletion() {
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            doThrow(new RuntimeException("db down")).when(consentLogMapper)
+                    .insertIgnoreConflict(anyLong(), anyString(), anyString());
+            service().recordAccountDelete(100L);
+            TransactionSynchronization synchronization = TransactionSynchronizationManager.getSynchronizations().get(0);
+
+            assertDoesNotThrow(synchronization::afterCommit);
+        } finally {
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    void accountDelete_withoutTransaction_writesImmediatelyAndSwallowsFailure() {
+        assertDoesNotThrow(() -> service().recordAccountDelete(100L));
+        verify(consentLogMapper).insertIgnoreConflict(100L,
+                UserConsentLog.TYPE_ACCOUNT_DELETE, UserConsentLogService.PRIVACY_POLICY_VERSION);
+    }
+
+    @Test
+    void accountDelete_withoutTransaction_writeFailureIsNonBlocking() {
+        doThrow(new RuntimeException("db down")).when(consentLogMapper)
+                .insertIgnoreConflict(anyLong(), anyString(), anyString());
+
+        assertDoesNotThrow(() -> service().recordAccountDelete(100L));
+    }
+
+    @Test
     void privacyConsent_insertsIdempotently() {
-        new UserConsentLogService(consentLogMapper).recordPrivacyConsent(100L);
+        service().recordPrivacyConsent(100L);
         verify(consentLogMapper).insertIgnoreConflict(100L,
                 UserConsentLog.TYPE_PRIVACY_POLICY, UserConsentLogService.PRIVACY_POLICY_VERSION);
     }
 
     @Test
     void privacyConsent_nullUser_skipsWrite() {
-        new UserConsentLogService(consentLogMapper).recordPrivacyConsent(null);
+        service().recordPrivacyConsent(null);
         verify(consentLogMapper, never()).insertIgnoreConflict(anyLong(), anyString(), anyString());
     }
 
@@ -65,6 +125,6 @@ class UserConsentLogServiceTest {
     void privacyConsent_writeFailure_doesNotBreakLogin() {
         doThrow(new RuntimeException("db down")).when(consentLogMapper)
                 .insertIgnoreConflict(anyLong(), anyString(), anyString());
-        assertDoesNotThrow(() -> new UserConsentLogService(consentLogMapper).recordPrivacyConsent(100L));
+        assertDoesNotThrow(() -> service().recordPrivacyConsent(100L));
     }
 }

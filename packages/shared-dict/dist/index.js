@@ -357,7 +357,8 @@ export const DICT = {
         FAILED: '失败'
     },
     notification_log_status: {
-        SENT: '已发送'
+        SENT: '已发送',
+        FAILED: '投递失败'
     },
     /** R20 P3-1 第 15 批：线路链（V133/V358 重建后模型）。line_device {ACTIVE,INACTIVE} 复用
      *  active_inactive_status 通用族；读侧遗留 BOUND 为旧表死值容忍（无写点）。 */

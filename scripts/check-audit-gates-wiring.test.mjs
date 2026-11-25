@@ -7,7 +7,11 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { evaluateFixtureCoverage, extendReachability } from './check-audit-gates-wiring.mjs';
+import {
+  evaluateFixtureCoverage,
+  extendReachability,
+  findUnwiredGateTests
+} from './check-audit-gates-wiring.mjs';
 
 const TAG = '[check-audit-gates-wiring.test]';
 let checks = 0;
@@ -271,6 +275,24 @@ function run({ gates, tests = [], sources = {}, files = [], registry }) {
   assert(
     r.problems.some((p) => p.includes('没有可执行负向夹具')),
     `光有参数字符串不该算夹具：${r.problems.join('|')}`
+  );
+}
+
+// 16) 新增夹具文件必须被可执行脚本引用，不能只靠 sibling 存在假装覆盖
+{
+  const files = ['check-a.test.mjs', 'check-b.test.mjs'];
+  const unwired = findUnwiredGateTests(
+    files,
+    'node scripts/check-a.test.mjs && node scripts/check-a.mjs'
+  );
+  assert(
+    unwired.length === 1 && unwired[0] === 'check-b.test.mjs',
+    `未接线夹具须点名叫：${unwired}`
+  );
+  assert(
+    findUnwiredGateTests(files, 'node scripts/check-a.test.mjs && node scripts/check-b.test.mjs')
+      .length === 0,
+    '两个夹具都接线应绿'
   );
 }
 

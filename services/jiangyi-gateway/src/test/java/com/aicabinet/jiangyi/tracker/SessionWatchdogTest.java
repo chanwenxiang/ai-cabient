@@ -103,6 +103,21 @@ class SessionWatchdogTest {
     }
 
     @Test
+    void modelTimeoutEvictsPendingSoNextDeploymentCanRegister() {
+        CommandTracker.Pending pending = new CommandTracker.Pending(
+                "9", "dev-model", "id-model", System.currentTimeMillis() - 700_000L);
+        CommandTracker tracker = mockTrackerReturning(List.of());
+        when(tracker.due(eq(CommandTracker.Kind.MODEL), anyLong())).thenReturn(List.of(pending));
+        TradeInternalClient client = mock(TradeInternalClient.class);
+        SessionWatchdog watchdog = newWatchdog(tracker, client, 70_000L);
+
+        watchdog.sweep();
+
+        verify(client).modelPushTimeout(9L, "模型下发10分钟无设备回执");
+        verify(tracker).evict(CommandTracker.Kind.MODEL, "9");
+    }
+
+    @Test
     void notifyFailureKeepsPendingForNextSweep() {
         CommandTracker.Pending pending = new CommandTracker.Pending(
                 "s-2", "dev-2", "id-2", System.currentTimeMillis() - 80_000L);

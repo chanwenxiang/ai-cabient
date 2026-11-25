@@ -65,7 +65,7 @@ class AccountDeleteOwnAccountTest {
     void setUp() {
         service = new AccountService(userInfoRepository, userAccountRepository,
                 payScoreService, balanceLedgerService, distributedLockService, identityVerifyClient,
-                balanceRefundRequestMapper, new UserConsentLogService(consentLogMapper), null);
+                balanceRefundRequestMapper, new UserConsentLogService(consentLogMapper, null), null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

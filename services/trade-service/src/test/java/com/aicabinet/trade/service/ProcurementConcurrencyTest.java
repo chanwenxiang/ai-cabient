@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.ReceivePurchaseOrderRequest;
 import com.aicabinet.trade.mapper.PurchaseOrderLineMapper;
+import com.aicabinet.trade.mapper.PurchaseReceiveAllocationMapper;
 import com.aicabinet.trade.mapper.PurchaseOrderMapper;
 import com.aicabinet.trade.mapper.PurchaseReturnLineMapper;
 import com.aicabinet.trade.mapper.PurchaseReturnMapper;
@@ -33,6 +34,7 @@ class ProcurementConcurrencyTest {
     @Mock private WarehouseMapper warehouseRepository;
     @Mock private SkuCatalogMapper skuCatalogRepository;
     @Mock private WarehouseService warehouseService;
+    @Mock private PurchaseReceiveAllocationMapper purchaseReceiveAllocationMapper;
     @Mock private SupplierPayableService supplierPayableService;
     @Mock private DistributedLockService distributedLockService;
 
@@ -43,7 +45,7 @@ class ProcurementConcurrencyTest {
         service = new ProcurementService(permissionService, supplierRepository,
                 purchaseOrderRepository, purchaseOrderLineRepository, purchaseReturnRepository,
                 purchaseReturnLineRepository, warehouseRepository, skuCatalogRepository,
-                warehouseService, supplierPayableService, distributedLockService, null, null, null, null);
+                warehouseService, purchaseReceiveAllocationMapper, supplierPayableService, distributedLockService, null, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

@@ -52,7 +52,7 @@ public class ReplenishmentTimeoutScheduler {
         this.taskService = taskService;
     }
 
-    @Scheduled(fixedRate = 60_000)
+    @Scheduled(fixedRate = 60_000, initialDelay = 35000)
     @Transactional
     public void expireStaleCheckedInTasks() {
         long start = System.nanoTime();

@@ -401,7 +401,7 @@ services:
       MQTT_CLIENT_ID: device-service-docker
       MQTT_USERNAME: ${MQTT_USERNAME:-aicabinet-backend}
       MQTT_PASSWORD: ${MQTT_PASSWORD:-dev-mqtt-backend-pass}
-      AICABINET_TRADE_SERVICE_URL: http://trade-service:8080
+      AICABINET_TRADE_SERVICE_URL: http://trade-lb:8080
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-me}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
@@ -430,9 +430,10 @@ services:
       context: ..
       dockerfile: Dockerfile.java-service
       args: { MODULE: services/jiangyi-gateway }
+    image: ai-cabinet/jiangyi-gateway:${IMAGE_TAG:-local}
     environment:
       SERVER_PORT: 8083
-      AICABINET_TRADE_SERVICE_URL: http://trade-service:8080
+      AICABINET_TRADE_SERVICE_URL: http://trade-lb:8080
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-me}
       INTERNAL_API_ALLOWED_CIDRS: ${INTERNAL_API_ALLOWED_CIDRS:-}
       REDIS_HOST: redis
@@ -452,8 +453,14 @@ services:
       JIANGYI_OSS_SESSION_SECONDS: ${JIANGYI_OSS_SESSION_SECONDS:-900}
     ports: ["127.0.0.1:18084:8083"]
     depends_on:
-      trade-service: { condition: service_started }
+      trade-lb: { condition: service_healthy }
       redis: { condition: service_started }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8083/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
     restart: unless-stopped
 
   device-simulator:
@@ -464,7 +471,7 @@ services:
     environment:
       MQTT_USERNAME: ${MQTT_DEVICE_USERNAME:-aicabinet-device}
       MQTT_PASSWORD: ${MQTT_DEVICE_PASSWORD:-dev-mqtt-device-pass}
-      TRADE_SERVICE_URL: http://trade-service:8080
+      TRADE_SERVICE_URL: http://trade-lb:8080
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-me}
       # 审计 A1/P0-2：设备面 HTTP 端点（OTA/素材）一机一密；模拟器按需签发后注入
       DEVICE_HTTP_SECRET: ${SIM_DEVICE_HTTP_SECRET:-}
@@ -498,6 +505,28 @@ services:
         max-size: "50m"
         max-file: "3"
 
+  trade-lb:
+    image: haproxy:2.9-alpine@sha256:3e29449a6beed63262e36104adf531b4e41b359f61937303f5ea8607987b3748
+    mem_limit: ${TRADE_LB_MEM_LIMIT:-128m}
+    stop_grace_period: 30s
+    restart: unless-stopped
+    volumes:
+      - "./gateway/trade-lb.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro"
+    depends_on:
+      trade-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/actuator/health || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
   gateway:
     # P3-r19-14（2026-11-12）：无上限时单容器可吃满宿主（O8 压测曾把 Docker 引擎打崩）。
     # JVM 走 -XX:MaxRAMPercentage=70，mem_limit 直接决定堆大小 ⇒ 按机型用变量调。
@@ -520,7 +549,7 @@ services:
       # 微信要求 https://{域名}/o/{文件名}.txt 能 200 直出（nginx-full.conf 有对应 location）。
       # 🔴 必须持久挂载：此前是 docker cp 进容器，一重建就丢 ⇒ 校验恒 404（MA-362 实测）。
       - "./gateway/mp-verify:/usr/share/nginx/html/o:ro"
-    depends_on: [trade-service]
+    depends_on: [trade-lb]
     logging:
       driver: json-file
       options:

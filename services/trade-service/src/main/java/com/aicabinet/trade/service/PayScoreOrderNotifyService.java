@@ -137,9 +137,12 @@ public class PayScoreOrderNotifyService {
      * （一条 DONE、一条迟到的 EXPIRED）都能通过入口处基于快照的 paid-evidence 判据，
      * 后写者会把 DONE 覆盖回 EXPIRED 并误记欠款。改成乐观 CAS：仅当「快照态仍是现值」
      * 时落库；抢不到就重读现值、对现值重放同一判据再试一轮（上限 3 次），仍抢不到则
-     * 丢弃本次投递 —— 渠道会重投，宁可少跑一次分支也不能把状态倒退。
+     * 抛错交还 nonce，由渠道重投，不能把未处理的投递确认成成功。
+     * 只有「现值已是目标态」或「已收款证据」才是可安全确认的幂等退出；CAS 持续失败、
+     * 重读不到行或补偿更新 0 行都必须抛错，让控制器归还 nonce 等渠道重投。
      *
-     * @return true = 本次投递拥有这次迁移，可继续执行 DONE/EXPIRED 等业务分支
+     * @return true = 本次投递拥有这次迁移，可继续执行 DONE/EXPIRED 等业务分支；
+     *         false = 已确认幂等命中或按已收款证据忽略
      */
     private boolean transitionOrderState(PayScoreOrder po, CabinetOrder order, String nextState) {
         for (int attempt = 0; attempt < 3; attempt++) {
@@ -164,11 +167,8 @@ public class PayScoreOrderNotifyService {
             }
             PayScoreOrder fresh = payScoreOrderMapper.selectById(po.getPayscoreOrderId());
             if (fresh == null) {
-                // 行在入口刚查到过、此刻 selectById 未命中：不猜原因，退回无条件幂等落库
-                //（与修前行为一致；单调递进的业务分支由调用方语义兜底）。
-                po.setOrderState(nextState);
-                payScoreOrderMapper.updateById(po);
-                return true;
+                throw new IllegalStateException("wechat payscore order disappeared during state transition: "
+                        + po.getPayscoreOrderId());
             }
             if (nextState.equals(fresh.getOrderState())) {
                 // 并发投递已迁到同一目标态 ⇒ 业务分支由那次投递执行，本次幂等退出
@@ -179,9 +179,8 @@ public class PayScoreOrderNotifyService {
             }
             po = fresh;
         }
-        log.warn("wechat payscore order {} lost state CAS race 3 times (target={}), dropping (channel will redeliver)",
-                po.getOutOrderNo(), nextState);
-        return false;
+        throw new IllegalStateException("wechat payscore order lost state CAS race 3 times: "
+                + po.getOutOrderNo() + " target=" + nextState);
     }
 
     private void handlePaid(PayScoreOrder po, CabinetOrder order, JsonNode event) {
@@ -225,7 +224,11 @@ public class PayScoreOrderNotifyService {
         }
         order.setStatus("PAID");
         order.setPayTradeNo(tradeNo);
-        cabinetOrderMapper.updateById(order);
+        if (cabinetOrderMapper.updateById(order) == 0) {
+            // CAS 已把支付分订单推到 DONE；订单却没更新成功时整笔事务必须回滚，
+            // 不能确认通知已处理并吞掉 nonce，否则渠道重投也补不齐本地实收状态。
+            throw new IllegalStateException("wechat payscore order PAID update failed: " + order.getOrderId());
+        }
         // R20-2（2026-11-13）：分账/商户钱包入账的**实收确认点**就是这里。结算时该单是
         // PENDING（微信异步扣款，钱还没进来），RevenueSplitService 只建分账行不入账；
         // 现在订单已 PAID ⇒ 重进 recordSplit 走「已存在」支补入账（creditIfAbsent 以

@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.PurchaseOrderLineDto;
 import com.aicabinet.trade.domain.PurchaseOrder;
 import com.aicabinet.trade.domain.PurchaseOrderLine;
 import com.aicabinet.trade.mapper.PurchaseOrderLineMapper;
+import com.aicabinet.trade.mapper.PurchaseReceiveAllocationMapper;
 import com.aicabinet.trade.mapper.PurchaseOrderMapper;
 import com.aicabinet.trade.mapper.PurchaseReturnLineMapper;
 import com.aicabinet.trade.mapper.PurchaseReturnMapper;
@@ -40,6 +41,7 @@ class ProcurementServiceTest {
     @Mock private WarehouseMapper warehouseRepository;
     @Mock private SkuCatalogMapper skuCatalogRepository;
     @Mock private WarehouseService warehouseService;
+    @Mock private PurchaseReceiveAllocationMapper purchaseReceiveAllocationMapper;
     @Mock private SupplierPayableService supplierPayableService;
     @Mock private DistributedLockService distributedLockService;
     @Mock private ApprovalWorkflowService approvalWorkflowService;
@@ -52,7 +54,7 @@ class ProcurementServiceTest {
         service = new ProcurementService(permissionService, supplierRepository,
                 purchaseOrderRepository, purchaseOrderLineRepository, purchaseReturnRepository,
                 purchaseReturnLineRepository, warehouseRepository, skuCatalogRepository,
-                warehouseService, supplierPayableService, distributedLockService,
+                warehouseService, purchaseReceiveAllocationMapper, supplierPayableService, distributedLockService,
                 approvalWorkflowService, auditService, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         org.mockito.Mockito.lenient()

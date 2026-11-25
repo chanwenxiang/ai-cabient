@@ -20,8 +20,10 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -45,6 +47,8 @@ class PayScoreOrderNotifyTest {
                 new org.apache.ibatis.builder.MapperBuilderAssistant(
                         new com.baomidou.mybatisplus.core.MybatisConfiguration(), ""),
                 PayScoreOrder.class);
+        // 默认让状态 CAS 成功；竞态/0 行用例在各自测试内覆盖返回值。
+        org.mockito.Mockito.lenient().when(payScoreOrderMapper.update(any(), any())).thenReturn(1);
     }
 
     @Mock PayScoreOrderMapper payScoreOrderMapper;
@@ -85,6 +89,7 @@ class PayScoreOrderNotifyTest {
         CabinetOrder o = order("PENDING");
         when(payScoreOrderMapper.selectList(any())).thenReturn(List.of(po));
         when(cabinetOrderMapper.selectById("1792659779535535992400")).thenReturn(o);
+        when(cabinetOrderMapper.updateById(o)).thenReturn(1);
         when(paymentOperationMapper.findByIdempotencyKey(any())).thenReturn(Optional.empty());
 
         var event = new ObjectMapper().createObjectNode()
@@ -270,6 +275,7 @@ class PayScoreOrderNotifyTest {
         when(payScoreOrderMapper.selectList(any())).thenReturn(List.of(po));
         when(cabinetOrderMapper.selectById("1792659779535535992400")).thenReturn(o);
         when(payScoreOrderMapper.update(any(), any())).thenReturn(0, 1);
+        when(cabinetOrderMapper.updateById(o)).thenReturn(1);
         PayScoreOrder fresh = po("EXPIRED", "1792659779535535992400");
         fresh.setActualAmountCents(350);
         when(payScoreOrderMapper.selectById(any())).thenReturn(fresh);
@@ -303,6 +309,63 @@ class PayScoreOrderNotifyTest {
 
         verify(paymentOperationMapper, never()).insert(any(com.aicabinet.trade.domain.PaymentOperation.class));
         verify(payScoreOrderMapper, never()).updateById(any(PayScoreOrder.class));
+    }
+
+    @Test
+    void doneEvent_orderStatusUpdateZero_throwsSoControllerCanReleaseNonce() {
+        PayScoreOrder po = po("USER_PAYING", "1792659779535535992400");
+        CabinetOrder o = order("PENDING");
+        when(payScoreOrderMapper.selectList(any())).thenReturn(List.of(po));
+        when(cabinetOrderMapper.selectById("1792659779535535992400")).thenReturn(o);
+        when(payScoreOrderMapper.update(any(), any())).thenReturn(1);
+        when(cabinetOrderMapper.updateById(o)).thenReturn(0);
+        when(paymentOperationMapper.findByIdempotencyKey(any())).thenReturn(Optional.empty());
+        var event = new ObjectMapper().createObjectNode()
+                .put("out_order_no", "1792659000000000000001")
+                .put("state", "DONE");
+
+        assertThrows(IllegalStateException.class, () -> service.handleOrderNotify(event));
+
+        verify(revenueSplitService, never()).recordSplit(any());
+        verify(unpaidDunningService, never()).onUnpaidCleared(anyLong());
+    }
+
+    @Test
+    void stateCasExhausted_throwsInsteadOfConfirmingUnprocessedNotification() {
+        PayScoreOrder po = po("USER_PAYING", "1792659779535535992400");
+        CabinetOrder o = order("PENDING");
+        when(payScoreOrderMapper.selectList(any())).thenReturn(List.of(po));
+        when(cabinetOrderMapper.selectById("1792659779535535992400")).thenReturn(o);
+        when(payScoreOrderMapper.update(any(), any())).thenReturn(0);
+        when(payScoreOrderMapper.selectById(any())).thenReturn(
+                po("USER_CONFIRM", "1792659779535535992400"),
+                po("DOING", "1792659779535535992400"),
+                po("CREATED", "1792659779535535992400"));
+        var event = new ObjectMapper().createObjectNode()
+                .put("out_order_no", "1792659000000000000001")
+                .put("state", "DONE");
+
+        assertThrows(IllegalStateException.class, () -> service.handleOrderNotify(event));
+
+        verify(payScoreOrderMapper, org.mockito.Mockito.times(3)).update(any(), any());
+        verify(cabinetOrderMapper, never()).updateById(any());
+        verify(paymentOperationMapper, never()).insert(any());
+    }
+
+    @Test
+    void stateCasReadMissing_throwsInsteadOfBlindUpsert() {
+        PayScoreOrder po = po("USER_PAYING", "1792659779535535992400");
+        when(payScoreOrderMapper.selectList(any())).thenReturn(List.of(po));
+        when(payScoreOrderMapper.update(any(), any())).thenReturn(0);
+        when(payScoreOrderMapper.selectById(any())).thenReturn(null);
+        var event = new ObjectMapper().createObjectNode()
+                .put("out_order_no", "1792659000000000000001")
+                .put("state", "DONE");
+
+        assertThrows(IllegalStateException.class, () -> service.handleOrderNotify(event));
+
+        verify(payScoreOrderMapper, never()).updateById(any());
+        verify(paymentOperationMapper, never()).insert(any());
     }
 
     @Test

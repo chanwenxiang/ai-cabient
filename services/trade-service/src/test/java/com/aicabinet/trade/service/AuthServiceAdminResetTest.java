@@ -69,7 +69,7 @@ class AuthServiceAdminResetTest {
                         AuthProperties.DEFAULT_REFRESH_GRACE_SECONDS),
                 new SecurityProperties(false),
                 loginThrottleService, phoneVerifyLogMapper, distributedLockService,
-                new UserConsentLogService(mock(UserConsentLogMapper.class)), null);
+                new UserConsentLogService(mock(UserConsentLogMapper.class), null), null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

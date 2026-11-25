@@ -23,6 +23,8 @@
  *      第九轮的 P0 就是这一形态的高阶版：门禁写进了聚合链，但聚合链在 CI 里断了，
  *      后续门禁「已接入」只停留在纸面。规则 4 用可达性闭包把它钉死。
  *
+ *   5. 每个 `check-*.test.mjs` 必须有可执行接线；sibling 文件存在不等于 CI 会跑它。
+ *
  *   node scripts/check-audit-gates-wiring.mjs
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
@@ -66,6 +68,13 @@ export function extendReachability(reached, scripts, checkScriptNames) {
     if (reached.size === before) break;
   }
   return reached;
+}
+
+export function findUnwiredGateTests(testFiles, executableSources) {
+  const wired = new Set(
+    [...executableSources.matchAll(/check-[A-Za-z0-9_.-]+\.test\.mjs/g)].map((m) => m[0])
+  );
+  return testFiles.filter((rel) => !wired.has(rel.split(/[\\/]/).pop()));
 }
 
 export function evaluateFixtureCoverage({ gateNames, registry, testExists, sourceOf, existsFn }) {
@@ -240,6 +249,20 @@ function main() {
     problems.push(
       `门禁脚本没有任何**可执行接线**（CI 调用形态或被可达脚本链引用——旧「提及即接线」已收紧，R15-H6）= 等于没有：\n    - ` +
         unwired.join('\n    - ')
+    );
+  }
+
+  const gateTestFiles = gateFiles
+    .map((p) => p.slice(scriptsDir.length + 1))
+    .filter((rel) => rel.endsWith('.test.mjs'));
+  const unwiredGateTests = findUnwiredGateTests(
+    gateTestFiles,
+    workflowRaw + '\n' + reachedBodies + '\n' + preflightRaw
+  );
+  if (unwiredGateTests.length) {
+    problems.push(
+      `门禁夹具文件没有可执行接线（sibling 存在不等于会跑，必须被 package script/可达链/CI/preflight 引用）：\n    - ` +
+        unwiredGateTests.join('\n    - ')
     );
   }
 

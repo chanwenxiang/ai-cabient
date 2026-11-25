@@ -8,6 +8,7 @@ import com.aicabinet.common.dto.WarehouseBinDto;
 import com.aicabinet.common.dto.WarehouseBinStockDto;
 import com.aicabinet.trade.domain.WarehouseBin;
 import com.aicabinet.trade.domain.WarehouseBinStock;
+import com.aicabinet.trade.mapper.WarehouseOutboundLineMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.WarehouseBinMapper;
 import com.aicabinet.trade.mapper.WarehouseBinStockMapper;
@@ -43,6 +44,7 @@ public class WarehouseBinService {
     private final WarehouseMapper warehouseRepository;
     private final SkuCatalogMapper skuCatalogRepository;
     private final WarehouseService warehouseService;
+    private final WarehouseOutboundLineMapper outboundLineMapper;
     private final DistributedLockService distributedLockService;
 
     public WarehouseBinService(PermissionService permissionService,
@@ -51,6 +53,7 @@ public class WarehouseBinService {
                                WarehouseMapper warehouseRepository,
                                SkuCatalogMapper skuCatalogRepository,
                                WarehouseService warehouseService,
+                               WarehouseOutboundLineMapper outboundLineMapper,
                                DistributedLockService distributedLockService) {
         this.permissionService = permissionService;
         this.binRepository = binRepository;
@@ -58,6 +61,7 @@ public class WarehouseBinService {
         this.warehouseRepository = warehouseRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.warehouseService = warehouseService;
+        this.outboundLineMapper = outboundLineMapper;
         this.distributedLockService = distributedLockService;
     }
 
@@ -166,6 +170,7 @@ public class WarehouseBinService {
 
     @Transactional
     public void moveBetweenBins(Long operatorId, BinMoveRequest request) {
+        // CONCURRENCY: 源/目标货位库存按稳定顺序加锁并 FOR UPDATE，占用校验与移库同临界区。
         permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
         if (request.fromBinId().equals(request.toBinId())) {
             throw badRequest("from and to bin must differ");
@@ -187,8 +192,10 @@ public class WarehouseBinService {
             WarehouseBinStock fromRow = binStockRepository
                     .findByBinIdAndSkuIdAndBatchNoForUpdate(from.getBinId(), skuId, batchNo)
                     .orElseThrow(() -> badRequest("source bin has no stock: " + skuId + "/" + batchNo));
-            if (fromRow.getQuantity() < qty) {
-                throw badRequest("source bin insufficient stock");
+            int allocated = outboundLineMapper.sumAllocatedQtyByBin(from.getBinId(), skuId, batchNo);
+            int available = Math.max(0, fromRow.getQuantity() - allocated);
+            if (available < qty) {
+                throw badRequest("source bin 可用库存不足（含出库预留）");
             }
             fromRow.setQuantity(fromRow.getQuantity() - qty);
             fromRow.setUpdatedAt(Instant.now());

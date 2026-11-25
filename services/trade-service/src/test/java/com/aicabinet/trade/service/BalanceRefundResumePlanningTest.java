@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -137,6 +138,24 @@ class BalanceRefundResumePlanningTest {
         verify(balanceLedgerService, never()).change(anyLong(), anyInt(), anyString(), anyString(), anyString(), anyString());
     }
 
+    @Test
+    void repeatedFailure_reversalKeysDifferByRound() {
+        BalanceRefundRequest r = req();
+        BalanceRefundAllocation succeeded = slice(1, "RC-1", 400, "SUCCEEDED");
+        when(requestMapper.selectByIdForUpdate(911L)).thenReturn(Optional.of(r));
+        when(allocationMapper.findByRequestId(911L)).thenReturn(
+                List.of(succeeded, slice(2, "RC-2", 600, "FAILED")),
+                List.of(succeeded, slice(2, "RC-2", 600, "FAILED"), slice(3, "RC-2", 600, "FAILED")));
+
+        service.markRefundFailedAndReverse(911L, List.of(succeeded), new IllegalStateException("first"));
+        service.markRefundFailedAndReverse(911L, List.of(succeeded), new IllegalStateException("second"));
+
+        org.mockito.ArgumentCaptor<String> keys = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(balanceLedgerService, org.mockito.Mockito.times(2)).change(
+                eq(913L), eq(600), eq("BALANCE_REFUND_REVERSAL"), eq("911"), keys.capture(), anyString());
+        assertNotEquals(keys.getAllValues().get(0), keys.getAllValues().get(1));
+    }
+
     /** 防 Oracle：change 负数入参语义（补扣走 change(-cents)）。 */
     @Test
     void resumePlanning_debitUsesNegativeChange() {
@@ -151,6 +170,6 @@ class BalanceRefundResumePlanningTest {
         ReflectionTestUtils.invokeMethod(service, "debitRemainingAndMarkProcessing", 911L);
 
         verify(balanceLedgerService).change(eq(913L), eq(-600), eq("BALANCE_REFUND"),
-                eq("911"), eq("BALANCE_REFUND_RESUME:BR-911"), anyString());
+                eq("911"), eq("BALANCE_REFUND_RESUME:BR-911:2"), anyString());
     }
 }

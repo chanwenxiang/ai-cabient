@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.springframework.data.domain.Page;
+import java.util.List;
 import org.springframework.data.domain.Pageable;
 
 @Mapper
@@ -14,6 +15,87 @@ public interface PaymentOperationMapper extends BaseTradeMapper<PaymentOperation
 
     default Optional<PaymentOperation> findByIdempotencyKey(String idempotencyKey) {
     return Optional.ofNullable(selectOne(Wrappers.<PaymentOperation>lambdaQuery().eq(PaymentOperation::getIdempotencyKey, idempotencyKey)));
+    }
+
+    default Optional<PaymentOperation> findByIdempotencyKeyForUpdate(String idempotencyKey) {
+        return Optional.ofNullable(selectOne(Wrappers.<PaymentOperation>lambdaQuery()
+                .eq(PaymentOperation::getIdempotencyKey, idempotencyKey)
+                .last("FOR UPDATE")));
+    }
+
+    /**
+     * 微信退款待确认/待补跑：PROCESSING 查渠道；COMPLETED 且上下文未收尾则只补本地下游；
+     * 另保留存量 COMPLETED+PROCESSING 标记用于发现迟到的 ABNORMAL。
+     */
+    @org.apache.ibatis.annotations.Select("""
+            SELECT * FROM payment_operation
+            WHERE channel = 'WECHAT'
+              AND gateway_trade_no IS NOT NULL AND gateway_trade_no <> ''
+              AND (
+                status = 'REFUND_PROCESSING'
+                OR (status = 'COMPLETED' AND reason LIKE '%[refund:PROCESSING]%')
+                OR (status = 'REFUND_FAILED' AND operation_type = 'RECHARGE_REFUND'
+                    AND refund_context_json ->> 'localStatus' IN ('PENDING', 'CHANNEL_FAILED'))
+                OR (status = 'COMPLETED' AND refund_context_json IS NOT NULL AND (
+                  (operation_type = 'REFUND' AND refund_context_json ->> 'downstreamStatus' = 'PENDING')
+                  OR (operation_type = 'RECHARGE_REFUND'
+                      AND refund_context_json ->> 'localStatus' IN ('PENDING', 'CHANNEL_FINALIZED'))
+                ))
+              )
+            ORDER BY created_at ASC
+            LIMIT 50
+            """)
+    List<PaymentOperation> findWechatRefundsAwaitingConfirmation();
+
+    /** JSONB 上下文 CAS：只有状态与旧 JSON 都没变时才写，避免并发扫描覆盖终态。 */
+    @org.apache.ibatis.annotations.Update("""
+            UPDATE payment_operation
+            SET refund_context_json = CAST(#{nextJson} AS jsonb), updated_at = now()
+            WHERE operation_id = #{operationId}
+              AND status = #{expectedStatus}
+              AND refund_context_json = CAST(#{priorJson} AS jsonb)
+            """)
+    int updateRefundContextJson(@Param("operationId") String operationId,
+                                @Param("expectedStatus") String expectedStatus,
+                                @Param("priorJson") String priorJson,
+                                @Param("nextJson") String nextJson);
+
+    /** 存量 COMPLETED 只把渠道标记改成 ABNORMAL，绝不改资金状态/金额。 */
+    default int markLegacyRefundAbnormal(String operationId, String priorReason, String nextReason) {
+        return update(null, Wrappers.<PaymentOperation>lambdaUpdate()
+                .eq(PaymentOperation::getOperationId, operationId)
+                .eq(PaymentOperation::getStatus, "COMPLETED")
+                .eq(PaymentOperation::getReason, priorReason)
+                .set(PaymentOperation::getReason, nextReason)
+                .set(PaymentOperation::getUpdatedAt, java.time.Instant.now()));
+    }
+
+    default int touchProcessingRefund(String operationId, String priorReason, String nextReason) {
+        return update(null, Wrappers.<PaymentOperation>lambdaUpdate()
+                .eq(PaymentOperation::getOperationId, operationId)
+                .eq(PaymentOperation::getStatus, "REFUND_PROCESSING")
+                .eq(PaymentOperation::getReason, priorReason)
+                .set(PaymentOperation::getReason, nextReason)
+                .set(PaymentOperation::getUpdatedAt, java.time.Instant.now()));
+    }
+
+    default int finishProcessingRefund(String operationId, String priorReason, String nextReason,
+                                       String status) {
+        return update(null, Wrappers.<PaymentOperation>lambdaUpdate()
+                .eq(PaymentOperation::getOperationId, operationId)
+                .eq(PaymentOperation::getStatus, "REFUND_PROCESSING")
+                .eq(PaymentOperation::getReason, priorReason)
+                .set(PaymentOperation::getStatus, status)
+                .set(PaymentOperation::getReason, nextReason)
+                .set(PaymentOperation::getUpdatedAt, java.time.Instant.now()));
+    }
+
+    default int finalizeInitiatedRefundTrace(String refundIdemKey) {
+        return update(null, Wrappers.<PaymentOperation>lambdaUpdate()
+                .eq(PaymentOperation::getIdempotencyKey, "REFUND:INIT:" + refundIdemKey)
+                .eq(PaymentOperation::getStatus, "REFUND_INITIATED")
+                .set(PaymentOperation::getStatus, "FINALIZED")
+                .set(PaymentOperation::getUpdatedAt, java.time.Instant.now()));
     }
 
     default Page<PaymentOperation> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable) {
@@ -207,6 +289,13 @@ public interface PaymentOperationMapper extends BaseTradeMapper<PaymentOperation
     long sumChannelFeeBetween(@Param("start") java.time.Instant start,
                               @Param("end") java.time.Instant end,
                               @Param("channel") String channel);
+
+    /**
+     * 日渠道费差额写入的事务锁：同一 date + channel 串行化，锁住后再读汇总和插差额行。
+     * 必须由调用方事务包裹；xact 锁随提交/回滚自动释放，不引入手工解锁。
+     */
+    @Select("SELECT pg_advisory_xact_lock(hashtextextended(concat(#{date}, ':', #{channel}), 0))")
+    String lockChannelFeeDay(@Param("date") String date, @Param("channel") String channel);
 
     /**
      * 窗口内网关渠道（WECHAT/ALIPAY/MOCK）已完成充值退款合计（正数）。

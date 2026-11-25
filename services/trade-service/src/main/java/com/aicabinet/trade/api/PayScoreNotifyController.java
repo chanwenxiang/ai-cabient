@@ -46,10 +46,15 @@ public class PayScoreNotifyController {
             @RequestHeader(value = "Wechatpay-Public-Key-Id", required = false) String publicKeyId) {
         String keyId = serial == null || serial.isBlank() ? publicKeyId : serial;
         JsonNode event = notifyService.parseAndVerify(body, timestamp, nonce, signature, keyId);
-        if (PayScoreOrderNotifyService.isOrderEvent(event)) {
-            payScoreOrderNotifyService.handleOrderNotify(event);
-        } else {
-            payScoreService.handleWechatPermissionNotify(event);
+        try {
+            if (PayScoreOrderNotifyService.isOrderEvent(event)) {
+                payScoreOrderNotifyService.handleOrderNotify(event);
+            } else {
+                payScoreService.handleWechatPermissionNotify(event);
+            }
+        } catch (RuntimeException e) {
+            notifyService.releaseNonce(nonce);
+            throw e;
         }
         return ResponseEntity.noContent().build();
     }

@@ -105,7 +105,7 @@ class InventoryOpsConcurrencyTest {
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyLong()))
                 .thenReturn(true);
-        when(lotService.deviceUsesLotLedger("CAB-LOT")).thenReturn(true);
+        when(lotService.hasLotForSku("CAB-LOT", "SKU-A")).thenReturn(true);
         when(skuCatalogRepository.findById("SKU-A")).thenReturn(Optional.of(new SkuCatalog()));
         when(lotService.sellableQuantity("CAB-LOT", "SKU-A")).thenReturn(1);
 
@@ -125,13 +125,38 @@ class InventoryOpsConcurrencyTest {
     }
 
     @Test
+    void stocktakeAdjust_mixedLotDevice_targetSkuWithoutLots_usesSkuSpecificBaseline() {
+        when(distributedLockService.tryLock(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong()))
+                .thenReturn(true);
+        when(lotService.hasLotForSku("CAB-MIXED", "SKU-A")).thenReturn(false);
+        when(skuCatalogRepository.findById("SKU-A")).thenReturn(Optional.of(new SkuCatalog()));
+        DeviceSkuInventoryId id = new DeviceSkuInventoryId("CAB-MIXED", "SKU-A");
+        DeviceSkuInventory existing = new DeviceSkuInventory();
+        existing.setId(id);
+        existing.setQuantity(5);
+        existing.setVersion(0);
+        when(inventoryRepository.findById(id)).thenReturn(Optional.of(existing), Optional.of(existing));
+
+        service.stocktakeAdjust(1L, new com.aicabinet.common.dto.StocktakeAdjustRequest(
+                "CAB-MIXED", "SKU-A", 3, null, null, 0L));
+
+        verify(lotService).hasLotForSku("CAB-MIXED", "SKU-A");
+        verify(lotService, never()).deviceUsesLotLedger("CAB-MIXED");
+        verify(lotService, never()).sellableQuantity("CAB-MIXED", "SKU-A");
+        verify(lotService).stocktakeAdjust(eq("CAB-MIXED"), eq("SKU-A"), eq(3), eq(1L), anyString());
+    }
+
+    @Test
     void stocktakeAdjust_lotLedgerZeroDelta_syncsAggregateWithoutNewMovement() {
         when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyLong()))
                 .thenReturn(true);
-        when(lotService.deviceUsesLotLedger("CAB-LOT")).thenReturn(true);
+        when(lotService.hasLotForSku("CAB-LOT", "SKU-A")).thenReturn(true);
         when(skuCatalogRepository.findById("SKU-A")).thenReturn(Optional.of(new SkuCatalog()));
         when(lotService.sellableQuantity("CAB-LOT", "SKU-A")).thenReturn(1);
         DeviceSkuInventoryId id = new DeviceSkuInventoryId("CAB-LOT", "SKU-A");

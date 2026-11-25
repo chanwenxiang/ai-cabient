@@ -73,20 +73,22 @@ public class ReconciliationScheduler {
             var fundBill = platformFundBillReconciler.reconcile(yesterday);
             summary += "；运营账户资金账单：" + fundBill.message();
             log.info("scheduled reconciliation completed for date={}", yesterday);
-            // H42(c): 对账后推进 PROCESSING 微信退款状态（查单兜底，无退款回调入口）
+        } catch (Exception e) {
+            failed = true;
+            summary = "对账失败：" + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+            log.error("scheduled reconciliation failed", e);
+        }
+        try {
             int advanced = weChatRefundReconciler.advanceProcessingRefunds();
             if (advanced > 0) {
                 summary += "；推进 PROCESSING 退款 " + advanced + " 笔";
             }
         } catch (Exception e) {
             failed = true;
-            taskService.finish(RECONCILIATION, "FAILED", e.getMessage(), start);
-            log.error("scheduled reconciliation failed", e);
-        } finally {
-            if (!failed) {
-                taskService.finish(RECONCILIATION, "SUCCESS", summary, start);
-            }
+            summary += "；PROCESSING 退款推进失败：" + e.getMessage();
+            log.error("scheduled refund advancement failed", e);
         }
+        taskService.finish(RECONCILIATION, failed ? "FAILED" : "SUCCESS", summary, start);
     }
 
     /**

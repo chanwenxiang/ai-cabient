@@ -34,6 +34,7 @@ import lombok.Setter;
 public class WeChatProfitSharingService {
     private static final String WECHAT_SUBMITTED = "WECHAT_SUBMITTED";
     private static final String LEDGER_ONLY = "LEDGER_ONLY";
+    private static final String VOIDED = "VOIDED";
 
 
     private static final Logger log = LoggerFactory.getLogger(WeChatProfitSharingService.class);
@@ -517,6 +518,9 @@ public class WeChatProfitSharingService {
      * 查询微信分账单状态并同步本地记录：查单 HTTP 在事务外，落库走短事务。
      */
     public OrderRevenueSplit refreshSplitStatus(OrderRevenueSplit split) {
+        if (VOIDED.equalsIgnoreCase(split.getStatus()) || "REVERSED".equalsIgnoreCase(split.getStatus())) {
+            return split;
+        }
         if (!isApiReady()) {
             throw new IllegalStateException("WeChat profit sharing is not enabled or pay is not configured");
         }
@@ -529,39 +533,65 @@ public class WeChatProfitSharingService {
             return split;
         }
         if (profitSharingProperties.mockEnabled()) {
-            applyRemoteState(split, "FINISHED", null);
-            log.info("mock profit sharing refreshed splitId={} status={}", split.getSplitId(), split.getStatus());
-            return self.persistSplit(split);
+            log.info("mock profit sharing refreshed splitId={}", split.getSplitId());
+            return self.persistRemoteState(split.getOrderId(), "FINISHED", null);
         }
         try {
             String encodedOut = URLEncoder.encode(outOrderNo.trim(), StandardCharsets.UTF_8);
             String path = "/v3/profitsharing/orders/" + encodedOut
                     + "?transaction_id=" + URLEncoder.encode(wxTxn.trim(), StandardCharsets.UTF_8);
             JsonNode resp = weChatPayV3Client.get(path);
-            String state = resp.path("state").asText("");
-            applyRemoteState(split, state, resp.path("fail_reason").asText(null));
-            return self.persistSplit(split);
+            return self.persistRemoteState(split.getOrderId(), resp.path("state").asText(""),
+                    resp.path("fail_reason").asText(null));
         } catch (Exception e) {
-            split.setFailureReason(truncate(e.getMessage()));
             log.warn("wechat profit sharing query failed splitId={}", split.getSplitId(), e);
-            return self.persistSplit(split);
+            return self.persistFailureReason(split.getOrderId(), truncate(e.getMessage()));
         }
     }
 
-    /** 短事务：只落 split 状态，不包含任何渠道 HTTP。 */
+    /** 短事务：锁内重读当前分账行，只把渠道状态落到当前行，不能覆盖并发退款产生的终态。 */
     @Transactional
-    public OrderRevenueSplit persistSplit(OrderRevenueSplit split) {
-        OrderRevenueSplit saved = splitRepository.save(split);
-        if (saved.getFailureReason() == null && saved.getSplitId() != null) {
-            // 审计 R11-B-N1（M01 同家族第 7 处）：updateById/save 默认 NOT_NULL 策略跳 null ——
-            // applyRemoteState 把 FAILED 单刷新成 FINISHED/PROCESSING 时 setFailureReason(null)
-            // 不会清列，旧失败文案残留库中与 WECHAT_SUBMITTED 自相矛盾；照 markLedgerOnly 模板补真清列。
-            splitRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers
-                    .<OrderRevenueSplit>lambdaUpdate()
-                    .eq(OrderRevenueSplit::getSplitId, saved.getSplitId())
-                    .set(OrderRevenueSplit::getFailureReason, null));
+    public OrderRevenueSplit persistRemoteState(String orderId, String state, String failReason) {
+        OrderRevenueSplit current = splitRepository.findByOrderIdForUpdate(orderId)
+                .orElseThrow(() -> new IllegalStateException("profit sharing split disappeared: " + orderId));
+        if (VOIDED.equalsIgnoreCase(current.getStatus()) || "REVERSED".equalsIgnoreCase(current.getStatus())) {
+            log.info("profit sharing terminal split kept after refresh splitId={} status={}",
+                    current.getSplitId(), current.getStatus());
+            return current;
         }
-        return saved;
+        String priorStatus = current.getStatus();
+        applyRemoteState(current, state, failReason);
+        int updated = splitRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers
+                .<OrderRevenueSplit>lambdaUpdate()
+                .eq(OrderRevenueSplit::getSplitId, current.getSplitId())
+                .eq(OrderRevenueSplit::getStatus, priorStatus)
+                .set(OrderRevenueSplit::getStatus, current.getStatus())
+                .set(OrderRevenueSplit::getFailureReason, current.getFailureReason()));
+        if (updated == 0) {
+            throw new IllegalStateException("profit sharing split state changed during persist: "
+                    + current.getSplitId());
+        }
+        return splitRepository.findByOrderIdForUpdate(orderId).orElse(current);
+    }
+
+    /** 查单失败只更新失败原因，绝不能把 HTTP 前的旧状态写回当前行。 */
+    @Transactional
+    public OrderRevenueSplit persistFailureReason(String orderId, String failureReason) {
+        OrderRevenueSplit current = splitRepository.findByOrderIdForUpdate(orderId)
+                .orElseThrow(() -> new IllegalStateException("profit sharing split disappeared: " + orderId));
+        if (VOIDED.equalsIgnoreCase(current.getStatus()) || "REVERSED".equalsIgnoreCase(current.getStatus())) {
+            return current;
+        }
+        int updated = splitRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers
+                .<OrderRevenueSplit>lambdaUpdate()
+                .eq(OrderRevenueSplit::getSplitId, current.getSplitId())
+                .eq(OrderRevenueSplit::getStatus, current.getStatus())
+                .set(OrderRevenueSplit::getFailureReason, failureReason));
+        if (updated == 0) {
+            throw new IllegalStateException("profit sharing split state changed during failure persist: "
+                    + current.getSplitId());
+        }
+        return splitRepository.findByOrderIdForUpdate(orderId).orElse(current);
     }
 
     /**

@@ -50,7 +50,8 @@ class BalanceRefundConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        when(systemConfigService.getPositiveLimit(SystemConfigService.BALANCE_REFUND_MAX_CENTS, 500_000))
+        org.mockito.Mockito.lenient()
+                .when(systemConfigService.getPositiveLimit(SystemConfigService.BALANCE_REFUND_MAX_CENTS, 500_000))
                 .thenReturn(500_000);
         service = new BalanceRefundService(
                 requestMapper, allocationMapper, accountMapper, rechargeOrderMapper,

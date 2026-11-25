@@ -42,6 +42,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -784,17 +785,40 @@ public class PaymentService {
     public RechargeOrderDto refundRecharge(String orderId, String reason) {
         return runWithRechargeLock(orderId, 60, () -> {
             RechargeRefundDebit debit = self.debitForRechargeRefund(orderId, reason);
+            RefundResumeService.RechargeRefundContext context = RefundResumeService.rechargeContext(
+                    orderId, fullRefundNo(debit.order()), debit.refundCents(), debit.bonusRevokedCents(), true, reason);
+            String status;
             try {
-                if (PayChannels.ALIPAY.equalsIgnoreCase(debit.order().getChannel())) {
-                    refundAlipay(debit.order(), debit.refundCents(), reason);
-                } else {
-                    refundWeChat(debit.order(), debit.refundCents(), reason);
-                }
+                status = PayChannels.ALIPAY.equalsIgnoreCase(debit.order().getChannel())
+                        ? refundAlipay(debit.order(), debit.refundCents(), reason, context)
+                        : refundWeChat(debit.order(), debit.refundCents(), reason, context);
             } catch (RuntimeException e) {
+                if (PayChannels.WECHAT.equalsIgnoreCase(debit.order().getChannel())) {
+                    SliceRefundProbe probe = probeChannelRefundAccepted(orderId, context.outRefundNo());
+                    if (probe == SliceRefundProbe.ACCEPTED) {
+                        self.finalizeChannelPartialRefund(orderId, debit.refundCents(), context.outRefundNo());
+                        self.markRechargeRefundClosed(orderId);
+                        return toDto(rechargeOrderRepository.findById(orderId).orElse(debit.order()));
+                    }
+                    if (probe == SliceRefundProbe.NOT_FOUND) {
+                        recordRechargeRefundOperation(debit.order(), debit.refundCents(), PayChannels.WECHAT,
+                                rechargeRefundIdempotencyKey(orderId, debit.refundCents(), context.outRefundNo()),
+                                context.outRefundNo(), reason, "REFUND_FAILED",
+                                RefundResumeService.rechargeContextJson(context));
+                        self.compensateRechargeRefundDebit(orderId, debit.refundCents(), debit.bonusRevokedCents(), reason);
+                        throw e;
+                    }
+                    throw new ResponseStatusException(HttpStatus.CONFLICT,
+                            "充值退款渠道结果未确认，已保留扣款并等待查单，禁止自动回补 order=" + orderId, e);
+                }
                 self.compensateRechargeRefundDebit(orderId, debit.refundCents(), debit.bonusRevokedCents(), reason);
                 throw e;
             }
-            self.finalizeChannelPartialRefund(orderId, debit.refundCents());
+            if ("PROCESSING".equalsIgnoreCase(status)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "微信充值退款处理中，确认成功后自动完成本地结案");
+            }
+            self.finalizeChannelPartialRefund(orderId, debit.refundCents(), context.outRefundNo());
             // R19-2：部分退款（已消费本金不退）也必须结案，否则订单留在 PAID、运营以为还能再退。
             // 这里刻意区分「refunded_cents < amount_cents 但 status=REFUNDED」：
             // 金额列记录真实退回额，状态表示该充值单的退款流程已终结。
@@ -833,13 +857,15 @@ public class PaymentService {
         }
     }
 
-    private void refundWeChat(RechargeOrder order, int refundCents, String reason) {
+    private String refundWeChat(RechargeOrder order, int refundCents, String reason,
+                                RefundResumeService.RechargeRefundContext context) {
         // 全文/部分共用稳定单号：重试同号，渠道按单号去重（R19-2 起可能只退剩余本金）
-        refundWeChatPartial(order, refundCents, reason, fullRefundNo(order));
+        return refundWeChatPartial(order, refundCents, reason, fullRefundNo(order), context);
     }
 
-    private void refundAlipay(RechargeOrder order, int refundCents, String reason) {
-        refundAlipayPartial(order, refundCents, reason, fullRefundNo(order));
+    private String refundAlipay(RechargeOrder order, int refundCents, String reason,
+                                RefundResumeService.RechargeRefundContext context) {
+        return refundAlipayPartial(order, refundCents, reason, fullRefundNo(order), context);
     }
 
     /** 全额退款单号：由不可变订单号派生 ⇒ 重试同号、渠道可去重；局部退款必须传入按切片持久化的号。 */
@@ -852,7 +878,7 @@ public class PaymentService {
      * 短事务校验 → 渠道 HTTP → 短事务落库；渠道失败不改 refunded_cents。
      * @return 微信/支付宝退款商户退款单号
      */
-    public String refundRechargeChannelPartial(String orderId, int refundCents, String reason, String outRefundNo) {
+    public ChannelRefundResult refundRechargeChannelPartial(String orderId, int refundCents, String reason, String outRefundNo) {
         if (refundCents <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
         }
@@ -861,32 +887,43 @@ public class PaymentService {
         }
         try {
             ChannelPartialRefundPrep prep = self.prepareChannelPartialRefund(orderId, refundCents, outRefundNo);
-            if (PayChannels.ALIPAY.equalsIgnoreCase(prep.channel())) {
-                refundAlipayPartial(prep.order(), refundCents, reason, prep.refundNo());
-            } else {
-                refundWeChatPartial(prep.order(), refundCents, reason, prep.refundNo());
+            RefundResumeService.RechargeRefundContext context = RefundResumeService.rechargeContext(
+                    orderId, outRefundNo, refundCents, 0, false, reason);
+            String status = PayChannels.ALIPAY.equalsIgnoreCase(prep.channel())
+                    ? refundAlipayPartial(prep.order(), refundCents, reason, prep.refundNo(), context)
+                    : refundWeChatPartial(prep.order(), refundCents, reason, prep.refundNo(), context);
+            if ("SUCCESS".equalsIgnoreCase(status)) {
+                self.finalizeChannelPartialRefund(orderId, refundCents, prep.refundNo());
             }
-            self.finalizeChannelPartialRefund(orderId, refundCents);
-            log.info("recharge channel partial refund orderId={} amount={} refundNo={}",
-                    orderId, refundCents, prep.refundNo());
-            return prep.refundNo();
+            log.info("recharge channel partial refund orderId={} amount={} refundNo={} status={}",
+                    orderId, refundCents, prep.refundNo(), status);
+            return new ChannelRefundResult(prep.refundNo(), status);
         } finally {
             distributedLockService.unlock(rechargeLockKey(orderId));
         }
     }
 
+    public record ChannelRefundResult(String refundNo, String status) {}
+
     public record ChannelPartialRefundPrep(RechargeOrder order, String channel, String refundNo, int alreadyRefunded) {}
 
-    /** AU-140：余额退款切片渠道异常后的查单三态（见 {@link #probeChannelRefundAccepted}）。 */
-    public enum SliceRefundProbe { ACCEPTED, NOT_FOUND, UNKNOWN }
+    /** AU-140：余额退款切片渠道异常后的查单四态（见 {@link #probeChannelRefundAccepted}）。 */
+    public enum SliceRefundProbe { ACCEPTED, PROCESSING, NOT_FOUND, UNKNOWN }
+
+    /** 渠道已受理但仍 PROCESSING：本地不得累加已退，也不得把切片冲回后换号重退。 */
+    public static class RefundProcessingException extends ResponseStatusException {
+        public RefundProcessingException(String orderId, String refundNo) {
+            super(HttpStatus.CONFLICT, "微信退款处理中，确认成功后再完成退款 order=" + orderId + " refundNo=" + refundNo);
+        }
+    }
 
     /**
      * AU-140（2026-10-18 批次 3）：余额退款切片抛异常 ≠ 渠道未受理——HTTP 超时/网络抖动下
      * 渠道可能已按稳定 outRefundNo 受理（钱已退或在途）。旧实现一律按失败冲回 + 续退换单重退
      * ⇒ 双退窗口，且 WeChatRefundReconciler 不覆盖余额切片号（无对账兜底）。
      * 本方法用与订单退款链同款的 queryRefund 查单确认：
-     * SUCCESS/PROCESSING ⇒ ACCEPTED（不得冲回重退）；404/ABNORMAL/CLOSED ⇒ NOT_FOUND（可安全冲回）；
-     * 支付宝/未配置/查单异常 ⇒ UNKNOWN（保守维持旧失败路径）。
+     * SUCCESS ⇒ ACCEPTED；PROCESSING ⇒ PROCESSING（均不得冲回，但仅 SUCCESS 可本地入账）；
+     * 404/ABNORMAL/CLOSED ⇒ NOT_FOUND（可安全冲回）；支付宝/未配置/查单异常 ⇒ UNKNOWN（不得冲回）。
      */
     public SliceRefundProbe probeChannelRefundAccepted(String rechargeOrderId, String outRefundNo) {
         RechargeOrder order = rechargeOrderRepository.findById(rechargeOrderId).orElse(null);
@@ -900,8 +937,11 @@ public class PaymentService {
             com.fasterxml.jackson.databind.JsonNode resp =
                     weChatPayClient.v3().queryRefund(order.getOrderId(), outRefundNo);
             String status = resp.path("status").asText("");
-            if ("SUCCESS".equals(status) || "PROCESSING".equals(status)) {
+            if ("SUCCESS".equals(status)) {
                 return SliceRefundProbe.ACCEPTED;
+            }
+            if ("PROCESSING".equals(status)) {
+                return SliceRefundProbe.PROCESSING;
             }
             if ("ABNORMAL".equals(status) || "CLOSED".equals(status)) {
                 return SliceRefundProbe.NOT_FOUND;
@@ -921,12 +961,12 @@ public class PaymentService {
      * AU-140：查单确认已受理后补渠道侧 finalize（异常发生在 HTTP 成功与 finalize 之间的窗口），
      * 失败仅告警——渠道侧资金已动，本地差额由对账兜底。
      */
-    public void finalizeChannelPartialRefundQuietly(String orderId, int refundCents) {
+    public void finalizeChannelPartialRefundQuietly(String orderId, int refundCents, String outRefundNo) {
         try {
-            self.finalizeChannelPartialRefund(orderId, refundCents);
+            self.finalizeChannelPartialRefund(orderId, refundCents, outRefundNo);
         } catch (Exception e) {
-            log.warn("channel partial refund finalize-after-probe failed orderId={} amount={}",
-                    orderId, refundCents, e);
+            log.warn("channel partial refund finalize-after-probe failed orderId={} amount={} refundNo={}",
+                    orderId, refundCents, outRefundNo, e);
         }
     }
 
@@ -962,7 +1002,102 @@ public class PaymentService {
     }
 
     @Transactional
+    public void finalizeChannelPartialRefund(String orderId, int refundCents, String outRefundNo) {
+        String key = rechargeRefundIdempotencyKey(orderId, refundCents, requireStableRefundNo(outRefundNo));
+        paymentOperationRepository.findByIdempotencyKeyForUpdate(key).ifPresent(op -> {
+            String nextReason = op.getReason() == null ? "充值退款 [refund:SUCCESS]"
+                    : op.getReason().replace("[refund:PENDING]", "[refund:SUCCESS]")
+                            .replace("[refund:PROCESSING]", "[refund:SUCCESS]");
+            confirmRechargeChannelRefund(orderId, op, "SUCCESS", nextReason);
+        });
+    }
+
+    /** 充值退款流水 CAS、渠道已退额与本地结案在同一事务内完成；重复确认不再累加已退额。 */
+    @Transactional
+    public boolean confirmRechargeChannelRefund(String orderId, PaymentOperation operation,
+                                                String channelStatus, String nextReason) {
+        if (operation == null || operation.getOrderId() != null) {
+            return false;
+        }
+        RechargeOrder order = rechargeOrderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+        PaymentOperation current = paymentOperationRepository.findByIdempotencyKeyForUpdate(operation.getIdempotencyKey())
+                .orElse(operation);
+        boolean success = "SUCCESS".equalsIgnoreCase(channelStatus);
+        String targetStatus = success ? "COMPLETED" : "REFUND_FAILED";
+        if ("REFUND_PROCESSING".equals(current.getStatus())) {
+            if (paymentOperationRepository.finishProcessingRefund(
+                    current.getOperationId(), current.getReason(), nextReason, targetStatus) == 0) {
+                return false;
+            }
+            current.setStatus(targetStatus);
+            current.setReason(nextReason);
+        }
+        if (!targetStatus.equals(current.getStatus())) {
+            return false;
+        }
+        Optional<RefundResumeService.RechargeRefundContext> parsed = RefundResumeService.parseRechargeContext(
+                current.getRefundContextJson());
+        if (parsed.isEmpty()) {
+            if (success) {
+                finalizeChannelPartialRefund(order.getOrderId(), current.getAmountCents());
+            } else {
+                compensateRechargeRefundDebit(order.getOrderId(), current.getAmountCents(), 0, nextReason);
+            }
+            return true;
+        }
+        RefundResumeService.RechargeRefundContext context = parsed.get();
+        String localStatus = context.localStatus();
+        String nextLocalStatus = success ? "CHANNEL_FINALIZED" : "CHANNEL_FAILED";
+        if ("DONE".equals(localStatus) || nextLocalStatus.equals(localStatus)) {
+            return true;
+        }
+        if (success) {
+            finalizeChannelPartialRefund(order.getOrderId(), context.amountCents());
+            if (context.closeAfterSuccess()) {
+                markRechargeRefundClosed(order.getOrderId());
+            }
+        } else {
+            applyRechargeRefundCompensation(order, context);
+        }
+        RefundResumeService.RechargeRefundContext updated = RefundResumeService.withRechargeLocalStatus(
+                context, nextLocalStatus);
+        if (paymentOperationRepository.updateRefundContextJson(current.getOperationId(), targetStatus,
+                current.getRefundContextJson(), RefundResumeService.rechargeContextJson(updated)) == 0) {
+            throw new IllegalStateException("充值退款上下文并发变更，已回滚本地入账 op=" + current.getOperationId());
+        }
+        return true;
+    }
+
+    private void applyRechargeRefundCompensation(RechargeOrder order,
+                                                 RefundResumeService.RechargeRefundContext context) {
+        compensateRechargeRefundDebit(order.getOrderId(), context.amountCents(),
+                context.bonusRevokedCents(), context.reason());
+    }
+
+    /** 切片/整单下游收尾后标 DONE；CAS 失败保留 CHANNEL_* 供下一轮查单补跑。 */
+    @Transactional
+    public boolean markRechargeRefundContextDone(PaymentOperation operation) {
+        PaymentOperation current = paymentOperationRepository.findByIdempotencyKeyForUpdate(operation.getIdempotencyKey())
+                .orElse(operation);
+        Optional<RefundResumeService.RechargeRefundContext> parsed = RefundResumeService.parseRechargeContext(
+                current.getRefundContextJson());
+        if (parsed.isEmpty()) {
+            return false;
+        }
+        RefundResumeService.RechargeRefundContext context = parsed.get();
+        if (!"CHANNEL_FINALIZED".equals(context.localStatus())
+                && !"CHANNEL_FAILED".equals(context.localStatus())) {
+            return false;
+        }
+        RefundResumeService.RechargeRefundContext done = RefundResumeService.withRechargeLocalStatus(context, "DONE");
+        return paymentOperationRepository.updateRefundContextJson(current.getOperationId(), current.getStatus(),
+                current.getRefundContextJson(), RefundResumeService.rechargeContextJson(done)) > 0;
+    }
+
+    @Transactional
     public void finalizeChannelPartialRefund(String orderId, int refundCents) {
+        // CONCURRENCY: recharge_order FOR UPDATE 行锁内重读已退额，串行累加。
         RechargeOrder order = rechargeOrderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
         if (!"PAID".equals(order.getStatus()) && !"REFUNDED".equals(order.getStatus())) {
@@ -977,7 +1112,8 @@ public class PaymentService {
         rechargeOrderRepository.save(order);
     }
 
-    private void refundWeChatPartial(RechargeOrder order, int refundCents, String reason, String outRefundNo) {
+    private String refundWeChatPartial(RechargeOrder order, int refundCents, String reason, String outRefundNo,
+                                       RefundResumeService.RechargeRefundContext context) {
         String refundNo = requireStableRefundNo(outRefundNo);
         String idemKey = rechargeRefundIdempotencyKey(order.getOrderId(), refundCents, refundNo);
         if (weChatPayProperties.isConfigured()) {
@@ -986,26 +1122,36 @@ public class PaymentService {
                 throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                         "缺少微信支付交易号，无法原路退款");
             }
-            // H42(a): 解析渠道退款状态并写入流水备注；ABNORMAL 告警，PROCESSING 由对账查单推进
+            recordRechargeRefundOperation(order, refundCents, PayChannels.WECHAT, idemKey, refundNo,
+                    reasonOrDefault(reason) + " [refund:PENDING]", "REFUND_PROCESSING",
+                    RefundResumeService.rechargeContextJson(context));
             com.fasterxml.jackson.databind.JsonNode resp = weChatPayClient.createRefund(
                     order.getOrderId(), refundNo, refundCents, order.getAmountCents(), reason);
             String refundStatus = OrderPaymentService.weChatRefundStatus(resp);
+            String operationStatus = "SUCCESS".equalsIgnoreCase(refundStatus) ? "COMPLETED"
+                    : ("PROCESSING".equalsIgnoreCase(refundStatus) ? "REFUND_PROCESSING" : "REFUND_FAILED");
+            recordRechargeRefundOperation(order, refundCents, PayChannels.WECHAT, idemKey, refundNo,
+                    reasonOrDefault(reason) + " [refund:" + refundStatus + "]", operationStatus,
+                    RefundResumeService.rechargeContextJson(context));
             if ("ABNORMAL".equalsIgnoreCase(refundStatus)) {
-                log.error("wechat recharge refund abnormal orderId={} outRefundNo={}", order.getOrderId(), refundNo);
                 sendOpsAlert("WECHAT_REFUND_ABNORMAL", "微信充值退款异常",
                         "orderId=" + order.getOrderId() + " outRefundNo=" + refundNo + " 需人工介入", order);
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                        "微信充值退款异常（ABNORMAL），未确认到账");
             }
-            recordRechargeRefundOperation(order, refundCents, PayChannels.WECHAT, idemKey, refundNo,
-                    reasonOrDefault(reason) + " [refund:" + refundStatus + "]");
-        } else if (securityProperties.mockEnabled()) {
-            recordRechargeRefundOperation(order, refundCents, PayChannels.WECHAT, idemKey, null,
-                    reasonOrDefault(reason) + "（模拟通道退款）");
-        } else {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, ApiMessages.WECHAT_PAY_NOT_CONFIGURED);
+            return refundStatus;
         }
+        if (securityProperties.mockEnabled()) {
+            recordRechargeRefundOperation(order, refundCents, PayChannels.WECHAT, idemKey, null,
+                    reasonOrDefault(reason) + "（模拟通道退款）", "COMPLETED",
+                    RefundResumeService.rechargeContextJson(context));
+            return "SUCCESS";
+        }
+        throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, ApiMessages.WECHAT_PAY_NOT_CONFIGURED);
     }
 
-    private void refundAlipayPartial(RechargeOrder order, int refundCents, String reason, String outRefundNo) {
+    private String refundAlipayPartial(RechargeOrder order, int refundCents, String reason, String outRefundNo,
+                                       RefundResumeService.RechargeRefundContext context) {
         String refundNo = requireStableRefundNo(outRefundNo);
         String idemKey = rechargeRefundIdempotencyKey(order.getOrderId(), refundCents, refundNo);
         if (alipayPayClient.isConfigured()) {
@@ -1015,10 +1161,14 @@ public class PaymentService {
                         "缺少支付宝交易号，无法原路退款");
             }
             alipayPayClient.refund(order.getOrderId(), refundNo, refundCents, reason);
-            recordRechargeRefundOperation(order, refundCents, PayChannels.ALIPAY, idemKey, refundNo, reason);
+            recordRechargeRefundOperation(order, refundCents, PayChannels.ALIPAY, idemKey, refundNo, reason,
+                    "COMPLETED", RefundResumeService.rechargeContextJson(context));
+            return "SUCCESS";
         } else if (securityProperties.mockEnabled()) {
             recordRechargeRefundOperation(order, refundCents, PayChannels.ALIPAY, idemKey, null,
-                    reasonOrDefault(reason) + "（模拟通道退款）");
+                    reasonOrDefault(reason) + "（模拟通道退款）", "COMPLETED",
+                    RefundResumeService.rechargeContextJson(context));
+            return "SUCCESS";
         } else {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, ApiMessages.ALIPAY_PAY_NOT_CONFIGURED);
         }
@@ -1135,8 +1285,18 @@ public class PaymentService {
     }
 
     private void recordRechargeRefundOperation(RechargeOrder order, int refundCents, String channel,
-                                             String idempotencyKey, String gatewayTradeNo, String reason) {
-        if (paymentOperationRepository.findByIdempotencyKey(idempotencyKey).isPresent()) {
+                                             String idempotencyKey, String gatewayTradeNo, String reason,
+                                             String status, String refundContextJson) {
+        // CONCURRENCY: 充值单分布式锁串行；既有 PROCESSING 走条件 UPDATE，新增按幂等键唯一约束。
+        Optional<PaymentOperation> existing = paymentOperationRepository.findByIdempotencyKey(idempotencyKey);
+        if (existing.isPresent()) {
+            PaymentOperation op = existing.get();
+            if ("REFUND_PROCESSING".equals(op.getStatus())
+                    && ("COMPLETED".equals(status) || "REFUND_FAILED".equals(status))) {
+                String nextReason = rechargeRefundReasonWithOrderId(reasonOrDefault(reason), order.getOrderId(), 128);
+                paymentOperationRepository.finishProcessingRefund(
+                        op.getOperationId(), op.getReason(), nextReason, status);
+            }
             return;
         }
         PaymentOperation op = new PaymentOperation();
@@ -1147,9 +1307,10 @@ public class PaymentService {
         op.setOperationType("RECHARGE_REFUND");
         op.setAmountCents(refundCents);
         op.setChannel(channel);
-        op.setStatus("COMPLETED");
+        op.setStatus(status);
         op.setIdempotencyKey(idempotencyKey);
         op.setGatewayTradeNo(gatewayTradeNo);
+        op.setRefundContextJson(refundContextJson);
         String base = reasonOrDefault(reason);
         // R22-1（四端审计 2026-11-12）：对账查单器（WeChatRefundReconciler.resolveOutTradeNo）
         // 的既定契约是「reason 尾部 #orderId」（其类注释自证），写入侧却拼空格 ⇒ 充值退款

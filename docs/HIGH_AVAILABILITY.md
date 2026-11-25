@@ -10,6 +10,8 @@
 | 定时任务单飞 | `tryBegin` / Redis `job:*` | 多副本同一 taskKey 只跑一个；见 `docs/SCHEDULED_TASK_MANAGEMENT.md` |
 | 资金任务中心化 | XXL-JOB + `XxlJobManagedTasks` | `XXL_JOB_ENABLED=true` 时内置 `@Scheduled` 让位 |
 | Flyway 迁移锁 | PostgreSQL advisory lock | Flyway 默认串行迁移，多实例启动不会并行跑脚本 |
+| 字典种子锁 | PostgreSQL transaction advisory lock | 空库双实例启动时串行写入 `sys_dict_*`，避免唯一键竞争 |
+| 副本健康摘除 | HAProxy `httpchk` + Docker DNS | 每 500ms 探测 `/actuator/health`，假死副本摘除；nginx 只连 `trade-lb` |
 | 防回潮 | ArchUnit `scheduledMustCallTryBegin` | 新增 `@Scheduled` 必须调用 `tryBegin` |
 
 ## 2. 启 2 副本（Compose）
@@ -18,9 +20,12 @@
 
 ```powershell
 # 仓库根目录
-docker compose -p ai-cabinet `
+bash scripts/check-prod-env-secrets.sh infra/.env.production
+docker compose -p ai-cabinet --env-file infra/.env.production `
   -f infra/docker-compose.yml `
   -f infra/docker-compose.apps.yml `
+  -f infra/docker-compose.production.yml `
+  -f infra/docker-compose.prod-managed.yml `
   -f infra/docker-compose.ha.yml `
   --profile apps up -d --scale trade-service=2
 ```
@@ -29,13 +34,13 @@ docker compose -p ai-cabinet `
 
 1. **Redis 必须可用**（否则 `tryBegin` 拿不到锁，任务全跳过）。
 2. **建议开 XXL-JOB**（`XXL_JOB_ENABLED=true`），资金/对账走调度中心。
-3. 对外入口走 **gateway/nginx**，不要直连单容器 `8080`。
+3. 对外入口走 **gateway/nginx → trade-lb → trade-service 副本**，不要直连单容器 `8080`。
 4. 滚动发布：先起新副本 → health 绿 → 再停旧副本；Flyway 由先起来的实例执行，其余等 advisory lock。
 
 ## 3. 上线后两周内建议
 
 - [ ] staging 以 `--scale trade-service=2` 浸泡 ≥24h，核对定时任务「最近执行」无双跑
-- [ ] 确认 gateway 对 `trade-service` 做上游负载均衡 / 健康检查摘除
+- [x] 仓内已实现 gateway → HAProxy 健康摘除；隔离双后端假死测试 12/12 成功，待部署栈复测
 - [ ] PostgreSQL 主从或托管高可用 + 备份恢复演练（见 `docs/PRODUCTION.md`）
 - [ ] K8s / Swarm：`replicas: 2` + pod 反亲和（不同节点）
 

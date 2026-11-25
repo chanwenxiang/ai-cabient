@@ -11,7 +11,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import java.time.Clock;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -59,14 +62,29 @@ public class WeChatOfficialAccountClient {
                     .body(String.class);
             JsonNode node = objectMapper.readTree(response);
             if (!node.has("errcode") || node.path("errcode").asInt(-1) != 0) {
-                log.warn("official account template send failed openId={} body={}", openId, response);
+                String requestId = node.path("request_id").asText(null);
+                if (requestId == null || requestId.isBlank()) {
+                    requestId = node.path("requestId").asText(null);
+                }
+                log.warn("official account template send failed openIdHash={} errcode={} requestId={} errorType=WECHAT_RESPONSE",
+                        maskOpenId(openId), node.path("errcode").asInt(-1), requestId);
                 return false;
             }
             return true;
         } catch (Exception e) {
-            log.warn("official account template send error openId={} errorType={}",
-                    openId, e.getClass().getSimpleName());
+            log.warn("official account template send error openIdHash={} errorType={}",
+                    maskOpenId(openId), e.getClass().getSimpleName());
             return false;
+        }
+    }
+
+    private static String maskOpenId(String openId) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(openId.getBytes(StandardCharsets.UTF_8));
+            return "sha256:" + HexFormat.of().formatHex(digest, 0, 6);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
         }
     }
 
@@ -96,7 +114,8 @@ public class WeChatOfficialAccountClient {
                     .body(String.class);
             JsonNode node = objectMapper.readTree(body);
             if (node.has("errcode") && node.path("errcode").asInt(-1) != 0) {
-                throw new IllegalStateException("official account access_token failed: " + body);
+                throw new IllegalStateException("official account access_token failed: errcode="
+                        + node.path("errcode").asInt(-1));
             }
             String token = node.path("access_token").asText("");
             if (token.isBlank()) {

@@ -34,7 +34,7 @@
 
 | 维度 | 当前值 | 备注 |
 |------|--------|------|
-| Flyway 迁移 | **487** 个脚本（仅 `services/trade-service`），最新 **V494**（2026-11-17 实测回填；上一版写 476/V483 已过期） | 合入前 `ls V*` 查重号；门禁拦同号；勿再写已占用版本号 |
+| Flyway 迁移 | **502** 个 V 脚本（仅 `services/trade-service`），最新 **V509**（2026-11-25 门禁实扫） | 合入前查重号；门禁拦同号；勿再写已占用版本号 |
 | trade Controllers | **94** | `*Controller.java`（2026-11-17 实测） |
 | trade 单测 | **516** `*Test.java`（2026-11-17 全量 3214 例） | 含大量并发测；全量 `mvn -o -pl services/trade-service -am test` |
 | admin-vue 业务视图 | **85** `.vue` | `src/views`（2026-11-17 实测） |
@@ -308,6 +308,7 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ---
 
+| 2026-11-25 | **定时任务排期收口**：`growth-log-archive` / `sku-review-daily` 从启动后 `fixedRate=24h` 改为固定 03:00 / 04:00；`points-expiry` / `coupon-expiry-remind` 保持 6 小时频率但固定到 00:05、06:05、12:05、18:05，避免 23 点微信提醒；30 秒/1 分钟高频任务首次执行按 5–58 秒错峰。Spring、XXL cron 与注册表说明同步，日结 XXL 的 01:30 旧排期一并修到 10:30/14:30；`check-scheduled-zone` 增加时刻契约、Spring↔XXL 交叉校验和 4 个负向夹具；trade-service 全量 3441 单测通过。 | `GrowthLogArchiveScheduler`、`SkuReviewScheduler`、`PointsExpiryScheduler`、`CouponExpiryReminderScheduler`、`check-scheduled-zone.mjs` |
 | 2026-11-24 | **提现链资金裁决修复（MA-409）**：微信转账「终态」判定三份手抄副本两份把 CANCELING（撤销中，官方 4012716434 逐字标注非终态）当终态失败 ⇒ 渠道撤销中、本地就释放冻结；同根：免确认分支对非终态/未知 state 兜底 rejected（方向反）。修复=终态判定收 isSuccessState/isTerminalFailState 白名单唯一真值源，三消费点（查单裁决/巡检 queryBill/回调 handleTransferNotify）全走真值源；门禁第⑩组判据+2 负例+修 `__selftest`→`--selftest` 空转（负例首次真进链，7 负例全红）。另核实 MA-407 双阻断（票据 key 错位/out_bill_no 带冒号）已被并行会话修复并部署生产（jar 内 isChannelSafeBillNo 实证）。**生产资金实况（11-23 真金流验收）**：真机识别结算全链首通（thirdPid=664 直命中→PAID ¥2.50→LEDGER_ONLY 分账→库存扣减→预授权三步）、真渠道充值 ¥1（回调 7 秒、单行 V494 实证）、退款全链（双审→冻结→原路退两笔自动分摊）、审批部门成员补配（ops_user_department 曾空表→fallback 消费者自审）。**提现产品模型澄清**：自营（MCH-DEFAULT）资金自动结算到对公卡，商户钱包提现动作可后置；提现功能真正服务对象=无分账资质的第三方商户（代付）；商户资金账号无创建路径+商户端自助提现死锁为 P2 待办（第三方入驻前必修，运营代提现可用） | `MerchantWithdrawNotifyStateTest`、`check-wechat-transfer-channel.mjs` ⑩ |
 | 2026-10-18 | **三端全量复审（8 路只读审计 + 历史文档逐条核查 + 终轮源码级复核，HEAD=28c9f99a）**：新发现 **P0×2**（AU-136 `/auth/wx-h5-login` 客户端明文手机号可绑任意账号含运营号段——C13 防线的 H5 旁路，生产未配 H5 OAuth 前不可触发、配置即炸；AU-172 `slot_template`/`slot_template_line` `@TableId` 缺 `value="id"` 与 V368 DDL 主键 `id` 错位——陈列模板新建/查详情/删除全链 500，225 张表探针唯二真实失配）+ P1×3（AU-137 余额退款续退链幂等键按 requestNo 恒定→多轮复审静默吞资金且无流水可查；AU-138 商户盘点页旧正则剥 EG 前缀→新编号设备盘点必失败；AU-173 `platform-fund-daily`/`device-rental-daily` 是 39 任务唯二无 tryBegin——无分布式锁多副本双跑 + `scheduled_task.enabled` 停用开关被旁路，上线手册「保持关」关不住）+ P2×10/P3×22（AU-139~171）；历史文档核查约 150 条声明**失实 17、虚报 0**——09-27/10-05 两轮报告判断层零误报、修复全在位，债务集中在**文档不回写**（FIX_QUEUE 低估完成度、台账 AU-002/077/134 已销账、backlog 三处失实、§6.1 押金默认值已顺手订正）；终轮实跑：2030 单测全绿 + `WalletRefIdempotencySqlIT` 5/5（钱包 DB 级幂等兜底在位）+ 消费者 token 实测 `/ops/announcements/published` 200（AU-125 运行时实证）。AU-172/173 在 origin/dev（d5dee737，+15 提交含钱包统一 V387-390）仍未修 | `docs/archive/AUDIT_THREE_END_FULL_2026-10-18.md`（§2/§8）、[附录明细](AUDIT_THREE_END_FULL_2026-10-18_APPENDIX.md)、台账「2026-10-18 三端全量复审」+「终轮增补」节 |
 | 2026-10-11 | **将邑迁移后三端复审 + 协议对照 + 两缺陷修复**：①协议契约逐条对照 V16 §4.2 HTTP 面 + §4.3 WS 面（token/getDetail/downloadModelNotify/OSS STS 字段/lock/door/识别/orderError 双字段归一/视频分片/心跳 PONG/openDoor/updateModel）**全部一致**（报告 §2）；②三端一致性核对——录像读路径已收敛「服务端下发 videoPreviewUrl（将邑台账兜底）」、shared-types 零漂移、采集闸门同源、识别参考分层展示一致；③抓出并修复 **P1：admin「新增到将邑商品库」恒 400**（弹窗 mainImg 恒发空串 vs `@NotBlank`，按钮从未成功过——修法=预填 SKU 主图+可编辑输入+服务层回退 SKU imageUrl+双空 409，顺带消费 `jiangyiProductCategories` 下拉替换手填 catId）+ **P2：采集锁 409 文案漂移**（含「暂停营业」被 classifyOpenError 误判为锁机——新增 `device_gathering` 专属分类先于暂停营业判定，consumer 标题/离线判定同步，admin 入驻页 FAQ 对齐实况）+ P3 术语两处（「视觉识别处理中」→「识别商品中」）；④实跑全绿：gateway 58/58、trade 将邑面 73/73（修复后 38/38 含新增 2 用例）、admin 88+consumer 133+merchant 159 单测+三端 tsc；⑤旧链残留定界成文（5 条 D 级待拍板：叠加栈缺 jiangyi-gateway/生产钉死退役识别后端/EDGE 柜旧链仍真扣款/UAT 钉旧链/旧 YOLO 映射面在线）——**本次未擅自动旧链**，处置须先回读台账再批量清理 | `docs/archive/audit/JIANGYI_MIGRATION_AUDIT_2026-10-11.md`、lessons #294 |
@@ -686,6 +687,15 @@ gross − member − activity − coupon = total      （部分退款单例外�
 ---
 
 ## 12. Changelog（按日追加，新条目在上）
+
+### 2026-11-25（MA-449–460 与早期 P0/P1 代码修复批次）
+
+- **资金/退款**：续退冲回键按轮次派生；微信 PROCESSING 不再提前记本地已退，SUCCESS 后条件推进、ABNORMAL 不触发券/分账/积分冲正；退款重放先于动态限额；平台资金 PAYOUT/资金账单增加数据库唯一索引与行锁内幂等。
+- **库存/仓储**：作废补货任务与作废出库拒绝完成；采购收货按仓/批分配并逐批退货；月结审批/编辑行锁；同键多出库行 remainder 只分配一次；货位移库校验占用库存。
+- **启动/发布/可观测**：字典种子加 PostgreSQL transaction advisory lock；HAProxy 每 500ms 主动探测 trade 健康并摘除假死副本；发布链按 SHA 构建 trade/device/jiangyi 并逐副本验镜像与健康；调度失败显式计数接入 Prometheus；备份钩子权限/bash 回退/新鲜度告警收口。
+- **其它代码项**：通知 FAILED 状态约束、同意日志代理外兜底、缺资金账单软结果、商户提现配置响应式、表格 stable gutter、CORS 严格 HTTPS origin、支付分运行时就绪、服务号日志脱敏、HA 示例强制生产覆盖层。
+- **验证**：普通全量单测 trade 3476 / device 62 / jiangyi 165 / simulator 13 全绿；采购分配、字典双启动、通知约束、同意日志 SQL 失败、资金唯一索引等真库 IT 通过；HAProxy 隔离假死测试 12/12；187 聚合门禁通过；admin/merchant 类型检查与生产构建通过。最终隔离 mapper 改动另有 14 条定向复验。**未重跑完整 clean verify/failsafe 长套件，未提交、未推送。**
+- **rawDetail 修复部署**：17:18 按用户授权在隔离 worktree 仅取 `51f1ceab` 的三个 parser 修复构建 trade 镜像 `sha256:0e1ac347…`，只重建 trade，其他服务容器 ID 不变；回滚标签 `ai-cabinet/trade-service:rollback-20261125-171632`。17:21 补跑账单日 2026-11-24：reconId=5、2300/2300、diff0、2/2 MATCHED、JSONB 明细2、实结手续费14分；重跑仍同主行/明细/手续费，幂等通过。MA-431 自动失败告警代码仍未部署。
 
 ### 2026-11-24（夜间收口：同意留痕 / 批次盘点 / 货位出库）
 

@@ -62,14 +62,23 @@ public class ModelPushController {
         if (!deviceWebSocketHandler.isOnline(identifier)) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "设备不在线");
         }
-        boolean sent = deviceWebSocketHandler.sendModelUpdate(identifier, request.modelName(),
-                request.modelUrl(), request.textUrl(), request.quantity() == null ? 0 : request.quantity());
+        // tracker key = deploymentId（同一模型可多次下发，sessionId 语义在此即 deploymentId）
+        if (!commandTracker.register(CommandTracker.Kind.MODEL, String.valueOf(request.deploymentId()),
+                deviceId, identifier)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "该设备已有模型部署等待回执，请勿重复下发");
+        }
+        boolean sent;
+        try {
+            sent = deviceWebSocketHandler.sendModelUpdate(identifier, request.modelName(),
+                    request.modelUrl(), request.textUrl(), request.quantity() == null ? 0 : request.quantity());
+        } catch (RuntimeException e) {
+            commandTracker.evict(CommandTracker.Kind.MODEL, String.valueOf(request.deploymentId()));
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "模型下发失败", e);
+        }
         if (!sent) {
+            commandTracker.evict(CommandTracker.Kind.MODEL, String.valueOf(request.deploymentId()));
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "模型下发失败");
         }
-        // tracker key = deploymentId（同一模型可多次下发，sessionId 语义在此即 deploymentId）
-        commandTracker.register(CommandTracker.Kind.MODEL, String.valueOf(request.deploymentId()),
-                deviceId, identifier);
         log.info("jiangyi model-push dispatched deviceId={} identifier={} modelName={} deploymentId={}",
                 deviceId, identifier, request.modelName(), request.deploymentId());
     }

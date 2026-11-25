@@ -130,7 +130,7 @@ public class DevicePresenceService {
         log.debug("device heartbeat device={} app={} temp={}", deviceId, appVersion, currentTempC);
     }
 
-    @Scheduled(fixedRate = 60_000)
+    @Scheduled(fixedRate = 60_000, initialDelay = 20000)
     @Transactional
     public void markStaleDevicesOffline() {
         long start = System.nanoTime();

@@ -200,7 +200,9 @@ class BalanceRefundReviewFlowTest {
         doNothing().when(approvalWorkflowService).completeApproved(
                 anyLong(), anyString(), anyString(), any());
         doNothing().when(auditService).appendLog(anyLong(), anyString(), anyString(), anyString(), anyString());
-        org.mockito.Mockito.doReturn("RF-MOCK")
+        when(paymentService.probeChannelRefundAccepted(anyString(), anyString()))
+                .thenReturn(PaymentService.SliceRefundProbe.NOT_FOUND);
+        org.mockito.Mockito.doReturn(new PaymentService.ChannelRefundResult("RF-MOCK", "SUCCESS"))
                 .doThrow(new ResponseStatusException(HttpStatus.BAD_GATEWAY, "wechat refund failed"))
                 .when(paymentService).refundRechargeChannelPartial(
                         anyString(), anyInt(), anyString(), anyString());
@@ -237,6 +239,8 @@ class BalanceRefundReviewFlowTest {
         doNothing().when(approvalWorkflowService).completeApproved(
                 anyLong(), anyString(), anyString(), any());
         doNothing().when(auditService).appendLog(anyLong(), anyString(), anyString(), anyString(), anyString());
+        when(paymentService.probeChannelRefundAccepted(anyString(), anyString()))
+                .thenReturn(PaymentService.SliceRefundProbe.NOT_FOUND);
         org.mockito.Mockito.doThrow(new ResponseStatusException(HttpStatus.BAD_GATEWAY, "wechat down"))
                 .when(paymentService).refundRechargeChannelPartial(
                         anyString(), anyInt(), anyString(), anyString());
@@ -267,7 +271,7 @@ class BalanceRefundReviewFlowTest {
         doNothing().when(approvalWorkflowService).completeApproved(
                 anyLong(), anyString(), anyString(), any());
         doNothing().when(auditService).appendLog(anyLong(), anyString(), anyString(), anyString(), anyString());
-        org.mockito.Mockito.doReturn("RF-MOCK").when(paymentService).refundRechargeChannelPartial(
+        org.mockito.Mockito.doReturn(new PaymentService.ChannelRefundResult("RF-MOCK", "SUCCESS")).when(paymentService).refundRechargeChannelPartial(
                 anyString(), anyInt(), anyString(), anyString());
 
         var dto = service.review(1L, 77L, true, "approve");

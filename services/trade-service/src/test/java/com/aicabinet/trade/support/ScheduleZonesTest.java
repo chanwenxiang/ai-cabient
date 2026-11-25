@@ -31,7 +31,7 @@ class ScheduleZonesTest {
 
     @Test
     void springAndXxl_reconAligned() {
-        assertEquals("0 30 1 * * *", ScheduleZones.SPRING_CRON_RECON);
-        assertEquals("0 30 1 * * ?", ScheduleZones.XXL_CRON_BY_TASK.get("reconciliation"));
+        assertEquals("0 30 10,14 * * *", ScheduleZones.SPRING_CRON_RECON);
+        assertEquals("0 30 10,14 * * ?", ScheduleZones.XXL_CRON_BY_TASK.get("reconciliation"));
     }
 }

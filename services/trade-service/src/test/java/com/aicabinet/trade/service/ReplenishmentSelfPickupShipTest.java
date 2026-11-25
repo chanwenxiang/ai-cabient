@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -40,7 +41,7 @@ import static org.mockito.Mockito.when;
  *
  * <p>本门禁钉住修好后的三条行为：
  * ① DRAFT/未发运 ⇒ 完成时补一次拣货+发运（扣仓库存），随后按现场实收的 SKU 量成对签收（CB-074）；
- * ② 已作废出库单 ⇒ 不补发运（仓库存已回仓），按任务行独立上架；
+ * ② 已作废出库单 ⇒ 完成必须 409，仓/柜/在途三处都不得推进；
  * ③ 已有在途 ⇒ 不重复发运（防双扣仓库存）。
  */
 @ExtendWith(MockitoExtension.class)
@@ -105,7 +106,7 @@ class ReplenishmentSelfPickupShipTest {
     }
 
     @Test
-    void completeTask_cancelledOutbound_skipsShipping() {
+    void completeTask_cancelledOutbound_rejectsWithoutRestock() {
         ReplenishmentTask task = openTask();
         ReplenishmentTaskLine pending = restockLine(2L, 2);
 
@@ -115,12 +116,38 @@ class ReplenishmentSelfPickupShipTest {
         when(warehouseService.getOutbound(OUTBOUND_ID)).thenReturn(outbound("CANCELLED"));
         when(inTransitService.hasOpenForDevice(OUTBOUND_ID, DEVICE)).thenReturn(false);
 
-        replenishmentService.completeTask(OPERATOR, TASK_ID);
+        org.springframework.web.server.ResponseStatusException error = assertThrows(
+                org.springframework.web.server.ResponseStatusException.class,
+                () -> replenishmentService.completeTask(OPERATOR, TASK_ID));
 
-        // 已作废 ⇒ 仓库存已回仓，绝不能再发运一次；任务行独立上架即可
+        assertEquals(409, error.getStatusCode().value());
         verify(warehouseService, never()).markPicked(anyLong());
         verify(warehouseService, never()).shipOutbound(anyLong(), anyLong());
-        assertEquals("COMPLETED", task.getStatus());
+        verify(inventoryLotService, never()).applyReplenishmentLine(anyString(), any(), anyLong(), anyString());
+        verify(inTransitService, never()).receiveForDevice(anyLong(), anyString());
+        verify(warehouseService, never()).markDeviceHandoverReceived(anyLong(), anyString(), any());
+        verify(warehouseService, never()).markDeviceHandoverReceivedFull(anyLong(), anyString());
+        verify(taskRepository, never()).save(any(ReplenishmentTask.class));
+        assertEquals("IN_PROGRESS", task.getStatus());
+    }
+
+    @Test
+    void completeTask_cancelledTask_rejectsBeforeTouchingWarehouseCabinetOrTransit() {
+        ReplenishmentTask task = openTask();
+        task.setStatus("CANCELLED");
+        when(taskRepository.findByIdForUpdate(TASK_ID)).thenReturn(Optional.of(task));
+
+        org.springframework.web.server.ResponseStatusException error = assertThrows(
+                org.springframework.web.server.ResponseStatusException.class,
+                () -> replenishmentService.completeTask(OPERATOR, TASK_ID));
+
+        assertEquals(409, error.getStatusCode().value());
+        verify(warehouseService, never()).getOutbound(anyLong());
+        verify(warehouseService, never()).shipOutbound(anyLong(), anyLong());
+        verify(inventoryLotService, never()).applyReplenishmentLine(anyString(), any(), anyLong(), anyString());
+        verify(inTransitService, never()).receiveForDevice(anyLong(), anyString());
+        verify(taskRepository, never()).save(any(ReplenishmentTask.class));
+        assertEquals("CANCELLED", task.getStatus());
     }
 
     @Test

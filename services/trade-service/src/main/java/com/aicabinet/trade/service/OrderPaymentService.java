@@ -77,6 +77,12 @@ public class OrderPaymentService {
      */
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private RefundFlowService refundFlowService;
+
+    /** 异步退款续跑编排；@Lazy 打断 OrderPayment ↔ Settlement 退款环。 */
+    @org.springframework.beans.factory.annotation.Autowired
+    @Lazy
+    private RefundResumeService refundResumeService;
+
     private final ShoppingSessionMapper sessionRepository;
     private final ConsumerPreauthService consumerPreauthService;
     private final MemberService memberService;
@@ -224,7 +230,7 @@ public class OrderPaymentService {
             return ChargePlan.of(ChargeLeg.BALANCE);
         }
         String entryChannel = session != null ? session.getEntryChannel() : null;
-        String channel = PayScoreService.resolveChargeChannel(user, entryChannel);
+        String channel = payScoreService.resolveChargeChannel(user, entryChannel);
         return PayChannels.BALANCE.equals(channel)
                 ? ChargePlan.of(ChargeLeg.BALANCE)
                 : ChargePlan.of(ChargeLeg.CHANNEL, channel);
@@ -389,7 +395,7 @@ public class OrderPaymentService {
             return false; // 冲抵已覆盖应付：由余额腿按同一净额口径静默收口
         }
         String origin = entryChannel == null || entryChannel.isBlank() ? "auto" : "auto:" + entryChannel;
-        String attemptedChannel = PayScoreService.resolveChargeChannel(user, entryChannel);
+        String attemptedChannel = payScoreService.resolveChargeChannel(user, entryChannel);
         return submitChannelCharge(order, user, session, idemKey, remainCents,
                 () -> payScoreService.charge(user, order.getOrderId(), remainCents, CHARGE_SUBJECT, entryChannel),
                 origin, attemptedChannel);
@@ -716,6 +722,7 @@ public class OrderPaymentService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordRefundInitiated(OrderRefundPrep prep) {
+        // CONCURRENCY: 调用方持订单分布式锁，trace 按 idempotency_key 唯一约束只插一次。
         String key = refundInitiatedIdempotencyKey(prep.idemKey());
         if (paymentOperationRepository.findByIdempotencyKey(key).isPresent()) {
             return;
@@ -730,6 +737,7 @@ public class OrderPaymentService {
         op.setIdempotencyKey(key);
         op.setGatewayTradeNo(deterministicRefundNo(prep.idemKey()));
         op.setReason("渠道退款进行中（REFUND_INITIATED，事务外痕迹）");
+        op.setRefundContextJson(RefundResumeService.orderContextJson(prep.refundContext()));
         paymentOperationRepository.save(op);
     }
 
@@ -1023,7 +1031,9 @@ public class OrderPaymentService {
             return;
         }
         if (deltaCents < 0) {
-            refundOrder(order, -deltaCents, "争议改单退差");
+            if (!refundOrder(order, -deltaCents, "争议改单退差")) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "退款尚未确认，请稍后重试");
+            }
             return;
         }
         if (!distributedLockService.tryLock(orderPaymentLockKey(order.getOrderId()), 60, 5)) {
@@ -1078,6 +1088,12 @@ public class OrderPaymentService {
      * {@code idemKeyOverride} 为 null 时回落原 M02 键（存量调用方语义不变）。
      */
     public boolean refundOrder(CabinetOrder order, int amountCents, String reason, String idemKeyOverride) {
+        return refundOrder(order, amountCents, reason, idemKeyOverride, null);
+    }
+
+    /** 带调用方续跑上下文的退款；PROCESSING 时上下文先落库，SUCCESS 后由原调用方或扫描补跑。 */
+    public boolean refundOrder(CabinetOrder order, int amountCents, String reason, String idemKeyOverride,
+                               RefundResumeService.OrderRefundContext refundContext) {
         if (amountCents <= 0) {
             return true;
         }
@@ -1085,7 +1101,8 @@ public class OrderPaymentService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "订单支付处理中，请稍后重试");
         }
         try {
-            OrderRefundPrep prep = self.prepareOrderRefund(order.getOrderId(), amountCents, reason, idemKeyOverride);
+            OrderRefundPrep prep = self.prepareOrderRefund(
+                    order.getOrderId(), amountCents, reason, idemKeyOverride, refundContext);
             if (prep == null || prep.skipped()) {
                 refreshCallerOrder(order);
                 return false;
@@ -1097,12 +1114,18 @@ public class OrderPaymentService {
                 self.recordRefundInitiated(prep);
                 String refundStatus = executeLiveChannelRefund(prep);
                 if (!self.finalizeLiveOrderRefund(prep, refundStatus)) {
+                    if ("PROCESSING".equalsIgnoreCase(refundStatus)) {
+                        throw new ResponseStatusException(HttpStatus.CONFLICT,
+                                "微信退款处理中，确认成功后再完成订单退款");
+                    }
                     // R20-1：渠道 ABNORMAL ⇒ 不记已退、不清痕迹、不回扣积分、不冲分账。
                     // 必须抛错让调用方中止（保持订单原状态），否则「钱没退成、单已 REFUNDED」。
                     throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                             "渠道退款结果异常（ABNORMAL），已转人工核对；订单未标记退款");
                 }
-                self.finalizeRefundInitiated(prep.idemKey());
+                if (prep.refundContext() == null) {
+                    self.finalizeRefundInitiated(prep.idemKey());
+                }
             }
             refreshCallerOrder(order);
             clawbackPointsQuietly(prep.userId(), prep.refundCents(), prep.orderId(), prep.idemKey());
@@ -1127,7 +1150,21 @@ public class OrderPaymentService {
             String payTradeNo,
             int originalChargeTotalCents,
             boolean skipped,
-            boolean needsLiveChannel) {
+            boolean needsLiveChannel,
+            RefundResumeService.OrderRefundContext refundContext) {
+
+        /** 兼容既有测试/调用方构造点；新调用方通过 prepare 重载持久化上下文。 */
+        public OrderRefundPrep(String orderId, long userId, int refundCents, int channelLegCents,
+                               String reason, String idemKey, String channel, String payTradeNo,
+                               int originalChargeTotalCents, boolean skipped, boolean needsLiveChannel) {
+            this(orderId, userId, refundCents, channelLegCents, reason, idemKey, channel, payTradeNo,
+                    originalChargeTotalCents, skipped, needsLiveChannel, null);
+        }
+
+        public OrderRefundPrep withRefundContext(RefundResumeService.OrderRefundContext context) {
+            return new OrderRefundPrep(orderId, userId, refundCents, channelLegCents, reason, idemKey,
+                    channel, payTradeNo, originalChargeTotalCents, skipped, needsLiveChannel, context);
+        }
 
         /**
          * 要交给渠道/本地渠道支路处理的那条腿的金额（MA-161）。
@@ -1171,12 +1208,20 @@ public class OrderPaymentService {
     @Transactional
     public OrderRefundPrep prepareOrderRefund(String orderId, int amountCents, String reason,
                                               String idemKeyOverride) {
+        return prepareOrderRefund(orderId, amountCents, reason, idemKeyOverride, null);
+    }
+
+    @Transactional
+    public OrderRefundPrep prepareOrderRefund(String orderId, int amountCents, String reason,
+                                              String idemKeyOverride,
+                                              RefundResumeService.OrderRefundContext refundContext) {
         CabinetOrder locked = cabinetOrderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
         int netCharged = paymentOperationRepository.netCompletedCents(locked.getOrderId());
         if (netCharged <= 0) {
             log.warn("skip refund without prior charge order={} requested={}", locked.getOrderId(), amountCents);
-            return new OrderRefundPrep(orderId, locked.getUserId(), 0, 0, reason, null, null, null, 0, true, false);
+            return new OrderRefundPrep(orderId, locked.getUserId(), 0, 0, reason, null, null, null, 0, true, false)
+                    .withRefundContext(refundContext);
         }
         int refundCents = Math.min(amountCents, netCharged);
         // M02: 幂等键只含订单+金额（reason 可变，勿入键，否则同单同额不同文案会重复退款）；
@@ -1193,7 +1238,8 @@ public class OrderPaymentService {
                 : "REFUND:" + locked.getOrderId() + ":" + keyAmount;
         if (isCompleted(idemKey)) {
             return new OrderRefundPrep(orderId, locked.getUserId(), refundCents, 0, reason, idemKey,
-                    locked.getPayChannel(), locked.getPayTradeNo(), 0, true, false);
+                    locked.getPayChannel(), locked.getPayTradeNo(), 0, true, false)
+                    .withRefundContext(refundContext);
         }
         String channel = locked.getPayChannel() != null ? locked.getPayChannel() : PayChannels.BALANCE;
         // MA-161：组合单（钱包冲抵 + 渠道补缴）不能把整笔压给一个渠道——网关那笔交易只收了它自己那条腿。
@@ -1236,7 +1282,8 @@ public class OrderPaymentService {
             }
             int totalCents = resolveOriginalChargeTotalCents(locked, channelAmt, PayChannels.WECHAT);
             return new OrderRefundPrep(orderId, locked.getUserId(), refundCents, channelAmt, reason, idemKey,
-                    PayChannels.WECHAT, locked.getPayTradeNo(), totalCents, false, true);
+                    PayChannels.WECHAT, locked.getPayTradeNo(), totalCents, false, true)
+                    .withRefundContext(refundContext);
         }
         if (PayChannels.ALIPAY.equalsIgnoreCase(channel) && alipayPayClient.isConfigured()) {
             ensurePayTradeNo(locked);
@@ -1245,7 +1292,8 @@ public class OrderPaymentService {
                         "缺少支付宝交易号，无法原路退款");
             }
             return new OrderRefundPrep(orderId, locked.getUserId(), refundCents, channelAmt, reason, idemKey,
-                    PayChannels.ALIPAY, locked.getPayTradeNo(), 0, false, true);
+                    PayChannels.ALIPAY, locked.getPayTradeNo(), 0, false, true)
+                    .withRefundContext(refundContext);
         }
         if (channelLegs.isEmpty()) {
             // 没有渠道腿（纯余额单）：完全走既有本地支路，**幂等键形状一字不改**——
@@ -1253,14 +1301,16 @@ public class OrderPaymentService {
             completeLocalRefund(locked, refundCents, reason, idemKey, channel);
             alertIfInvoicedOnFullRefund(locked, refundCents);
             return new OrderRefundPrep(orderId, locked.getUserId(), refundCents, 0, reason, idemKey,
-                    channel, locked.getPayTradeNo(), 0, false, false);
+                    channel, locked.getPayTradeNo(), 0, false, false)
+                    .withRefundContext(refundContext);
         }
         if (channelAmt > 0) {
             completeLocalRefund(locked, channelAmt, reason, idemKey + ":" + channel, channel);
         }
         alertIfInvoicedOnFullRefund(locked, refundCents);
         return new OrderRefundPrep(orderId, locked.getUserId(), refundCents, channelAmt, reason, idemKey,
-                channel, locked.getPayTradeNo(), 0, false, false);
+                channel, locked.getPayTradeNo(), 0, false, false)
+                .withRefundContext(refundContext);
     }
 
     @Transactional
@@ -1282,17 +1332,45 @@ public class OrderPaymentService {
      * <p>R20-1（2026-11-12）：此前无论渠道返回什么状态都记 REFUND COMPLETED 并累加
      * {@code refundedCents}——微信返回 {@code ABNORMAL}（退款异常，钱退回失败）时，
      * 账上是「已退」，用户手里没收到，而 {@code WeChatRefundReconciler} 只扫 {@code refund:PROCESSING}
-     * 也没人兜底。现在仅 SUCCESS/PROCESSING 入账；ABNORMAL 落 REFUND_FAILED 进人工队列。</p>
+     * 也没人兜底。现在仅 SUCCESS 入账；PROCESSING 只落 REFUND_PROCESSING，待查单确认后再推进本地，
+     * ABNORMAL 落 REFUND_FAILED 进人工队列。</p>
      */
     @Transactional
     public boolean finalizeLiveOrderRefund(OrderRefundPrep prep, String channelRefundStatus) {
         CabinetOrder locked = cabinetOrderRepository.findByIdForUpdate(prep.orderId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-        if (isCompleted(prep.idemKey())) {
+        var existing = paymentOperationRepository.findByIdempotencyKey(prep.idemKey());
+        if (existing.isPresent() && STATUS_COMPLETED.equals(existing.get().getStatus())) {
             return true;
+        }
+        if (existing.isPresent() && "REFUND_PROCESSING".equals(existing.get().getStatus())) {
+            PaymentOperation pending = existing.get();
+            String nextReason = reasonOrDefault(prep.reason()) + " [refund:" + channelRefundStatus + "]";
+            if (isAbnormalRefundStatus(channelRefundStatus)) {
+                paymentOperationRepository.finishProcessingRefund(
+                        pending.getOperationId(), pending.getReason(), nextReason, "REFUND_FAILED");
+                return false;
+            }
+            if ("PROCESSING".equalsIgnoreCase(channelRefundStatus)) {
+                paymentOperationRepository.touchProcessingRefund(
+                        pending.getOperationId(), pending.getReason(), TextTruncate.safeTruncate(nextReason, 128));
+                return false;
+            }
+            if (!"SUCCESS".equalsIgnoreCase(channelRefundStatus)) {
+                return false;
+            }
+            int changed = paymentOperationRepository.finishProcessingRefund(
+                    pending.getOperationId(), pending.getReason(), nextReason, STATUS_COMPLETED);
+            if (changed == 0) {
+                return isCompleted(prep.idemKey());
+            }
         }
         if (isAbnormalRefundStatus(channelRefundStatus)) {
             recordRefundFailed(locked, prep);
+            return false;
+        }
+        if ("PROCESSING".equalsIgnoreCase(channelRefundStatus)) {
+            recordProcessingRefund(locked, prep);
             return false;
         }
         String outRefundNo = deterministicRefundNo(prep.idemKey());
@@ -1300,7 +1378,7 @@ public class OrderPaymentService {
                 ? prep.reason() + " [refund:" + channelRefundStatus + "]"
                 : prep.reason();
         recordOperation(locked, REFUND, prep.channelRefundCents(), prep.channel(), prep.idemKey(),
-                outRefundNo, reason);
+                outRefundNo, reason, RefundResumeService.orderContextJson(prep.refundContext()));
         locked.setRefundedAt(Instant.now());
         locked.setRefundedCents(Math.max(0, locked.getRefundedCents()) + prep.channelRefundCents());
         cabinetOrderRepository.updateById(locked);
@@ -1313,6 +1391,75 @@ public class OrderPaymentService {
         log.info("live channel order refund finalized order={} channel={} amount={} total={} refundStatus={}",
                 prep.orderId(), prep.channel(), prep.channelRefundCents(), prep.refundCents(), channelRefundStatus);
         return true;
+    }
+
+    private void recordProcessingRefund(CabinetOrder order, OrderRefundPrep prep) {
+        String key = prep.idemKey();
+        String reason = reasonOrDefault(prep.reason()) + " [refund:PROCESSING]";
+        paymentOperationRepository.findByIdempotencyKey(key).ifPresentOrElse(existing -> {
+            if ("REFUND_PROCESSING".equals(existing.getStatus())) {
+                paymentOperationRepository.touchProcessingRefund(existing.getOperationId(),
+                        existing.getReason(), TextTruncate.safeTruncate(reason, 128));
+            }
+        }, () -> {
+            PaymentOperation op = new PaymentOperation();
+            op.setOperationId(resolveOperationId(REFUND, prep.channel()));
+            op.setOrderId(order.getOrderId());
+            op.setUserId(order.getUserId());
+            op.setOperationType(REFUND);
+            op.setAmountCents(prep.channelRefundCents());
+            op.setChannel(prep.channel());
+            op.setStatus("REFUND_PROCESSING");
+            op.setIdempotencyKey(key);
+            op.setGatewayTradeNo(deterministicRefundNo(key));
+            op.setReason(TextTruncate.safeTruncate(reason, 128));
+            op.setRefundContextJson(RefundResumeService.orderContextJson(prep.refundContext()));
+            paymentOperationRepository.save(op);
+        });
+    }
+
+    @Transactional
+    public boolean confirmProcessingOrderRefund(PaymentOperation pending) {
+        String nextReason = pending.getReason().replace("[refund:PROCESSING]", "[refund:SUCCESS]");
+        if (paymentOperationRepository.finishProcessingRefund(
+                pending.getOperationId(), pending.getReason(), nextReason, STATUS_COMPLETED) == 0) {
+            return false;
+        }
+        CabinetOrder order = cabinetOrderRepository.findByIdForUpdate(pending.getOrderId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+        int channelCents = Math.max(0, pending.getAmountCents());
+        int balanceCents = paymentOperationRepository.findByIdempotencyKey(
+                        pending.getIdempotencyKey() + ":" + PayChannels.BALANCE)
+                .map(PaymentOperation::getAmountCents).orElse(0);
+        order.setRefundedAt(Instant.now());
+        order.setRefundedCents(Math.max(0, order.getRefundedCents()) + channelCents);
+        cabinetOrderRepository.updateById(order);
+        if (refundFlowService != null) {
+            refundFlowService.record(order, channelCents, RefundFlowService.METHOD_CHANNEL_REFUND,
+                    pending.getGatewayTradeNo(), order.getRefundedAt(), nextReason);
+        }
+        alertIfInvoicedOnFullRefund(order, channelCents + Math.max(0, balanceCents));
+        clawbackPointsQuietly(pending.getUserId(), channelCents + Math.max(0, balanceCents),
+                pending.getOrderId(), pending.getIdempotencyKey());
+        finalizeRefundInitiated(pending.getIdempotencyKey());
+        resumeCompletedOrderRefund(pending.getIdempotencyKey());
+        return true;
+    }
+
+    /** 支付流水已完成后补跑调用方下游；无上下文的存量行保持原行为。 */
+    public void resumeCompletedOrderRefund(String refundIdemKey) {
+        if (refundResumeService == null || refundIdemKey == null || refundIdemKey.isBlank()) {
+            return;
+        }
+        paymentOperationRepository.findByIdempotencyKey(refundIdemKey)
+                .filter(op -> STATUS_COMPLETED.equals(op.getStatus()))
+                .ifPresent(refundResumeService::resumeOrderRefund);
+    }
+
+    public void markRefundContextDone(String orderId, String resumeToken) {
+        if (refundResumeService != null) {
+            refundResumeService.markOrderContextDone(orderId, resumeToken);
+        }
     }
 
     /**
@@ -1552,7 +1699,8 @@ public class OrderPaymentService {
                 && trace.getIdempotencyKey().startsWith("REFUND:INIT:")
                 ? trace.getIdempotencyKey().substring("REFUND:INIT:".length()) : null;
         if (refundIdemKey == null || isCompleted(refundIdemKey)) {
-            // COMPLETED 流水已在（并发闭环/旧数据残留痕迹）→ 只清痕迹
+            // COMPLETED 流水已在（并发闭环/旧数据残留痕迹）→ 先补本地下游，再清痕迹
+            resumeCompletedOrderRefund(refundIdemKey == null ? "" : refundIdemKey);
             finalizeRefundInitiated(refundIdemKey == null ? "" : refundIdemKey);
             return true;
         }
@@ -1575,6 +1723,7 @@ public class OrderPaymentService {
     private boolean retryFromInitiatedTraceUnderLock(PaymentOperation trace, String refundIdemKey, CabinetOrder locked) {
         // 锁内复查：首次检查在锁外，主链可能在窗口内已完成同一笔退款
         if (isCompleted(refundIdemKey)) {
+            resumeCompletedOrderRefund(refundIdemKey);
             finalizeRefundInitiated(refundIdemKey);
             return true;
         }
@@ -1588,6 +1737,8 @@ public class OrderPaymentService {
                 PayChannels.WECHAT.equalsIgnoreCase(trace.getChannel())
                         ? resolveOriginalChargeTotalCents(locked, refundCents, trace.getChannel()) : 0,
                 false, true);
+        prep = RefundResumeService.parseOrderContext(trace.getRefundContextJson())
+                .map(prep::withRefundContext).orElse(prep);
         if (PayChannels.WECHAT.equalsIgnoreCase(trace.getChannel())) {
             String outRefundNo = deterministicRefundNo(refundIdemKey);
             com.fasterxml.jackson.databind.JsonNode resp;
@@ -1600,6 +1751,7 @@ public class OrderPaymentService {
             String status = resp == null ? "" : resp.path("status").asText("");
             if ("SUCCESS".equalsIgnoreCase(status)) {
                 self.finalizeLiveOrderRefund(prep, "SUCCESS");
+                self.resumeCompletedOrderRefund(refundIdemKey);
                 self.finalizeRefundInitiated(refundIdemKey);
                 log.info("refund retry closed via query order={} outRefundNo={}",
                         trace.getOrderId(), outRefundNo);
@@ -1614,16 +1766,20 @@ public class OrderPaymentService {
             if ("ABNORMAL".equalsIgnoreCase(refundStatus)) {
                 return false;
             }
-            self.finalizeLiveOrderRefund(prep, refundStatus);
-            self.finalizeRefundInitiated(refundIdemKey);
-            log.info("refund retry re-submitted and finalized order={} status={}",
-                    trace.getOrderId(), refundStatus);
-            return true;
+            boolean finalized = self.finalizeLiveOrderRefund(prep, refundStatus);
+            if (finalized) {
+                self.resumeCompletedOrderRefund(refundIdemKey);
+                self.finalizeRefundInitiated(refundIdemKey);
+            }
+            log.info("refund retry re-submitted order={} status={} finalized={}",
+                    trace.getOrderId(), refundStatus, finalized);
+            return finalized;
         }
         if (PayChannels.ALIPAY.equalsIgnoreCase(trace.getChannel())) {
             // 支付宝同步接口无中间态：直接按同一 out_request_no 重发（渠道幂等）
             executeLiveChannelRefund(prep);
             self.finalizeLiveOrderRefund(prep, "SUCCESS");
+            self.resumeCompletedOrderRefund(refundIdemKey);
             self.finalizeRefundInitiated(refundIdemKey);
             log.info("refund retry alipay closed order={}", trace.getOrderId());
             return true;
@@ -1757,6 +1913,13 @@ public class OrderPaymentService {
 
     private void recordOperation(CabinetOrder order, String type, int amountCents, String channel,
                                  String idempotencyKey, String gatewayTradeNo, String reason) {
+        recordOperation(order, type, amountCents, channel, idempotencyKey, gatewayTradeNo, reason, null);
+    }
+
+    private void recordOperation(CabinetOrder order, String type, int amountCents, String channel,
+                                 String idempotencyKey, String gatewayTradeNo, String reason,
+                                 String refundContextJson) {
+        // CONCURRENCY: 调用方持订单行/分布式锁；幂等键唯一约束兜住并发重复插入。
         if (paymentOperationRepository.findByIdempotencyKey(idempotencyKey).isPresent()) {
             return;
         }
@@ -1772,6 +1935,7 @@ public class OrderPaymentService {
         op.setStatus(STATUS_COMPLETED);
         op.setIdempotencyKey(idempotencyKey);
         op.setGatewayTradeNo(gatewayTradeNo);
+        op.setRefundContextJson(refundContextJson);
         // A7/P3：按 code point 边界截断，不切碎代理对（emoji）
         op.setReason(TextTruncate.safeTruncate(reason, 128));
         paymentOperationRepository.save(op);

@@ -69,9 +69,13 @@ public class WeChatPayNotifyService {
             JsonNode decrypted = objectMapper.readTree(plain);
             assertMchIdMatches(decrypted);
             return decrypted;
-        } catch (IllegalArgumentException e) {
-            throw e;
         } catch (Exception e) {
+            // 只有验签、时效和 nonce 占位全部成功后才走到这里。解析/解密/商户号校验失败
+            // 都还没消费通知，必须归还槽位让渠道重投；REPLAY 在 try 外抛出，绝不能误删他人的占位。
+            releaseNonce(nonce);
+            if (e instanceof IllegalArgumentException illegalArgument) {
+                throw illegalArgument;
+            }
             throw new IllegalStateException("wechat notify parse failed", e);
         }
     }

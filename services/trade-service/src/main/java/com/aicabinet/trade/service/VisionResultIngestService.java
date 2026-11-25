@@ -226,7 +226,7 @@ public class VisionResultIngestService {
                     + " 字符，超长会被平台拒收，请上报真实且不超长的版本号");
         }
         if (request.explicitEmpty()
-                && ((request.items() != null && !request.items().isEmpty()) || request.needReview())) {
+                && (request.items() == null || !request.items().isEmpty() || request.needReview())) {
             throw badRequest("explicitEmpty=true 仅表示端侧明确完成识别且结果为 0 件，不能同时带商品或要求人工复核");
         }
         // AU-039：整体置信度同样必须在值域内——结算侧拿它比「全局自动结算门槛」，

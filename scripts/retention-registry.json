@@ -599,6 +599,11 @@
       "why": "业务/配置实体"
     },
     {
+      "table": "purchase_receive_allocation",
+      "policy": "RETAIN",
+      "why": "采购收货仓批分配与退货资金/库存对账凭据"
+    },
+    {
       "table": "purchase_return",
       "policy": "RETAIN",
       "why": "业务/配置实体"

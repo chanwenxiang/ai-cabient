@@ -27,6 +27,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -126,17 +127,6 @@ public class BalanceRefundService {
      * 行为与接入前逐字节一致（fail-closed）。
      */
     public BalanceRefundRequestDto apply(Long userId, int amountCents, String reason, String idemKey) {
-        int minCents = systemConfigService.getBalanceRefundMinCents();
-        if (amountCents < minCents) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "退款金额至少 ¥" + String.format("%.2f", minCents / 100.0));
-        }
-        // DC-6：上限型键 fail-safe——0/负数回落默认（不再有「不限制」形态）
-        int maxCents = systemConfigService.getPositiveLimit(SystemConfigService.BALANCE_REFUND_MAX_CENTS, 500_000);
-        if (amountCents > maxCents) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "单次申请不超过 ¥" + String.format("%.2f", maxCents / 100.0));
-        }
         boolean auto = withinAutoApproveThreshold(amountCents);
         String key = normalizeIdemKey(idemKey);
         ApplyOutcome outcome = runWithBalanceRefundLock(userId,
@@ -176,6 +166,7 @@ public class BalanceRefundService {
 
     @Transactional
     public ApplyOutcome doApply(Long userId, int amountCents, String reason, boolean auto, String idemKey) {
+        // CONCURRENCY: 调用方持 balance-refund 用户锁，账户行 FOR UPDATE，重放与冻结同临界区。
         // 幂等重放必须在 PENDING 守卫**之前**：原单已 REFUNDED/REJECTED 时守卫已放行，
         // 不先查键就会给同一意图再建一单
         if (idemKey != null) {
@@ -185,6 +176,16 @@ public class BalanceRefundService {
                         userId, idemKey, existing.getRequestNo());
                 return new ApplyOutcome(toDto(existing), true);
             }
+        }
+        int minCents = systemConfigService.getBalanceRefundMinCents();
+        if (amountCents < minCents) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "退款金额至少 ¥" + String.format("%.2f", minCents / 100.0));
+        }
+        int maxCents = systemConfigService.getPositiveLimit(SystemConfigService.BALANCE_REFUND_MAX_CENTS, 500_000);
+        if (amountCents > maxCents) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "单次申请不超过 ¥" + String.format("%.2f", maxCents / 100.0));
         }
         if (requestMapper.countByUserIdAndStatus(userId, STATUS_PENDING) > 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "已有待审核的退款申请，请等待处理完成");
@@ -433,29 +434,45 @@ public class BalanceRefundService {
                                                   List<BalanceRefundAllocation> allocations,
                                                   List<BalanceRefundAllocation> doneBefore) {
         List<BalanceRefundAllocation> succeeded = new ArrayList<>();
+        List<BalanceRefundAllocation> processing = new ArrayList<>();
         RuntimeException failure = null;
         for (BalanceRefundAllocation alloc : allocations) {
             try {
-                paymentService.refundRechargeChannelPartial(
+                PaymentService.ChannelRefundResult result = paymentService.refundRechargeChannelPartial(
                         alloc.getRechargeOrderId(), alloc.getAmountCents(),
                         "余额退款申请 " + req.getRequestNo(), alloc.getOutRefundNo());
-                succeeded.add(alloc);
+                if (result == null || "SUCCESS".equalsIgnoreCase(result.status())) {
+                    succeeded.add(alloc);
+                } else if ("PROCESSING".equalsIgnoreCase(result.status())) {
+                    processing.add(alloc);
+                } else {
+                    failure = new IllegalStateException("渠道退款未确认 status=" + result.status());
+                    break;
+                }
             } catch (RuntimeException e) {
                 // AU-140（2026-10-18 批次 3）：渠道异常 ≠ 渠道未受理——超时/抖动下钱可能已按
                 // 稳定 outRefundNo 受理。旧实现一律按失败冲回 + 续退换单重退 ⇒ 双退窗口，
                 // 且 WeChatRefundReconciler 不覆盖余额切片号（无对账兜底）。查单三态确认：
-                // ACCEPTED ⇒ 按成功推进并补渠道 finalize；NOT_FOUND ⇒ 原失败冲回；
-                // UNKNOWN（支付宝/未配置/查单异常）⇒ 保守维持旧失败路径。
+                // ACCEPTED ⇒ 按成功推进并补渠道 finalize；PROCESSING ⇒ 保持在途不冲回；
+                // NOT_FOUND ⇒ 原失败冲回；UNKNOWN ⇒ 保持扣款，交对账确认，绝不猜失败。
                 PaymentService.SliceRefundProbe probe = paymentService.probeChannelRefundAccepted(
                         alloc.getRechargeOrderId(), alloc.getOutRefundNo());
                 if (probe == PaymentService.SliceRefundProbe.ACCEPTED) {
                     paymentService.finalizeChannelPartialRefundQuietly(
-                            alloc.getRechargeOrderId(), alloc.getAmountCents());
+                            alloc.getRechargeOrderId(), alloc.getAmountCents(), alloc.getOutRefundNo());
                     log.warn("balance refund channel errored but probe=ACCEPTED, count as succeeded "
                             + "request={} rechargeOrder={} outRefundNo={}",
                             req.getRequestNo(), alloc.getRechargeOrderId(), alloc.getOutRefundNo(), e);
                     succeeded.add(alloc);
                     continue;
+                }
+                if (probe == PaymentService.SliceRefundProbe.PROCESSING) {
+                    processing.add(alloc);
+                    continue;
+                }
+                if (probe == PaymentService.SliceRefundProbe.UNKNOWN) {
+                    processing.add(alloc);
+                    break;
                 }
                 failure = e;
                 log.error("balance refund channel failed request={} rechargeOrder={} outRefundNo={} probe={}",
@@ -464,6 +481,9 @@ public class BalanceRefundService {
             }
         }
         if (failure == null) {
+            if (!processing.isEmpty()) {
+                return self.markChannelSliceProgress(req.getRequestId(), succeeded);
+            }
             return self.markRefundSuccess(req.getRequestId());
         }
         List<BalanceRefundAllocation> allSucceeded = new ArrayList<>(doneBefore);
@@ -473,11 +493,81 @@ public class BalanceRefundService {
         throw new IllegalStateException("balance refund approve failed request=" + req.getRequestNo(), failure);
     }
 
+    /** 渠道处理中与成功切片并存：只标成功切片，申请保持 PROCESSING，绝不冲回在途资金。 */
+    @Transactional
+    public BalanceRefundRequest markChannelSliceProgress(long requestId,
+                                                        List<BalanceRefundAllocation> succeeded) {
+        BalanceRefundRequest req = requestMapper.selectByIdForUpdate(requestId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "退款申请不存在"));
+        for (BalanceRefundAllocation slice : succeeded) {
+            allocationMapper.updateStatusIfCurrent(slice.getAllocationId(), SLICE_PROCESSING, SLICE_SUCCEEDED);
+        }
+        req.setStatus(STATUS_PROCESSING);
+        req.setUpdatedAt(Instant.now());
+        requestMapper.updateById(req);
+        return req;
+    }
+
+    public boolean hasChannelSlice(String outRefundNo) {
+        return allocationMapper.findByOutRefundNo(outRefundNo).isPresent();
+    }
+
+    /** 充值退款查单 SUCCESS 后确认对应余额切片；全部切片成功才结案。 */
+    @Transactional
+    public BalanceRefundRequest confirmChannelSliceSuccess(String outRefundNo) {
+        BalanceRefundAllocation slice = allocationMapper.findByOutRefundNoForUpdate(outRefundNo)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "退款切片不存在"));
+        if (SLICE_SUCCEEDED.equals(slice.getStatus())) {
+            return Optional.ofNullable(requestMapper.selectById(slice.getRequestId()))
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "退款申请不存在"));
+        }
+        if (!SLICE_PROCESSING.equals(slice.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "退款切片当前状态不可确认成功");
+        }
+        allocationMapper.updateStatusIfCurrent(slice.getAllocationId(), SLICE_PROCESSING, SLICE_SUCCEEDED);
+        boolean allSucceeded = allocationMapper.findByRequestId(slice.getRequestId()).stream()
+                .allMatch(a -> SLICE_SUCCEEDED.equals(a.getStatus()));
+        return allSucceeded ? self.markRefundSuccess(slice.getRequestId())
+                : markChannelSliceProgress(slice.getRequestId(), List.of());
+    }
+
+    /** 充值退款查单 ABNORMAL 后只冲回这一片在途扣减，不影响其它处理中/成功切片。 */
+    @Transactional
+    public BalanceRefundRequest failChannelSlice(String outRefundNo, String cause) {
+        BalanceRefundAllocation slice = allocationMapper.findByOutRefundNoForUpdate(outRefundNo)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "退款切片不存在"));
+        if (!SLICE_PROCESSING.equals(slice.getStatus())) {
+            return Optional.ofNullable(requestMapper.selectById(slice.getRequestId()))
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "退款申请不存在"));
+        }
+        BalanceRefundRequest req = requestMapper.selectByIdForUpdate(slice.getRequestId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "退款申请不存在"));
+        balanceLedgerService.change(req.getUserId(), slice.getAmountCents(), "BALANCE_REFUND_REVERSAL",
+                String.valueOf(req.getRequestId()),
+                "BALANCE_REFUND_REVERSAL:" + req.getRequestNo() + ":" + outRefundNo,
+                "余额退款渠道异常冲回 " + req.getRequestNo());
+        allocationMapper.updateStatusIfCurrent(slice.getAllocationId(), SLICE_PROCESSING, SLICE_FAILED);
+        boolean anySucceeded = allocationMapper.findByRequestId(req.getRequestId()).stream()
+                .anyMatch(a -> SLICE_SUCCEEDED.equals(a.getStatus()));
+        String nextStatus = anySucceeded ? STATUS_PARTIAL : STATUS_FAILED;
+        String failReason = cause == null || cause.isBlank() ? "渠道退款异常" : cause;
+        Instant updatedAt = Instant.now();
+        if (requestMapper.failIfProcessing(req.getRequestId(), nextStatus, failReason, updatedAt) == 0) {
+            throw new IllegalStateException("退款申请已离开 PROCESSING，拒绝覆盖渠道切片结果 request="
+                    + req.getRequestId());
+        }
+        req.setStatus(nextStatus);
+        req.setFailReason(failReason);
+        req.setUpdatedAt(updatedAt);
+        return req;
+    }
+
     /**
      * H63 续退事务①：重查 PARTIAL 行 → 仅规划未成功切片 → 补扣未成功部分 → 落切片并置 PROCESSING。
      */
     @Transactional
     public List<BalanceRefundAllocation> debitRemainingAndMarkProcessing(long requestId) {
+        // CONCURRENCY: 退款申请行 FOR UPDATE 串行化续退轮次，切片序号与补扣键在同一事务生成。
         BalanceRefundRequest req = requestMapper.selectByIdForUpdate(requestId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "退款申请不存在"));
         if (!STATUS_PARTIAL.equals(req.getStatus())) {
@@ -500,7 +590,8 @@ public class BalanceRefundService {
         if (allocations.isEmpty()) {
             return allocations;
         }
-        debitRemainingBalance(req, remainCents);
+        int resumeRound = done.size();
+        debitRemainingBalance(req, remainCents, resumeRound);
         for (BalanceRefundAllocation alloc : allocations) {
             alloc.setStatus(SLICE_PROCESSING);
             allocationMapper.insert(alloc);
@@ -522,13 +613,13 @@ public class BalanceRefundService {
      * 锁+幂等+余额校验一体语义（余额不足由 change 内 412 兜住）。
      * 注意：首退路径 {@code debitAccountForApprovedRefund} 的「手动扣 + recordFreezeOnly
      * （只记流水不改余额）」是正确写法，勿按本条顺手改。 */
-    private void debitRemainingBalance(BalanceRefundRequest req, int cents) {
+    private void debitRemainingBalance(BalanceRefundRequest req, int cents, int resumeRound) {
         if (cents <= 0) {
             return;
         }
         balanceLedgerService.change(req.getUserId(), -cents, BIZ_BALANCE_REFUND,
                 String.valueOf(req.getRequestId()),
-                "BALANCE_REFUND_RESUME:" + req.getRequestNo(),
+                "BALANCE_REFUND_RESUME:" + req.getRequestNo() + ":" + resumeRound,
                 "余额退款续退补扣 " + req.getRequestNo());
     }
 
@@ -583,14 +674,17 @@ public class BalanceRefundService {
     public BalanceRefundRequest markRefundFailedAndReverse(long requestId,
                                                            List<BalanceRefundAllocation> succeeded,
                                                            RuntimeException cause) {
+        // CONCURRENCY: 申请行 FOR UPDATE 后读取切片轮次，保证失败冲回键按轮次唯一。
         BalanceRefundRequest req = requestMapper.selectByIdForUpdate(requestId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "退款申请不存在"));
         int succeededCents = succeeded.stream().mapToInt(BalanceRefundAllocation::getAmountCents).sum();
         int reverseCents = Math.max(0, req.getAmountCents() - succeededCents);
         if (reverseCents > 0) {
+            int failureRound = allocationMapper.findByRequestId(requestId).size();
+            String roundSuffix = failureRound == 0 ? "" : ":" + failureRound;
             balanceLedgerService.change(req.getUserId(), reverseCents, "BALANCE_REFUND_REVERSAL",
                     String.valueOf(req.getRequestId()),
-                    "BALANCE_REFUND_REVERSAL:" + req.getRequestNo(),
+                    "BALANCE_REFUND_REVERSAL:" + req.getRequestNo() + roundSuffix,
                     "余额退款渠道失败冲回 " + req.getRequestNo());
         }
         // H63: 有已成功切片时置 PARTIAL 保留进度（复审可续退剩余部分，且不可驳回）；

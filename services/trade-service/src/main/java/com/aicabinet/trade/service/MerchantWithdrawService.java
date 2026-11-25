@@ -777,8 +777,12 @@ public class MerchantWithdrawService {
             // 🔴 三个「不做」：不落 PAID（钱没到账）、不释放冻结（钱已锁在渠道）、不解幂等键
             //    （用户确认后的回调/查单还要靠 out_bill_no 定位这笔）。
             request.setStatus("PAYING");
-            withdrawMapper.markAwaitingUserConfirm(requestId, now, result.payChannel(),
-                    result.payoutRef(), trim(result.message()));
+            if (withdrawMapper.markAwaitingUserConfirm(requestId, now, result.payChannel(),
+                    result.payoutRef(), trim(result.message())) == 0) {
+                // 并发回调/查单已推走终态：不能为旧结果存确认票据。
+                log.info("sync payout awaiting-confirm lost race: requestId={}", requestId);
+                return toDto(requireRequest(requestId));
+            }
             // 🔴 票据 key 必须是**渠道单号（idem_key）**，不是 transfer_bill_no：
             //    读取点 confirmTicket() 用 request.getIdemKey() 反查，存的是 transfer_bill_no
             //    会导致「钱锁在渠道、商户却永远拿不到确认入口」（2026-11-23 复核发现）。
@@ -795,8 +799,12 @@ public class MerchantWithdrawService {
             request.setPaidAt(now);
             request.setNextPayoutRetryAt(null);
             request.setLastPayoutBlockReason(null);
-            withdrawMapper.finalizeIfPaying(requestId, "PAID", now,
+            int finalized = withdrawMapper.finalizeIfPaying(requestId, "PAID", now,
                     result.payoutRef(), trim(result.message()));
+            if (finalized == 0) {
+                log.info("sync payout finalize lost race: requestId={}, target=PAID", requestId);
+                return toDto(requireRequest(requestId));
+            }
             // V308：拆分记账 —— 渠道实发净额，手续费单列一行（合计仍等于毛额）
             long feeCents = request.getFeeCents() == null ? 0L : request.getFeeCents();
             merchantWalletService.consumeFrozenSplit(
@@ -815,8 +823,12 @@ public class MerchantWithdrawService {
         if (fundingFailure) {
             request.setPayoutRetryCount((request.getPayoutRetryCount() == null ? 0 : request.getPayoutRetryCount()) + 1);
         }
-        withdrawMapper.markPayoutFailed(requestId, now, result.payoutRef(), trim(result.message()),
-                blockReason, nextRetryAt);
+        if (withdrawMapper.markPayoutFailed(requestId, now, result.payoutRef(), trim(result.message()),
+                blockReason, nextRetryAt) == 0) {
+            // 并发方已落终态：绝不能拿旧失败结果再释放一次冻结。
+            log.info("sync payout failure lost race: requestId={}", requestId);
+            return toDto(requireRequest(requestId));
+        }
         // 打款失败即释放冻结，避免冻结悬挂（与人工 cancelFailed 解冻口径一致；日限额统计仍排除终态）
         merchantWalletService.releaseFrozen(request.getMerchantId(), request.getAmountCents(),
                 WITHDRAW, String.valueOf(request.getRequestId()), "提现打款失败释放");

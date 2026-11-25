@@ -10,22 +10,23 @@
 4. 已解决问题 → Skill `solved-problems-playbook`；修完封装 → `encapsulate-solved-problem`
 5. **`git push` 前** → `node scripts/pre-push-ci-preflight.mjs`（规则 `pre-push-ci-green`；Skill `pre-push-ci-preflight`）
 6. **写业务代码前** → 先读 [`docs/COMPETITOR_BENCHMARK.md`](docs/COMPETITOR_BENCHMARK.md) 并按规则 `competitor-benchmark-before-code` 检索竞品/官方做法；新建业务表的迁移头必须写 `-- COMPETITOR_REF: CB-xxx`
+7. **新增门禁/夹具文件** → `scripts/check-*.mjs` 与 `scripts/check-*.test.mjs` 必须同批接入 package.json、`check:audit-gates`/CI/preflight 的可执行链；`check-audit-gates-wiring` 会判红。Java 测试由 Maven 自动发现，无需登记。
 
 ## 强制规则（已 alwaysApply）
 
 - 🔴 **不明白的逻辑/情况，先停下来问用户，禁止自己猜着写**（2026-10-14 用户新规）。宁可打断问一句，也不要基于想象实现——猜错的返工成本远高于一次提问。
 
-| 规则文件 | 作用 |
-|----------|------|
-| `.cursor/rules/pre-push-ci-green.mdc` | **推送前预检** format/lint/门禁；禁止盲推 |
-| `.cursor/rules/critical-judgment.mdc` | **先判断再执行**；不合理先建议，不盲目照做 |
+| 规则文件                                             | 作用                                                                                                        |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `.cursor/rules/pre-push-ci-green.mdc`                | **推送前预检** format/lint/门禁；禁止盲推                                                                   |
+| `.cursor/rules/critical-judgment.mdc`                | **先判断再执行**；不合理先建议，不盲目照做                                                                  |
 | `.cursor/rules/competitor-benchmark-before-code.mdc` | **写业务代码前先查竞品/官方做法**，结论入 `docs/COMPETITOR_BENCHMARK.md`；门禁 `check:competitor-benchmark` |
-| `.cursor/rules/project-knowledge-living.mdc` | 活文档必读必补 + WorkBuddy 索引 |
-| `.cursor/rules/project-core.mdc` | 模块 / API / Flyway |
-| `.cursor/rules/use-skills-and-mcp.mdc` | Skill+MCP 先匹配 |
-| `.cursor/rules/record-lessons-learned.mdc` | 踩坑三列表 |
-| `.cursor/rules/playwright-ui-testing.mdc` | UI 优先 Playwright |
-| `.cursor/rules/dev-test-toolchain.mdc` | 开发测试工具链 |
+| `.cursor/rules/project-knowledge-living.mdc`         | 活文档必读必补 + WorkBuddy 索引                                                                             |
+| `.cursor/rules/project-core.mdc`                     | 模块 / API / Flyway                                                                                         |
+| `.cursor/rules/use-skills-and-mcp.mdc`               | Skill+MCP 先匹配                                                                                            |
+| `.cursor/rules/record-lessons-learned.mdc`           | 踩坑三列表                                                                                                  |
+| `.cursor/rules/playwright-ui-testing.mdc`            | UI 优先 Playwright                                                                                          |
+| `.cursor/rules/dev-test-toolchain.mdc`               | 开发测试工具链                                                                                              |
 
 ## WorkBuddy 三层（详见活文档 §7.4）
 

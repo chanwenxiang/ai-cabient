@@ -259,12 +259,12 @@ public class InventoryOpsService {
         }
 
         // 有批次账本时以可售为基准；即使 delta=0 也 sync，避免汇总表虚库存残留
-        int current = lotService.deviceUsesLotLedger(request.deviceId())
+        int current = lotService.hasLotForSku(request.deviceId(), request.skuId())
                 ? lotService.sellableQuantity(request.deviceId(), request.skuId())
                 : inv.getQuantity();
         int delta = request.countedQuantity() - current;
         if (delta == 0) {
-            if (lotService.deviceUsesLotLedger(request.deviceId())) {
+            if (lotService.hasLotForSku(request.deviceId(), request.skuId())) {
                 lotService.syncAggregateInventory(request.deviceId(), request.skuId());
                 return inventoryRepository.findById(id).orElse(inv);
             }

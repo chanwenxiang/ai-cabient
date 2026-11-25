@@ -37,6 +37,7 @@ public class ProcurementService {
     private final WarehouseMapper warehouseRepository;
     private final SkuCatalogMapper skuCatalogRepository;
     private final WarehouseService warehouseService;
+    private final PurchaseReceiveAllocationMapper purchaseReceiveAllocationMapper;
     private final SupplierPayableService supplierPayableService;
     private final DistributedLockService distributedLockService;
     private final ApprovalWorkflowService approvalWorkflowService;
@@ -55,6 +56,7 @@ public class ProcurementService {
                               WarehouseMapper warehouseRepository,
                               SkuCatalogMapper skuCatalogRepository,
                               WarehouseService warehouseService,
+                              PurchaseReceiveAllocationMapper purchaseReceiveAllocationMapper,
                               SupplierPayableService supplierPayableService,
                               DistributedLockService distributedLockService,
                               ApprovalWorkflowService approvalWorkflowService,
@@ -70,6 +72,7 @@ public class ProcurementService {
         this.warehouseRepository = warehouseRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.warehouseService = warehouseService;
+        this.purchaseReceiveAllocationMapper = purchaseReceiveAllocationMapper;
         this.supplierPayableService = supplierPayableService;
         this.distributedLockService = distributedLockService;
         this.approvalWorkflowService = approvalWorkflowService;
@@ -430,15 +433,8 @@ public class ProcurementService {
                         "return qty exceeds returnable for sku=" + poLine.getSkuId()
                                 + " returnable=" + returnable);
             }
-            warehouseService.returnPurchaseStock(
-                    order.getWarehouseId(),
-                    poLine.getSkuId(),
-                    poLine.getBatchNo(),
-                    returnPieces,  // 库存以支为单位扣减
-                    operatorId,
-                    "PURCHASE_RETURN",
-                    String.valueOf(ret.getReturnId())
-            );
+            returnPurchaseStockByAllocation(order, poLine, returnPieces, operatorId,
+                    String.valueOf(ret.getReturnId()));
             returnedValueCents += (long) returnCases * poLine.getUnitCostCents();
             poLine.setReturnedQty(poLine.getReturnedQty() + returnCases);
             purchaseOrderLineRepository.save(poLine);
@@ -457,6 +453,61 @@ public class ProcurementService {
                 String.valueOf(ret.getReturnId()),
                 "po=" + order.getPurchaseOrderId() + " valueCents=" + returnedValueCents);
         return toPurchaseReturnDto(ret);
+    }
+
+    private void returnPurchaseStockByAllocation(PurchaseOrder order, PurchaseOrderLine poLine,
+                                                 int returnPieces, Long operatorId, String returnId) {
+        List<PurchaseReceiveAllocation> allocations =
+                purchaseReceiveAllocationMapper.findByPurchaseLineIdForUpdate(poLine.getLineId());
+        if (allocations.isEmpty()) {
+            // 历史流水歧义/迁移未覆盖时禁止猜最后仓批；见 V510。
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "采购收货分配缺失或存在歧义，禁止按最后仓/批退货，请先核对历史收货流水");
+        }
+        int packQty = poLine.getPackQty() > 0 ? poLine.getPackQty() : 1;
+        validateAllocationTotals(poLine, allocations, true);
+        long available = allocations.stream()
+                .mapToLong(a -> Math.max(0L, (long) a.getReceivedQty() - a.getReturnedQty())).sum();
+        if (available < returnPieces) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "return qty exceeds unreturned received stock for sku=" + poLine.getSkuId());
+        }
+        int remaining = returnPieces;
+        for (PurchaseReceiveAllocation allocation : allocations) {
+            int take = Math.min(remaining, allocation.getReceivedQty() - allocation.getReturnedQty());
+            if (take <= 0) continue;
+            warehouseService.returnPurchaseStock(allocation.getWarehouseId(), allocation.getSkuId(),
+                    allocation.getBatchNo(), take, operatorId, "PURCHASE_RETURN", returnId);
+            allocation.setReturnedQty(allocation.getReturnedQty() + take);
+            purchaseReceiveAllocationMapper.save(allocation);
+            remaining -= take;
+            if (remaining == 0) break;
+        }
+    }
+
+    /** 收货/退货共用：分配台账必须与订单行件→支总量及已退总量精确一致。 */
+    private void validateAllocationTotals(PurchaseOrderLine line,
+                                          List<PurchaseReceiveAllocation> allocations) {
+        validateAllocationTotals(line, allocations, false);
+    }
+
+    private void validateAllocationTotals(PurchaseOrderLine line,
+                                          List<PurchaseReceiveAllocation> allocations,
+                                          boolean checkReturned) {
+        int packQty = line.getPackQty() > 0 ? line.getPackQty() : 1;
+        long expectedReceived = (long) line.getReceivedQty() * packQty;
+        long expectedReturned = checkReturned ? (long) line.getReturnedQty() * packQty : 0L;
+        long actualReceived = allocations.stream().mapToLong(PurchaseReceiveAllocation::getReceivedQty).sum();
+        long actualReturned = checkReturned
+                ? allocations.stream().mapToLong(PurchaseReceiveAllocation::getReturnedQty).sum() : 0L;
+        if (actualReceived != expectedReceived || actualReturned != expectedReturned) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "采购收货分配与订单行数量不一致，禁止继续收货/退货：lineId=" + line.getLineId()
+                            + " expectedReceived=" + expectedReceived
+                            + " actualReceived=" + actualReceived
+                            + " expectedReturned=" + expectedReturned
+                            + " actualReturned=" + actualReturned);
+        }
     }
 
     @Transactional
@@ -525,6 +576,12 @@ public class ProcurementService {
                     "入库件数换算溢出：件数 " + deltaCases + " × 件装数 " + packQty);
         }
         
+        // 历史分配由 V510 从收货流水回填；新旧混合收货前先校验旧总量，
+        // 不完整/歧义台账直接 409，绝不能拿新分配覆盖后继续猜仓批。
+        List<PurchaseReceiveAllocation> allocations =
+                purchaseReceiveAllocationMapper.findByPurchaseLineIdForUpdate(line.getLineId());
+        validateAllocationTotals(line, allocations);
+
         // 成本折算：unitCostCents 为「每件成本」，除以件装数得「每支成本」（四舍五入取整）。
         int unitCostPerPiece = Math.round((float) line.getUnitCostCents() / packQty);
         
@@ -552,6 +609,16 @@ public class ProcurementService {
                 operatorId,
                 BIZ_PURCHASE_ORDER,
                 String.valueOf(order.getPurchaseOrderId())));
+        PurchaseReceiveAllocation allocation = new PurchaseReceiveAllocation();
+        allocation.setPurchaseOrderId(order.getPurchaseOrderId());
+        allocation.setPurchaseLineId(line.getLineId());
+        allocation.setSkuId(line.getSkuId());
+        allocation.setWarehouseId(warehouseId);
+        allocation.setBatchNo(line.getBatchNo());
+        allocation.setReceivedQty(stockDeltaPieces);
+        allocation.setReturnedQty(0);
+        allocation.setCreatedAt(Instant.now());
+        purchaseReceiveAllocationMapper.save(allocation);
         return (long) deltaCases * line.getUnitCostCents();
     }
 

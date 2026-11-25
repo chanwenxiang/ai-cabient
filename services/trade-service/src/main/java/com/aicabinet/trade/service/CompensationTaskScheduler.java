@@ -63,7 +63,7 @@ public class CompensationTaskScheduler {
         this.legRepository = legRepository;
         this.self = self;
     }
-    @Scheduled(fixedDelay = 30000)
+    @Scheduled(fixedDelay = 30000, initialDelay = 5000)
     public void processCompensationTasks() {
         long start = System.nanoTime();
         if (!taskService.tryBegin(COMPENSATION_PROCESS, 600)) {

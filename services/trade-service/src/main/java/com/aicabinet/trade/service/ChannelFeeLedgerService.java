@@ -5,6 +5,7 @@ import com.aicabinet.trade.domain.PaymentOperationTypes;
 import com.aicabinet.trade.mapper.PaymentOperationMapper;
 import com.aicabinet.trade.util.BizIds;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -31,6 +32,7 @@ public class ChannelFeeLedgerService {
      * 把日渠道手续费写成平台支出流水；账单实结优先，无账单费用列时按正数毛额估算。
      * 重跑只补差额，不删除已落账痕迹，保证 payment_operation 汇总始终等于最新实结/估算。
      */
+    @Transactional
     public FeePosting recordDailyFee(LocalDate date, String channel, Long actualFeeCents, long grossCents) {
         String normalized = channel == null ? "" : channel.trim().toUpperCase(Locale.ROOT);
         if (!"WECHAT".equals(normalized) && !"ALIPAY".equals(normalized)) {
@@ -43,16 +45,16 @@ public class ChannelFeeLedgerService {
                         Math.max(0L, grossCents), FundBillService.resolveChannelFeeBps(systemConfigService));
         Instant start = date.atStartOfDay(ZONE).toInstant();
         Instant end = date.plusDays(1).atStartOfDay(ZONE).toInstant();
+        paymentOperationMapper.lockChannelFeeDay(date.toString(), normalized);
         long existing = paymentOperationMapper.sumChannelFeeBetween(start, end, normalized);
         long delta = desired - existing;
         if (delta != 0L) {
             boolean expense = delta > 0L;
             long amount = Math.abs(delta);
-            String idempotencyKey = existing == 0L && expense
-                    ? "channel-fee:" + normalized + ":" + date
-                    : "channel-fee-adjust:" + normalized + ":" + date + ":" + existing + "->" + desired;
+            String operationId = BizIds.nextNumeric();
+            String idempotencyKey = "channel-fee:" + normalized + ":" + date + ":" + operationId;
             PaymentOperation row = new PaymentOperation();
-            row.setOperationId(BizIds.nextNumeric());
+            row.setOperationId(operationId);
             row.setOperationType(expense
                     ? PaymentOperationTypes.CHANNEL_FEE
                     : PaymentOperationTypes.CHANNEL_FEE_REVERSAL);

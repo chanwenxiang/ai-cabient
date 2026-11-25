@@ -139,7 +139,7 @@ public class InventoryLotService {
         }
         String dev = deviceId.trim();
         String sku = skuId.trim();
-        if (deviceUsesLotLedger(dev)) {
+        if (hasLotForSku(dev, sku)) {
             return sellableQuantity(dev, sku);
         }
         return inventoryRepository.findById(new DeviceSkuInventoryId(dev, sku))
@@ -511,7 +511,11 @@ public class InventoryLotService {
     private void doStocktakeAdjust(String deviceId, String skuId, int countedQuantity,
                                    Long operatorId, String refId) {
         DeviceSkuInventoryId id = new DeviceSkuInventoryId(deviceId, skuId);
-        int current = deviceUsesLotLedger(deviceId)
+        boolean skuHasLot = hasLotForSku(deviceId, skuId);
+        if (!skuHasLot) {
+            materializeUntrackedInventory(deviceId, skuId);
+        }
+        int current = skuHasLot
                 ? lotRepository.sumSellableQuantity(deviceId, skuId)
                 : inventoryRepository.findById(id).map(DeviceSkuInventory::getQuantity).orElse(0);
         int delta = countedQuantity - current;

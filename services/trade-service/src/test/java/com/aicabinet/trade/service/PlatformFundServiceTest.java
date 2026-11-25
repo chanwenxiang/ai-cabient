@@ -55,8 +55,11 @@ class PlatformFundServiceTest {
         Clock clock = Clock.fixed(Instant.parse("2026-10-12T00:00:00Z"), ZoneId.of("Asia/Shanghai"));
         taskService = mock(ScheduledTaskService.class);
         when(taskService.tryBegin(anyString(), anyLong())).thenReturn(true);
+        org.mockito.Mockito.lenient().when(accountMapper.findByIdForUpdate(anyLong()))
+                .thenAnswer(inv -> accountMapper.findById(inv.getArgument(0)));
         service = new PlatformFundService(accountMapper, flowMapper, withdrawMapper, splitMapper,
-                systemConfigService, alertDispatcher, taskService, clock);
+                systemConfigService, alertDispatcher, taskService,
+                new PlatformFundFlowService(accountMapper, flowMapper), clock);
         when(systemConfigService.getDouble(anyString(), anyDouble()))
                 .thenAnswer(inv -> inv.getArgument(1));
         when(flowMapper.insert(any(PlatformFundFlow.class))).thenReturn(1);
@@ -150,6 +153,17 @@ class PlatformFundServiceTest {
         assertThat(captor.getValue().getAmountCents()).isEqualTo(-5_000L);
         assertThat(captor.getValue().getFlowType()).isEqualTo(PlatformFundFlow.TYPE_PAYOUT);
         assertThat(captor.getValue().getRefId()).isEqualTo("42");
+    }
+
+    @Test
+    void recordPayout_duplicateRefDoesNotAdjustBalanceTwice() {
+        when(accountMapper.findByChannel("WECHAT")).thenReturn(Optional.of(wechatAccount(10_000L)));
+        when(flowMapper.countByFlowTypeAndRefId(PlatformFundFlow.TYPE_PAYOUT, "42")).thenReturn(1L);
+
+        service.recordPayoutQuietly("WECHAT", 5_000L, 42L);
+
+        verify(accountMapper, never()).adjustBalance(anyLong(), anyLong());
+        verify(flowMapper, never()).insert(any(PlatformFundFlow.class));
     }
 
     // ── 台账登记 ──────────────────────────────────────────────────────────
@@ -291,6 +305,23 @@ class PlatformFundServiceTest {
         // 差异 30 元 > 容差 10 元 ⇒ 告警
         verify(alertDispatcher).trySend(eq(PlatformFundService.ALERT_RECON), anyString(), contains("超容差"), any());
         assertThat(summary).contains("超容差");
+    }
+
+    @Test
+    void dailyCheck_negativeSweepSum_matchesPositivePlatformShare() {
+        PlatformFundAccount account = wechatAccount(100_000L);
+        when(accountMapper.selectList(null)).thenReturn(List.of(account));
+        when(withdrawMapper.sumNetPendingByChannel("WECHAT", null)).thenReturn(0L);
+        when(flowMapper.countByTypeBetween(eq(PlatformFundFlow.TYPE_SWEEP), any(Instant.class), any(Instant.class)))
+                .thenReturn(2L);
+        when(flowMapper.sumAmountByTypeBetween(eq(PlatformFundFlow.TYPE_SWEEP), any(Instant.class), any(Instant.class)))
+                .thenReturn(-80_000L);
+        when(splitMapper.sumPlatformCentsBetween(any(Instant.class), any(Instant.class))).thenReturn(80_000L);
+
+        String summary = service.runDailyCheck();
+
+        verify(alertDispatcher, never()).trySend(eq(PlatformFundService.ALERT_RECON), anyString(), anyString(), any());
+        assertThat(summary).contains("归集核对平");
     }
 
     @Test

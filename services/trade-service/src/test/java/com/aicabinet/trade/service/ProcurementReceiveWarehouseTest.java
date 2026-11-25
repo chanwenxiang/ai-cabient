@@ -4,7 +4,9 @@ import com.aicabinet.common.dto.PurchaseOrderLineDto;
 import com.aicabinet.common.dto.ReceivePurchaseOrderRequest;
 import com.aicabinet.trade.domain.PurchaseOrder;
 import com.aicabinet.trade.domain.PurchaseOrderLine;
+import com.aicabinet.trade.domain.PurchaseReceiveAllocation;
 import com.aicabinet.trade.mapper.PurchaseOrderLineMapper;
+import com.aicabinet.trade.mapper.PurchaseReceiveAllocationMapper;
 import com.aicabinet.trade.mapper.PurchaseOrderMapper;
 import com.aicabinet.trade.mapper.PurchaseReturnLineMapper;
 import com.aicabinet.trade.mapper.PurchaseReturnMapper;
@@ -25,7 +27,9 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -45,6 +49,7 @@ class ProcurementReceiveWarehouseTest {
     @Mock private WarehouseMapper warehouseRepository;
     @Mock private SkuCatalogMapper skuCatalogRepository;
     @Mock private WarehouseService warehouseService;
+    @Mock private PurchaseReceiveAllocationMapper purchaseReceiveAllocationMapper;
     @Mock private SupplierPayableService supplierPayableService;
     @Mock private DistributedLockService distributedLockService;
 
@@ -55,7 +60,7 @@ class ProcurementReceiveWarehouseTest {
         service = new ProcurementService(permissionService, supplierRepository,
                 purchaseOrderRepository, purchaseOrderLineRepository, purchaseReturnRepository,
                 purchaseReturnLineRepository, warehouseRepository, skuCatalogRepository,
-                warehouseService, supplierPayableService, distributedLockService, null, null, null, null);
+                warehouseService, purchaseReceiveAllocationMapper, supplierPayableService, distributedLockService, null, null, null, null);
         lenient().when(distributedLockService.tryLock(any(), anyLong(), anyLong())).thenReturn(true);
         // 审计 P2-5：收货仓必须已指定负责人——默认给 WH-A / WH-B 受管仓库
         lenient().when(warehouseRepository.findById("WH-A"))
@@ -131,6 +136,102 @@ class ProcurementReceiveWarehouseTest {
         assertEquals("WH-B", saved.getValue().getWarehouseId());
         assertEquals("WH-B", dto.warehouseId());
         assertEquals("RECEIVED", dto.status());
+    }
+
+    @Test
+    void returnAcrossWarehousesAndBatches_deductsEachOriginalAllocation() {
+        PurchaseOrder order = order();
+        PurchaseOrderLine line = line();
+        line.setReceivedQty(10);
+        PurchaseReceiveAllocation first = allocation(1L, "WH-A", "B1", 4);
+        PurchaseReceiveAllocation second = allocation(2L, "WH-B", "B2", 6);
+        when(purchaseReceiveAllocationMapper.findByPurchaseLineIdForUpdate(1L))
+                .thenReturn(List.of(first, second));
+
+        org.springframework.test.util.ReflectionTestUtils.invokeMethod(
+                service, "returnPurchaseStockByAllocation", order, line, 10, 1L, "RET-1");
+
+        verify(warehouseService).returnPurchaseStock(
+                "WH-A", "SKU-1", "B1", 4, 1L, "PURCHASE_RETURN", "RET-1");
+        verify(warehouseService).returnPurchaseStock(
+                "WH-B", "SKU-1", "B2", 6, 1L, "PURCHASE_RETURN", "RET-1");
+        assertEquals(4, first.getReturnedQty());
+        assertEquals(6, second.getReturnedQty());
+    }
+
+    @Test
+    void returnWithoutAllocations_failsClosedWith409() {
+        PurchaseOrder order = order();
+        PurchaseOrderLine line = line();
+        line.setReceivedQty(10);
+        when(purchaseReceiveAllocationMapper.findByPurchaseLineIdForUpdate(1L)).thenReturn(List.of());
+
+        org.springframework.web.server.ResponseStatusException error = assertThrows(
+                org.springframework.web.server.ResponseStatusException.class,
+                () -> org.springframework.test.util.ReflectionTestUtils.invokeMethod(
+                        service, "returnPurchaseStockByAllocation", order, line, 1, 1L, "RET-1"));
+
+        assertEquals(409, error.getStatusCode().value());
+        verify(warehouseService, org.mockito.Mockito.never()).returnPurchaseStock(
+                any(), any(), any(), anyInt(), anyLong(), any(), any());
+    }
+
+    @Test
+    void receiveMixedWithHistory_requiresAllocationSumBeforeAddingNewReceipt() {
+        PurchaseOrder order = order();
+        PurchaseOrderLine line = line();
+        line.setReceivedQty(4);
+        when(purchaseReceiveAllocationMapper.findByPurchaseLineIdForUpdate(1L))
+                .thenReturn(List.of(allocation(1L, "WH-A", "B1", 3)));
+        when(purchaseOrderRepository.findByIdForUpdate(42L)).thenReturn(Optional.of(order));
+        when(purchaseOrderLineRepository.findByPurchaseOrderIdOrderByLineIdAsc(42L))
+                .thenReturn(List.of(line));
+
+        org.springframework.web.server.ResponseStatusException error = assertThrows(
+                org.springframework.web.server.ResponseStatusException.class,
+                () -> service.receivePurchaseOrder(1L, 42L, new ReceivePurchaseOrderRequest(
+                        List.of(new PurchaseOrderLineDto(1L, "SKU-1", "B1", null, null, 5, 5, 120, 0, 1)),
+                        null, "WH-A")));
+
+        assertEquals(409, error.getStatusCode().value());
+        verify(warehouseService, org.mockito.Mockito.never()).receivePurchaseStock(any());
+    }
+
+    @Test
+    void receiveMixedWithHistory_appendsAllocationWhenExistingSumMatches() {
+        PurchaseOrder order = order();
+        order.setStatus("PARTIAL_RECEIVED");
+        PurchaseOrderLine line = line();
+        line.setReceivedQty(4);
+        when(purchaseReceiveAllocationMapper.findByPurchaseLineIdForUpdate(1L))
+                .thenReturn(List.of(allocation(1L, "WH-A", "B1", 4)));
+        when(purchaseOrderRepository.findByIdForUpdate(42L)).thenReturn(Optional.of(order));
+        when(purchaseOrderLineRepository.findByPurchaseOrderIdOrderByLineIdAsc(42L))
+                .thenReturn(List.of(line));
+        when(purchaseOrderLineRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(purchaseOrderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.receivePurchaseOrder(1L, 42L, new ReceivePurchaseOrderRequest(
+                List.of(new PurchaseOrderLineDto(1L, "SKU-1", "B1", null, null, 6, 6, 120, 0, 1)),
+                null, "WH-A"));
+
+        ArgumentCaptor<PurchaseReceiveAllocation> saved = ArgumentCaptor.forClass(PurchaseReceiveAllocation.class);
+        verify(purchaseReceiveAllocationMapper).save(saved.capture());
+        assertEquals(2, saved.getValue().getReceivedQty());
+        assertEquals("WH-A", saved.getValue().getWarehouseId());
+    }
+
+    private PurchaseReceiveAllocation allocation(long id, String warehouse, String batch, int qty) {
+        PurchaseReceiveAllocation allocation = new PurchaseReceiveAllocation();
+        allocation.setAllocationId(id);
+        allocation.setPurchaseOrderId(42L);
+        allocation.setPurchaseLineId(1L);
+        allocation.setSkuId("SKU-1");
+        allocation.setWarehouseId(warehouse);
+        allocation.setBatchNo(batch);
+        allocation.setReceivedQty(qty);
+        allocation.setReturnedQty(0);
+        return allocation;
     }
 
     @Test

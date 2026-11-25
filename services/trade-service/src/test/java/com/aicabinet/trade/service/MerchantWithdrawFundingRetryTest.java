@@ -80,6 +80,12 @@ class MerchantWithdrawFundingRetryTest {
         lenient().when(distributedLockService.tryLock(
                 MerchantWithdrawService.merchantWalletLockKey("M-1"), 60L, 5L)).thenReturn(true);
         lenient().when(withdrawMapper.claimForPayout(anyLong(), anyString(), any())).thenReturn(1);
+        lenient().when(withdrawMapper.finalizeIfPaying(anyLong(), eq("PAID"), any(), any(), any()))
+                .thenReturn(1);
+        lenient().when(withdrawMapper.markPayoutFailed(anyLong(), any(), any(), any(), any(), any()))
+                .thenReturn(1);
+        lenient().when(withdrawMapper.markAwaitingUserConfirm(anyLong(), any(), any(), any(), any()))
+                .thenReturn(1);
     }
 
     @Test
@@ -139,6 +145,56 @@ class MerchantWithdrawFundingRetryTest {
         assertNull(request.getLastPayoutBlockReason());
         verify(withdrawMapper).markPayoutFailed(eq(1L), any(), isNull(), anyString(),
                 isNull(), isNull());
+    }
+
+    @Test
+    void finalizePayout_whenCallbackAlreadyFinalized_stopsBeforeWalletConsume() {
+        MerchantWithdrawRequest request = candidate("PAYING");
+        when(withdrawMapper.findById(1L)).thenReturn(Optional.of(request));
+        when(withdrawMapper.finalizeIfPaying(eq(1L), eq("PAID"), any(), eq("TX-1"), eq("成功")))
+                .thenReturn(0);
+
+        service.finalizePayout(1L,
+                MerchantWithdrawPayoutService.PayoutResult.success("WECHAT", "TX-1", "成功"));
+
+        verify(merchantWalletService, never()).consumeFrozenSplit(
+                anyString(), anyLong(), anyLong(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void finalizePayout_awaitingConfirmCasZero_returnsCurrentWithoutTicketOrWalletRelease() {
+        MerchantWithdrawRequest stale = candidate("PAYING");
+        MerchantWithdrawRequest current = candidate("PAID");
+        when(withdrawMapper.findById(1L)).thenReturn(Optional.of(stale), Optional.of(current));
+        when(withdrawMapper.markAwaitingUserConfirm(eq(1L), any(), eq("WECHAT"), eq("TX-1"), eq("待确认")))
+                .thenReturn(0);
+
+        MerchantWithdrawRequestDto dto = service.finalizePayout(1L,
+                MerchantWithdrawPayoutService.PayoutResult.awaitingUserConfirm(
+                        "WECHAT", "TX-1", "package-info", "待确认"));
+
+        assertEquals("PAID", dto.status());
+        verify(confirmTicketStore, never()).save(anyString(), any());
+        verify(merchantWalletService, never()).releaseFrozen(anyString(), anyLong(),
+                anyString(), anyString(), anyString());
+        verify(merchantWalletService, never()).consumeFrozenSplit(anyString(), anyLong(), anyLong(),
+                anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void finalizePayout_failureCasZero_returnsCurrentWithoutReleasingFrozen() {
+        MerchantWithdrawRequest stale = candidate("PAYING");
+        MerchantWithdrawRequest current = candidate("PAID");
+        when(withdrawMapper.findById(1L)).thenReturn(Optional.of(stale), Optional.of(current));
+        when(withdrawMapper.markPayoutFailed(eq(1L), any(), eq("TX-1"), eq("失败"), any(), any()))
+                .thenReturn(0);
+
+        MerchantWithdrawRequestDto dto = service.finalizePayout(1L,
+                MerchantWithdrawPayoutService.PayoutResult.failure("WECHAT", "TX-1", "失败"));
+
+        assertEquals("PAID", dto.status());
+        verify(merchantWalletService, never()).releaseFrozen(anyString(), anyLong(),
+                anyString(), anyString(), anyString());
     }
 
     @Test

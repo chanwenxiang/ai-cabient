@@ -69,6 +69,7 @@ public class PlatformFundService {
     private final OpsAlertDispatcher alertDispatcher;
     private final Clock clock;
     private final ScheduledTaskService taskService;
+    private final PlatformFundFlowService flowService;
 
     @Autowired // 双构造器必须显式指定 Spring 注入点：用 7 参版（内部造默认 Clock），Clock bean 未注册不能注 8 参版
     public PlatformFundService(PlatformFundAccountMapper accountMapper,
@@ -77,9 +78,10 @@ public class PlatformFundService {
                                OrderRevenueSplitMapper splitMapper,
                                SystemConfigService systemConfigService,
                                OpsAlertDispatcher alertDispatcher,
-                               ScheduledTaskService taskService) {
+                               ScheduledTaskService taskService,
+                               PlatformFundFlowService flowService) {
         this(accountMapper, flowMapper, withdrawMapper, splitMapper, systemConfigService,
-                alertDispatcher, taskService, Clock.systemDefaultZone());
+                alertDispatcher, taskService, flowService, Clock.systemDefaultZone());
     }
 
     public PlatformFundService(PlatformFundAccountMapper accountMapper,
@@ -89,6 +91,7 @@ public class PlatformFundService {
                                SystemConfigService systemConfigService,
                                OpsAlertDispatcher alertDispatcher,
                                ScheduledTaskService taskService,
+                               PlatformFundFlowService flowService,
                                Clock clock) {
         this.accountMapper = accountMapper;
         this.flowMapper = flowMapper;
@@ -97,6 +100,7 @@ public class PlatformFundService {
         this.systemConfigService = systemConfigService;
         this.alertDispatcher = alertDispatcher;
         this.taskService = taskService;
+        this.flowService = flowService;
         this.clock = clock;
     }
 
@@ -183,23 +187,10 @@ public class PlatformFundService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "平台资金账户不存在"));
     }
 
-    private void recordFlow(PlatformFundAccount account, String flowType, long amountCents,
-                            String refType, String refId, Long operatorId, String remark) {
-        if (!accountMapper.adjustBalance(account.getAccountId(), amountCents)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "平台资金账户不存在或已被删除");
-        }
-        PlatformFundFlow flow = new PlatformFundFlow();
-        flow.setAccountId(account.getAccountId());
-        flow.setFlowType(flowType);
-        flow.setAmountCents(amountCents);
-        flow.setBalanceAfterCents(accountMapper.findById(account.getAccountId())
-                .map(PlatformFundAccount::getBalanceCents).orElse(0L));
-        flow.setRefType(refType);
-        flow.setRefId(refId);
-        flow.setOperatorId(operatorId);
-        flow.setRemark(trim(remark));
-        flow.setCreatedAt(Instant.now());
-        flowMapper.insert(flow);
+    private boolean recordFlow(PlatformFundAccount account, String flowType, long amountCents,
+                               String refType, String refId, Long operatorId, String remark) {
+        return flowService.recordOnce(account.getAccountId(), flowType, amountCents,
+                refType, refId, operatorId, trim(remark));
     }
 
     public List<PlatformFundAccount> listAccounts() {
@@ -252,8 +243,10 @@ public class PlatformFundService {
                         channel, requestId);
                 return;
             }
-            recordFlow(account, PlatformFundFlow.TYPE_PAYOUT, -netCents,
-                    FLOW_REF_MERCHANT_WITHDRAW, String.valueOf(requestId), null, "商户提现打款");
+            if (!recordFlow(account, PlatformFundFlow.TYPE_PAYOUT, -netCents,
+                    FLOW_REF_MERCHANT_WITHDRAW, String.valueOf(requestId), null, "商户提现打款")) {
+                log.info("platform fund payout flow duplicate ignored requestId={}", requestId);
+            }
         } catch (Exception e) {
             // 🔴 台账写失败绝不能把已成功的打款改成失败（那等于否认资金事实）——只告警由人工补
             log.error("platform fund payout flow failed: channel={}, requestId={}", channel, requestId, e);
@@ -335,7 +328,8 @@ public class PlatformFundService {
         long monthPlatform = splitMapper.sumPlatformCentsBetween(monthStart, now);
         long sweepCount = flowMapper.countByTypeBetween(PlatformFundFlow.TYPE_SWEEP, monthStart, now);
         if (sweepCount > 0) {
-            long monthSweep = flowMapper.sumAmountByTypeBetween(PlatformFundFlow.TYPE_SWEEP, monthStart, now);
+            long monthSweep = Math.abs(flowMapper.sumAmountByTypeBetween(
+                    PlatformFundFlow.TYPE_SWEEP, monthStart, now));
             long tolerance = Math.max(
                     0L,
                     YuanFen.toCents(

@@ -8,7 +8,10 @@
  * 而运营台文案（V503 schedule_desc）又写 10:30 ⇒「页面说 A、实际跑 B」，日结对账连续失败 6 天才被发现。
  * 两处默认值本就该是同一个真值，故这里硬判：不一致即红。
  *
- * 判据做成纯函数（`findCronDefaultMismatches` / `flattenYml` / `effectiveDefault`）供
+ * 规则三：已拍板的日任务必须用固定 cron；30 秒/1 分钟任务必须按契约错开 initialDelay，
+ * 防止重启后恢复「每日时间漂移」和「同一秒集中触发」。
+ *
+ * 判据做成纯函数（`findCronDefaultMismatches` / `findTimingContractViolations` / `flattenYml` / `effectiveDefault`）供
  * `check-scheduled-zone.test.mjs` 用合成夹具钉住正负两向——没有夹具的判据改了就没人拦得住退化。
  *
  * 用法：node scripts/check-scheduled-zone.mjs
@@ -16,6 +19,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { maskJavaComments } from './check-scheduled-task-watched.mjs';
 
 const ROOTS = [
   path.resolve('services/trade-service/src/main/java'),
@@ -34,6 +38,135 @@ const SCHEDULED_RE = /@Scheduled\s*\(([\s\S]*?)\)/g;
 const CRON_PLACEHOLDER_RE = /cron\s*=\s*"\$\{([^:}]+)(?::([^}]*))?\}"/;
 /** 值可能是 `${ENV:0 30 10,14 * * *}` 或裸值 */
 const YML_PLACEHOLDER_RE = /^\$\{[^:}]+(?::([^}]*))?\}$/;
+
+/** 已拍板的调度时刻契约：日任务用墙钟 cron，30 秒/1 分钟任务首次执行错峰。 */
+export const TIMING_CONTRACTS = [
+  { file: 'GrowthLogArchiveScheduler.java', method: 'archive', cron: '0 0 3 * * *' },
+  { file: 'SkuReviewScheduler.java', method: 'scan', cron: '0 0 4 * * *' },
+  { file: 'PointsExpiryScheduler.java', method: 'scan', cron: '0 5 0,6,12,18 * * *' },
+  { file: 'CouponExpiryReminderScheduler.java', method: 'scan', cron: '0 5 0,6,12,18 * * *' },
+  {
+    file: 'ReconciliationScheduler.java',
+    method: 'runDailyReconciliation',
+    cron: '0 30 10,14 * * *'
+  },
+  { file: 'ScheduleZones.java', taskKey: 'reconciliation', xxlCron: '0 30 10,14 * * ?' },
+  {
+    file: 'CompensationTaskScheduler.java',
+    method: 'processCompensationTasks',
+    initialDelay: 5000
+  },
+  { file: 'ChargePendingReconciler.java', method: 'run', initialDelay: 10000 },
+  { file: 'OpsExceptionScannerService.java', method: 'scan', initialDelay: 15000 },
+  { file: 'DevicePresenceService.java', method: 'markStaleDevicesOffline', initialDelay: 20000 },
+  { file: 'DeviceTempPlanService.java', method: 'scheduledApply', initialDelay: 25000 },
+  {
+    file: 'JiangyiProductStatePollScheduler.java',
+    method: 'pollReviewingProducts',
+    initialDelay: 30000
+  },
+  {
+    file: 'ReplenishmentTimeoutScheduler.java',
+    method: 'expireStaleCheckedInTasks',
+    initialDelay: 35000
+  },
+  { file: 'SessionExpireService.java', method: 'expireStaleOpeningSessions', initialDelay: 40000 },
+  {
+    file: 'SessionExpireService.java',
+    method: 'expireStaleRestockShoppingSessions',
+    initialDelay: 45000
+  },
+  {
+    file: 'SessionExpireService.java',
+    method: 'expireStaleConsumerShoppingSessions',
+    initialDelay: 50000
+  },
+  {
+    file: 'SessionExpireService.java',
+    method: 'expireStaleRecognizingSessions',
+    initialDelay: 55000
+  },
+  { file: 'RefundRetryScheduler.java', method: 'run', initialDelay: 58000 }
+];
+
+function scheduledAttrsForMethod(src, method) {
+  const methodMatch = new RegExp(`\\b${method}\\s*\\(`).exec(src);
+  if (!methodMatch) return null;
+  const before = src.slice(0, methodMatch.index);
+  const matches = [...before.matchAll(/@Scheduled\s*\(([\s\S]*?)\)/g)];
+  const scheduled = matches.at(-1);
+  if (!scheduled) return null;
+  const line = src.slice(0, scheduled.index).split('\n').length;
+  return { attrs: scheduled[1], line };
+}
+
+function numericAttr(attrs, name) {
+  const match = new RegExp(`\\b${name}\\s*=\\s*([0-9_]+)`).exec(attrs);
+  return match ? Number(match[1].replaceAll('_', '')) : null;
+}
+
+/** 校验固定时刻与启动错峰；返回空数组=绿。 */
+export function findTimingContractViolations(javaSources) {
+  const offenders = [];
+  const seenInitialDelays = new Map();
+  for (const contract of TIMING_CONTRACTS) {
+    const src = javaSources.find((item) => path.basename(item.rel) === contract.file);
+    if (!src) {
+      offenders.push(
+        `${contract.file} 不存在，无法核对 ${contract.method ?? contract.taskKey} 的调度契约`
+      );
+      continue;
+    }
+    if (contract.xxlCron != null) {
+      const masked = maskJavaComments(src.text);
+      const anchor = masked.indexOf('XXL_CRON_BY_TASK = Map.ofEntries(');
+      const end = anchor < 0 ? -1 : masked.indexOf(');', anchor);
+      const block = anchor < 0 || end < 0 ? '' : masked.slice(anchor, end);
+      const actual = new RegExp(`Map\\.entry\\("${contract.taskKey}",\\s*"([^"]+)"\\)`).exec(
+        block
+      )?.[1];
+      if (actual !== contract.xxlCron) {
+        offenders.push(
+          `${contract.file} XXL_CRON_BY_TASK[${contract.taskKey}] 应为 "${contract.xxlCron}"，实得 "${actual ?? '缺失'}"`
+        );
+      }
+      continue;
+    }
+    const scheduled = scheduledAttrsForMethod(maskJavaComments(src.text), contract.method);
+    if (!scheduled) {
+      offenders.push(`${contract.file}:${contract.method} 未找到 @Scheduled`);
+      continue;
+    }
+    const where = `${contract.file}:${scheduled.line} ${contract.method}`;
+    if (contract.cron != null) {
+      const rawCron = new RegExp(`\\bcron\\s*=\\s*"([^"]+)"`).exec(scheduled.attrs)?.[1];
+      const cron = rawCron?.match(/^\$\{[^:}]+:([^}]*)\}$/)?.[1] ?? rawCron;
+      if (cron !== contract.cron) {
+        offenders.push(`${where} cron 应为 "${contract.cron}"，实得 "${cron ?? '缺失'}"`);
+      }
+      if (!/\bzone\s*=/.test(scheduled.attrs)) {
+        offenders.push(`${where} cron 缺少 zone=`);
+      }
+    }
+    if (contract.initialDelay != null) {
+      const actual = numericAttr(scheduled.attrs, 'initialDelay');
+      if (actual !== contract.initialDelay) {
+        offenders.push(
+          `${where} initialDelay 应为 ${contract.initialDelay}ms，实得 ${actual ?? '缺失'}`
+        );
+      }
+      if (actual != null) {
+        const previous = seenInitialDelays.get(actual);
+        if (previous) {
+          offenders.push(`${where} 与 ${previous} 的 initialDelay 相同（${actual}ms），未错峰`);
+        } else {
+          seenInitialDelays.set(actual, where);
+        }
+      }
+    }
+  }
+  return offenders;
+}
 
 function walk(dir, out = []) {
   if (!fs.existsSync(dir)) return out;
@@ -144,6 +277,7 @@ if (isCli) {
     text: fs.readFileSync(p, 'utf8')
   }));
   const offenders = findCronDefaultMismatches({ javaSources, ymlSources });
+  offenders.push(...findTimingContractViolations(javaSources));
   if (offenders.length) {
     console.error('S-P2-7 scheduled zone / cron-default check failed:\n' + offenders.join('\n'));
     process.exit(1);

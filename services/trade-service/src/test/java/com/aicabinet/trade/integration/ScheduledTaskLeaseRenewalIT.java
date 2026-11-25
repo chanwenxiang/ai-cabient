@@ -74,7 +74,7 @@ class ScheduledTaskLeaseRenewalIT {
         ScheduledTaskMapper taskMapper = mock(ScheduledTaskMapper.class);
         when(taskMapper.selectById(anyString())).thenReturn(null);
         when(taskMapper.findByIdForUpdate(anyString())).thenReturn(Optional.empty());
-        return new ScheduledTaskService(taskMapper, null, lockService, null, false);
+        return new ScheduledTaskService(taskMapper, null, lockService, null, null, false);
     }
 
     @Test

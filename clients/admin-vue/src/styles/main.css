@@ -1871,6 +1871,7 @@ a:focus-visible {
   min-width: 0;
   overflow-x: auto;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   border-radius: inherit;
 }
 

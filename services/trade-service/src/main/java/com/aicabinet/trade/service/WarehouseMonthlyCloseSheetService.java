@@ -81,8 +81,16 @@ public class WarehouseMonthlyCloseSheetService {
     /** 生成（或重新生成 DRAFT）月结单。APPROVED 已存在 → 409 拒绝（锁单不可重生成）。 */
     @Transactional
     public WarehouseCloseSheetDto generateSheet(Long operatorId, String warehouseId, String yearMonth) {
+        String normalized = WarehouseMonthlyCloseService.parseYearMonth(yearMonth).toString();
+        String wh = requireWarehouseId(warehouseId);
+        sheetMapper.lockWarehouseMonth(closeLockKey(wh, normalized));
+        return doGenerateSheet(operatorId, wh, normalized);
+    }
+
+    private WarehouseCloseSheetDto doGenerateSheet(Long operatorId, String warehouseId, String yearMonth) {
         WarehouseMonthlyCloseDto computed = closeCalculator.closeSheet(warehouseId, yearMonth);
-        WarehouseMonthlyCloseSheet existing = findSheet(warehouseId, computed.yearMonth());
+        WarehouseMonthlyCloseSheet existing = sheetMapper.findByWarehouseMonthForUpdate(warehouseId, computed.yearMonth())
+                .orElse(null);
         if (existing != null) {
             if (WarehouseMonthlyCloseSheet.STATUS_APPROVED.equals(existing.getStatus())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
@@ -110,17 +118,19 @@ public class WarehouseMonthlyCloseSheetService {
     @Transactional
     public boolean ensureDraft(Long operatorId, String warehouseId, String yearMonth) {
         String normalized = WarehouseMonthlyCloseService.parseYearMonth(yearMonth).toString();
-        if (findSheet(warehouseId, normalized) != null) {
+        String wh = requireWarehouseId(warehouseId);
+        sheetMapper.lockWarehouseMonth(closeLockKey(wh, normalized));
+        if (sheetMapper.findByWarehouseMonthForUpdate(wh, normalized).isPresent()) {
             return false;
         }
-        generateSheet(operatorId, warehouseId, normalized);
+        doGenerateSheet(operatorId, wh, normalized);
         return true;
     }
 
     /** 审批通过：DRAFT → APPROVED，锁单。审批人显示名服务端解析（照 OpsCatalogAdminService 模式）。 */
     @Transactional
     public WarehouseCloseSheetDto approve(Long operatorId, Long closeId) {
-        WarehouseMonthlyCloseSheet sheet = requireSheet(closeId);
+        WarehouseMonthlyCloseSheet sheet = requireSheetForUpdate(closeId);
         if (!WarehouseMonthlyCloseSheet.STATUS_DRAFT.equals(sheet.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该月结单已审批，不可重复审批");
         }
@@ -158,7 +168,7 @@ public class WarehouseMonthlyCloseSheetService {
     public WarehouseCloseSheetDto disposeLine(Long operatorId, Long closeId, Long lineId,
                                               String disposition,
                                               String responsibleParty, String claimNo) {
-        WarehouseMonthlyCloseSheet sheet = requireSheet(closeId);
+        WarehouseMonthlyCloseSheet sheet = requireSheetForUpdate(closeId);
         if (!WarehouseMonthlyCloseSheet.STATUS_APPROVED.equals(sheet.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "月结单审批后才可处置差异");
         }
@@ -196,7 +206,8 @@ public class WarehouseMonthlyCloseSheetService {
     public WarehouseCloseSheetDto updateLine(Long operatorId, Long closeId, Long lineId,
                                              Integer countedQty, Integer rockLossQty,
                                              Integer feeDeductQty, String lineRemark) {
-        WarehouseMonthlyCloseSheet sheet = requireSheet(closeId);
+        // CONCURRENCY: 月结单行 FOR UPDATE，编辑与审批串行，旧快照不能把 APPROVED 写回 DRAFT。
+        WarehouseMonthlyCloseSheet sheet = requireSheetForUpdate(closeId);
         if (!WarehouseMonthlyCloseSheet.STATUS_DRAFT.equals(sheet.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "月结单审批后不可编辑，请重新生成草稿");
         }
@@ -559,10 +570,15 @@ public class WarehouseMonthlyCloseSheetService {
                 r.getUnitPriceCents(), r.isEditedFlag(), r.getLineRemark());
     }
 
-    private WarehouseMonthlyCloseSheet findSheet(String warehouseId, String yearMonth) {
-        return sheetMapper.selectOne(Wrappers.<WarehouseMonthlyCloseSheet>lambdaQuery()
-                .eq(WarehouseMonthlyCloseSheet::getWarehouseId, warehouseId)
-                .eq(WarehouseMonthlyCloseSheet::getYearMonth, yearMonth));
+    private String requireWarehouseId(String warehouseId) {
+        if (warehouseId == null || warehouseId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择仓库");
+        }
+        return warehouseId.trim();
+    }
+
+    static String closeLockKey(String warehouseId, String yearMonth) {
+        return "aicabinet:warehouse-monthly-close:" + warehouseId + ":" + yearMonth;
     }
 
     private WarehouseMonthlyCloseSheet requireSheet(Long closeId) {
@@ -571,5 +587,10 @@ public class WarehouseMonthlyCloseSheetService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "月结单不存在");
         }
         return sheet;
+    }
+
+    private WarehouseMonthlyCloseSheet requireSheetForUpdate(Long closeId) {
+        return sheetMapper.findByIdForUpdate(closeId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "月结单不存在"));
     }
 }

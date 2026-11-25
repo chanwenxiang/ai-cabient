@@ -288,7 +288,6 @@ public class MerchantService {
         });
     }
 
-    @Transactional
     public RevenueSplitDto refreshWeChatProfitSharing(Long operatorId, String splitId) {
         permissionService.requirePermission(operatorId, PERM_OPS_MERCHANT_SPLIT);
         OrderRevenueSplit split = splitRepository.findById(splitId)

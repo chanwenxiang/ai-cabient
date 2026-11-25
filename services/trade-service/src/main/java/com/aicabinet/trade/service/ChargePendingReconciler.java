@@ -45,7 +45,7 @@ public class ChargePendingReconciler {
         this.taskService = taskService;
     }
 
-    @Scheduled(fixedDelay = 120_000)
+    @Scheduled(fixedDelay = 120_000, initialDelay = 10000)
     public void run() {
         long start = System.nanoTime();
         if (!taskService.tryBegin(TASK_KEY, 300)) {

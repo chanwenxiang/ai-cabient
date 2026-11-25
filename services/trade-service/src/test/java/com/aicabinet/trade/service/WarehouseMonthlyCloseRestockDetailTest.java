@@ -154,6 +154,87 @@ class WarehouseMonthlyCloseRestockDetailTest {
         assertEquals(0, detail.get(0).remainderQty());
     }
 
+    @Test
+    void sameKeyMultipleLines_aggregatesRemainderOnce() {
+        List<WarehouseMovement> all = List.of(
+                ship("SKU-A", "B-1", -5, "41", START.plusSeconds(100)),
+                ship("SKU-A", "B-1", -5, "41", START.plusSeconds(110)));
+        stubDetailMovements(all);
+        WarehouseOutboundLine first = line(41L, "SKU-A", "B-1", "DEV-1");
+        first.setQuantity(5);
+        first.setRemainderQty(0);
+        WarehouseOutboundLine second = line(41L, "SKU-A", "B-1", "DEV-1");
+        second.setQuantity(5);
+        second.setRemainderQty(3);
+        when(outboundLineMapper.selectList(any())).thenReturn(List.of(first, second));
+        when(deviceMapper.selectBatchIds(any())).thenReturn(List.of(device("DEV-1", "演示智能柜")));
+
+        List<WarehouseMonthlyCloseRestockLineDto> detail = service.restockDetail("WH-1", YEAR_MONTH);
+
+        assertEquals(1, detail.size());
+        assertEquals(10, detail.get(0).qty());
+        assertEquals(3, detail.get(0).remainderQty());
+        assertEquals(7, detail.get(0).shelvedQty());
+    }
+
+    @Test
+    void sameKeyMultipleDevices_splitsQuantityAndRemainderByOutboundLine() {
+        List<WarehouseMovement> all = List.of(
+                ship("SKU-A", "B-1", -4, "51", START.plusSeconds(100)),
+                ship("SKU-A", "B-1", -6, "51", START.plusSeconds(110)));
+        stubDetailMovements(all);
+        WarehouseOutboundLine first = line(51L, "SKU-A", "B-1", "DEV-1");
+        first.setLineId(1L);
+        first.setQuantity(4);
+        first.setRemainderQty(1);
+        WarehouseOutboundLine second = line(51L, "SKU-A", "B-1", "DEV-2");
+        second.setLineId(2L);
+        second.setQuantity(6);
+        second.setRemainderQty(2);
+        when(outboundLineMapper.selectList(any())).thenReturn(List.of(first, second));
+        when(deviceMapper.selectBatchIds(any())).thenReturn(List.of(
+                device("DEV-1", "一号柜"), device("DEV-2", "二号柜")));
+
+        List<WarehouseMonthlyCloseRestockLineDto> detail = service.restockDetail("WH-1", YEAR_MONTH);
+
+        assertEquals(2, detail.size());
+        assertEquals("DEV-1", detail.get(0).deviceId());
+        assertEquals(4, detail.get(0).qty());
+        assertEquals(1, detail.get(0).remainderQty());
+        assertEquals(3, detail.get(0).shelvedQty());
+        assertEquals("DEV-2", detail.get(1).deviceId());
+        assertEquals(6, detail.get(1).qty());
+        assertEquals(2, detail.get(1).remainderQty());
+        assertEquals(4, detail.get(1).shelvedQty());
+        assertEquals(10, detail.stream().mapToInt(WarehouseMonthlyCloseRestockLineDto::qty).sum());
+    }
+
+    @Test
+    void sameKeyMultipleDevices_usesLargestRemainderWithStableTieBreak() {
+        List<WarehouseMovement> all = List.of(
+                ship("SKU-A", "B-1", -5, "52", START.plusSeconds(100)));
+        stubDetailMovements(all);
+        WarehouseOutboundLine first = line(52L, "SKU-A", "B-1", "DEV-1");
+        first.setLineId(1L);
+        first.setQuantity(2);
+        first.setRemainderQty(1);
+        WarehouseOutboundLine second = line(52L, "SKU-A", "B-1", "DEV-2");
+        second.setLineId(2L);
+        second.setQuantity(2);
+        second.setRemainderQty(1);
+        when(outboundLineMapper.selectList(any())).thenReturn(List.of(second, first));
+        when(deviceMapper.selectBatchIds(any())).thenReturn(List.of(
+                device("DEV-1", "一号柜"), device("DEV-2", "二号柜")));
+
+        List<WarehouseMonthlyCloseRestockLineDto> detail = service.restockDetail("WH-1", YEAR_MONTH);
+
+        assertEquals("DEV-1", detail.get(0).deviceId());
+        assertEquals(3, detail.get(0).qty(), "同余数按 lineId 顺序，第一行拿余数");
+        assertEquals("DEV-2", detail.get(1).deviceId());
+        assertEquals(2, detail.get(1).qty());
+        assertEquals(5, detail.stream().mapToInt(WarehouseMonthlyCloseRestockLineDto::qty).sum());
+    }
+
     /** 下钻的 SQL 只捞本账期 OUTBOUND_SHIP / OUTBOUND_CANCEL ⇒ 桩按同一条件返回，避免测试替实现作弊。 */
     private void stubDetailMovements(List<WarehouseMovement> all) {
         when(movementMapper.selectList(any())).thenReturn(all.stream()

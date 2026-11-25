@@ -215,7 +215,7 @@ public class DeviceTempPlanService {
     }
 
     /** 每分钟扫描启用的温控计划，按当前时段下发目标温度。 */
-    @Scheduled(fixedRate = 60_000)
+    @Scheduled(fixedRate = 60_000, initialDelay = 25000)
     public void scheduledApply() {
         long start = System.nanoTime();
         if (!taskService.tryBegin("temp-plan", 600)) {

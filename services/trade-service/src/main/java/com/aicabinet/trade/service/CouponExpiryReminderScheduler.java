@@ -49,7 +49,7 @@ public class CouponExpiryReminderScheduler {
         this.taskService = taskService;
     }
 
-    @Scheduled(fixedRate = 6 * 3_600_000L)
+    @Scheduled(cron = "0 5 0,6,12,18 * * *", zone = "${aicabinet.schedule.zone:Asia/Shanghai}")
     @Transactional
     public void scan() {
         long start = System.nanoTime();

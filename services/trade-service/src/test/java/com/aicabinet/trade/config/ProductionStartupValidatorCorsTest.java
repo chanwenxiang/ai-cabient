@@ -25,6 +25,34 @@ class ProductionStartupValidatorCorsTest {
     }
 
     @Test
+    void prodRejectsWildcardCorsOrigin() {
+        assertThatThrownBy(() -> CorsValidatorTestHarness.build("*").validateProductionConfig())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("CORS_ORIGIN");
+    }
+
+    @Test
+    void prodRejectsHttpCorsOrigin() {
+        assertThatThrownBy(() -> CorsValidatorTestHarness.build("http://ops.example.com").validateProductionConfig())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("HTTPS origin");
+    }
+
+    @Test
+    void prodRejectsBlankCorsOrigin() {
+        assertThatThrownBy(() -> CorsValidatorTestHarness.build(" ").validateProductionConfig())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("blank origin");
+    }
+
+    @Test
+    void prodRejectsCorsOriginWithPath() {
+        assertThatThrownBy(() -> CorsValidatorTestHarness.build("https://ops.example.com/admin").validateProductionConfig())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("without path/query");
+    }
+
+    @Test
     void prodAcceptsRealDomainCorsOrigin() {
         ProductionStartupValidator validator = CorsValidatorTestHarness.build("https://kuangfuquan.com");
         validator.validateProductionConfig();

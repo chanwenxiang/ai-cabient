@@ -5,11 +5,12 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.aicabinet.trade.config.JsonStringTypeHandler;
 import java.time.Instant;
 import lombok.Getter;
 import lombok.Setter;
 
-@TableName("payment_operation")
+@TableName(value = "payment_operation", autoResultMap = true)
 @Getter
 @Setter
 public class PaymentOperation {
@@ -38,6 +39,10 @@ public class PaymentOperation {
     private String gatewayTradeNo;
 
     private String reason;
+
+    /** 退款调用方续跑上下文；渠道处理中/支付流水完成后均保留，直到本地下游幂等收尾。 */
+    @TableField(typeHandler = JsonStringTypeHandler.class)
+    private String refundContextJson;
 
     private Long userId;
 

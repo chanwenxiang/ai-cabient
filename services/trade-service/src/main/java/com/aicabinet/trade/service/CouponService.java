@@ -622,9 +622,14 @@ public class CouponService {
             UserCoupon uc = userCouponRepository.findById(couponId).orElse(null);
             CouponDefinition def = uc == null ? null
                     : definitionRepository.findById(uc.getCouponDefId()).orElse(null);
+            // 部分退只缩减订单抵扣，user_coupon 保留核销时的实际预算占用；全额退以它为准，
+            // 避免先部分退把预算基数改小，最终只释放一部分而留下幽灵占用。
+            int actualDiscountCents = uc != null && uc.getDiscountCents() != null
+                    ? Math.max(0, uc.getDiscountCents())
+                    : Math.max(0, order.getCouponDiscountCents());
             if (uc != null && "USED".equalsIgnoreCase(uc.getStatus())
                     && userCouponRepository.restoreUsedToUnused(couponId) > 0) {
-                releasePromotionBudgetIfAny(def);
+                releasePromotionBudgetIfAny(def, actualDiscountCents);
                 log.info("coupon restored after full refund order={} couponId={}",
                         order.getOrderId(), couponId);
             }
@@ -639,11 +644,8 @@ public class CouponService {
         }
         int priorDiscount = Math.max(0, order.getCouponDiscountCents());
         int newDiscount = proportionalCouponDiscount(priorDiscount, oldSubtotal, newSubtotal);
-        UserCoupon uc = userCouponRepository.findById(couponId).orElse(null);
-        if (uc != null) {
-            uc.setDiscountCents(newDiscount);
-            userCouponRepository.save(uc);
-        }
+        // user_coupon.discountCents 是核销时实际占用预算的留档，部分退不随订单比例摊改写；
+        // 订单自己的 couponDiscountCents 才表达剩余商品对应的抵扣。
         order.setCouponDiscountCents(newDiscount);
         return newDiscount;
     }
@@ -660,11 +662,12 @@ public class CouponService {
         return settleAfterPartialRefund(order, 0, 0);
     }
 
-    private void releasePromotionBudgetIfAny(CouponDefinition def) {
+    private void releasePromotionBudgetIfAny(CouponDefinition def, int actualDiscountCents) {
         if (def == null || def.getActivityId() == null) {
             return;
         }
-        promotionService.releaseBudget(def.getActivityId(), PromotionService.budgetReserveCents(def));
+        int reserved = PromotionService.budgetReserveCents(def);
+        promotionService.releaseBudget(def.getActivityId(), Math.max(0, Math.min(reserved, actualDiscountCents)));
     }
 
     /**
@@ -690,7 +693,7 @@ public class CouponService {
             return;
         }
         CouponDefinition def = definitionRepository.findById(uc.getCouponDefId()).orElse(null);
-        releasePromotionBudgetIfAny(def);
+        releasePromotionBudgetIfAny(def, uc.getDiscountCents());
         log.info("coupon released from order couponId={}", uc.getCouponId());
     }
 
@@ -717,7 +720,7 @@ public class CouponService {
             return false;
         }
         CouponDefinition def = definitionRepository.findById(uc.getCouponDefId()).orElse(null);
-        releasePromotionBudgetIfAny(def);
+        releasePromotionBudgetIfAny(def, 0);
         order.setCouponId(null);
         order.setCouponDiscountCents(0);
         if (order.getOrderId() != null) {
@@ -821,7 +824,8 @@ public class CouponService {
                     expired.stream().map(UserCoupon::getCouponDefId).toList());
             for (UserCoupon uc : expired) {
                 uc.setStatus(CabinetConstants.COUPON_STATUS_EXPIRED);
-                releasePromotionBudgetIfAny(defs.get(uc.getCouponDefId()));
+                CouponDefinition def = defs.get(uc.getCouponDefId());
+                releasePromotionBudgetIfAny(def, PromotionService.budgetReserveCents(def));
             }
             userCouponRepository.saveAll(expired);
             if (!expired.isEmpty()) {

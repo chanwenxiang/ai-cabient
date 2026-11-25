@@ -11,8 +11,10 @@ import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 
+import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
@@ -102,5 +104,64 @@ class CommandTrackerTest {
     void complete_unsafeKey_skipsRedisWrites() {
         assertFalse(tracker.complete(CommandTracker.Kind.CLOSE, "a".repeat(100), "D-1"));
         verify(zSet, never()).remove(anyString(), anyString());
+    }
+
+    @Test
+    void registerModel_usesAtomicDeviceNxRegistration() {
+        when(redis.execute(org.mockito.ArgumentMatchers.any(
+                        org.springframework.data.redis.core.script.RedisScript.class),
+                eq(List.of(CommandTracker.modelDeviceKey("D-1"), "jiangyi:cmd:model:pending",
+                        "jiangyi:cmd:model:9")),
+                eq("9"), eq("D-1"), eq("id-1"), anyString(), anyString())).thenReturn(1L);
+
+        assertTrue(tracker.register(CommandTracker.Kind.MODEL, "9", "D-1", "id-1"));
+
+        verify(redis).execute(org.mockito.ArgumentMatchers.any(
+                        org.springframework.data.redis.core.script.RedisScript.class),
+                eq(List.of(CommandTracker.modelDeviceKey("D-1"), "jiangyi:cmd:model:pending",
+                        "jiangyi:cmd:model:9")),
+                eq("9"), eq("D-1"), eq("id-1"), anyString(), anyString());
+    }
+
+    @Test
+    void registerModel_existingDeviceMarker_rejectsWithoutSecondPending() {
+        when(redis.execute(org.mockito.ArgumentMatchers.any(
+                        org.springframework.data.redis.core.script.RedisScript.class),
+                org.mockito.ArgumentMatchers.anyList(), eq("10"), eq("D-1"), eq("id-1"),
+                anyString(), anyString())).thenReturn(0L);
+
+        assertFalse(tracker.register(CommandTracker.Kind.MODEL, "10", "D-1", "id-1"));
+
+        verify(zSet, never()).add(anyString(), anyString(), anyDouble());
+        verify(hash, never()).putAll(anyString(), any(Map.class));
+    }
+
+    @Test
+    void completeByDeviceModel_confirmsOnlyMarkerDeploymentAtomically() {
+        when(redis.execute(org.mockito.ArgumentMatchers.any(
+                        org.springframework.data.redis.core.script.RedisScript.class),
+                eq(List.of(CommandTracker.modelDeviceKey("D-1"), "jiangyi:cmd:model:pending")),
+                eq("D-1"), eq("jiangyi:cmd:model:"))).thenReturn(1L);
+
+        assertEquals(1, tracker.completeByDevice(CommandTracker.Kind.MODEL, "D-1"));
+
+        verify(redis).execute(org.mockito.ArgumentMatchers.any(
+                        org.springframework.data.redis.core.script.RedisScript.class),
+                eq(List.of(CommandTracker.modelDeviceKey("D-1"), "jiangyi:cmd:model:pending")),
+                eq("D-1"), eq("jiangyi:cmd:model:"));
+        verify(zSet, never()).remove(anyString(), eq("8"));
+    }
+
+    @Test
+    void evictModel_releasesOnlyMatchingDeviceMarker() {
+        when(hash.get("jiangyi:cmd:model:9", "deviceId")).thenReturn("D-1");
+
+        tracker.evict(CommandTracker.Kind.MODEL, "9");
+
+        verify(redis).execute(org.mockito.ArgumentMatchers.any(
+                        org.springframework.data.redis.core.script.RedisScript.class),
+                eq(List.of("jiangyi:cmd:model:9", "jiangyi:cmd:model:pending",
+                        CommandTracker.modelDeviceKey("D-1"))), eq("9"));
+        verify(redis, never()).delete("jiangyi:cmd:model:9");
     }
 }

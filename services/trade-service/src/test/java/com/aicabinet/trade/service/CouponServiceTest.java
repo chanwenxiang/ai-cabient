@@ -57,6 +57,63 @@ class CouponServiceTest {
     }
 
     @Test
+    void fullRefund_releasesActualDiscountNotCouponFaceValue() {
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-BUDGET");
+        order.setCouponId(55L);
+        order.setCouponDiscountCents(200);
+        UserCoupon uc = new UserCoupon();
+        uc.setCouponId(55L);
+        uc.setCouponDefId(7L);
+        uc.setStatus("USED");
+        uc.setDiscountCents(200);
+        CouponDefinition def = new CouponDefinition();
+        def.setCouponDefId(7L);
+        def.setActivityId(1L);
+        def.setDenominationCents(500);
+        when(userCouponRepository.findById(55L)).thenReturn(Optional.of(uc));
+        when(userCouponRepository.restoreUsedToUnused(55L)).thenReturn(1);
+        when(definitionRepository.findById(7L)).thenReturn(Optional.of(def));
+
+        couponService.settleAfterFullRefund(order);
+
+        verify(promotionService).releaseBudget(1L, 200);
+        verify(promotionService, never()).releaseBudget(1L, 500);
+    }
+
+    @Test
+    void partialThenFullRefund_releasesOriginalBudgetExactlyOnce() {
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-BUDGET-CHAIN");
+        order.setCouponId(55L);
+        order.setCouponDiscountCents(200);
+        UserCoupon uc = new UserCoupon();
+        uc.setCouponId(55L);
+        uc.setCouponDefId(7L);
+        uc.setStatus("USED");
+        uc.setDiscountCents(200);
+        CouponDefinition def = new CouponDefinition();
+        def.setCouponDefId(7L);
+        def.setActivityId(1L);
+        def.setDenominationCents(500);
+        when(userCouponRepository.findById(55L)).thenReturn(Optional.of(uc));
+        when(definitionRepository.findById(7L)).thenReturn(Optional.of(def));
+        when(userCouponRepository.restoreUsedToUnused(55L)).thenReturn(1);
+
+        assertEquals(100, couponService.settleAfterPartialRefund(order, 1_000, 500));
+        assertEquals(100, order.getCouponDiscountCents());
+        assertEquals(200, uc.getDiscountCents(), "部分退不得改写核销时的预算占用");
+        verify(userCouponRepository, never()).save(any());
+        verify(promotionService, never()).releaseBudget(anyLong(), anyInt());
+
+        couponService.settleAfterFullRefund(order);
+
+        verify(promotionService).releaseBudget(1L, 200);
+        verify(promotionService, never()).releaseBudget(1L, 100);
+        assertEquals(0, order.getCouponDiscountCents());
+    }
+
+    @Test
     void createDefinition_shouldSaveAndReturn() {
         var req = new CreateCouponRequest("测试券", "AMOUNT_OFF", 500, 0, null, 30, 100, "测试");
         when(definitionRepository.save(any())).thenAnswer(i -> i.getArgument(0));

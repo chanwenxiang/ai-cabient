@@ -141,6 +141,19 @@ class VisionResultIngestServiceTest {
     }
 
     @Test
+    void ingest_explicitEmptyWithNullItems_rejected() {
+        stubFindById("S-EXPLICIT-NULL", SessionState.RECOGNIZING, SessionState.COMPLETED);
+        VisionRecognitionResultDto request = new VisionRecognitionResultDto(
+                "S-EXPLICIT-NULL", DEVICE_ID, null, null, null, 0.0, false,
+                "jiangyi:verified", List.of(), "JIANGYI", null, true);
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class, () -> service.ingest(request));
+
+        assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
+        verify(sessionService, never()).completeAsyncRecognition(any(), any());
+    }
+
+    @Test
     void ingest_explicitTaskId_isPreserved() {
         stubFindById("S-TASK", SessionState.RECOGNIZING, SessionState.COMPLETED);
         VisionRecognitionResultDto request = new VisionRecognitionResultDto(

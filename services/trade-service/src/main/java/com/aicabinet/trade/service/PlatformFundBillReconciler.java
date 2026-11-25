@@ -71,14 +71,15 @@ public class PlatformFundBillReconciler {
 
     @Transactional
     public ReconResult applyRecon(LocalDate date, long accountId, long billEndingBalanceCents) {
+        // CONCURRENCY: 资金账户行 FOR UPDATE 后再读区间流水与余额，串行化同日对账调整。
         String refId = date.toString();
+        PlatformFundAccount account = accountMapper.findByIdForUpdate(accountId)
+                .orElseThrow(() -> new IllegalStateException("平台资金账户不存在：" + accountId));
         if (flowMapper.countByRefTypeAndRefId(REF_TYPE, refId) > 0) {
             return new ReconResult(date, false, 0L, billEndingBalanceCents, null, "当日已核对");
         }
         Instant end = date.plusDays(1).atStartOfDay(ZONE).toInstant();
         long postDate = flowMapper.sumAmountByAccountIdBetween(accountId, end, clock.instant());
-        PlatformFundAccount account = accountMapper.findById(accountId)
-                .orElseThrow(() -> new IllegalStateException("平台资金账户不存在：" + accountId));
         long localEndingBalance = account.getBalanceCents() - postDate;
         long diff = billEndingBalanceCents - localEndingBalance;
         if (diff == 0L) {

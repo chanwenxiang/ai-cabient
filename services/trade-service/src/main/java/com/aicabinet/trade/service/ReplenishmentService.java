@@ -1039,7 +1039,11 @@ public class ReplenishmentService {
     }
 
     private ReplenishmentTaskDto doCompleteTask(Long operatorId, Long taskId) {
+        // CONCURRENCY: 任务行 FOR UPDATE 后判终态，完成与作废/签收不能交错推进库存。
         ReplenishmentTask task = requireTaskForUpdate(taskId);
+        if (STATUS_CANCELLED.equals(task.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_TASK_FINISHED);
+        }
         // 未完成任务必须先签到，避免远程误点完成导致库存虚增
         if (!STATUS_COMPLETED.equals(task.getStatus()) && task.getCheckInAt() == null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
@@ -1154,8 +1158,11 @@ public class ReplenishmentService {
     private boolean shipForSelfPickup(Long operatorId, ReplenishmentTask task) {
         Long outboundId = task.getOutboundId();
         String status = warehouseService.getOutbound(outboundId).status();
-        if (STATUS_CANCELLED.equals(status) || OUTBOUND_RECEIVED.equals(status)) {
-            // 已作废（仓库存已回仓）或已签收（其它路径已收口）⇒ 不再补发运，按任务行独立上架
+        if (STATUS_CANCELLED.equals(status)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "出库单已作废，补货任务不可继续完成，请重新创建补货任务");
+        }
+        if (OUTBOUND_RECEIVED.equals(status)) {
             return false;
         }
         if (OUTBOUND_DRAFT.equals(status)) {

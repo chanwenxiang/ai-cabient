@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -59,6 +60,7 @@ class WeChatPayNotifyServiceTest {
         assertEquals(ApiMessages.INVALID_WECHAT_NOTIFY, ex.getMessage());
         verify(v3Client).verifyNotifySignature(eq(ts), eq("forged-nonce-1"), eq("{}"), eq("bad-sig"), eq("serial"));
         verify(nonceBucket, never()).setIfAbsent(anyString(), any(Duration.class));
+        verify(nonceBucket, never()).delete();
     }
 
     /** H12: 验签通过后才做 nonce 防重；重放通知仍被拒。 */
@@ -74,5 +76,51 @@ class WeChatPayNotifyServiceTest {
 
         assertEquals(ApiMessages.WECHAT_NOTIFY_REPLAY, ex.getMessage());
         verify(aead, never()).decrypt(anyString(), anyString(), anyString(), anyString());
+        verify(nonceBucket, never()).delete();
+    }
+
+    @Test
+    void parseAndVerify_jsonFailure_releasesClaimedNonce() {
+        String ts = String.valueOf(Instant.now().getEpochSecond());
+        when(v3Client.verifyNotifySignature(anyString(), anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(true);
+        when(nonceBucket.setIfAbsent(eq("1"), any(Duration.class))).thenReturn(true);
+
+        assertThrows(IllegalStateException.class,
+                () -> service.parseAndVerify("not-json", ts, "parse-nonce", "sig", "serial"));
+
+        verify(nonceBucket).delete();
+        verify(aead, never()).decrypt(anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void parseAndVerify_decryptFailure_releasesClaimedNonce() {
+        String ts = String.valueOf(Instant.now().getEpochSecond());
+        when(v3Client.verifyNotifySignature(anyString(), anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(true);
+        when(nonceBucket.setIfAbsent(eq("1"), any(Duration.class))).thenReturn(true);
+        when(aead.decrypt(anyString(), anyString(), anyString(), anyString()))
+                .thenThrow(new IllegalStateException("bad ciphertext"));
+
+        assertThrows(IllegalStateException.class,
+                () -> service.parseAndVerify("{}", ts, "decrypt-nonce", "sig", "serial"));
+
+        verify(nonceBucket).delete();
+    }
+
+    @Test
+    void parseAndVerify_merchantMismatch_releasesClaimedNonce() {
+        String ts = String.valueOf(Instant.now().getEpochSecond());
+        when(v3Client.verifyNotifySignature(anyString(), anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(true);
+        when(nonceBucket.setIfAbsent(eq("1"), any(Duration.class))).thenReturn(true);
+        when(aead.decrypt(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn("{\"mchid\":\"mch-other\"}");
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.parseAndVerify("{}", ts, "mch-nonce", "sig", "serial"));
+
+        assertEquals(ApiMessages.INVALID_WECHAT_NOTIFY, ex.getMessage());
+        verify(nonceBucket).delete();
     }
 }

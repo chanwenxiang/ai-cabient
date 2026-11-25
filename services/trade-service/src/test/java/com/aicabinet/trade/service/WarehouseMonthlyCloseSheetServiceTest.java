@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.server.ResponseStatusException;
@@ -33,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -62,6 +64,14 @@ class WarehouseMonthlyCloseSheetServiceTest {
         // 不 stub 就返回空 Optional ⇒ 用例全变「月结行不存在」404。代理回 selectById，保留各用例原打桩。
         org.mockito.Mockito.lenient().when(lineMapper.findByIdForUpdate(org.mockito.ArgumentMatchers.any()))
                 .thenAnswer(inv -> java.util.Optional.ofNullable(lineMapper.selectById(inv.getArgument(0))));
+        org.mockito.Mockito.lenient().when(sheetMapper.findByIdForUpdate(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(inv -> java.util.Optional.ofNullable(sheetMapper.selectById(inv.getArgument(0))));
+        org.mockito.Mockito.lenient().when(sheetMapper.findByWarehouseMonthForUpdate(any(), any()))
+                .thenAnswer(inv -> java.util.Optional.ofNullable(sheetMapper.selectOne(
+                        com.baomidou.mybatisplus.core.toolkit.Wrappers
+                                .<WarehouseMonthlyCloseSheet>lambdaQuery()
+                                .eq(WarehouseMonthlyCloseSheet::getWarehouseId, inv.getArgument(0))
+                                .eq(WarehouseMonthlyCloseSheet::getYearMonth, inv.getArgument(1)))));
         service = new WarehouseMonthlyCloseSheetService(
                 sheetMapper, lineMapper, closeCalculator, skuCatalogMapper, writeOffMapper,
                 userInfoMapper, warehouseMapper);
@@ -93,6 +103,20 @@ class WarehouseMonthlyCloseSheetServiceTest {
 
     @Nested
     class Generate {
+
+        @Test
+        void shouldLockWarehouseMonthBeforeCalculateAndReadDraft() {
+            when(closeCalculator.closeSheet("WH-1", "2026-10")).thenReturn(computed("2026-10"));
+            when(sheetMapper.insert(any())).thenReturn(1);
+
+            service.generateSheet(1L, "WH-1", "2026-10");
+
+            InOrder ordered = inOrder(sheetMapper, closeCalculator);
+            ordered.verify(sheetMapper).lockWarehouseMonth(
+                    WarehouseMonthlyCloseSheetService.closeLockKey("WH-1", "2026-10"));
+            ordered.verify(closeCalculator).closeSheet("WH-1", "2026-10");
+            ordered.verify(sheetMapper).findByWarehouseMonthForUpdate("WH-1", "2026-10");
+        }
 
         @Test
         void shouldMaterializeAmountsAndTotals() {
@@ -182,6 +206,7 @@ class WarehouseMonthlyCloseSheetServiceTest {
             assertEquals(WarehouseMonthlyCloseSheet.STATUS_APPROVED, dto.status());
             assertEquals("仓库主管", dto.approvedByName());
             verify(sheetMapper).updateById(draft);
+            verify(sheetMapper).findByIdForUpdate(11L);
         }
 
         @Test
@@ -378,6 +403,19 @@ class WarehouseMonthlyCloseSheetServiceTest {
 
     @Nested
     class EnsureDraft {
+
+        @Test
+        void shouldLockBeforeCheckingExistingSheet() {
+            when(sheetMapper.selectOne(any())).thenReturn(draftSheet(11L));
+
+            assertFalse(service.ensureDraft(0L, "WH-1", "2026-10"));
+
+            InOrder ordered = inOrder(sheetMapper);
+            ordered.verify(sheetMapper).lockWarehouseMonth(
+                    WarehouseMonthlyCloseSheetService.closeLockKey("WH-1", "2026-10"));
+            ordered.verify(sheetMapper).findByWarehouseMonthForUpdate("WH-1", "2026-10");
+            verify(closeCalculator, never()).closeSheet(any(), any());
+        }
 
         @Test
         void shouldSkipWhenSheetAlreadyExists() {

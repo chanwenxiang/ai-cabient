@@ -65,7 +65,7 @@ public class SessionExpireService {
     }
 
     /** 开门指令已下发但设备未响应时，自动释放会话与设备占用。 */
-    @Scheduled(fixedRate = 30_000)
+    @Scheduled(fixedRate = 30_000, initialDelay = 40000)
     @Transactional
     public void expireStaleOpeningSessions() {
         long start = System.nanoTime();
@@ -99,7 +99,7 @@ public class SessionExpireService {
     }
 
     /** 补货会话长时间停在购物态：超时清理，避免挡消费者开门。 */
-    @Scheduled(fixedRate = 60_000)
+    @Scheduled(fixedRate = 60_000, initialDelay = 45000)
     @Transactional
     public void expireStaleRestockShoppingSessions() {
         long start = System.nanoTime();
@@ -209,7 +209,7 @@ public class SessionExpireService {
     /**
      * 消费者购物态开门超时：自动关会话并释放设备占用（与 DOOR_OPEN_TOO_LONG 告警阈值对齐）。
      */
-    @Scheduled(fixedRate = 60_000)
+    @Scheduled(fixedRate = 60_000, initialDelay = 50000)
     @Transactional
     public void expireStaleConsumerShoppingSessions() {
         long start = System.nanoTime();
@@ -245,7 +245,7 @@ public class SessionExpireService {
     }
 
     /** 识别/结算长时间无结果：转争议，避免占柜机与前端一直卡在「识别中」。 */
-    @Scheduled(fixedRate = 60_000)
+    @Scheduled(fixedRate = 60_000, initialDelay = 55000)
     @Transactional
     public void expireStaleRecognizingSessions() {
         long start = System.nanoTime();

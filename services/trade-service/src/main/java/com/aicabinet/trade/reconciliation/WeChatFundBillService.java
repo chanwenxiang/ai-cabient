@@ -22,10 +22,22 @@ public class WeChatFundBillService {
 
     public WeChatFundBillCsvParser.FundBill fetchOperatingAccount(LocalDate date) {
         String path = "/v3/bill/fundflowbill?bill_date=" + date + "&account_type=OPERATION";
-        JsonNode response = client.get(path);
+        WeChatPayV3Client.HttpResult result = client.getWithStatus(path);
+        JsonNode response = result.body();
+        if (result.status() == 404 || "NO_STATEMENT_EXIST".equals(response.path("code").asText(""))) {
+            log.info("wechat operating-account fund bill unavailable date={} status={} code={}",
+                    date, result.status(), response.path("code").asText(""));
+            return WeChatFundBillCsvParser.parse("", date);
+        }
+        if (!result.is2xx()) {
+            throw new IllegalStateException("微信运营账户资金账单查询失败：status=" + result.status()
+                    + " code=" + response.path("code").asText("")
+                    + " message=" + response.path("message").asText(""));
+        }
         String downloadUrl = response.path("download_url").asText(null);
         if (downloadUrl == null || downloadUrl.isBlank()) {
-            throw new IllegalStateException("微信运营账户资金账单缺少 download_url：date=" + date);
+            log.info("wechat operating-account fund bill unavailable date={} (no download_url)", date);
+            return WeChatFundBillCsvParser.parse("", date);
         }
         byte[] data = client.download(downloadUrl,
                 response.path("hash_type").asText(null), response.path("hash_value").asText(null));

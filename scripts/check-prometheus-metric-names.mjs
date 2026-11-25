@@ -245,6 +245,7 @@ const PROMQL_KEYWORDS = new Set([
   'outcome',
   'code_namespace',
   'code_function',
+  'task_key',
   'area',
   'device_id',
   'ticket_id',

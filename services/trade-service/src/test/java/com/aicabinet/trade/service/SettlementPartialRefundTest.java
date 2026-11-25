@@ -88,7 +88,7 @@ class SettlementPartialRefundTest {
         when(orderRepository.findById("O-C")).thenReturn(Optional.of(order));
         when(orderRepository.findByIdForUpdate("O-C")).thenReturn(Optional.of(order));
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
-        when(orderPaymentService.refundOrder(any(), anyInt(), anyString(), any())).thenReturn(true);
+        when(orderPaymentService.refundOrder(any(), anyInt(), anyString(), any(), any())).thenReturn(true);
         doNothing().when(revenueSplitService).adjustSplitAfterPartialRefund(any(), eq(false));
         // CB-045 拍板（政府消费券式+比例摊）：oldSubtotal=1000 → newSubtotal=600（退 SKU-A 400），
         // 券抵扣按比例 200×0.6=120（不返券、不重算门槛），退款=800−(600−120)=320
@@ -105,7 +105,7 @@ class SettlementPartialRefundTest {
         assertEquals(480, order.getTotalAmountCents());
         assertEquals(120, order.getCouponDiscountCents());
         verify(couponService).settleAfterPartialRefund(order, 1000, 600);
-        verify(orderPaymentService).refundOrder(eq(order), eq(320), eq("coupon partial"), any());
+        verify(orderPaymentService).refundOrder(eq(order), eq(320), eq("coupon partial"), any(), any());
     }
 
     @Test
@@ -128,7 +128,7 @@ class SettlementPartialRefundTest {
         when(orderRepository.findByIdForUpdate("O-1")).thenReturn(Optional.of(order));
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
         when(orderLineRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(orderPaymentService.refundOrder(any(), anyInt(), anyString(), any())).thenReturn(true);
+        when(orderPaymentService.refundOrder(any(), anyInt(), anyString(), any(), any())).thenReturn(true);
         doNothing().when(revenueSplitService).adjustSplitAfterPartialRefund(any(), eq(false));
         doNothing().when(inventoryService).restoreForOrder(anyString(), anyList(), anyMap(), anyString());
         doNothing().when(inventoryService).recordRefundKeptGoods(anyString(), anyList(), anyMap(), anyString());
@@ -209,7 +209,7 @@ class SettlementPartialRefundTest {
         when(orderRepository.findByIdForUpdate("O-M2")).thenReturn(Optional.of(order));
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
         when(orderLineRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(orderPaymentService.refundOrder(any(), anyInt(), anyString(), any())).thenReturn(true);
+        when(orderPaymentService.refundOrder(any(), anyInt(), anyString(), any(), any())).thenReturn(true);
         doNothing().when(revenueSplitService).adjustSplitAfterPartialRefund(any(), eq(false));
 
         var result = settlementService.partialRefund(
@@ -241,7 +241,7 @@ class SettlementPartialRefundTest {
         when(orderRepository.findById("O-2")).thenReturn(Optional.of(order));
         when(orderRepository.findByIdForUpdate("O-2")).thenReturn(Optional.of(order));
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
-        when(orderPaymentService.refundOrder(any(), anyInt(), anyString(), any())).thenReturn(true);
+        when(orderPaymentService.refundOrder(any(), anyInt(), anyString(), any(), any())).thenReturn(true);
         doNothing().when(revenueSplitService).adjustSplitAfterPartialRefund(any(), eq(true));
         doNothing().when(inventoryService).restoreForOrder(anyString(), anyList(), anyMap(), anyString());
 
@@ -276,7 +276,7 @@ class SettlementPartialRefundTest {
         when(orderRepository.findById("O-C04")).thenReturn(Optional.of(order));
         doThrow(new org.springframework.web.server.ResponseStatusException(
                 org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE, "渠道退款失败"))
-                .when(orderPaymentService).refundOrder(any(), anyInt(), anyString(), any());
+                .when(orderPaymentService).refundOrder(any(), anyInt(), anyString(), any(), any());
 
         org.junit.jupiter.api.Assertions.assertThrows(
                 org.springframework.web.server.ResponseStatusException.class,
@@ -348,7 +348,7 @@ class SettlementPartialRefundTest {
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
         doNothing().when(revenueSplitService).adjustSplitAfterPartialRefund(any(), eq(false));
         // 模拟 refundOrder 真实行为：短事务把本次退款累加进 refundedCents（余额渠道路径，:809 同型）
-        when(orderPaymentService.refundOrder(any(), anyInt(), anyString(), any())).thenAnswer(inv -> {
+        when(orderPaymentService.refundOrder(any(), anyInt(), anyString(), any(), any())).thenAnswer(inv -> {
             CabinetOrder o = inv.getArgument(0);
             o.setRefundedCents(Math.max(0, o.getRefundedCents()) + inv.getArgument(1, Integer.class));
             return true;
@@ -370,7 +370,7 @@ class SettlementPartialRefundTest {
     void partialRefund_channelSkipped_aborts409() {
         CabinetOrder order = paidOrder();
         when(orderRepository.findById("O-R")).thenReturn(Optional.of(order));
-        when(orderPaymentService.refundOrder(any(), anyInt(), anyString(), any())).thenReturn(false);
+        when(orderPaymentService.refundOrder(any(), anyInt(), anyString(), any(), any())).thenReturn(false);
 
         org.junit.jupiter.api.Assertions.assertThrows(
                 org.springframework.web.server.ResponseStatusException.class,
@@ -396,7 +396,7 @@ class SettlementPartialRefundTest {
         when(orderRepository.findByIdForUpdate("O-R")).thenReturn(Optional.of(order));
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
         doNothing().when(revenueSplitService).adjustSplitAfterPartialRefund(any(), eq(false));
-        when(orderPaymentService.refundOrder(any(), anyInt(), anyString(), any())).thenReturn(true);
+        when(orderPaymentService.refundOrder(any(), anyInt(), anyString(), any(), any())).thenReturn(true);
 
         settlementService.partialRefund(
                 order,
@@ -406,7 +406,7 @@ class SettlementPartialRefundTest {
 
         verify(orderPaymentService).refundOrder(
                 eq(order), eq(400), anyString(),
-                argThat(key -> key != null && key.contains(":L:")));
+                argThat(key -> key != null && key.contains(":L:")), any());
     }
 
     /** P2-6：渠道已退、本地 finalize 未跑 ⇒ 同参重试补本地收尾，不再 409/不再调渠道。 */
@@ -435,7 +435,7 @@ class SettlementPartialRefundTest {
 
         assertEquals(400, result.refundedCents());
         assertEquals("PARTIAL_REFUNDED", result.status());
-        verify(orderPaymentService, never()).refundOrder(any(), anyInt(), anyString(), any());
+        verify(orderPaymentService, never()).refundOrder(any(), anyInt(), anyString(), any(), any());
         assertEquals(600, order.getTotalAmountCents());
         assertEquals(400, order.getRefundedCents());
     }

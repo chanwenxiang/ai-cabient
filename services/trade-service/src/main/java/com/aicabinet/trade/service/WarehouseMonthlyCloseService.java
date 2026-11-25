@@ -43,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -294,37 +295,64 @@ public class WarehouseMonthlyCloseService {
             return List.of();
         }
 
-        Map<String, WarehouseOutboundLine> lineByKey = outboundLineByMovement(movements);
+        Map<String, List<WarehouseOutboundLine>> lineByKey = outboundLineByMovement(movements);
         Map<String, RestockAcc> grouped = new TreeMap<>();
-        for (WarehouseMovement m : movements) {
-            // 作废回库写正 delta、方向与发运相反：下钻取负，Σ明细 = 发运 − 作废 = 列值
-            boolean cancel = MOVEMENT_OUTBOUND_CANCEL.equals(m.getMovementType());
-            int absQty = cancel ? Math.max(m.getDeltaQty(), 0) : Math.max(-m.getDeltaQty(), 0);
-            if (absQty == 0) {
+        Map<String, List<WarehouseMovement>> movementsByKey = new LinkedHashMap<>();
+        for (WarehouseMovement movement : movements) {
+            movementsByKey.computeIfAbsent(
+                    lineKey(movement.getRefId(), movement.getSkuId(), movement.getBatchNo()),
+                    key -> new ArrayList<>()).add(movement);
+        }
+        for (Map.Entry<String, List<WarehouseMovement>> entry : movementsByKey.entrySet()) {
+            String key = entry.getKey();
+            List<WarehouseMovement> keyMovements = entry.getValue();
+            List<WarehouseOutboundLine> lines = lineByKey.getOrDefault(key, List.of());
+            int totalShip = keyMovements.stream()
+                    .filter(m -> MOVEMENT_OUTBOUND_SHIP.equals(m.getMovementType()))
+                    .mapToInt(m -> Math.max(-m.getDeltaQty(), 0)).sum();
+            int totalCancel = keyMovements.stream()
+                    .filter(m -> MOVEMENT_OUTBOUND_CANCEL.equals(m.getMovementType()))
+                    .mapToInt(m -> Math.max(m.getDeltaQty(), 0)).sum();
+            Instant lastShippedAt = keyMovements.stream()
+                    .filter(m -> MOVEMENT_OUTBOUND_SHIP.equals(m.getMovementType()))
+                    .map(WarehouseMovement::getCreatedAt)
+                    .filter(java.util.Objects::nonNull)
+                    .max(Instant::compareTo).orElse(null);
+            if (lines.isEmpty()) {
+                // 历史/外部单据没有出库行：只按流水出账，归属留空，不猜设备。
+                RestockAcc acc = grouped.computeIfAbsent(
+                        "|" + keyMovements.get(0).getSkuId(), ignored -> new RestockAcc());
+                acc.skuId = keyMovements.get(0).getSkuId();
+                acc.qty += totalShip - totalCancel;
+                addMovementMetadata(acc, keyMovements, lastShippedAt);
                 continue;
             }
-            int signedQty = cancel ? -absQty : absQty;
-            WarehouseOutboundLine line = lineByKey.get(lineKey(m.getRefId(), m.getSkuId(), m.getBatchNo()));
-            String deviceId = line == null ? null : blankToNull(line.getDeviceId());
-            RestockAcc acc = grouped.computeIfAbsent(
-                    (deviceId == null ? "" : deviceId) + "|" + m.getSkuId(), k -> new RestockAcc());
-            acc.deviceId = deviceId;
-            acc.skuId = m.getSkuId();
-            acc.qty += signedQty;
-            // 出库行缺失（历史/外部单据）时不猜差额：按全量上柜出账，差额列留 0。
-            // 作废按同键同额回退「领而未上」，整单作废后 qty = shelvedQty + remainderQty 仍成立。
-            if (line != null) {
-                acc.remainderQty += (cancel ? -1 : 1)
-                        * Math.max(0, Math.min(line.getRemainderQty(), absQty));
-            }
-            String refId = blankToNull(m.getRefId());
-            if (refId != null) {
-                acc.outboundIds.add(refId);
-            }
-            // 「领货时间」只认发运：作废回库不是发货事件
-            if (!cancel && m.getCreatedAt() != null && (acc.lastShippedAt == null
-                    || m.getCreatedAt().isAfter(acc.lastShippedAt))) {
-                acc.lastShippedAt = m.getCreatedAt();
+            lines.sort(java.util.Comparator.comparing(WarehouseOutboundLine::getLineId,
+                    java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
+            int[] shipShares = apportionByLineQuantity(totalShip, lines);
+            int[] cancelShares = apportionByLineQuantity(totalCancel, lines);
+            for (int i = 0; i < lines.size(); i++) {
+                WarehouseOutboundLine line = lines.get(i);
+                int shipQty = shipShares[i];
+                int cancelQty = cancelShares[i];
+                if (shipQty == 0 && cancelQty == 0) {
+                    continue;
+                }
+                int netQty = shipQty - cancelQty;
+                int lineRemainder = Math.min(Math.max(0, line.getRemainderQty()),
+                        Math.max(0, line.getQuantity()));
+                // 作废反向冲销同一行的领而未上；全量作废时 remainder 归 0。
+                int remainder = netQty == 0 ? 0
+                        : (int) Math.signum(netQty) * Math.min(lineRemainder, Math.abs(netQty));
+                String deviceId = blankToNull(line.getDeviceId());
+                RestockAcc acc = grouped.computeIfAbsent(
+                        (deviceId == null ? "" : deviceId) + "|" + line.getSkuId(),
+                        ignored -> new RestockAcc());
+                acc.deviceId = deviceId;
+                acc.skuId = line.getSkuId();
+                acc.qty += netQty;
+                acc.remainderQty += remainder;
+                addMovementMetadata(acc, keyMovements, shipQty > 0 ? lastShippedAt : null);
             }
         }
 
@@ -353,7 +381,7 @@ public class WarehouseMonthlyCloseService {
     }
 
     /** 流水 → 出库行：按 {@code (outboundId, skuId, batchNo)} 回查，用于取柜机归属与领而未上差额（发运/作废同键）。 */
-    private Map<String, WarehouseOutboundLine> outboundLineByMovement(List<WarehouseMovement> movements) {
+    private Map<String, List<WarehouseOutboundLine>> outboundLineByMovement(List<WarehouseMovement> movements) {
         Set<Long> outboundIds = new LinkedHashSet<>();
         for (WarehouseMovement m : movements) {
             String ref = blankToNull(m.getRefId());
@@ -369,13 +397,64 @@ public class WarehouseMonthlyCloseService {
         if (outboundIds.isEmpty()) {
             return Map.of();
         }
-        Map<String, WarehouseOutboundLine> byLine = new HashMap<>();
+        Map<String, List<WarehouseOutboundLine>> byLine = new HashMap<>();
         for (WarehouseOutboundLine line : outboundLineMapper.selectList(
                 Wrappers.<WarehouseOutboundLine>lambdaQuery()
                         .in(WarehouseOutboundLine::getOutboundId, outboundIds))) {
-            byLine.put(lineKey(String.valueOf(line.getOutboundId()), line.getSkuId(), line.getBatchNo()), line);
+            byLine.computeIfAbsent(
+                    lineKey(String.valueOf(line.getOutboundId()), line.getSkuId(), line.getBatchNo()),
+                    key -> new ArrayList<>()).add(line);
         }
         return byLine;
+    }
+
+    /** 最大余数法按出库行数量分摊；同余数按 lineId 顺序，历史零数量行退化为等权，绝不归未知设备。 */
+    private static int[] apportionByLineQuantity(int total, List<WarehouseOutboundLine> lines) {
+        int[] result = new int[lines.size()];
+        if (total <= 0 || lines.isEmpty()) {
+            return result;
+        }
+        long[] weights = new long[lines.size()];
+        long weightSum = 0;
+        for (int i = 0; i < lines.size(); i++) {
+            weights[i] = Math.max(0, lines.get(i).getQuantity());
+            weightSum += weights[i];
+        }
+        boolean equalWeight = weightSum == 0;
+        if (equalWeight) {
+            java.util.Arrays.fill(weights, 1L);
+            weightSum = lines.size();
+        }
+        long allocated = 0;
+        long[] remainders = new long[lines.size()];
+        for (int i = 0; i < lines.size(); i++) {
+            long numerator = (long) total * weights[i];
+            result[i] = (int) (numerator / weightSum);
+            remainders[i] = numerator % weightSum;
+            allocated += result[i];
+        }
+        int left = total - (int) allocated;
+        List<Integer> order = new ArrayList<>();
+        for (int i = 0; i < lines.size(); i++) order.add(i);
+        order.sort(java.util.Comparator.<Integer>comparingLong(i -> remainders[i]).reversed()
+                .thenComparingInt(i -> i));
+        for (int i = 0; i < left; i++) {
+            result[order.get(i)]++;
+        }
+        return result;
+    }
+
+    private static void addMovementMetadata(RestockAcc acc, List<WarehouseMovement> movements,
+                                            Instant lastShippedAt) {
+        for (WarehouseMovement movement : movements) {
+            String refId = blankToNull(movement.getRefId());
+            if (refId != null) {
+                acc.outboundIds.add(refId);
+            }
+        }
+        if (lastShippedAt != null && (acc.lastShippedAt == null || lastShippedAt.isAfter(acc.lastShippedAt))) {
+            acc.lastShippedAt = lastShippedAt;
+        }
     }
 
     private Map<String, String> deviceNames(Iterable<RestockAcc> accs) {

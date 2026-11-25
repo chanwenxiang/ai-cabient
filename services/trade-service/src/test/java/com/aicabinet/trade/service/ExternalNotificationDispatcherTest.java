@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -50,9 +51,13 @@ class ExternalNotificationDispatcherTest {
                     "consumer-tpl", "pages/messages/messages", null, null, null, null, "formal");
 
     private ExternalNotificationDispatcher dispatcher(boolean wechat, boolean sms) {
+        return dispatcher(wechat, sms, false);
+    }
+
+    private ExternalNotificationDispatcher dispatcher(boolean wechat, boolean sms, boolean async) {
         return new ExternalNotificationDispatcher(logRepository, userInfoRepository, templateRepository,
                 weChatMiniAppClient, WECHAT_PROPS, smsSender,
-                new NotifyChannelSwitchService(org.mockito.Mockito.mock(SystemConfigService.class), new NotificationProperties(wechat, sms, false)),
+                new NotifyChannelSwitchService(org.mockito.Mockito.mock(SystemConfigService.class), new NotificationProperties(wechat, sms, async)),
                 aliyunSmsSender);
     }
 
@@ -85,6 +90,37 @@ class ExternalNotificationDispatcherTest {
     }
 
     @Test
+    void dispatch_asyncSmsFailure_rethrowsForKafkaRetry() {
+        ExternalNotificationDispatcher dispatcher = dispatcher(false, true, true);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user(null, "13800138000")));
+        when(templateRepository.findByCode("unpaid_order_dunning"))
+                .thenReturn(Optional.of(template("unpaid_order_dunning", "IN_APP,SMS", null)));
+        doThrow(new IllegalStateException("sms gateway down")).when(smsSender)
+                .sendMessage(eq("13800138000"), anyString());
+        NotificationDispatchMessage msg = new NotificationDispatchMessage("unpaid_order_dunning", 100L,
+                "订单未支付提醒", "您的订单 O1 尚未支付 12 元", "ORDER", "O1");
+
+        assertThrows(IllegalStateException.class, () -> dispatcher.dispatch(msg));
+    }
+
+    @Test
+    void dispatch_asyncSmsFailure_logPersistFailureDoesNotMaskChannelFailure() {
+        ExternalNotificationDispatcher dispatcher = dispatcher(false, true, true);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user(null, "13800138000")));
+        when(templateRepository.findByCode("unpaid_order_dunning"))
+                .thenReturn(Optional.of(template("unpaid_order_dunning", "IN_APP,SMS", null)));
+        doThrow(new IllegalStateException("sms gateway down")).when(smsSender)
+                .sendMessage(eq("13800138000"), anyString());
+        doThrow(new IllegalStateException("log db down")).when(logRepository).save(any());
+        NotificationDispatchMessage msg = new NotificationDispatchMessage("unpaid_order_dunning", 100L,
+                "订单未支付提醒", "您的订单 O1 尚未支付 12 元", "ORDER", "O1");
+
+        IllegalStateException error = assertThrows(IllegalStateException.class, () -> dispatcher.dispatch(msg));
+        assertTrue(error.getMessage().contains("notification dispatch failed"));
+        assertTrue(error.getCause().getMessage().contains("sms gateway down"));
+    }
+
+    @Test
     void dispatch_shouldPushWechatWhenEnabledAndOpenIdBound() {
         ExternalNotificationDispatcher dispatcher = dispatcher(true, false);
         when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user("openid-1", null)));
@@ -113,6 +149,34 @@ class ExternalNotificationDispatcherTest {
         verify(logRepository).save(captor.capture());
         assertEquals("FAILED", captor.getValue().getStatus());
         assertTrue(captor.getValue().getBody().contains("投递失败"));
+    }
+
+    @Test
+    void dispatch_asyncWechatFalse_rethrowsForKafkaRetry() {
+        ExternalNotificationDispatcher dispatcher = dispatcher(true, false, true);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user("openid-1", null)));
+        when(weChatMiniAppClient.sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap(),
+                eq(MiniAppTarget.CONSUMER))).thenReturn(false);
+
+        assertThrows(IllegalStateException.class, () -> dispatcher.dispatch(message()));
+
+        ArgumentCaptor<NotificationLog> saved = ArgumentCaptor.forClass(NotificationLog.class);
+        verify(logRepository, org.mockito.Mockito.atLeastOnce()).save(saved.capture());
+        assertTrue(saved.getAllValues().stream().anyMatch(row -> "FAILED".equals(row.getStatus())));
+    }
+
+    @Test
+    void dispatch_asyncWechatException_rethrowsOriginalCause() {
+        ExternalNotificationDispatcher dispatcher = dispatcher(true, false, true);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user("openid-1", null)));
+        when(weChatMiniAppClient.sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap(),
+                eq(MiniAppTarget.CONSUMER))).thenThrow(new IllegalStateException("wechat down"));
+
+        IllegalStateException error = assertThrows(IllegalStateException.class,
+                () -> dispatcher.dispatch(message()));
+
+        assertTrue(error.getMessage().contains("notification dispatch failed"));
+        assertTrue(error.getCause().getMessage().contains("wechat down"));
     }
 
     @Test
@@ -302,9 +366,7 @@ class ExternalNotificationDispatcherTest {
     }
 
     @Test
-    void noSentLogWhenChannelCallFails() {
-        // 钉「渠道失败不得落 SENT」：dispatch 按设计吞掉渠道异常（只记 warn，不影响其它渠道），
-        // 但 saveLog 在发送调用之后 ⇒ 一行日志都不许写。SENT 不是「我们尝试过」。
+    void failedLogWhenSmsChannelCallFails() {
         ExternalNotificationDispatcher dispatcher = dispatcher(false, true);
         when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user(null, "13800138000")));
         when(templateRepository.findByCode("order_paid"))
@@ -313,7 +375,10 @@ class ExternalNotificationDispatcherTest {
 
         dispatcher.dispatch(message());
 
-        verify(logRepository, never()).save(any());
+        ArgumentCaptor<NotificationLog> captor = ArgumentCaptor.forClass(NotificationLog.class);
+        verify(logRepository).save(captor.capture());
+        assertEquals("FAILED", captor.getValue().getStatus());
+        assertEquals("SMS", captor.getValue().getChannel());
     }
 
     @Test

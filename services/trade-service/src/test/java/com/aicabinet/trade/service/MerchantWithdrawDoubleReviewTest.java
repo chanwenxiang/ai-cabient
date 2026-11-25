@@ -123,6 +123,10 @@ class MerchantWithdrawDoubleReviewTest {
         lenient().when(withdrawMapper.claimForPayout(anyLong(), anyString(), any()))
                 .thenAnswer(invocation -> claimRow(
                         invocation.getArgument(0), invocation.getArgument(1)));
+        lenient().when(withdrawMapper.finalizeIfPaying(anyLong(), anyString(), any(), any(), any()))
+                .thenAnswer(invocation -> finalizeRow(
+                        invocation.getArgument(0), invocation.getArgument(1),
+                        invocation.getArgument(2), invocation.getArgument(3), invocation.getArgument(4)));
     }
 
     // ============ 假表 ============
@@ -136,6 +140,24 @@ class MerchantWithdrawDoubleReviewTest {
             }
             row.setStatus("PAYING");
             row.setUpdatedAt(Instant.now());
+            return 1;
+        }
+    }
+
+    private int finalizeRow(Long requestId, String toStatus, Instant now,
+                            String payoutRef, String payoutMessage) {
+        synchronized (table) {
+            MerchantWithdrawRequest row = table.get(requestId);
+            if (row == null || !"PAYING".equals(row.getStatus())) {
+                return 0;
+            }
+            row.setStatus(toStatus);
+            row.setUpdatedAt(now);
+            row.setPayoutRef(payoutRef);
+            row.setPayoutMessage(payoutMessage);
+            if ("PAID".equals(toStatus)) {
+                row.setPaidAt(now);
+            }
             return 1;
         }
     }

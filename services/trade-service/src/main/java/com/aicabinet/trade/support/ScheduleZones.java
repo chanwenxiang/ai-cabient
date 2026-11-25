@@ -21,7 +21,7 @@ public final class ScheduleZones {
     public static final String ZONE_PROP = "${aicabinet.schedule.zone:" + ZONE_ID + "}";
 
     // ── Spring 6 段（内置 @Scheduled）──
-    public static final String SPRING_CRON_RECON = "0 30 1 * * *";
+    public static final String SPRING_CRON_RECON = "0 30 10,14 * * *";
     public static final String SPRING_CRON_LINE_COMMISSION = "0 20 0 * * *";
     public static final String SPRING_CRON_FINANCE_MARGIN = "0 5 0 * * *";
     public static final String SPRING_CRON_COUPON_EXPIRE = "0 0 2 * * *";
@@ -52,7 +52,7 @@ public final class ScheduleZones {
             Map.entry("temp-plan", "0 0/1 * * * ?"),
             // 资金 / 财务
             Map.entry("profit-sharing-retry", "0 0/15 * * * ?"),
-            Map.entry("reconciliation", "0 30 1 * * ?"),
+            Map.entry("reconciliation", "0 30 10,14 * * ?"),
             Map.entry("line-commission", "0 20 0 * * ?"),
             Map.entry("finance-margin", "0 5 0 * * ?"),
             Map.entry("ops-fee-bill-monthly", "0 30 1 1 * ?"),
@@ -69,8 +69,8 @@ public final class ScheduleZones {
             Map.entry("deposit-monthly-refund", "0 30 1 1 * ?"),
             // 营销
             Map.entry("coupon-expire", "0 0 2 * * ?"),
-            Map.entry("coupon-expiry-remind", "0 0 0/6 * * ?"),
-            Map.entry("points-expiry", "0 0 0/6 * * ?"),
+            Map.entry("coupon-expiry-remind", "0 5 0,6,12,18 * * ?"),
+            Map.entry("points-expiry", "0 5 0,6,12,18 * * ?"),
             Map.entry("sku-review-daily", "0 0 4 * * ?"),
             // 运维 / 系统
             Map.entry("data-consistency", "0 0/5 * * * ?"),
@@ -111,7 +111,7 @@ public final class ScheduleZones {
             Map.entry("temp-plan", Duration.ofMinutes(10)),                    // 60s ×10
             // 资金 / 财务
             Map.entry("profit-sharing-retry", Duration.ofMinutes(45)),         // 15min ×3
-            Map.entry("reconciliation", Duration.ofHours(26)),                 // 日 01:30 + 2.5h
+            Map.entry("reconciliation", Duration.ofHours(26)),                 // 日 10:30/14:30 + 2.5h
             Map.entry("line-commission", Duration.ofHours(26)),                // 日 00:20 + 2h
             Map.entry("finance-margin", Duration.ofHours(26)),                 // 日 00:05 + 2h
             Map.entry("ops-fee-bill-monthly", Duration.ofDays(32)),            // 月 1 日 01:30 + 1 天

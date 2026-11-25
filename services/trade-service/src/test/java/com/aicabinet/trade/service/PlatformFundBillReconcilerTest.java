@@ -60,11 +60,15 @@ class PlatformFundBillReconcilerTest {
                 new WeChatFundBillCsvParser.FundBill(DATE, List.of(), 90L, 0L));
         when(flowMapper.countByRefTypeAndRefId("WECHAT_FUND_BILL", "2026-11-23")).thenReturn(0L);
         when(flowMapper.sumAmountByAccountIdBetween(eq(1L), any(), any())).thenReturn(20L);
+        when(accountMapper.findByIdForUpdate(1L)).thenReturn(Optional.of(account));
         when(accountMapper.findById(1L)).thenReturn(Optional.of(account));
         when(accountMapper.adjustBalance(1L, 10L)).thenReturn(true);
 
         PlatformFundBillReconciler.ReconResult result = reconciler.reconcile(DATE);
 
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(accountMapper, flowMapper);
+        order.verify(accountMapper).findByIdForUpdate(1L);
+        order.verify(flowMapper).sumAmountByAccountIdBetween(eq(1L), any(), any());
         assertTrue(result.adjusted());
         assertEquals(10L, result.diffCents());
         ArgumentCaptor<PlatformFundFlow> flow = ArgumentCaptor.forClass(PlatformFundFlow.class);
@@ -79,6 +83,7 @@ class PlatformFundBillReconcilerTest {
     void sameDateDoesNotAdjustTwice() {
         PlatformFundAccount account = account(100L);
         when(accountMapper.findByChannel("微信")).thenReturn(Optional.of(account));
+        when(accountMapper.findByIdForUpdate(1L)).thenReturn(Optional.of(account));
         when(fundBillService.fetchOperatingAccount(DATE)).thenReturn(
                 new WeChatFundBillCsvParser.FundBill(DATE, List.of(), 90L, 0L));
         when(flowMapper.countByRefTypeAndRefId("WECHAT_FUND_BILL", "2026-11-23")).thenReturn(1L);

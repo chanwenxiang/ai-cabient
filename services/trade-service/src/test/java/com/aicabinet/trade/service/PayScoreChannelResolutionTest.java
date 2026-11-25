@@ -32,44 +32,44 @@ class PayScoreChannelResolutionTest {
     @DisplayName("显式/入口 BALANCE ⇒ 余额（即使已签微信支付分）")
     void explicitBalance_wins() {
         assertEquals(PayChannels.BALANCE,
-                PayScoreService.resolveChargeChannel(wechatReady(), PayChannels.BALANCE));
+                PayScoreService.resolveChargeChannelByUser(wechatReady(), PayChannels.BALANCE));
     }
 
     @Test
     @DisplayName("微信入口 + 支付分合约 ⇒ 微信")
     void wechatEntryWithContract_resolvesWechat() {
         assertEquals(PayChannels.WECHAT,
-                PayScoreService.resolveChargeChannel(wechatReady(), PayChannels.WECHAT));
+                PayScoreService.resolveChargeChannelByUser(wechatReady(), PayChannels.WECHAT));
     }
 
     @Test
     @DisplayName("支付宝入口 + 协议 ⇒ 支付宝")
     void alipayEntryWithAgreement_resolvesAlipay() {
         assertEquals(PayChannels.ALIPAY,
-                PayScoreService.resolveChargeChannel(alipayReady(), PayChannels.ALIPAY));
+                PayScoreService.resolveChargeChannelByUser(alipayReady(), PayChannels.ALIPAY));
     }
 
     @Test
     @DisplayName("🔴 微信入口但只有支付宝协议 ⇒ 余额（不跨渠道扣支付宝）")
     void wechatEntryWithoutContract_doesNotFallBackToAlipay() {
         assertEquals(PayChannels.BALANCE,
-                PayScoreService.resolveChargeChannel(alipayReady(), PayChannels.WECHAT));
+                PayScoreService.resolveChargeChannelByUser(alipayReady(), PayChannels.WECHAT));
     }
 
     @Test
     @DisplayName("🔴 支付宝入口但只有微信支付分 ⇒ 余额（不跨渠道扣微信）")
     void alipayEntryWithoutAgreement_doesNotFallBackToWechat() {
         assertEquals(PayChannels.BALANCE,
-                PayScoreService.resolveChargeChannel(wechatReady(), PayChannels.ALIPAY));
+                PayScoreService.resolveChargeChannelByUser(wechatReady(), PayChannels.ALIPAY));
     }
 
     @Test
     @DisplayName("无入口通道 ⇒ 余额（不再读用户偏好）")
     void noEntry_resolvesBalance() {
         assertEquals(PayChannels.BALANCE,
-                PayScoreService.resolveChargeChannel(wechatReady(), null));
+                PayScoreService.resolveChargeChannelByUser(wechatReady(), null));
         assertEquals(PayChannels.BALANCE,
-                PayScoreService.resolveChargeChannel(alipayReady(), ""));
+                PayScoreService.resolveChargeChannelByUser(alipayReady(), ""));
     }
 
     @Test
@@ -79,6 +79,6 @@ class PayScoreChannelResolutionTest {
         user.setAlipayAgreementId(PayScoreService.ALIPAY_PENDING_PREFIX + "X");
 
         assertEquals(PayChannels.BALANCE,
-                PayScoreService.resolveChargeChannel(user, PayChannels.ALIPAY));
+                PayScoreService.resolveChargeChannelByUser(user, PayChannels.ALIPAY));
     }
 }

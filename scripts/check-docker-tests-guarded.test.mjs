@@ -136,4 +136,10 @@ assert(
     '——否则 why 会退化成「加了个 IT」这类空话登记'
 );
 
+for (const name of ['ProcurementReceiveAllocationSqlIT', 'StartupStateSqlIT']) {
+  const entry = entries.find(([, rel]) => rel.endsWith(`${name}.java`));
+  assert(!!entry, `${name} 必须在 GUARDED 里登记，缺 Docker 时不能 0 用例假绿`);
+  assert(/job:\s*'integration'/.test(entry[2]), `${name} 是 *IT.java ⇒ job 必须是 integration`);
+}
+
 console.log(`${TAG} OK：${checks} 项断言全过（GUARDED ${entries.length} 条逐条验真）`);

@@ -54,18 +54,22 @@ public class ExternalNotificationDispatcher {
         this.aliyunSmsSender = aliyunSmsSender;
     }
 
-    /** 按消息渠道配置分发微信订阅消息与短信；单渠道失败只记日志，不抛出。 */
+    /** 按消息渠道配置分发微信订阅消息与短信；异步消费时渠道失败必须重抛以触发 Kafka 重试。 */
     public void dispatch(NotificationDispatchMessage msg) {
         if (msg.userId() == null) {
             return;
         }
+        boolean failed = false;
+        Exception firstFailure = null;
         if (channelSwitch.wechatEnabled()) {
             try {
-                sendWechat(msg);
+                failed |= wechatSendFailed(msg);
             } catch (Exception e) {
                 log.warn("wechat notify failed userId={} template={}: {}",
                         msg.userId(), msg.templateCode(), e.toString());
                 saveFailedLog(msg, "WECHAT_SUBSCRIBE", e.toString());
+                failed = true;
+                if (firstFailure == null) firstFailure = e;
             }
         }
         if (channelSwitch.smsEnabled()) {
@@ -74,15 +78,22 @@ public class ExternalNotificationDispatcher {
             } catch (Exception e) {
                 log.warn("sms notify failed userId={} template={}: {}",
                         msg.userId(), msg.templateCode(), e.toString());
+                saveFailedLog(msg, "SMS", e.toString());
+                failed = true;
+                if (firstFailure == null) firstFailure = e;
             }
+        }
+        if (failed && channelSwitch.asyncEnabled()) {
+            throw new IllegalStateException("notification dispatch failed", firstFailure);
         }
     }
 
-    private void sendWechat(NotificationDispatchMessage msg) {
+    /** @return 仅渠道实际发送返回 false 时为 true；未绑定/模板缺失是确定性跳过，重试也不会改变。 */
+    private boolean wechatSendFailed(NotificationDispatchMessage msg) {
         UserInfo user = userInfoRepository.findById(msg.userId()).orElse(null);
         if (user == null || user.getWxOpenId() == null || user.getWxOpenId().isBlank()) {
             saveFailedLog(msg, "WECHAT_SUBSCRIBE", "用户未绑定微信 openid");
-            return;
+            return false;
         }
         // MA-384：消费者模板缺失时 fail-closed——旧实现回落商户模板，两个 appid 不通用必 400；
         // 现在明确跳过并发日志，让运营能从日志/审计看到「不是用户没订阅，是模板没配」。
@@ -91,7 +102,7 @@ public class ExternalNotificationDispatcher {
             log.warn("wechat notify skipped: consumer template not configured userId={} templateCode={}",
                     msg.userId(), msg.templateCode());
             saveFailedLog(msg, "WECHAT_SUBSCRIBE", "消费者订阅模板未配置");
-            return;
+            return false;
         }
         boolean ok = weChatMiniAppClient.sendSubscribeMessage(
                 user.getWxOpenId(),
@@ -101,9 +112,10 @@ public class ExternalNotificationDispatcher {
                 MiniAppTarget.CONSUMER);
         if (ok) {
             saveLog(msg, "WECHAT_SUBSCRIBE");
-        } else {
-            saveFailedLog(msg, "WECHAT_SUBSCRIBE", "微信订阅消息发送失败");
+            return false;
         }
+        saveFailedLog(msg, "WECHAT_SUBSCRIBE", "微信订阅消息发送失败");
+        return true;
     }
 
     private void sendSms(NotificationDispatchMessage msg) {
@@ -207,7 +219,12 @@ public class ExternalNotificationDispatcher {
     }
 
     private void saveFailedLog(NotificationDispatchMessage msg, String channel, String reason) {
-        saveLog(msg, channel, "FAILED", msg.body() + "（投递失败：" + reason + "）");
+        try {
+            saveLog(msg, channel, "FAILED", msg.body() + "（投递失败：" + reason + "）");
+        } catch (RuntimeException logFailure) {
+            log.error("notification failure log persist failed channel={} template={} userId={}",
+                    channel, msg.templateCode(), msg.userId(), logFailure);
+        }
     }
 
     private void saveLog(NotificationDispatchMessage msg, String channel, String status, String body) {

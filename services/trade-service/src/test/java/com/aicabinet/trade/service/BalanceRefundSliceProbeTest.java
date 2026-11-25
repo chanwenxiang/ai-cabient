@@ -16,12 +16,14 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -32,8 +34,8 @@ import static org.mockito.Mockito.when;
  * AU-140（2026-10-18 批次 3）回归钉：余额退款切片渠道异常后的三态查单确认。
  * <p>旧实现「渠道异常=失败」⇒ 冲回 + 续退换 outRefundNo 重退 ⇒ HTTP 超时但渠道已受理时
  * 双退，且 WeChatRefundReconciler 不覆盖余额切片号（无对账兜底）。修复后：
- * ACCEPTED（SUCCESS/PROCESSING）按成功推进并补渠道 finalize；NOT_FOUND（404/ABNORMAL/CLOSED）
- * 走原失败冲回；UNKNOWN（支付宝/未配置/查单异常）保守维持旧路径。</p>
+ * ACCEPTED（SUCCESS）按成功推进并补渠道 finalize；PROCESSING/UNKNOWN 保持在途不冲回；
+ * NOT_FOUND（404/ABNORMAL/CLOSED）走原失败冲回。</p>
  */
 @ExtendWith(MockitoExtension.class)
 class BalanceRefundSliceProbeTest {
@@ -101,7 +103,7 @@ class BalanceRefundSliceProbeTest {
                 r, List.of(alloc()), List.of());
 
         assertEquals(r, out);
-        verify(paymentService).finalizeChannelPartialRefundQuietly("RC-1", 400);
+        verify(paymentService).finalizeChannelPartialRefundQuietly("RC-1", 400, "BR901-S1");
         verify(spySelf, never()).markRefundFailedAndReverse(anyLong(), anyList(), any(RuntimeException.class));
     }
 
@@ -118,31 +120,65 @@ class BalanceRefundSliceProbeTest {
                         r, List.of(alloc()), List.of()));
 
         verify(spySelf).markRefundFailedAndReverse(anyLong(), anyList(), any(RuntimeException.class));
-        verify(paymentService, never()).finalizeChannelPartialRefundQuietly(anyString(), anyInt());
+        verify(paymentService, never()).finalizeChannelPartialRefundQuietly(anyString(), anyInt(), anyString());
     }
 
     @Test
-    void probeUnknown_keepsLegacyFailAndReverse() {
+    void probeProcessing_keepsSliceInFlightWithoutFinalizeOrReverse() {
+        BalanceRefundRequest r = req();
+        channelThrows();
+        when(paymentService.probeChannelRefundAccepted("RC-1", "BR901-S1"))
+                .thenReturn(PaymentService.SliceRefundProbe.PROCESSING);
+        doReturn(r).when(spySelf).markChannelSliceProgress(anyLong(), anyList());
+
+        BalanceRefundRequest out = ReflectionTestUtils.invokeMethod(service, "runChannelSlices",
+                r, List.of(alloc()), List.of());
+
+        assertEquals(r, out);
+        verify(spySelf).markChannelSliceProgress(eq(901L), anyList());
+        verify(paymentService, never()).finalizeChannelPartialRefundQuietly(anyString(), anyInt(), anyString());
+        verify(spySelf, never()).markRefundFailedAndReverse(anyLong(), anyList(), any(RuntimeException.class));
+    }
+
+    @Test
+    void probeUnknown_keepsDebitAndWaitsForReconciliation() {
         BalanceRefundRequest r = req();
         channelThrows();
         when(paymentService.probeChannelRefundAccepted("RC-1", "BR901-S1"))
                 .thenReturn(PaymentService.SliceRefundProbe.UNKNOWN);
-        doReturn(r).when(spySelf).markRefundFailedAndReverse(anyLong(), anyList(), any(RuntimeException.class));
+        doReturn(r).when(spySelf).markChannelSliceProgress(anyLong(), anyList());
 
-        assertThrows(IllegalStateException.class,
-                () -> ReflectionTestUtils.invokeMethod(service, "runChannelSlices",
-                        r, List.of(alloc()), List.of()));
+        BalanceRefundRequest out = ReflectionTestUtils.invokeMethod(service, "runChannelSlices",
+                r, List.of(alloc()), List.of());
 
-        verify(spySelf).markRefundFailedAndReverse(anyLong(), anyList(), any(RuntimeException.class));
-        verify(paymentService, never()).finalizeChannelPartialRefundQuietly(anyString(), anyInt());
+        assertEquals(r, out);
+        verify(spySelf).markChannelSliceProgress(eq(901L), anyList());
+        verify(paymentService, never()).finalizeChannelPartialRefundQuietly(anyString(), anyInt(), anyString());
+        verify(spySelf, never()).markRefundFailedAndReverse(anyLong(), anyList(), any(RuntimeException.class));
     }
 
     /** probe 无异常路径不受影响：渠道正常成功时不得触发查单。 */
     @Test
+    void channelProcessing_keepsRequestProcessingWithoutReversing() {
+        BalanceRefundRequest r = req();
+        when(paymentService.refundRechargeChannelPartial(anyString(), anyInt(), anyString(), anyString()))
+                .thenReturn(new PaymentService.ChannelRefundResult("BR901-S1", "PROCESSING"));
+        doReturn(r).when(spySelf).markChannelSliceProgress(anyLong(), anyList());
+
+        BalanceRefundRequest out = ReflectionTestUtils.invokeMethod(service, "runChannelSlices",
+                r, List.of(alloc()), List.of());
+
+        assertSame(r, out);
+        verify(spySelf).markChannelSliceProgress(eq(901L), anyList());
+        verify(spySelf, never()).markRefundSuccess(anyLong());
+        verify(spySelf, never()).markRefundFailedAndReverse(anyLong(), anyList(), any());
+    }
+
+    @Test
     void channelSuccess_doesNotProbe() {
         BalanceRefundRequest r = req();
         when(paymentService.refundRechargeChannelPartial(anyString(), anyInt(), anyString(), anyString()))
-                .thenReturn("BR901-S1");
+                .thenReturn(new PaymentService.ChannelRefundResult("BR901-S1", "SUCCESS"));
         doReturn(r).when(spySelf).markRefundSuccess(901L);
 
         ReflectionTestUtils.invokeMethod(service, "runChannelSlices",

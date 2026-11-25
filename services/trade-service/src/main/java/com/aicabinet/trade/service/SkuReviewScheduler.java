@@ -23,7 +23,7 @@ public class SkuReviewScheduler {
         this.taskService = taskService;
     }
 
-    @Scheduled(fixedRate = 24 * 3_600_000L)
+    @Scheduled(cron = "0 0 4 * * *", zone = "${aicabinet.schedule.zone:Asia/Shanghai}")
     @Transactional
     public void scan() {
         long start = System.nanoTime();

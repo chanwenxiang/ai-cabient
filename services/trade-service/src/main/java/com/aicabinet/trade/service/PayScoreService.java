@@ -695,13 +695,15 @@ public class PayScoreService {
         if (PayChannels.WECHAT.equals(channel)) {
             if (user.isPayscoreEnabled()
                     && user.getPayscoreContractId() != null
-                    && !user.getPayscoreContractId().isBlank()) {
+                    && !user.getPayscoreContractId().isBlank()
+                    && isRuntimeChannelReady(PayChannels.WECHAT)) {
                 return chargeWeChatPayScore(user, orderId, amountCents, description);
             }
             return new ChargeResult(PayChannels.BALANCE, null);
         }
         if (PayChannels.ALIPAY.equals(channel)) {
-            if (isActiveAlipayAgreementId(user.getAlipayAgreementId())) {
+            if (isActiveAlipayAgreementId(user.getAlipayAgreementId())
+                    && isRuntimeChannelReady(PayChannels.ALIPAY)) {
                 return chargeAlipayAgreement(user, orderId, amountCents, description);
             }
             return new ChargeResult(PayChannels.BALANCE, null);
@@ -713,7 +715,7 @@ public class PayScoreService {
      * B1-B0：只解析自动决策会选哪个渠道，**不发起任何扣款**。
      * 必须与 {@link #charge} 的严格入口规则逐行一致；用于补缴拆段前判定「余额腿 vs 渠道腿」。
      */
-    public static String resolveChargeChannel(UserInfo user, String preferredChannel) {
+    public static String resolveChargeChannelByUser(UserInfo user, String preferredChannel) {
         if (preferredChannel != null && PayChannels.BALANCE.equalsIgnoreCase(preferredChannel.trim())) {
             return PayChannels.BALANCE;
         }
@@ -729,6 +731,28 @@ public class PayScoreService {
             return PayChannels.ALIPAY;
         }
         return PayChannels.BALANCE;
+    }
+
+    public String resolveChargeChannel(UserInfo user, String preferredChannel) {
+        String channel = resolveChargeChannelByUser(user, preferredChannel);
+        return isRuntimeChannelReady(channel) ? channel : PayChannels.BALANCE;
+    }
+
+    private boolean isRuntimeChannelReady(String channel) {
+        if (PayChannels.BALANCE.equals(channel)) {
+            return true;
+        }
+        if (!payScoreProperties.liveChargeEnabled()) {
+            return false;
+        }
+        if (PayChannels.WECHAT.equals(channel)) {
+            return (weChatPayProperties.isConfigured() && payScoreProperties.enabled())
+                    || (securityProperties.mockEnabled() && payScoreProperties.mockEnabled());
+        }
+        if (PayChannels.ALIPAY.equals(channel)) {
+            return alipayPayClient.isConfigured() || agreementChargeClient.isConfigured();
+        }
+        return false;
     }
 
     /**
@@ -751,7 +775,7 @@ public class PayScoreService {
             return new ChargeResult(PayChannels.BALANCE, null);
         }
         if (PayChannels.WECHAT.equals(c) || PayChannels.ALIPAY.equals(c)) {
-            if (!isChannelUsable(user, c)) {
+            if (!isChannelUsable(user, c) || !isRuntimeChannelReady(c)) {
                 throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, ApiMessages.PAY_CHANNEL_NOT_READY);
             }
             return PayChannels.WECHAT.equals(c)

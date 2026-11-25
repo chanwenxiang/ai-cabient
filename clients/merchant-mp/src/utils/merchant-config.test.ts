@@ -1,3 +1,4 @@
+import { computed } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -114,6 +115,26 @@ describe('商户端扩展功能开关读取器', () => {
     await invalid.loadMerchantFlags();
     expect(invalid.merchantWithdrawMinCents()).toBeNull();
     expect(invalid.lineWithdrawMinCents()).toBeNull();
+  });
+
+  it('异步配置与 refresh 会触发提现下限 computed 更新', async () => {
+    let resolveConfig!: (value: Record<string, string>) => void;
+    merchantPublicConfig.mockReturnValue(
+      new Promise((resolve) => {
+        resolveConfig = resolve;
+      })
+    );
+    const m = await fresh();
+    const min = computed(() => m.merchantWithdrawMinCents());
+    expect(min.value).toBeNull();
+    const loading = m.loadMerchantFlags();
+    resolveConfig({ merchantWithdrawMinCents: '100' });
+    await loading;
+    expect(min.value).toBe(100);
+
+    merchantPublicConfig.mockResolvedValue({ merchantWithdrawMinCents: '10' });
+    await m.loadMerchantFlags({ refresh: true });
+    expect(min.value).toBe(10);
   });
 
   it('refresh=true 会重新请求公开配置', async () => {

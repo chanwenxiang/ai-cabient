@@ -106,6 +106,9 @@ class MerchantWithdrawConcurrencyTest {
         // 委托给真实实现，未 stub 时恒返回 0 ⇒ 所有打款用例都会被「已有出款在进行中」拦住。
         // 这里默认让它抢到；专门测「抢不到」的用例在自己内部覆盖。
         lenient().when(withdrawMapper.claimForPayout(anyLong(), anyString(), any())).thenReturn(1);
+        // 终态落库同样走条件 UPDATE；默认模拟抢占成功， Lost-race 专项用例覆盖返回 0。
+        lenient().when(withdrawMapper.finalizeIfPaying(anyLong(), anyString(), any(), any(), any()))
+                .thenReturn(1);
         // MA-407：超时扫描会先走渠道查单收口（注册表 find 必须给 Optional，否则裸 mock 返 null）
         lenient().when(payoutChannelRegistry.find(anyString())).thenReturn(java.util.Optional.empty());
     }
@@ -211,6 +214,7 @@ class MerchantWithdrawConcurrencyTest {
         when(withdrawMapper.findById(77L)).thenAnswer(inv -> Optional.ofNullable(stored.get()));
         when(payoutService.payout(any(), eq(merchant), any())).thenReturn(
                 MerchantWithdrawPayoutService.PayoutResult.failure("WECHAT", null, "转账未接入"));
+        when(withdrawMapper.markPayoutFailed(eq(77L), any(), any(), any(), any(), any())).thenReturn(1);
 
         MerchantWithdrawRequestDto failed = service.apply(1L, "M-1", 10_000L, "REQ-FAIL");
 

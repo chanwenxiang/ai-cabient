@@ -3,9 +3,12 @@ package com.aicabinet.trade.wechat;
 import com.aicabinet.trade.config.WeChatOfficialAccountProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
@@ -23,6 +26,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+@ExtendWith(OutputCaptureExtension.class)
 class WeChatOfficialAccountClientTest {
 
     private static final Instant NOW = Instant.parse("2026-11-24T04:00:00Z");
@@ -118,6 +122,20 @@ class WeChatOfficialAccountClientTest {
 
         assertThat(client.sendTemplateMessage("openid-1", Map.of("amount1", "12.50"))).isFalse();
         server.verify();
+    }
+
+    @Test
+    void failureLogMasksOpenIdAndUpstreamBody(CapturedOutput output) {
+        server.expect(requestTo(containsString("/cgi-bin/token")))
+                .andRespond(withSuccess("{\"access_token\":\"token-1\",\"expires_in\":7200}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(containsString("/cgi-bin/message/template/send")))
+                .andRespond(withSuccess("{\"errcode\":43004,\"errmsg\":\"sensitive-openid-1\",\"request_id\":\"req-1\"}",
+                        MediaType.APPLICATION_JSON));
+
+        assertThat(client.sendTemplateMessage("sensitive-openid-1", Map.of("amount1", "12.50"))).isFalse();
+
+        assertThat(output).doesNotContain("sensitive-openid-1");
+        assertThat(output).contains("errcode=43004").contains("requestId=req-1").contains("openIdHash=sha256:");
     }
 
     @Test

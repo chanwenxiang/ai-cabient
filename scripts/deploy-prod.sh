@@ -5,11 +5,11 @@
 #   1. git archive HEAD 打源码归档（工作区未提交内容不会进部署，先检查干净）
 #   2. scp 上传 → 服务器原地解包（目录 bind mount inode 不变，无需重建 gateway）
 #   3. 清理 admin 陈旧哈希资产（解包不删文件，历次部署会积攒旧 js）
-#   4. 服务器现场 compose build trade-service → up --no-deps --force-recreate
-#   5. 等健康检查 + 验证 admin 静态可达
+#   4. 服务器现场按 SHA 构建 trade/device/jiangyi → 按副本数重建并逐个验镜像与健康
+#   5. 重建 gateway/HAProxy → 验证 admin 与业务可达
 #
 # 铁律防护：
-#   - 只动 trade-service，绝不重建 postgres（memory 铁律 69）
+#   - 只动应用与网关，绝不重建 postgres/redis/minio（memory 铁律 69）
 #   - 单文件 bind mount 改动必须 force-recreate，reload 无效（铁律家族）
 #   - 工作区必须干净（archive 只打包 HEAD，脏工作区会造成「部署的不是你以为的代码」）
 #
@@ -17,6 +17,7 @@
 #   bash scripts/deploy-prod.sh                 # 部署本地 HEAD
 #   PROD_HOST=1.2.3.4 PROD_USER=root bash ...   # 覆盖目标
 # 环境变量：PROD_HOST / PROD_USER / PROD_DIR / PROD_SSH_KEY / PROD_PORT
+#           TRADE_REPLICAS / DEVICE_REPLICAS / JIANGYI_REPLICAS（默认 1，正式 HA trade=2）
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -30,6 +31,9 @@ PROD_DIR="${PROD_DIR:-/data/apps/ai-cabinet}"
 PROD_SSH_KEY="${PROD_SSH_KEY:-$HOME/.ssh/aicabinet-prod.pem}"
 PROD_SSH_KEY="${PROD_SSH_KEY/#\~/$HOME}"   # Actions 场景传 ~ 开头路径，变量内不会自动展开
 PROD_PORT="${PROD_PORT:-22}"
+TRADE_REPLICAS="${TRADE_REPLICAS:-1}"
+DEVICE_REPLICAS="${DEVICE_REPLICAS:-1}"
+JIANGYI_REPLICAS="${JIANGYI_REPLICAS:-1}"
 
 if [ -z "$PROD_HOST_EXPLICIT" ] || [ -z "$PROD_USER_EXPLICIT" ]; then
   echo "⚠️ 使用内置默认目标 ${PROD_USER}@${PROD_HOST}（当前为测试服务器）。生产部署必须显式传 PROD_HOST/PROD_USER；生产口径定案前不得把默认值当生产地址。"
@@ -125,6 +129,11 @@ done < /tmp/src-scan.bin
 rm -f /tmp/src-keep.txt /tmp/src-scan.bin
 [ "$SRC_STALE" -gt 0 ] && echo "已清理 ${SRC_STALE} 个陈旧源码文件（扫描 ${SRC_SCANNED} 个）"
 echo "✅ 服务器源码就绪（扫描 ${SRC_SCANNED} 个源文件）"
+# Windows 检出的 Git 工作区可能不保留 executable bit；服务器钩子必须可执行，且部署后自检。
+chmod +x scripts/backup-database.sh scripts/backup-offsite-oss.sh
+test -x scripts/backup-database.sh
+test -x scripts/backup-offsite-oss.sh
+echo "✅ 备份钩子可执行权限已校验"
 REMOTE
 echo "✅ 服务器源码就绪"
 
@@ -164,69 +173,81 @@ rm -f "$APPLIED_TMP"
 trap - EXIT
 echo "✅ 目标库 checksum 与本次部署的迁移文件逐条一致"
 
-echo "── [5/7] 重建 trade-service 镜像 + 容器 ──"
-ssh "${SSH_OPTS[@]}" -p "$PROD_PORT" "${SSH_CMD[0]}" bash -s -- "$PROD_DIR" << 'REMOTE2'
+echo "── [5/7] 构建 SHA 镜像 + 按副本数重建应用 ──"
+ssh "${SSH_OPTS[@]}" -p "$PROD_PORT" "${SSH_CMD[0]}" bash -s -- \
+  "$PROD_DIR" "$SHA" "$TRADE_REPLICAS" "$DEVICE_REPLICAS" "$JIANGYI_REPLICAS" << 'REMOTE2'
 set -euo pipefail
-DIR="$1"
+DIR="$1"; SHA="$2"; TRADE_REPLICAS="$3"; DEVICE_REPLICAS="$4"; JIANGYI_REPLICAS="$5"
 cd "$DIR"
-# AU-185：服务器侧预检 + 指纹留痕（解包后应与仓库一致；sha 打进部署日志可追漂移）
 [ -f infra/docker-compose.prod-server.yml ] || { echo "❌ 服务器缺 infra/docker-compose.prod-server.yml（解包异常？）"; exit 1; }
 sha256sum infra/docker-compose.yml infra/docker-compose.apps.yml infra/docker-compose.production.yml infra/docker-compose.prod-server.yml infra/docker-compose.xxljob.yml
-# 上线清单 P0：拒绝开发默认密钥（base compose 的 `${KEY:-dev默认}` 会静默生效）
 bash scripts/check-prod-env-secrets.sh infra/.env.production
-C="docker compose -p ai-cabinet --env-file infra/.env.production -f infra/docker-compose.yml -f infra/docker-compose.apps.yml -f infra/docker-compose.production.yml -f infra/docker-compose.prod-server.yml -f infra/docker-compose.xxljob.yml --profile apps"
-$C build trade-service 2>&1 | tail -2
-$C up -d --no-deps --force-recreate trade-service 2>&1 | tail -1
-echo "等待健康检查…"
-for i in $(seq 1 40); do
-  H=$(docker inspect --format '{{.State.Health.Status}}' ai-cabinet-trade-service-1 2>/dev/null || echo starting)
-  if [ "$H" = "healthy" ]; then echo "✅ trade healthy（${i}0s 内）"; exit 0; fi
-  if [ "$H" = "unhealthy" ]; then
-    echo "❌ trade unhealthy，最近日志："
-    docker logs ai-cabinet-trade-service-1 --tail 30 2>&1
-    exit 1
+C=(docker compose -p ai-cabinet --env-file infra/.env.production
+  -f infra/docker-compose.yml -f infra/docker-compose.apps.yml
+  -f infra/docker-compose.production.yml -f infra/docker-compose.prod-server.yml
+  -f infra/docker-compose.xxljob.yml --profile apps)
+export IMAGE_TAG="$SHA"
+"${C[@]}" build trade-service device-service jiangyi-gateway 2>&1 | tail -5
+"${C[@]}" up -d --no-deps --force-recreate --scale "trade-service=$TRADE_REPLICAS" trade-service 2>&1 | tail -3
+"${C[@]}" up -d --no-deps --force-recreate --scale "device-service=$DEVICE_REPLICAS" device-service 2>&1 | tail -3
+"${C[@]}" up -d --no-deps --force-recreate --scale "jiangyi-gateway=$JIANGYI_REPLICAS" jiangyi-gateway 2>&1 | tail -3
+"${C[@]}" up -d --no-deps --force-recreate trade-lb 2>&1 | tail -3
+
+wait_healthy() {
+  local service="$1" expected="$2" image="$3"
+  local i id actual expected_id all
+  local -a ids
+  if [ -n "$image" ]; then
+    expected_id="$(docker image inspect "$image" --format '{{.Id}}')"
+  else
+    expected_id=""
   fi
-  sleep 10
-done
-echo "❌ 200s 内未转 healthy，最近日志："
-docker logs ai-cabinet-trade-service-1 --tail 30 2>&1
-exit 1
+  for i in $(seq 1 40); do
+    mapfile -t ids < <("${C[@]}" ps -q "$service")
+    if [ "${#ids[@]}" -eq "$expected" ]; then
+      all=1
+      for id in "${ids[@]}"; do
+        actual="$(docker inspect --format '{{.Image}}' "$id")"
+        if [ -n "$expected_id" ] && [ "$actual" != "$expected_id" ]; then all=0; fi
+        if [ "$(docker inspect --format '{{.State.Health.Status}}' "$id")" != "healthy" ]; then all=0; fi
+      done
+      if [ "$all" -eq 1 ]; then
+        echo "✅ $service ${expected}/${expected} healthy，镜像 $image"
+        return 0
+      fi
+    fi
+    sleep 10
+  done
+  echo "❌ $service 未在 400s 内达到 ${expected}/${expected} healthy 或镜像不匹配"
+  mapfile -t ids < <("${C[@]}" ps -q "$service")
+  for id in "${ids[@]}"; do
+    docker inspect --format '{{.Name}} image={{.Image}} health={{.State.Health.Status}}' "$id"
+    docker logs "$id" --tail 30 2>&1 || true
+  done
+  return 1
+}
+
+wait_healthy trade-service "$TRADE_REPLICAS" "ai-cabinet/trade-service:$SHA"
+wait_healthy device-service "$DEVICE_REPLICAS" "ai-cabinet/device-service:$SHA"
+wait_healthy jiangyi-gateway "$JIANGYI_REPLICAS" "ai-cabinet/jiangyi-gateway:$SHA"
+wait_healthy trade-lb 1 "haproxy:2.9-alpine@sha256:3e29449a6beed63262e36104adf531b4e41b359f61937303f5ea8607987b3748"
 REMOTE2
 
-echo "── [5b/7] 重建 jiangyi-gateway + recreate gateway（校验文件挂载）──"
-# 2026-11-22 缺口收口：部署链此前只重建 trade-service ⇒
-# ① 生产 jiangyi-gateway 停在 10-23 旧镜像（缺 DeviceCommandController 门磁/关门/重启/音量
-#    端点 ⇒ 后台按钮恒 503，11-19 实证）；
-# ② nginx gateway 从未随 MA-365 的 mp-verify 挂载 recreate（单文件 bind mount 铁律：
-#    必须 force-recreate，reload 无效）⇒ /o/*.txt 校验恒 404，微信定期回查可「取消发布」
-#    已上线扫码规则（production-launch-checklist §巡检项）。
-# 该服务无 healthcheck（apps.yml 未定义），用 running 状态 + §[6/7] HTTP 探针兜住。
+echo "── [5b/7] recreate gateway（校验文件挂载）──"
+# gateway 无 build；recreate 让新 conf、trade-lb 上游与 mp-verify 挂载生效。
 ssh "${SSH_OPTS[@]}" -p "$PROD_PORT" "${SSH_CMD[0]}" bash -s -- "$PROD_DIR" << 'REMOTE4'
 set -euo pipefail
 DIR="$1"
 cd "$DIR"
-C="docker compose -p ai-cabinet --env-file infra/.env.production -f infra/docker-compose.yml -f infra/docker-compose.apps.yml -f infra/docker-compose.production.yml -f infra/docker-compose.prod-server.yml -f infra/docker-compose.xxljob.yml --profile apps"
-# 挂载源自检：校验文件必须真在仓内（目录在但空=404 复发；fail-closed）
-for f in infra/gateway/mp-verify/aHNmrbOhxm.txt infra/gateway/mp-verify/859bd3a9053ea8be5fbfae876b4a709f.html; do
-  [ -f "$f" ] || { echo "❌ 校验文件缺失: $f（mp-verify 未随仓入库？）"; exit 1; }
+C=(docker compose -p ai-cabinet --env-file infra/.env.production
+  -f infra/docker-compose.yml -f infra/docker-compose.apps.yml
+  -f infra/docker-compose.production.yml -f infra/docker-compose.prod-server.yml
+  -f infra/docker-compose.xxljob.yml --profile apps)
+for f in infra/gateway/mp-verify/aHNmrbOhxm.txt infra/gateway/mp-verify/859bd3a9053ea8be5fbfae876b4a709f.html infra/gateway/trade-lb.cfg; do
+  [ -f "$f" ] || { echo "❌ 网关文件缺失: $f"; exit 1; }
 done
-$C build jiangyi-gateway 2>&1 | tail -2
-$C up -d --no-deps --force-recreate jiangyi-gateway 2>&1 | tail -1
-# gateway 无 build（nginx 镜像 pinned），recreate 让新 conf + mp-verify 挂载生效
-$C up -d --no-deps --force-recreate gateway 2>&1 | tail -1
-echo "等待 jiangyi-gateway 启动…"
-JGW_ST=missing
-for i in $(seq 1 24); do
-  JGW_ST=$(docker inspect --format '{{.State.Status}}' ai-cabinet-jiangyi-gateway-1 2>/dev/null || echo missing)
-  if [ "$JGW_ST" = "running" ] || [ "$JGW_ST" = "exited" ] || [ "$JGW_ST" = "dead" ]; then break; fi
-  sleep 5
-done
-if [ "$JGW_ST" != "running" ]; then
-  echo "❌ jiangyi-gateway 未转 running（status=$JGW_ST），最近日志："
-  docker logs ai-cabinet-jiangyi-gateway-1 --tail 30 2>&1
-  exit 1
-fi
-echo "✅ jiangyi-gateway running + gateway 已 recreate（新 conf/挂载生效）"
+"${C[@]}" up -d --no-deps --force-recreate gateway 2>&1 | tail -3
+echo "✅ gateway 已 recreate（新 conf/trade-lb/mp-verify 生效）"
 REMOTE4
 echo "✅ jiangyi-gateway 已重建"
 

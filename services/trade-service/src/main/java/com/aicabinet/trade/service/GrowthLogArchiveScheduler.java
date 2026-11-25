@@ -42,7 +42,7 @@ public class GrowthLogArchiveScheduler {
         this.taskService = taskService;
     }
 
-    @Scheduled(fixedRate = 24 * 3_600_000L)
+    @Scheduled(cron = "0 0 3 * * *", zone = "${aicabinet.schedule.zone:Asia/Shanghai}")
     // P3-r19-10：**故意不加方法级 @Transactional** —— 每批 DELETE 各自提交，
     // 中途失败只损失「本轮剩余批次」（归档删除幂等，下次继续），不会留下长事务。
     public void archive() {

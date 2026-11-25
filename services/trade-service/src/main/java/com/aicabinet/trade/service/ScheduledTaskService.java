@@ -6,6 +6,7 @@ import com.aicabinet.common.dto.UpsertScheduledTaskRequest;
 import com.aicabinet.trade.domain.ScheduledTask;
 import com.aicabinet.trade.mapper.ScheduledTaskMapper;
 import com.xxl.job.core.context.XxlJobContext;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
@@ -43,6 +44,7 @@ import java.util.regex.Pattern;
 public class ScheduledTaskService {
     private static final Logger log = LoggerFactory.getLogger(ScheduledTaskService.class);
     private static final String SCHEDULED_TASK = "SCHEDULED_TASK";
+    private static final String FAILURE_COUNTER = "aicabinet.scheduled.task.failures";
 
 
     private static final ThreadLocal<Boolean> ALLOW_BUILTIN = new ThreadLocal<>();
@@ -59,17 +61,20 @@ public class ScheduledTaskService {
     private final ScheduledTaskRegistry registry;
     private final DistributedLockService lockService;
     private final AdminAuditService auditService;
+    private final MeterRegistry meterRegistry;
     private final boolean xxlJobEnabled;
 
     public ScheduledTaskService(ScheduledTaskMapper taskRepository,
                                 @Lazy ScheduledTaskRegistry registry,
                                 DistributedLockService lockService,
                                 AdminAuditService auditService,
+                                MeterRegistry meterRegistry,
                                 @Value("${aicabinet.xxljob.enabled:false}") boolean xxlJobEnabled) {
         this.taskRepository = taskRepository;
         this.registry = registry;
         this.lockService = lockService;
         this.auditService = auditService;
+        this.meterRegistry = meterRegistry;
         this.xxlJobEnabled = xxlJobEnabled;
     }
 
@@ -308,6 +313,9 @@ public class ScheduledTaskService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void finish(String taskKey, String result, String message, long startNanos) {
+        if ("FAILED".equalsIgnoreCase(result) && meterRegistry != null) {
+            meterRegistry.counter(FAILURE_COUNTER, "task_key", taskKey).increment();
+        }
         try {
             ScheduledTask row = taskRepository.findByIdForUpdate(taskKey).orElse(null);
             if (row != null) {

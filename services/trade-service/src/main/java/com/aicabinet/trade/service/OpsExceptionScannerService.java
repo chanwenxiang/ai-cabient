@@ -35,7 +35,7 @@ public class OpsExceptionScannerService {
         this.systemConfigService = systemConfigService;
     }
 
-    @Scheduled(fixedDelayString = "${aicabinet.ops-monitoring.scan-interval-ms:30000}")
+    @Scheduled(fixedDelayString = "${aicabinet.ops-monitoring.scan-interval-ms:30000}", initialDelay = 15000)
     public void scan() {
         long start = System.nanoTime();
         if (!taskService.tryBegin(OPS_EXCEPTION_SCANNER, 600)) {
