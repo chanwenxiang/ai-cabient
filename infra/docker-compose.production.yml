@@ -10,6 +10,8 @@ services:
     # AU-148（批次 10）：常驻服务重启自愈——宿主重启后入口/依赖自动拉起
     restart: unless-stopped
     stop_grace_period: 30s
+    # 生产流量只经 trade-lb；移除 base 的宿主 8080 发布，否则 --scale 会端口冲突。
+    ports: !reset []
     environment:
       SPRING_PROFILES_ACTIVE: prod
       # 宽限只给时间窗，真正不硬断在飞请求要 graceful：SIGTERM 后先拒新请求、等在途处理完再退。
