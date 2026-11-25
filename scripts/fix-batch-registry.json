@@ -2993,6 +2993,105 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "8549e6b8",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 12,
+      "items": [
+        {
+          "id": "MA-449 作废补货任务与作废出库拒绝完成",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/ReplenishmentService.java"
+          ]
+        },
+        {
+          "id": "MA-450 续退冲回幂等键按轮次派生",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/BalanceRefundService.java"
+          ]
+        },
+        {
+          "id": "MA-451 采购收货按仓批分配并逐批退货",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/ProcurementService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/domain/PurchaseReceiveAllocation.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/PurchaseReceiveAllocationMapper.java",
+            "services/trade-service/src/main/resources/db/migration/V507__purchase_receive_allocation.sql",
+            "services/trade-service/src/main/resources/db/migration/V510__purchase_receive_allocation_backfill.sql",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/ProcurementReceiveAllocationSqlIT.java"
+          ]
+        },
+        {
+          "id": "MA-452 月结审批编辑行锁与并发回归",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/WarehouseMonthlyCloseSheetService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/WarehouseMonthlyCloseSheetMapper.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/WarehouseMonthlyCloseSheetConcurrencyIT.java"
+          ]
+        },
+        {
+          "id": "MA-453 微信退款四态与幂等续跑",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/OrderPaymentService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/WeChatRefundReconciler.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/RefundResumeService.java",
+            "services/trade-service/src/main/resources/db/migration/V511__payment_operation_refund_context.sql",
+            "services/trade-service/src/main/resources/db/migration/V512__payment_operation_refund_status_width.sql"
+          ]
+        },
+        {
+          "id": "MA-454 分账终态防刷新复活",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/payment/WeChatProfitSharingService.java"
+          ]
+        },
+        {
+          "id": "MA-455 券按实际抵扣释放预算",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/CouponService.java"
+          ]
+        },
+        {
+          "id": "MA-456 分账 HTTP 移出事务",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantService.java"
+          ]
+        },
+        {
+          "id": "MA-457 通知失败留痕与重试传播",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/ExternalNotificationDispatcher.java",
+            "services/trade-service/src/main/resources/db/migration/V508__notification_log_failed_status.sql"
+          ]
+        },
+        {
+          "id": "MA-458 模型回执先登记后发送",
+          "files": [
+            "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/ModelPushController.java",
+            "services/jiangyi-gateway/src/test/java/com/aicabinet/jiangyi/api/ModelPushControllerTest.java"
+          ]
+        },
+        {
+          "id": "MA-459 同键多出库行 remainder 一次分配",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/WarehouseMonthlyCloseService.java"
+          ]
+        },
+        {
+          "id": "MA-460 字典冷启动 advisory lock 与多副本发布健康",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SysDictBootstrap.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/StartupStateSqlIT.java",
+            "infra/gateway/trade-lb.cfg",
+            "infra/gateway/nginx-full.conf",
+            "infra/docker-compose.apps.yml",
+            "scripts/deploy-prod.sh",
+            "infra/prometheus/alert_rules.yml"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
