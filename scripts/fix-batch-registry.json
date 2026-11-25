@@ -3028,6 +3028,57 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "9294d141",
+      "report": "docs/PROJECT_KNOWLEDGE.md",
+      "totalItems": 4,
+      "items": [
+        {
+          "id": "平台资金 PAYOUT 余额与流水同事务写入，唯一索引防重复登记并补八路真库并发 IT",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/PlatformFundService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/PlatformFundServiceTest.java",
+            "services/trade-service/src/main/resources/db/migration/V507__platform_fund_payout_idempotency.sql",
+            "services/trade-service/src/test/java/com/aicabinet/trade/integration/PlatformFundPayoutIdempotencySqlIT.java",
+            "scripts/check-docker-tests-guarded.mjs"
+          ]
+        },
+        {
+          "id": "数据库备份钩子 bash 兜底、成功新鲜度与失败告警包装",
+          "files": [
+            "scripts/backup-database.sh",
+            "scripts/backup-alert-alertmanager.sh"
+          ]
+        },
+        {
+          "id": "基础镜像、PostgreSQL gosu 安全镜像、EMQX 受信 TLS/续期/凭据加固与生产配置",
+          "files": [
+            "docs/COMPETITOR_BENCHMARK.md",
+            "docs/PROJECT_KNOWLEDGE.md",
+            "infra/.env.production.example",
+            "infra/docker-compose.full.yml",
+            "infra/docker-compose.production.yml",
+            "infra/docker-compose.yml",
+            "infra/docker-compose.postgres-hardened.yml",
+            "infra/docker/postgres.Dockerfile",
+            "infra/docker/README.md",
+            "infra/docker/build.ps1",
+            "infra/docker/build.sh",
+            "scripts/sync-emqx-tls-cert.sh"
+          ]
+        },
+        {
+          "id": "Windows CRLF 导致日报门禁与设备范围沙箱夹具假红的解析修复",
+          "files": [
+            "docs/engineering/lessons-learned.md",
+            "scripts/check-merchant-daily-report.mjs",
+            "scripts/check-merchant-daily-report.test.mjs",
+            "scripts/devops/verify-ops-device-scope-gate.mjs"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
