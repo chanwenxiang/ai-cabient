@@ -688,6 +688,14 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-26（PostgreSQL 镜像扁平化部署）
+
+- **扫描根因**：现用 `16-gosu-fixed` 的运行时 `gosu` 已是 Go 1.26.9，但 Trivy 仍读取官方基础层被覆盖的旧 Go 1.24.6 二进制，报 Critical 1 / High 26；另有 `libxml2` High 1。
+- **镜像修复**：新增 `16-gosu-flat`，用 `FROM scratch + COPY --from=patched / /` 合并最终根文件系统，固定 `gosu=1.19-r6`（Go 1.26.9）与 `libxml2=2.13.9-r3`；最终 tag 复扫 Critical/High=0、Medium 6、Low 4、Secret 0。新增 `check:postgres-flat-image` 门禁与 9 条负向断言，已接 189 门禁聚合链。
+- **安全替换**：部署前完整备份 1,304,337 字节并同步 OSS；只重建 PostgreSQL，数据卷仍为 `ai-cabinet_pgdata`。替换后订单 2 / 用户 14 / 资金流水 1 与替换前一致，Flyway V513、失败迁移 0、通知约束 validated=true、两项资金索引存在；PostgreSQL 16.16 与 gosu Go1.26.9，业务服务 healthy、公网 health/admin 200、近 5 分钟 0 ERROR。旧镜像保留为 `ai-cabinet/postgres:rollback-20261126-1212`。
+- **云安全组**：RAM 对 `ecs:DescribeInstances`、`ecs:DescribeSecurityGroups` 均无权限；主机 UFW 与外部探测一致，仅 22/80/443 开放。仍需只读 ECS 权限或控制台规则导出。
+- **分支状态**：修复在隔离分支 `fix/postgres-flat-image` 本地提交 `cd78c4cc` + `80b4777a`，未推送、未合并 dev；`checkout.preauth_cents=0` 与日结未动。
+
 ### 2026-11-26（dev 推送、CI 收口与 V513 部署）
 
 - **推送与 CI**：dev 推送至 `da6f089b`；CI run `45736556790` 的 build / mini-programs / admin-artifacts / e2e-h5 / integration 5/5 全绿。推送前补齐 `6258566d` 修复批登记、Prometheus `task_key` 负向夹具与已退役草稿文件夹具锚点。
@@ -702,7 +710,7 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - **通知**：V508 后已审计开启 `notify.wechat.enabled=true`，`system_config_history` 与 `admin_audit_log` 各 1 行；双端 token/订阅模板此前已验证。`notify.sms.enabled=false`、`notify.async.enabled=false` 未改；真实安全收件人的微信实发仍未验证。
 - **运行态底座**：PostgreSQL 16.16 + 修复版 gosu、EMQX 6.3.3 受信 8883/续期 hook、device-service TLS、MinIO 内网代理隔离、UFW 与异地备份均保持验收状态。
 - **部署来源说明**：断点续跑复用了与 `6258566d` 代码等价的服务器 `727067ee` 源码，并覆盖 `6258566d` 生产 overlay；镜像 tag 与容器均为 `6258566d`。下次从干净 git 归档正常部署会统一源码元数据。
-- **仍未验证/未修**：真实微信送达、短信 6 个模板 CODE/webhook、云安全组 RAM/控制台取证、真实云托管 PostgreSQL/Redis 切换与 RTO/RPO、修复版 PostgreSQL 镜像完整 Trivy 复扫、MinIO AIStor 许可、逐设备 TLS 凭据、备份告警邮件实达、最终 A/B 拓扑与 24 小时 soak。正式生产前仍需按既定口径恢复预授权 2000 分，但本轮遵用户要求未动。**本地 dev 已提交，未推送。**
+- **仍未验证/未修**：真实微信送达、短信 6 个模板 CODE/webhook、云安全组 RAM/控制台取证（ECS API 已确认 Forbidden，主机侧仅 22/80/443 开放）、真实云托管 PostgreSQL/Redis 切换与 RTO/RPO、MinIO AIStor 许可、逐设备 TLS 凭据、备份告警邮件实达、最终 A/B 拓扑与 24 小时 soak。正式生产前仍需按既定口径恢复预授权 2000 分，但本轮遵用户要求未动。**本地 dev 已提交，未推送。**
 
 ### 2026-11-25（MA-449–460 与早期 P0/P1 代码修复批次）
 
