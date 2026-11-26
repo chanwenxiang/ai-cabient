@@ -3210,6 +3210,27 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "cd78c4cc",
+      "report": "docs/PROJECT_KNOWLEDGE.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "PostgreSQL 镜像扁平化并升级 gosu/libxml2，消除旧层扫描残留",
+          "files": [
+            "infra/docker/postgres.Dockerfile",
+            "infra/docker-compose.postgres-hardened.yml",
+            "infra/docker/build.sh",
+            "infra/docker/build.ps1",
+            "infra/docker/README.md",
+            "package.json",
+            "scripts/check-postgres-flat-image.mjs",
+            "scripts/check-postgres-flat-image.test.mjs"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
