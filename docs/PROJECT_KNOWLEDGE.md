@@ -688,6 +688,11 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-26（云安全组公网入口收紧）
+
+- 只读授权生效后确认 `sg-wz94bcygdh669i3o63hr` 仅绑定目标实例 `aicabinet-prod-01`；补 `ecs:RevokeSecurityGroup` 后按精确规则 ID 删除全协议全端口 `0.0.0.0/0` 与 3389/tcp `0.0.0.0/0`，未操作其他实例。
+- 安全组现仅保留 22/80/443 公网入站；SSH 复测成功、公网 health/admin 200，外部探测 3389/5432/6379/9000/8080/1883/8883 均 closed|filtered。22 仍对 `0.0.0.0/0` 开放，待有固定管理出口 IP 后再收窄。
+
 ### 2026-11-26（PostgreSQL 镜像扁平化部署）
 
 - **扫描根因**：现用 `16-gosu-fixed` 的运行时 `gosu` 已是 Go 1.26.9，但 Trivy 仍读取官方基础层被覆盖的旧 Go 1.24.6 二进制，报 Critical 1 / High 26；另有 `libxml2` High 1。
@@ -710,7 +715,7 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - **通知**：V508 后已审计开启 `notify.wechat.enabled=true`，`system_config_history` 与 `admin_audit_log` 各 1 行；双端 token/订阅模板此前已验证。`notify.sms.enabled=false`、`notify.async.enabled=false` 未改；真实安全收件人的微信实发仍未验证。
 - **运行态底座**：PostgreSQL 16.16 + 修复版 gosu、EMQX 6.3.3 受信 8883/续期 hook、device-service TLS、MinIO 内网代理隔离、UFW 与异地备份均保持验收状态。
 - **部署来源说明**：断点续跑复用了与 `6258566d` 代码等价的服务器 `727067ee` 源码，并覆盖 `6258566d` 生产 overlay；镜像 tag 与容器均为 `6258566d`。下次从干净 git 归档正常部署会统一源码元数据。
-- **仍未验证/未修**：真实微信送达、短信 6 个模板 CODE/webhook、云安全组 RAM/控制台取证（ECS API 已确认 Forbidden，主机侧仅 22/80/443 开放）、真实云托管 PostgreSQL/Redis 切换与 RTO/RPO、MinIO AIStor 许可、逐设备 TLS 凭据、备份告警邮件实达、最终 A/B 拓扑与 24 小时 soak。正式生产前仍需按既定口径恢复预授权 2000 分，但本轮遵用户要求未动。**本地 dev 已提交，未推送。**
+- **仍未验证/未修**：真实微信送达、短信 6 个模板 CODE/webhook、SSH 22 源 IP 收窄（待固定管理出口 IP）、真实云托管 PostgreSQL/Redis 切换与 RTO/RPO、MinIO AIStor 许可、逐设备 TLS 凭据、备份告警邮件实达、最终 A/B 拓扑与 24 小时 soak。正式生产前仍需按既定口径恢复预授权 2000 分，但本轮遵用户要求未动。**本地 dev 已提交，未推送。**
 
 ### 2026-11-25（MA-449–460 与早期 P0/P1 代码修复批次）
 
