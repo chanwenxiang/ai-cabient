@@ -32,6 +32,8 @@ jobs:
     # 与 trade build 同串行跑，余量再放宽 10 分钟。
     timeout-minutes: 50
     environment: production
+    env:
+      TRADE_REPLICAS: 2
     steps:
       - name: Checkout
         uses: actions/checkout@v4
