@@ -1396,7 +1396,7 @@ public class OrderPaymentService {
                 prep.orderId(), prep.channel(), prep.channelRefundCents(), prep.refundCents(), channelRefundStatus);
         if (notificationService != null) {
             notificationService.notifyRefundAfterCommit(locked.getUserId(), locked.getOrderId(),
-                    prep.channelRefundCents(), true);
+                    prep.refundCents(), true);
         }
         return true;
     }
@@ -1453,7 +1453,7 @@ public class OrderPaymentService {
         resumeCompletedOrderRefund(pending.getIdempotencyKey());
         if (notificationService != null) {
             notificationService.notifyRefundAfterCommit(pending.getUserId(), pending.getOrderId(),
-                    channelCents, true);
+                    channelCents + Math.max(0, balanceCents), true);
         }
         return true;
     }
