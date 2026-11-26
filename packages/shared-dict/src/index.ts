@@ -367,7 +367,7 @@ export const DICT = {
     EXPIRED: '已过期'
   },
   /** R20 P3-1 第 14 批：OTA 发布/设备升级进度（升级域=OtaService ALLOWED_PROGRESS_STATUS 白名单，
-   *  normalizeProgressStatus 对白名单外 fail-closed）；通知发送域含投递失败留痕。 */
+   *  normalizeProgressStatus 对白名单外 fail-closed）；通知发送域单值 SENT（全仓写点恒 SENT，零 FAILED）。 */
   ota_release_status: {
     DRAFT: '草稿',
     PUBLISHED: '已发布',
