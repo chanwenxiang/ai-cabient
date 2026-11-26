@@ -7,7 +7,7 @@
  * （dispute_created 正是缺种 2 个月无人发现的实证）。本门禁把两侧对账：
  * ① 抽取全部 notifyConsumer/notifyMerchant/send 站点的 templateCode 实参
  *   （字符串字面量直取；标识符查同文件 local const 与全仓 static final String）；
- * ② 解析全部迁移 SQL 里 INSERT INTO notification_template 的元组首字段（template_code）；
+ * ② 解析全部版本迁移与可重复种子 SQL 里 INSERT INTO notification_template 的元组首字段（template_code）；
  * ③ 代码引用 − 已种 ⇒ 差集必须为空。
  *
  * 动态站点（实参是变量/方法返回值）机器无法静态求值 ⇒ 记数并钉在 DYNAMIC_SITES 白名单，
@@ -156,9 +156,10 @@ for (const f of javaFiles) {
 // ---------- ② 迁移侧：INSERT INTO notification_template 元组首字段 ----------
 
 const migDir = 'services/trade-service/src/main/resources/db/migration';
+const seedDir = 'services/trade-service/src/main/resources/db/seed';
 const seeded = new Set();
 const seedWhere = new Map();
-for (const f of walk(path.join(root, migDir), '.sql')) {
+for (const f of [...walk(path.join(root, migDir), '.sql'), ...walk(path.join(root, seedDir), '.sql')]) {
   const src = fs.readFileSync(f, 'utf8');
   for (const m of src.matchAll(/INSERT\s+INTO\s+notification_template\b([\s\S]*?);/gi)) {
     const stmt = m[1];
@@ -187,7 +188,7 @@ for (const f of walk(path.join(root, migDir), '.sql')) {
   }
 }
 if (seeded.size === 0)
-  fail('迁移里解析不到任何 notification_template 种子（写法变了，请同步本门禁）');
+  fail('迁移/种子里解析不到任何 notification_template 种子（写法变了，请同步本门禁）');
 
 // ---------- ③ 对账 ----------
 
@@ -197,7 +198,7 @@ for (const code of missing) {
   fail(
     `代码引用但 notification_template 未种库：${code}（${where.join(' / ')}）⇒ ` +
       `NotificationService 模板未命中仅 debug 日志静默丢弃，消费者触达为 0（R18-3 同型）。` +
-      `请新增迁移 INSERT 该模板后再提交`
+      `请新增迁移或可重复种子 INSERT 该模板后再提交`
   );
 }
 
@@ -216,5 +217,5 @@ if (errors.length) {
 }
 console.log(
   `check-notification-template-seeded: PASS（代码引用 ${new Set(sites.map((s) => s.code)).size} 个模板码 ⊆ ` +
-    `迁移已种 ${seeded.size} 个；动态站点全部已登记）`
+    `迁移/种子已种 ${seeded.size} 个；动态站点全部已登记）`
 );

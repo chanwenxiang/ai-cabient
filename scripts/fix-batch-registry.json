@@ -3400,6 +3400,10 @@
     {
       "commit": "8645784e",
       "why": "CI #45170312633 剩余两红的收尾修复（非新审计条目）：① check-write-action-attribution 新授权端点登记 CONSUMER_WRITE（授权单 out_authorization_no 即业务流水，与 PaymentController 同型）；② MemberInviteServiceTest 的 14 处 stub 参数未随前一个 AI 60083401「下线邀请（代码默认 true→false）」同步，导致潜在 stub 不匹配全红。两处均为 CI 门禁/测试对齐，无新审计条目可对账，故入白名单带理由"
+    },
+    {
+      "commit": "154c2eaf",
+      "why": "通知模板种子从 V515 移至 db/seed/R__seed_* 的 Flyway 治理收尾（非新业务审计条目）：只做文件搬迁与 ISSUES/PROJECT_KNOWLEDGE 引用订正，条目本体 MA-438 已在 0d0da625 同批登记；无法再按条目→文件对账，故入白名单带理由"
     }
   ]
 }
