@@ -934,9 +934,8 @@ public class MerchantWithdrawService {
             if (binds.isEmpty()) {
                 return;
             }
-            Merchant merchant = merchantMapper.selectById(request.getMerchantId());
-            String account = merchant != null && merchant.getMerchantName() != null
-                    ? merchant.getMerchantName() : request.getMerchantId();
+            // 模板 character_string5 只接受数字/字母/符号，不能填中文商户名。
+            String account = request.getMerchantId();
             long amount = request.getAmountCents() == null ? 0L : request.getAmountCents();
             long fee = request.getFeeCents() == null ? 0L : request.getFeeCents();
             String requestTime = DateTimeFormatter.ofPattern("yyyy年M月d日 HH:mm")
@@ -986,7 +985,7 @@ public class MerchantWithdrawService {
             return "银行卡拒收";
         }
         if (raw.contains("渠道") || raw.contains("SYSTEM") || raw.contains("FAIL")) {
-            return "渠道处理失败";
+            return "其他原因";
         }
         return "其他原因";
     }

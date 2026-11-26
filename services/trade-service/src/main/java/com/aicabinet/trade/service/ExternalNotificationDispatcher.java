@@ -171,7 +171,7 @@ public class ExternalNotificationDispatcher {
      *                        amount5=到账金额、time3=提现时间、time9=到账时间
      *   WITHDRAW_FAILED    → 「提现失败提醒」：character_string5=用户账号、amount2=提现金额、
      *                        time3=提现时间、const4=失败原因（枚举：备付金不足/账户信息有误/
-     *                        银行卡拒收/渠道处理失败/其他原因）
+     *                        银行卡拒收/其他原因）
      *   DISPUTE            → 「售后订单处理通知」：character_string1=订单编号、thing5=商品名称、
      *                        amount2=订单金额、const7=处理结果（处理中/已退款/免单/已驳回/已关闭）
      * 金额取业务方渲染参数里的 {@code amount}；失败原因取 {@code failureReason}。
@@ -280,7 +280,7 @@ public class ExternalNotificationDispatcher {
             return "其他原因";
         }
         return switch (reason.trim()) {
-            case "备付金不足", "账户信息有误", "银行卡拒收", "渠道处理失败", "其他原因" -> reason.trim();
+            case "备付金不足", "账户信息有误", "银行卡拒收", "其他原因" -> reason.trim();
             default -> "其他原因";
         };
     }

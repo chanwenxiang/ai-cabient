@@ -3119,6 +3119,6 @@
 > | 提现失败提醒 | `3UQtGY1NlgcjHhaiFexocToXcOjBSS_WqpJIlryzsQk` | character_string5/amount2/time3/const4 |
 > | 售后订单处理通知 | `cXWjNET-A38SumQwbE7Iaq8DDs4gr4ueImIRS44ucGk` | character_string1/thing5/amount2/const7 |
 >
-> 失败原因枚举：备付金不足/账户信息有误/银行卡拒收/渠道处理失败/其他原因；售后结果枚举：处理中/已退款/免单/已驳回/已关闭。提现 `NOT_ENOUGH` 自动重试中不发失败通知，终态失败才发；退款/提现/售后通知均在事务提交后执行，避免 HTTP 占用资金事务。
+> 失败原因枚举（2026-11-27 后台实际提交值）：备付金不足/账户信息有误/银行卡拒收/其他原因；渠道/系统失败统一归“其他原因”。售后结果枚举：处理中/已退款/免单/已驳回/已关闭。两类枚举均需微信审核通过后才可下发，审核期间模板发送会返回 47003。提现 `NOT_ENOUGH` 自动重试中不发失败通知，终态失败才发；退款/提现/售后通知均在事务提交后执行，避免 HTTP 占用资金事务。
 >
 > 证据：<https://developers.weixin.qq.com/doc/service/api/notify/template/api_sendtemplatemessage.html>（模板消息发送）、<https://developers.weixin.qq.com/doc/service/guide/product/template_message/Template_Message_Operation_Specifications.html>（模板消息运营规范）、<https://developers.weixin.qq.com/doc/service/guide/product/subscription_messages/intro.html>（订阅通知对照，本次不采用）。取证日期：2026-11-26。
