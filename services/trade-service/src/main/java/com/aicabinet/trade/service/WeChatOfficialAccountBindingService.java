@@ -74,7 +74,7 @@ public class WeChatOfficialAccountBindingService {
         try {
             accountService.bindWxOfficialOpenId(issued.userId(), issued.appId(), openId);
         } catch (DuplicateKeyException e) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "该服务号已绑定其他账号");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "该账号已绑定服务号，请刷新后重试");
         }
     }
 

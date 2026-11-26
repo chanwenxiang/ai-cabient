@@ -15,7 +15,7 @@
     <app-nav-bar title="消息中心" />
     <app-underline-tabs layout="scroll" :items="msgTabItems" :value="filter" @change="onMsgTab" />
     <view class="page-body">
-      <view v-if="showSubscribeBanner" class="subscribe-banner">
+      <view v-if="showSubscribeBanner && !officialConfigured" class="subscribe-banner">
         <view class="subscribe-copy">
           <text class="subscribe-title">开启微信消息提醒</text>
           <text class="subscribe-sub">订单支付、充值到账、优惠券与积分提醒及时送达</text>
@@ -30,7 +30,7 @@
           <view class="official-copy">
             <text class="subscribe-title">服务号通知</text>
             <text class="subscribe-sub"
-              >订单、充值等提醒可发送到微信服务号；需先关注服务号，未绑定仍走小程序订阅。</text
+              >订单、充值、退款与售后提醒统一发送到微信服务号，点击消息可回到消费者小程序。</text
             >
             <text class="official-status">{{ officialBound ? '已绑定' : '未绑定' }}</text>
           </view>
