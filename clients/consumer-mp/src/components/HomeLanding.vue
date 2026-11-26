@@ -344,8 +344,8 @@ export default {
   padding: 14rpx 24rpx;
   box-sizing: border-box;
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.16);
-  border: 1rpx solid rgba(255, 255, 255, 0.28);
+  background: var(--on-deep-fill);
+  border: 1rpx solid var(--on-deep-border);
   color: var(--white, #ffffff);
   font-size: var(--font-size-sm);
   font-weight: 600;
@@ -593,6 +593,9 @@ export default {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-width: 176rpx;
+  min-height: 88rpx;
+  box-sizing: border-box;
   margin: 12rpx auto 0;
   padding: 8rpx var(--page-gutter, 24rpx);
   border-radius: var(--radius-pill);
@@ -683,7 +686,15 @@ export default {
   background: var(--brand, #0d9488);
 }
 .error-close {
-  padding: 0 4rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88rpx;
+  height: 88rpx;
+  min-width: 88rpx;
+  min-height: 88rpx;
+  margin: -14rpx;
+  padding: 0;
   color: var(--on-deep-text-78);
   font-size: var(--font-size-lg);
   line-height: 1;
