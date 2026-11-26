@@ -3191,6 +3191,25 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "dff4bf5b",
+      "report": "docs/PROJECT_KNOWLEDGE.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "通知日志 SENT/FAILED 约束纳入状态枚举门禁最终定义",
+          "files": [
+            "services/trade-service/src/main/resources/db/migration/V513__notification_log_status_parity.sql",
+            "scripts/check-status-enum-parity.mjs",
+            "scripts/status-check-inventory.json",
+            "packages/shared-dict/src/index.ts",
+            "packages/shared-dict/dist/index.d.ts",
+            "packages/shared-dict/dist/index.js"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
