@@ -20,6 +20,7 @@
         @retry="retryLastOpen"
         @recharge="goRechargeFromError"
         @coupons="goCoupons"
+        @mine="goMine"
         @login="goLoginFromScan"
         @dismiss-auth-prompt="dismissAuthPrompt"
         @confirm="confirmDevice"
@@ -1639,6 +1640,10 @@ function goLoginFromScan() {
 
 function goOrders() {
   uni.switchTab({ url: '/pages/orders/orders' });
+}
+
+function goMine() {
+  uni.switchTab({ url: '/pages/mine/mine' });
 }
 
 async function contactOps() {

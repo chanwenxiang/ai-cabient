@@ -14,6 +14,16 @@
           <text class="brand">AI开门柜</text>
           <text class="tagline">扫码开门 · 拿了就走</text>
         </view>
+        <view
+          class="landing-mine"
+          :style="{ top: landingHeadStyle.paddingTop }"
+          role="button"
+          aria-label="我的"
+          data-testid="landing-mine-entry"
+          @click="$emit('mine')"
+        >
+          我的
+        </view>
       </view>
 
       <view class="landing-action">
@@ -222,6 +232,7 @@ const emit = defineEmits<{
   retry: [];
   recharge: [];
   coupons: [];
+  mine: [];
   login: [];
   dismissAuthPrompt: [];
   confirm: [];
@@ -325,6 +336,21 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+.landing-mine {
+  position: absolute;
+  right: 0;
+  min-width: 104rpx;
+  padding: 14rpx 24rpx;
+  box-sizing: border-box;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1rpx solid rgba(255, 255, 255, 0.28);
+  color: var(--white, #ffffff);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.2;
 }
 .landing-head {
   flex-shrink: 0;
