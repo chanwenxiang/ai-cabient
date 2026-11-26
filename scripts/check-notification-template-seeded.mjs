@@ -159,7 +159,10 @@ const migDir = 'services/trade-service/src/main/resources/db/migration';
 const seedDir = 'services/trade-service/src/main/resources/db/seed';
 const seeded = new Set();
 const seedWhere = new Map();
-for (const f of [...walk(path.join(root, migDir), '.sql'), ...walk(path.join(root, seedDir), '.sql')]) {
+for (const f of [
+  ...walk(path.join(root, migDir), '.sql'),
+  ...walk(path.join(root, seedDir), '.sql')
+]) {
   const src = fs.readFileSync(f, 'utf8');
   for (const m of src.matchAll(/INSERT\s+INTO\s+notification_template\b([\s\S]*?);/gi)) {
     const stmt = m[1];
