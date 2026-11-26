@@ -3,20 +3,20 @@
     <app-nav-bar title="微信提醒" home-url="/pages/home/home" />
     <view class="page-body">
       <view class="intro">
-        <text class="intro-title">订阅推送</text>
-        <text class="intro-desc">{{ introDesc }}</text>
+        <text class="intro-title">通知设置</text>
+        <text class="intro-desc"
+          >服务号接收经营日报和提现结果；小程序订阅仅用于设备与待办提醒。</text
+        >
       </view>
 
       <view class="card">
         <view class="status-row">
-          <text class="field-label">微信绑定</text>
+          <text class="field-label">小程序微信绑定</text>
           <text class="status-val">{{ bindLabel }}</text>
         </view>
-        <!-- MA-377：日报是独立模板，「已绑定」不代表日报能收到，必须单独把状态说清楚 -->
-        <view class="status-row">
-          <text class="field-label">经营日报</text>
-          <text class="status-val">{{ dailyReportLabel }}</text>
-        </view>
+        <text class="section-desc"
+          >用于柜机离线、缺货、争议等待办提醒，不影响服务号日报和提现结果。</text
+        >
         <view v-if="isMpWeixin && subscribeReady" class="actions bind-actions">
           <app-button
             variant="soft"
@@ -33,11 +33,17 @@
       <view v-if="isMpWeixin && officialConfigured" class="card official-card">
         <view class="official-row">
           <view class="official-copy">
-            <text class="field-label">服务号经营日报</text>
+            <text class="field-label">服务号通知</text>
             <text class="official-desc"
-              >昨日销售额、成交笔数、客单价直接发到微信服务号，点击可回到商户小程序。</text
+              >经营日报、提现成功与提现失败统一发送到服务号，点击消息可回到商户小程序。</text
             >
-            <text class="official-status">{{ officialBound ? '已绑定' : '未绑定' }}</text>
+            <view class="official-types">
+              <text>经营日报</text>
+              <text>提现结果</text>
+            </view>
+            <text class="official-status">{{
+              officialBound ? '已绑定 · 日报/提现已开启' : '未绑定'
+            }}</text>
           </view>
           <app-button
             variant="soft"
@@ -49,7 +55,8 @@
       </view>
 
       <view v-if="subscribeReady" class="card">
-        <text class="field-label">提醒类型</text>
+        <text class="field-label">设备与待办提醒</text>
+        <text class="section-desc">通过小程序订阅消息发送，可单独开关以下类型。</text>
         <view class="notify-types">
           <view v-for="t in alertTypeOptions" :key="t.value" class="notify-type">
             <switch
@@ -88,11 +95,7 @@ import {
 } from '@/utils/notify';
 import { isMerchantLoggedIn, merchantApi } from '@/utils/merchant-api';
 import { seedMerchantMeDisplayCache, useMerchantMe } from '@/composables/useMerchantMe';
-import {
-  loadMerchantFlags,
-  merchantDailyReportTemplateId,
-  merchantSubscribeTemplateId
-} from '@/utils/merchant-config';
+import { loadMerchantFlags, merchantSubscribeTemplateId } from '@/utils/merchant-config';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const notifyBusy = ref(false);
@@ -103,8 +106,6 @@ const wxBound = ref(false);
 const enabledTypes = ref<string[]>([]);
 const alertTypeOptions = MERCHANT_ALERT_TYPES;
 const runtimeSubscribeTmplId = ref('');
-/** MA-377：每日经营日报是**独立模板**（金额/笔数键，与待办提醒的 thing 键不通用）。 */
-const runtimeDailyReportTmplId = ref('');
 const subscribeReady = computed(() => hasSubscribeTemplates(subscribeTmplIds()));
 /** 编译期平台判定，替代已弃用的 getSystemInfoSync().uniPlatform 运行时探测。 */
 let isMpWeixin = false;
@@ -112,22 +113,10 @@ let isMpWeixin = false;
 isMpWeixin = true;
 // #endif
 const bindLabel = computed(() => (wxBound.value ? '已绑定' : '未绑定'));
-const dailyReportLabel = computed(() =>
-  runtimeDailyReportTmplId.value ? '每日推送（昨日销售额/笔数/客单价）' : '未开通'
-);
-const introDesc = computed(() => {
-  if (!isMpWeixin) return '柜机离线、缺货、争议等可发到微信。请在微信小程序中开启。';
-  if (!subscribeReady.value) return '当前未配置订阅模板，暂不能向微信推送。';
-  return '开启后可接收柜机与订单提醒，以及每日经营日报（昨日销售额、成交笔数、客单价）。点「开启提醒」时会一次性请求这两类模板的授权。';
-});
 
 function subscribeTmplIds(): string[] {
-  // 一次 requestSubscribeMessage 同时请求待办提醒 + 经营日报（微信单次上限 3 个模板）。
-  // 只请求一个的话，另一个模板永远拿不到授权额度 ⇒ 日报发不出去且商户端毫无提示。
-  const ids = [runtimeSubscribeTmplId.value, runtimeDailyReportTmplId.value]
-    .map((v) => (v || '').trim())
-    .filter(Boolean);
-  return [...new Set(ids)];
+  const id = (runtimeSubscribeTmplId.value || '').trim();
+  return id ? [id] : [];
 }
 
 function onToggleType(type: string, on: boolean) {
@@ -224,7 +213,6 @@ onShow(async () => {
   }
   await loadMerchantFlags({ refresh: true });
   runtimeSubscribeTmplId.value = merchantSubscribeTemplateId();
-  runtimeDailyReportTmplId.value = merchantDailyReportTemplateId();
   try {
     const [prefs, official] = await Promise.all([
       merchantApi.notifyPrefs(),
