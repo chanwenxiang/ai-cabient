@@ -51,7 +51,9 @@ const MIGRATIONS = [
   'V479__status_check_batch16_misc_final.sql',
   // 枚举扩展（2026-11-17 补登记）：同一约束在后续迁移里 DROP + 重建时以**最后定义**为准，
   // 不得新增第二份「未 DROP 的直接重名」（那说明两条迁移都在抢着定义同一列）。
-  'V493__reconciliation_status_empty.sql'
+  'V493__reconciliation_status_empty.sql',
+  // 通知失败留痕（MA-422）后续演进：V508 已扩 FAILED，V513 以 NOT VALID 形态纳入状态门禁。
+  'V513__notification_log_status_parity.sql'
 ].map((f) => `${MIG_DIR}/${f}`);
 
 const P = {
@@ -786,6 +788,24 @@ function selfTest() {
       MIGRATIONS[16],
       (s) => s.replace('COMPETITOR_REF: CB-061', 'COMPETITOR_REF: CB-9999'),
       '非法编号'
+    ],
+    [
+      'V513 通知状态迁移删掉约束',
+      MIGRATIONS[17],
+      (s) => s.replace(/ALTER TABLE notification_log[\s\S]*?NOT VALID;\n/, ''),
+      '实际在'
+    ],
+    [
+      'V513 通知状态迁移去掉 NOT VALID',
+      MIGRATIONS[17],
+      (s) => s.replace('NOT VALID;', ';'),
+      '缺 NOT VALID'
+    ],
+    [
+      'V513 通知状态 CHECK 漏 FAILED',
+      MIGRATIONS[17],
+      (s) => s.replace("CHECK (status IN ('SENT', 'FAILED'))", "CHECK (status IN ('SENT'))"),
+      'CHECK 值域与字典族不同源'
     ]
   ];
   let passed = 0;

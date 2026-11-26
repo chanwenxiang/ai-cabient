@@ -478,7 +478,7 @@
       "constraint": "chk_notification_log_status",
       "chain": "content",
       "batch": 14,
-      "migration": "V477__status_check_batch14_notification_ota.sql"
+      "migration": "V513__notification_log_status_parity.sql"
     },
     {
       "table": "line_route",
