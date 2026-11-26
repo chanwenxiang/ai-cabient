@@ -34,7 +34,7 @@
 
 | 维度 | 当前值 | 备注 |
 |------|--------|------|
-| Flyway 迁移 | **505** 个 V 脚本（仅 `services/trade-service`），最新 **V512**（2026-11-25 合并后实扫） | 合入前查重号；门禁拦同号；勿再写已占用版本号 |
+| Flyway 迁移 | **506** 个 V 脚本（仅 `services/trade-service`），最新 **V513**（2026-11-26 部署后实核） | 合入前查重号；门禁拦同号；勿再写已占用版本号 |
 | trade Controllers | **94** | `*Controller.java`（2026-11-17 实测） |
 | trade 单测 | **539** `*Test.java`（2026-11-25 全量 3523 例） | 含大量并发测；全量 `mvn -o -pl services/trade-service -am test` |
 | admin-vue 业务视图 | **85** `.vue` | `src/views`（2026-11-17 实测） |
@@ -687,6 +687,13 @@ gross − member − activity − coupon = total      （部分退款单例外�
 ---
 
 ## 12. Changelog（按日追加，新条目在上）
+
+### 2026-11-26（dev 推送、CI 收口与 V513 部署）
+
+- **推送与 CI**：dev 推送至 `da6f089b`；CI run `45736556790` 的 build / mini-programs / admin-artifacts / e2e-h5 / integration 5/5 全绿。推送前补齐 `6258566d` 修复批登记、Prometheus `task_key` 负向夹具与已退役草稿文件夹具锚点。
+- **状态约束**：新增 V513，将 `notification_log.status=SENT/FAILED` 的最终 CHECK 以 `NOT VALID` 形态纳入状态枚举门禁；清单、门禁和 3 条负向变异同步，状态门禁自检 53/53。服务器 Flyway V513、失败迁移 0，脏值探针 0 后已运维 `VALIDATE`，约束现为 validated=true。
+- **部署复测**：`da6f089b` 的 trade 2/2、device、jiangyi、HAProxy 均 healthy；公网 health/admin 200，核心服务近 10 分钟 ERROR 0；资金两项唯一索引与微信审计开启状态保持。日结未重复补跑，`checkout.preauth_cents=0` 未改。
+- **小程序产物**：商户端 `wxf7de3625991a6431` 与消费者端 `wx6dacefb3671de630` 均完成 release 构建；`urlCheck=true`、API 为 `https://cabinet.easygovm.com`，scoped 哈希与 release bundle 门禁通过。产物位于各端 `dist/build/mp-weixin`，未上传发布。
 
 ### 2026-11-26（最终 dev 部署与运行态验收）
 
