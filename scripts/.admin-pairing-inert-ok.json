@@ -1,7 +1,9 @@
 {
-  "verifiedAt": "2026-11-23T14:41:40.629Z",
+  "verifiedAt": "2026-11-26T12:34:20.502Z",
   "inputs": {
-    "packages/shared-types/src/generated/openapi.ts": "cf3e46072b937da4cc71bcd8452059a210dfb395"
+    "packages/shared-types/src/generated/notify-marketing-models.ts": "51394b5b3a442cf5a9f347f62dd5b4668f51e3ea",
+    "packages/shared-types/src/generated/openapi.ts": "8112df9bf0edcf7e2f4f3da6a2d8e077844de0f0",
+    "packages/shared-types/src/index.ts": "db7e15add16810eea3a38a2242438a19a775798f"
   },
   "note": "PROVE_INERT rebuild verified byte-identical"
 }
