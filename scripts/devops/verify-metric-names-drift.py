@@ -28,6 +28,8 @@
       当成了 PromQL 指标名。此例锁住「按数据源同源过滤」这一语义，防止后人再把它改回全量扫描。
   11. `MIN_PROM_EXPRS` 抬到 999（Prometheus 面板 expr 锚点失效 ⇒ 恒绿守卫）：
       证明第 10 条的「绿」是因为**真的过滤了**，不是因为过滤写错导致一条都没校验。
+  12. 移除 PromQL 标签关键字 `task_key`：调度失败告警的 `sum by (task_key)` 必须仍能通过；
+      反向删掉该关键字后门禁必须报 `task_key` 是假指标，防止标签关键字回归。
 
 用法
 ----
@@ -59,7 +61,8 @@ LOKI_DASHBOARD = (
     ROOT / "infra" / "monitoring" / "grafana" / "provisioning"
     / "dashboards" / "json" / "ai-cabinet-logs-stream.json"
 )
-DRAFT_ALERTS = ROOT / "infra" / "monitoring" / "alerts.yml"
+DRAFT_NAME = "_gate_fixture_draft.yml"
+DRAFT_ALERTS = ROOT / "infra" / "prometheus" / DRAFT_NAME
 PROM_FULL = ROOT / "infra" / "monitoring" / "prometheus-full.yml"
 
 GOOD = b"cabinet.devices.count"
@@ -130,16 +133,28 @@ def replace_tokens(path: Path, pairs: list[tuple[bytes, bytes]]):
     return _mutate
 
 
-def mount_draft_rule() -> None:
-    """把已标记为草稿的 alerts.yml 挂进 rule_files（应当被判红）。
+def write_draft_rule(marked: bool) -> None:
+    if DRAFT_ALERTS.exists():
+        raise AssertionError(f"夹具临时文件已存在，拒绝覆盖：{DRAFT_ALERTS}")
+    marker = b"# gate: draft-unimplemented\n" if marked else b""
+    DRAFT_ALERTS.write_bytes(
+        marker
+        + b"groups:\n"
+        + b"  - name: gate_fixture\n"
+        + b"    rules:\n"
+        + b"      - alert: GateFixtureDraft\n"
+        + b"        expr: up == 0\n"
+    )
 
-    锚点不含换行：本仓 yml 行尾不统一（CRLF/LF 混用），带 `\\n` 的锚点会匹配不到。
-    """
+
+def mount_draft_rule() -> None:
+    """把临时草稿规则挂进 rule_files（应当被判红）。"""
+    write_draft_rule(marked=True)
     data = read(PROM_FULL)
     old = b"- /etc/prometheus/alert_rules.yml"
     if old not in data:
         raise AssertionError("prometheus-full.yml 的 rule_files 片段已变，请同步本脚本")
-    new = old + b"\n  - /etc/prometheus/alerts.yml"
+    new = old + f"\n  - /etc/prometheus/{DRAFT_NAME}".encode()
     write(PROM_FULL, data.replace(old, new, 1))
 
 
@@ -149,11 +164,10 @@ CASES = [
     Case("Grafana 看板改回 cabinet_devices_total", True, "引用了不存在的指标", replace_tokens(DASHBOARD, [(GOOD_M, BAD_M)])),
     Case("admin 运维页改回 cabinet_devices_total", True, "引用了不存在的指标", replace_tokens(ADMIN_VIEW, [(GOOD_M, BAD_M)])),
     Case(
-        "摘掉 alerts.yml 的草稿标记",
+        "摘掉临时草稿规则的标记",
         True,
         "没有被任何 prometheus 配置的 rule_files 引用",
-        # 不带换行锚定：本仓 yml 存在 CRLF 行尾，带 `\n` 会匹配不到（实测坑）。
-        replace_tokens(DRAFT_ALERTS, [(b"# gate: draft-unimplemented", b"")]),
+        lambda: write_draft_rule(marked=False),
     ),
     Case("把草稿挂进 rule_files", True, "草稿不得被加载", mount_draft_rule),
     Case("MIN_REGISTERED 抬到 99", True, "只从 Java 解析出", replace_tokens(GATE, [(b"const MIN_REGISTERED = 15;", b"const MIN_REGISTERED = 99;")])),
@@ -166,13 +180,22 @@ CASES = [
         replace_tokens(LOKI_DASHBOARD, [(LOKI_TOKEN, LOKI_FAKE)]),
     ),
     Case("MIN_PROM_EXPRS 抬到 999", True, "只校验到", replace_tokens(GATE, [(b"const MIN_PROM_EXPRS = 15;", b"const MIN_PROM_EXPRS = 999;")])),
+    Case(
+        "移除 task_key 标签关键字后应红",
+        True,
+        "不存在的指标 `task_key`",
+        replace_tokens(GATE, [(b"  'task_key',", b"")]),
+    ),
     Case("全部还原后回绿", False, "", lambda: None),
 ]
 
-TARGETS = [METRICS_JAVA, ALERT_RULES, DASHBOARD, ADMIN_VIEW, LOKI_DASHBOARD, DRAFT_ALERTS, PROM_FULL, GATE]
+TARGETS = [METRICS_JAVA, ALERT_RULES, DASHBOARD, ADMIN_VIEW, LOKI_DASHBOARD, PROM_FULL, GATE]
 
 
 def main() -> int:
+    if DRAFT_ALERTS.exists():
+        print(f"夹具临时文件已存在，拒绝覆盖：{DRAFT_ALERTS}", file=sys.stderr)
+        return 2
     originals = {path: read(path) for path in TARGETS}
     results: list[tuple[str, bool, str]] = []
     try:
@@ -182,6 +205,8 @@ def main() -> int:
         for case in CASES:
             for path, data in originals.items():
                 write(path, data)
+            if DRAFT_ALERTS.exists():
+                DRAFT_ALERTS.unlink()
             case.mutate()
 
             code, out = run_gate()
@@ -197,8 +222,10 @@ def main() -> int:
     finally:
         for path, data in originals.items():
             write(path, data)
+        if DRAFT_ALERTS.exists():
+            DRAFT_ALERTS.unlink()
 
-    restored = all(read(path) == originals[path] for path in TARGETS)
+    restored = all(read(path) == originals[path] for path in TARGETS) and not DRAFT_ALERTS.exists()
     code, _ = run_gate()
     print(f"[restore] 字节级还原={'OK' if restored else '不一致'} 复跑 exit={code}")
     if not restored or code != 0:
