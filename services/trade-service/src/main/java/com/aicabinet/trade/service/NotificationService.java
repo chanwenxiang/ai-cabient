@@ -18,11 +18,15 @@ import org.springframework.http.HttpStatus;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Supplier;
 
 /**
@@ -150,7 +154,8 @@ public class NotificationService {
         }
         // 短信结构化参数随消息下发：阿里云通知短信需要模板变量（title/body 是渲染后文本，落不了变量）
         NotificationDispatchMessage message = new NotificationDispatchMessage(
-                tpl.getTemplateCode(), userId, title, body, bizType, bizId, params);
+                tpl.getTemplateCode(), userId, title, body, bizType, bizId, params,
+                UUID.randomUUID().toString().replace("-", ""), audience, merchantId);
         if (channelSwitch.asyncEnabled()) {
             NotificationDispatchProducer producer = producerProvider.getIfAvailable();
             if (producer != null) {
@@ -160,6 +165,39 @@ public class NotificationService {
             log.warn("notify async enabled but producer unavailable, fallback sync");
         }
         externalDispatcher.dispatch(message);
+    }
+
+    /**
+     * 退款成功通知在事务提交后发：退款服务可能同步走微信 HTTP，不能占着资金事务。
+     *
+     * @param orderRefund true=原路退款（深链订单详情）；false=余额退款（深链消息中心）
+     */
+    public void notifyRefundAfterCommit(Long userId, String orderOrRequestNo, int amountCents,
+                                        boolean orderRefund) {
+        if (userId == null) {
+            return;
+        }
+        Runnable notify = () -> {
+            try {
+                self.send(CONSUMER, userId, null, "refund_success",
+                        Map.of("orderId", orderOrRequestNo == null ? "" : orderOrRequestNo,
+                                "amount", BigDecimal.valueOf(amountCents, 2).toPlainString(),
+                                "productName", orderRefund ? "订单商品" : "余额退款"),
+                        orderRefund ? "REFUND" : "BALANCE_REFUND", orderOrRequestNo);
+            } catch (Exception e) {
+                log.warn("refund notification failed userId={} ref={}", userId, orderOrRequestNo, e);
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    notify.run();
+                }
+            });
+        } else {
+            notify.run();
+        }
     }
 
     @Transactional

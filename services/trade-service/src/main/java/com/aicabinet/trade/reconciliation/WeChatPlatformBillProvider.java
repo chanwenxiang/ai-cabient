@@ -46,7 +46,20 @@ public class WeChatPlatformBillProvider implements PlatformBillProvider {
         }
         String billType = reconciliationProperties.wechatBillType();
         String path = "/v3/bill/tradebill?bill_date=" + date + "&bill_type=" + billType;
-        JsonNode resp = v3Client.get(path);
+        WeChatPayV3Client.HttpResult result = v3Client.getWithStatus(path);
+        JsonNode resp = result.body();
+        String code = resp.path("code").asText("");
+        // 零交易日不是故障：微信对当天无交易的商户返回 NO_STATEMENT_EXIST（2026-11-26 实证），
+        // 与 WeChatFundBillService#fetchOperatingAccount 的资金账单口径一致——返回空列表，
+        // 由 doReconcile 判 EMPTY（本地也零）或 MISMATCH（本地有交易而平台无账单）。
+        if (result.status() == 404 || "NO_STATEMENT_EXIST".equals(code)) {
+            log.info("wechat v3 trade bill no statement date={} status={}", date, result.status());
+            return List.of();
+        }
+        if (!result.is2xx()) {
+            throw new IllegalStateException("wechat v3 bill unavailable: status=" + result.status()
+                    + " code=" + code + " message=" + resp.path("message").asText(""));
+        }
         String downloadUrl = resp.path("download_url").asText(null);
         if (downloadUrl == null || downloadUrl.isBlank()) {
             throw new IllegalStateException("wechat v3 bill missing download_url: " + resp);

@@ -718,6 +718,15 @@ export const merchantApi = {
         alertTypes
       }
     ),
+  notifyOfficialAccountBindTicket: () =>
+    request<import('@aicabinet/shared-types').OpenApiWeChatOfficialBindTicketDto>(
+      MerchantEndpoints.notifyOfficialAccountBindTicket,
+      'POST'
+    ),
+  notifyOfficialAccountStatus: () =>
+    request<import('@aicabinet/shared-types').OpenApiWeChatOfficialBindingStatusDto>(
+      MerchantEndpoints.notifyOfficialAccountStatus
+    ),
   exceptions: (status = 'OPEN', page = 0, size = 100) =>
     request<
       import('@aicabinet/shared-types').PageResult<

@@ -74,7 +74,7 @@ class MerchantWithdrawFundingRetryTest {
                 merchantScopeService, permissionService, auditService, distributedLockService,
                 approvalWorkflowService, WithdrawPolicyResolver.ymlOnly(properties), payoutChannelRegistry,
                 orderRevenueSplitMapper, withdrawEligibilityService, platformFundService, systemConfigService,
-                confirmTicketStore, null);
+                confirmTicketStore, null, null, null);
         ReflectionTestUtils.setField(service, "self", service);
         stubPayeeAndMerchant();
         lenient().when(distributedLockService.tryLock(

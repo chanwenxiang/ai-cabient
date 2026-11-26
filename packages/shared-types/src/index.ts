@@ -443,6 +443,8 @@ export type {
 export type {
   OpenApiNotificationDto,
   OpenApiNotifyPrefDto,
+  OpenApiWeChatOfficialBindTicketDto,
+  OpenApiWeChatOfficialBindingStatusDto,
   OpenApiMerchantNotifyPrefDto,
   OpenApiMarketingBannerDto,
   OpenApiMarketingCampaignDto

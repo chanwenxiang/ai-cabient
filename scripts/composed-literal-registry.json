@@ -180,6 +180,14 @@
       "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
     },
     {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/ExternalNotificationDispatcher.java",
+      "sep": "|",
+      "kind": "writer",
+      "count": 1,
+      "classification": "external",
+      "why": "仅用于生成服务号 client_msg_id 的稳定哈希输入，结果直接发往微信；仓内无该分隔符解析读侧"
+    },
+    {
       "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiClassesParser.java",
       "sep": "\\r?\\n",
       "kind": "reader",

@@ -20,8 +20,22 @@ const cases = [
     (s) => s.replace('meterRegistry.counter(FAILURE_COUNTER', 'noop.counter(FAILURE_COUNTER')
   ],
   ['MA-431', 'alerts', (s) => s.replace('aicabinet_scheduled_task_failures_total', 'no_metric')],
+  [
+    'MA-465',
+    'prometheus',
+    (s) =>
+      s.replace(
+        /dns_sd_configs:\r?\n\s+- names: \["trade-service"\]\r?\n\s+type: A\r?\n\s+port: 8080/,
+        'static_configs:\n      - targets:\n          - trade-service:8080'
+      )
+  ],
   ['MA-430', 'backup', (s) => s.replace('/bin/bash "$BACKUP_REMOTE_CMD"', '"$BACKUP_REMOTE_CMD"')],
   ['MA-430', 'deploy', (s) => s.replace('test -x scripts/backup-offsite-oss.sh', 'true')],
+  [
+    'MA-464',
+    'deploy',
+    (s) => s.replace('force-recreate prometheus alertmanager', 'force-recreate trade-service')
+  ],
   [
     'MA-429',
     'deploy',

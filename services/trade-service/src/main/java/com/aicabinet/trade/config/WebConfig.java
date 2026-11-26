@@ -45,6 +45,8 @@ public class WebConfig implements WebMvcConfigurer {
             "/api/v2/media/ad-assets/**",
             // 消费者公开配置
             "/api/v2/public/**",
+            // 服务号 OAuth 回调：显式锚点，供回调契约门禁核验；安全性由 5 分钟一次性 state 票据提供
+            "/api/v2/public/wechat-official-account/callback",
             // 营销活动/轮播（游客可见；领券 /claim 仍需登录）
             "/api/v2/marketing/banners",
             "/api/v2/marketing/popups",

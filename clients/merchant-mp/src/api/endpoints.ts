@@ -240,6 +240,8 @@ export const MerchantEndpoints = {
   notifyPrefs: `${API_PREFIX}/merchant/notify/prefs`,
   notifyWxBind: `${API_PREFIX}/merchant/notify/wx-bind`,
   notifySubscribe: `${API_PREFIX}/merchant/notify/subscribe`,
+  notifyOfficialAccountBindTicket: `${API_PREFIX}/merchant/notify/official-account/bind-ticket`,
+  notifyOfficialAccountStatus: `${API_PREFIX}/merchant/notify/official-account/status`,
   exceptions: (status: string, page: number, size: number) =>
     `${API_PREFIX}/merchant/exceptions?status=${encodeURIComponent(status)}&page=${page}&size=${size}`,
   exceptionResolve: (id: string) =>

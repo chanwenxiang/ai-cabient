@@ -241,6 +241,10 @@ aicabinet:
     sales-key: ${WECHAT_MERCHANT_DAILY_REPORT_SALES_KEY:amount1}
     orders-key: ${WECHAT_MERCHANT_DAILY_REPORT_ORDERS_KEY:number2}
     avg-key: ${WECHAT_MERCHANT_DAILY_REPORT_AVG_KEY:amount3}
+    # 服务号「账单结算成功通知」模板键名，与上面的小程序订阅模板分开配置。
+    official-sales-key: ${WECHAT_MERCHANT_DAILY_REPORT_OFFICIAL_SALES_KEY:amount9}
+    official-merchant-name-key: ${WECHAT_MERCHANT_DAILY_REPORT_OFFICIAL_MERCHANT_NAME_KEY:thing16}
+    official-time-key: ${WECHAT_MERCHANT_DAILY_REPORT_OFFICIAL_TIME_KEY:time11}
   notify:
     # 🔴 sms-enabled 是**欠款短信催缴的总闸**（V326）：开着才可能发催缴短信。
     #    三道门全开才有短信：① 本开关 ② 模板 channels 含 SMS（V325 已 seed）③ 短信通道已配置
@@ -260,6 +264,17 @@ aicabinet:
     app-secret: ${WECHAT_OFFICIAL_ACCOUNT_APP_SECRET:}
     template-id: ${WECHAT_OFFICIAL_ACCOUNT_TEMPLATE_ID:}
     url: ${WECHAT_OFFICIAL_ACCOUNT_URL:}
+    redirect-uri: ${WECHAT_OFFICIAL_ACCOUNT_REDIRECT_URI:}
+    consumer-mini-app-id: ${WECHAT_OFFICIAL_ACCOUNT_CONSUMER_MINI_APP_ID:}
+    consumer-mini-page-path: ${WECHAT_OFFICIAL_ACCOUNT_CONSUMER_MINI_PAGE_PATH:pages/messages/messages}
+    merchant-mini-app-id: ${WECHAT_OFFICIAL_ACCOUNT_MERCHANT_MINI_APP_ID:}
+    merchant-mini-page-path: ${WECHAT_OFFICIAL_ACCOUNT_MERCHANT_MINI_PAGE_PATH:pages/home/home}
+    merchant-daily-report-template-id: ${WECHAT_OFFICIAL_ACCOUNT_MERCHANT_DAILY_REPORT_TEMPLATE_ID:}
+    refund-template-id: ${WECHAT_OFFICIAL_ACCOUNT_REFUND_TEMPLATE_ID:}
+    withdraw-template-id: ${WECHAT_OFFICIAL_ACCOUNT_WITHDRAW_TEMPLATE_ID:}
+    withdraw-failed-template-id: ${WECHAT_OFFICIAL_ACCOUNT_WITHDRAW_FAILED_TEMPLATE_ID:}
+    dispute-template-id: ${WECHAT_OFFICIAL_ACCOUNT_DISPUTE_TEMPLATE_ID:}
+    brand-name: ${WECHAT_OFFICIAL_ACCOUNT_BRAND_NAME:}
   minio:
     endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
     public-endpoint: ${MINIO_PUBLIC_ENDPOINT:}

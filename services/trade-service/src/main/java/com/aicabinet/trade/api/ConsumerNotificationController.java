@@ -3,9 +3,13 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.NotificationDto;
 import com.aicabinet.common.dto.NotifyPrefDto;
+import com.aicabinet.common.dto.WeChatOfficialBindTicketDto;
+import com.aicabinet.common.dto.WeChatOfficialBindingStatusDto;
 import com.aicabinet.trade.auth.AuthInterceptor;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.ConsumerNotifyPrefService;
 import com.aicabinet.trade.service.NotificationService;
+import com.aicabinet.trade.service.WeChatOfficialAccountBindingService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,11 +28,17 @@ public class ConsumerNotificationController {
 
     private final NotificationService notificationService;
     private final ConsumerNotifyPrefService notifyPrefService;
+    private final WeChatOfficialAccountBindingService officialAccountBindingService;
+    private final AdminAuditService auditService;
 
     public ConsumerNotificationController(NotificationService notificationService,
-                                          ConsumerNotifyPrefService notifyPrefService) {
+                                          ConsumerNotifyPrefService notifyPrefService,
+                                          WeChatOfficialAccountBindingService officialAccountBindingService,
+                                          AdminAuditService auditService) {
         this.notificationService = notificationService;
         this.notifyPrefService = notifyPrefService;
+        this.officialAccountBindingService = officialAccountBindingService;
+        this.auditService = auditService;
     }
 
     @GetMapping
@@ -67,6 +77,21 @@ public class ConsumerNotificationController {
         String category = body.get("category") == null ? "" : String.valueOf(body.get("category"));
         boolean enabled = !"false".equalsIgnoreCase(String.valueOf(body.getOrDefault("enabled", "true")));
         return ApiResponse.ok(notifyPrefService.update(userId(request), category, enabled));
+    }
+
+    // authz: self-service —— 票据只绑定登录态 userId，5 分钟一次性消费，不写业务数据。
+    @PostMapping("/official-account/bind-ticket")
+    public ApiResponse<WeChatOfficialBindTicketDto> officialAccountBindTicket(HttpServletRequest request) {
+        Long userId = userId(request);
+        WeChatOfficialBindTicketDto ticket = officialAccountBindingService.createTicket(userId);
+        auditService.appendLog(userId, "WECHAT_OFFICIAL_BIND_TICKET", "USER", String.valueOf(userId),
+                "申请服务号通知授权票据");
+        return ApiResponse.ok(ticket);
+    }
+
+    @GetMapping("/official-account/status")
+    public ApiResponse<WeChatOfficialBindingStatusDto> officialAccountStatus(HttpServletRequest request) {
+        return ApiResponse.ok(officialAccountBindingService.status(userId(request)));
     }
 
     private static Long userId(HttpServletRequest request) {

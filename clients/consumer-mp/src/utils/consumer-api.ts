@@ -1128,6 +1128,15 @@ export const consumerApi = {
         enabled
       }
     ),
+  wechatOfficialBindTicket: () =>
+    request<import('@aicabinet/shared-types').OpenApiWeChatOfficialBindTicketDto>(
+      ConsumerEndpoints.memberOfficialAccountBindTicket,
+      'POST'
+    ),
+  wechatOfficialStatus: () =>
+    request<import('@aicabinet/shared-types').OpenApiWeChatOfficialBindingStatusDto>(
+      ConsumerEndpoints.memberOfficialAccountStatus
+    ),
   marketingBanners: (deviceId?: string) =>
     request<import('@aicabinet/shared-types').OpenApiMarketingBannerDto[]>(
       deviceId

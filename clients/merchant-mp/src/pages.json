@@ -225,6 +225,13 @@
             "navigationBarTitleText": "微信提醒",
             "navigationStyle": "custom"
           }
+        },
+        {
+          "path": "official-account-bind",
+          "style": {
+            "navigationBarTitleText": "绑定服务号经营日报",
+            "backgroundColor": "#ffffff"
+          }
         }
       ]
     },

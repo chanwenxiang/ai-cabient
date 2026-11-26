@@ -72,7 +72,7 @@ class MerchantWalletOverviewReadonlyTest {
                 payoutAccountService, payoutAccountMapper,
                 merchantFeaturePackService, null, merchantScopeService, permissionService, auditService,
                 distributedLockService, approvalWorkflowService, WithdrawPolicyResolver.ymlOnly(properties),
-                payoutChannelRegistry, orderRevenueSplitMapper, withdrawEligibilityService, null, null, org.mockito.Mockito.mock(com.aicabinet.trade.payout.PayoutConfirmTicketStore.class), null);
+                payoutChannelRegistry, orderRevenueSplitMapper, withdrawEligibilityService, null, null, org.mockito.Mockito.mock(com.aicabinet.trade.payout.PayoutConfirmTicketStore.class), null, null, null);
         ReflectionTestUtils.setField(service, "self", service);
 
         Merchant merchant = new Merchant();

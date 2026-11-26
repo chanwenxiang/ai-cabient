@@ -80,7 +80,7 @@ class MerchantWithdrawNotifyStateTest {
                 merchantScopeService, permissionService, auditService, distributedLockService,
                 mock(ApprovalWorkflowService.class), WithdrawPolicyResolver.ymlOnly(properties),
                 payoutChannelRegistry, orderRevenueSplitMapper, withdrawEligibilityService,
-                null, null, confirmTicketStore, null);
+                null, null, confirmTicketStore, null, null, null);
         ReflectionTestUtils.setField(service, "self", service);
 
         request = new MerchantWithdrawRequest();

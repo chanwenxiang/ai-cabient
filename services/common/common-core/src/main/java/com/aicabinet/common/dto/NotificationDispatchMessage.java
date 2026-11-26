@@ -17,11 +17,28 @@ public record NotificationDispatchMessage(
         String body,
         String bizType,
         String bizId,
-        Map<String, String> smsParams
+        Map<String, String> smsParams,
+        String clientMsgId,
+        String audience,
+        String merchantId
 ) {
     /** 兼容旧签名（无结构化短信参数 → webhook 文本通道）。 */
     public NotificationDispatchMessage(String templateCode, Long userId, String title,
                                        String body, String bizType, String bizId) {
-        this(templateCode, userId, title, body, bizType, bizId, null);
+        this(templateCode, userId, title, body, bizType, bizId, null, null, "CONSUMER", null);
+    }
+
+    public NotificationDispatchMessage(String templateCode, Long userId, String title,
+                                       String body, String bizType, String bizId,
+                                       Map<String, String> smsParams) {
+        this(templateCode, userId, title, body, bizType, bizId, smsParams, null, "CONSUMER", null);
+    }
+
+    /** 兼容旧 8 字段签名（既有 Kafka/单测消息无受众字段，默认消费者）。 */
+    public NotificationDispatchMessage(String templateCode, Long userId, String title,
+                                       String body, String bizType, String bizId,
+                                       Map<String, String> smsParams, String clientMsgId) {
+        this(templateCode, userId, title, body, bizType, bizId, smsParams, clientMsgId,
+                "CONSUMER", null);
     }
 }

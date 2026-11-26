@@ -5382,6 +5382,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/merchant/notify/official-account/bind-ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["officialAccountBindTicket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/merchant/notifications/{id}/read": {
         parameters: {
             query?: never;
@@ -5584,6 +5600,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["markAllRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/member/notifications/official-account/bind-ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["officialAccountBindTicket_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6606,6 +6638,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["active"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/public/wechat-official-account/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["callback"];
         put?: never;
         post?: never;
         delete?: never;
@@ -10268,6 +10316,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/merchant/notify/official-account/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["officialAccountStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/merchant/notifications": {
         parameters: {
             query?: never;
@@ -10820,6 +10884,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["unreadCount_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/member/notifications/official-account/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["officialAccountStatus_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -15762,6 +15842,17 @@ export interface components {
         MerchantSubscribeRequest: {
             alertTypes?: string[];
         };
+        ApiResponseWeChatOfficialBindTicketDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["WeChatOfficialBindTicketDto"];
+        };
+        WeChatOfficialBindTicketDto: {
+            authorizeUrl?: string;
+            /** Format: int32 */
+            expiresInSeconds?: number;
+        };
         MerchantReplyDisputeRequest: {
             body?: string;
         };
@@ -20055,6 +20146,16 @@ export interface components {
             code?: number;
             message?: string;
             data?: components["schemas"]["OrderReadModel_Merchant"];
+        };
+        ApiResponseWeChatOfficialBindingStatusDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["WeChatOfficialBindingStatusDto"];
+        };
+        WeChatOfficialBindingStatusDto: {
+            configured?: boolean;
+            bound?: boolean;
         };
         ApiResponseListNotificationDto: {
             /** Format: int32 */
@@ -30870,6 +30971,26 @@ export interface operations {
             };
         };
     };
+    officialAccountBindTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseWeChatOfficialBindTicketDto"];
+                };
+            };
+        };
+    };
     markRead: {
         parameters: {
             query?: never;
@@ -31183,6 +31304,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    officialAccountBindTicket_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseWeChatOfficialBindTicketDto"];
                 };
             };
         };
@@ -32813,6 +32954,29 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseSessionDto"];
+                };
+            };
+        };
+    };
+    callback: {
+        parameters: {
+            query?: {
+                code?: string;
+                state?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
                 };
             };
         };
@@ -38011,6 +38175,26 @@ export interface operations {
             };
         };
     };
+    officialAccountStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseWeChatOfficialBindingStatusDto"];
+                };
+            };
+        };
+    };
     list_29: {
         parameters: {
             query?: {
@@ -38775,6 +38959,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseMapStringLong"];
+                };
+            };
+        };
+    };
+    officialAccountStatus_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseWeChatOfficialBindingStatusDto"];
                 };
             };
         };

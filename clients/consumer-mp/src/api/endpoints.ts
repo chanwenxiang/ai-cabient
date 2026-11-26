@@ -120,6 +120,8 @@ export const ConsumerEndpoints = {
     `${API_PREFIX}/member/notifications/${encodeURIComponent(String(id))}/read`,
   memberNotificationsReadAll: `${API_PREFIX}/member/notifications/read-all`,
   memberNotificationPrefs: `${API_PREFIX}/member/notifications/prefs`,
+  memberOfficialAccountBindTicket: `${API_PREFIX}/member/notifications/official-account/bind-ticket`,
+  memberOfficialAccountStatus: `${API_PREFIX}/member/notifications/official-account/status`,
   /** 营销 */
   marketingBanners: `${API_PREFIX}/marketing/banners`,
   /** P3-6：小程序轮播位曝光/点击留痕（须登录） */

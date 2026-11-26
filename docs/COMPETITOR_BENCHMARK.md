@@ -3078,3 +3078,47 @@
   2. **消费者端撤除**：删除 `consumer-mp` 的 `pages/realname` 与「我的 → 待实名」标签，删除 consumer-api 的 `verifyIdentity` 封装；开门准入仍只看免密/余额（V326/CB-014），不因本次改动收紧。
   3. **提示语同步**：提现 403 文案不再把申请人指向消费者小程序；钱包提示改为商户端自助路径。运营侧「身份核验」（LineManagerView / UserListView）保留，作为人工兜底而非自助主路径。
   4. **边界**：商户端登录账号与消费者账号同为 `user_info` 行；运营号段（userId ≥ 1 亿）不走该自助接口（400），本来也不参与合作方提现。
+
+### CB-088 【新】服务号通知：显式授权 + 渠道独立身份 + 服务端发送 + 防重，未授权用户保留原通道
+
+> 触发：2026-11-26 用户确认服务号审核通过，选择消费者通知模板。现有 `WeChatOfficialAccountClient` 只实现发送器，未接分发；`user_info.wx_open_id` 是小程序 openid，不能直接用于服务号模板消息。先列名单再取证：微信（服务号官方）｜支付宝（小程序官方）｜Android（通知权限官方，跨行业范式）。
+
+- **竞品做法 / 官方口径**：
+  - **微信服务号**（⭕ 官方）：网页授权 `snsapi_base` 用 code 换取**公众号 openid**；模板消息必须使用公众号 openid 与模板 ID，`data` 键值按模板给定格式提交；接口提供 `client_msg_id`，同一 openid +  client_msg_id 在 10 分钟内只发送一条。小程序 openid 与公众号 openid 不通用，需通过开放平台 UnionID 或公众号网页授权建立关系。
+  - **支付宝小程序**（⭕ 官方）：开发者先配置模板，再通过 `my.requestSubscribeMessage` 引导用户订阅，服务端调用模板消息接口发送；`to_user_id/to_open_id` 是用户授权后获得的支付宝渠道身份，不能拿其他渠道 ID 代替。
+  - **Android**（⭕ 官方，跨行业）：Android 13+ 发送非豁免通知前必须取得 `POST_NOTIFICATIONS` 运行时权限；用户拒绝后通知被系统屏蔽，应用不能假定“注册过=可触达”。
+  - **友宝 UBOX**（⭕ 开门柜同行）：官方公开其 APP 推送可直接发送优惠券/活动，说明同行把用户通知作为独立运营通道；服务号 openid 绑定细节未公开，不编造。
+  - **丰e足食**（⭕ 开门柜同行）：官方说明运营商可通过 APP 或小程序向用户推送优惠券、开展会员运营；同样具备独立用户触达面，但未公开服务号实现。
+- **对照主体**：友宝 UBOX｜丰e足食｜微信官方｜支付宝
+- **补充旁证（不计入主体）**：Android Developers（通知权限官方，跨行业范式）
+- **证据**：
+  - <http://www.ubox.cn/coop_brand.html> （⭕ 友宝官方：APP 推送优惠券直达用户）
+  - <https://www.feng1.com/zh-CN/news/77> （⭕ 丰e足食官方：APP/小程序推送优惠券与会员运营）
+  - <https://developers.weixin.qq.com/doc/service/guide/h5/auth.html> （⭕ 微信服务号网页授权：snsapi_base、code 换 openid）
+  - <https://developers.weixin.qq.com/doc/service/api/notify/template/api_sendtemplatemessage> （⭕ 微信服务号发送模板消息：touser/template_id/data/client_msg_id）
+  - <https://opendocs.alipay.com/mini/03l9bb> （⭕ 支付宝小程序订阅消息：模板、用户订阅、服务端发送、to_user_id）
+  - <https://developer.android.com/develop/ui/views/notifications/notification-permission?hl=zh-cn> （⭕ Android 通知运行时权限与拒绝后屏蔽）
+- **取证日期**：2026-11-26
+- **我们的结论**：
+  1. **采纳显式授权与渠道独立身份**：消费者在消息中心主动发起服务号网页授权；用 5 分钟一次性 ticket 防 CSRF/重放，公众号 openid 与 appid 分开存储并联合唯一，注销时清空。未绑定或配置不齐时继续走现有小程序订阅，不降低可达性。
+  2. **采纳服务端发送与防重**：服务号模板消息只在服务端调用；`client_msg_id` 由业务通知生成并贯穿 Kafka 重试，10 分钟内同通知只发一条。服务号分支发送失败不自动回退小程序/短信，避免“响应丢失但渠道已受理”造成重复通知。
+  3. **有意不同**：首期不引入 UnionID 自动合并已有用户，因为当前链路没有可信 UnionID 存储，且网页授权已能取得公众号 openid；后续若开放平台关联完成，再增加自动匹配，不阻塞本次最小闭环。
+  4. **模板字段按业务结构化，不再固定 `thing1/thing2`**：消费成功=项目/金额/时间/商家；退款=金额/时间/订单号/商品/商家；日报=结算金额/商户名/结算时间；提现成功=提现额/手续费/到账额/两次时间；提现失败=账号/金额/时间/枚举原因；售后=订单号/商品/订单额/枚举结果。键名全部与微信后台 `get_all_private_template` 返回的 `content` 逐字核对。
+  5. **双端分模板、分收件人、分小程序跳转**：消费者通知只走消费者模板与消费者账号；商户经营日报只走独立日报模板与 `ops_user_merchant` 操作员，未绑定服务号时回落原商户订阅。服务号已绑定但发送失败时不回退其它渠道，避免重复通知。
+
+> 🟢 **2026-11-26 最终口径（新服务号后台实证 + API 核实）**：公司的新认证服务号「前海易购售卖机」（`wx5d275cf6d30918f2`）同时具备「模板消息」与「订阅通知」入口；经用户确认，本次**统一采用经典模板消息**（`POST /cgi-bin/message/template/send`），不依赖老服务号，也不走订阅通知的 `bizsend`。经典模板消息由用户关注服务号后触达，可重复发送，正好满足商户日报每天一条；消费者通知同样在关注+绑定后触达。
+>
+> 已选用并核实的 6 套模板：
+>
+> | 业务 | 模板 ID | 关键词键名 |
+> |---|---|---|
+> | 消费成功通知 | `eKv7ZjX-2jYmh-g1yZVmzA7FPtb8mDEfzyOB-JFfbmw` | thing2/amount3/time6/thing20 |
+> | 账单结算成功通知 | `GfrUn8H-O-b2fmsL1YMFCg-hGepBDesgYFW66NGO0o0` | amount9/thing16/time11 |
+> | 退款成功通知 | `VSvhZloDH3uqPgQOyJNfMXpgVEfq25IBi-TaodW0Bv4` | amount3/time5/character_string1/thing2/thing16 |
+> | 提现成功通知 | `dlbnFcORnMkOmJgb5eeBMElHjbY-Ywy6e6qJuqzWw9k` | amount2/amount4/amount5/time3/time9 |
+> | 提现失败提醒 | `3UQtGY1NlgcjHhaiFexocToXcOjBSS_WqpJIlryzsQk` | character_string5/amount2/time3/const4 |
+> | 售后订单处理通知 | `cXWjNET-A38SumQwbE7Iaq8DDs4gr4ueImIRS44ucGk` | character_string1/thing5/amount2/const7 |
+>
+> 失败原因枚举：备付金不足/账户信息有误/银行卡拒收/渠道处理失败/其他原因；售后结果枚举：处理中/已退款/免单/已驳回/已关闭。提现 `NOT_ENOUGH` 自动重试中不发失败通知，终态失败才发；退款/提现/售后通知均在事务提交后执行，避免 HTTP 占用资金事务。
+>
+> 证据：<https://developers.weixin.qq.com/doc/service/api/notify/template/api_sendtemplatemessage.html>（模板消息发送）、<https://developers.weixin.qq.com/doc/service/guide/product/template_message/Template_Message_Operation_Specifications.html>（模板消息运营规范）、<https://developers.weixin.qq.com/doc/service/guide/product/subscription_messages/intro.html>（订阅通知对照，本次不采用）。取证日期：2026-11-26。

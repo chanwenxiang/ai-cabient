@@ -20,6 +20,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
+
 @Service
 public class AccountService {
 
@@ -146,6 +148,9 @@ public class AccountService {
                 .set(UserInfo::getAvatarUrl, null)
                 .set(UserInfo::getNickname, "已注销用户")
                 .set(UserInfo::getWxOpenId, null)
+                .set(UserInfo::getWxOfficialOpenId, null)
+                .set(UserInfo::getWxOfficialAppId, null)
+                .set(UserInfo::getWxOfficialBoundAt, null)
                 .set(UserInfo::getPasswordHash, null)
                 .set(UserInfo::getTotpSecret, null)
                 .set(UserInfo::isTotpEnabled, false)
@@ -224,6 +229,26 @@ public class AccountService {
             userInfoRepository.save(user);
             return null;
         });
+    }
+
+    @Transactional
+    public void bindWxOfficialOpenId(Long userId, String appId, String openId) {
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "仅正常账号支持绑定服务号通知");
+        }
+        UserInfo user = requireUserForUpdate(userId);
+        if (!"ACTIVE".equalsIgnoreCase(user.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "仅正常账号支持绑定服务号通知");
+        }
+        user.setWxOfficialOpenId(openId);
+        user.setWxOfficialAppId(appId);
+        user.setWxOfficialBoundAt(Instant.now());
+        userInfoRepository.save(user);
+    }
+
+    @Transactional(readOnly = true)
+    public UserInfo officialAccountBinding(Long userId) {
+        return userInfoRepository.findById(userId).orElse(null);
     }
 
     @Transactional

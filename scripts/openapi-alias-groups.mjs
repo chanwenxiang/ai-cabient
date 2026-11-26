@@ -196,6 +196,16 @@ export const OPENAPI_ALIAS_GROUPS = [
       },
       { name: 'OpenApiNotifyPrefDto', schema: 'NotifyPrefDto', comment: '消费者通知偏好' },
       {
+        name: 'OpenApiWeChatOfficialBindTicketDto',
+        schema: 'WeChatOfficialBindTicketDto',
+        comment: '服务号网页授权一次性票据'
+      },
+      {
+        name: 'OpenApiWeChatOfficialBindingStatusDto',
+        schema: 'WeChatOfficialBindingStatusDto',
+        comment: '消费者服务号通知绑定状态'
+      },
+      {
         name: 'OpenApiMerchantNotifyPrefDto',
         schema: 'MerchantNotifyPrefDto',
         comment: '商户告警订阅偏好'

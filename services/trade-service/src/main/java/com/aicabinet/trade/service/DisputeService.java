@@ -21,9 +21,11 @@ import com.aicabinet.trade.recognition.RecognizedItem;
 import com.aicabinet.trade.recognition.RecognitionOutcome;
 import com.aicabinet.trade.config.DisputeSlaProperties;
 import com.aicabinet.trade.domain.CabinetOrder;
+import com.aicabinet.trade.domain.CabinetOrderLine;
 import com.aicabinet.trade.domain.DisputeMessage;
 import com.aicabinet.trade.domain.DisputeTicket;
 import com.aicabinet.trade.domain.ShoppingSession;
+import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.mapper.DisputeMessageMapper;
@@ -97,6 +99,8 @@ public class DisputeService {
     /** 审计 T5（2026-10-15）：争议结果消费者触达（dispute_resolved 模板 V163 已种，此前零调用）。 */
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private NotificationService notificationService;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private CabinetOrderLineMapper orderLineRepository;
     private final DisputeSlaProperties disputeSlaProperties;
     private final SystemConfigService systemConfigService;
     private final UserInfoMapper userInfoRepository;
@@ -235,18 +239,74 @@ public class DisputeService {
 
     /** 消费者触达：迟到识别自动转争议单发 dispute_created 站内信（失败不阻断兜账主链）。 */
     private void notifyConsumerLateRecognition(ShoppingSession session, String ticketId) {
+        dispatchDisputeAfterCommit(session, String.valueOf(ticketId), null,
+                "本次开门会话异常关闭，设备识别到你可能已取货未结算，已转人工核实，结果将通知你");
+    }
+
+    private void dispatchDisputeAfterCommit(ShoppingSession session, String ticketId,
+                                            String resolutionType, String reason) {
         if (notificationService == null || session.getUserId() == null) {
             return;
         }
-        try {
-            notificationService.notifyConsumer(session.getUserId(), "dispute_created",
-                    java.util.Map.of("disputeNo", String.valueOf(ticketId),
-                            "reason", "本次开门会话异常关闭，设备识别到你可能已取货未结算，已转人工核实，结果将通知你"),
-                    "DISPUTE", String.valueOf(ticketId));
-        } catch (Exception e) {
-            log.warn("late-recognition dispute notify failed session={} ticket={}",
-                    session.getSessionId(), ticketId, e);
+        Runnable notify = () -> {
+            try {
+                Map<String, String> params = buildDisputeNotificationParams(session, ticketId,
+                        resolutionType, reason);
+                if (resolutionType == null) {
+                    notificationService.notifyConsumer(session.getUserId(), "dispute_created", params,
+                            "DISPUTE", ticketId);
+                } else {
+                    notificationService.notifyConsumer(session.getUserId(), "dispute_resolved", params,
+                            "DISPUTE", ticketId);
+                }
+            } catch (Exception e) {
+                log.warn("dispute notify failed session={} ticket={}", session.getSessionId(), ticketId, e);
+            }
+        };
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            notify.run();
+                        }
+                    });
+        } else {
+            notify.run();
         }
+    }
+
+    private Map<String, String> buildDisputeNotificationParams(ShoppingSession session, String ticketId,
+                                                               String resolutionType, String reason) {
+        CabinetOrder order = orderRepository.findBySessionId(session.getSessionId()).orElse(null);
+        String orderId = order != null ? order.getOrderId() : session.getSessionId();
+        int amountCents = order == null ? 0 : order.getTotalAmountCents();
+        String productName = order == null ? "" : firstProductName(order);
+        Map<String, String> params = new java.util.LinkedHashMap<>();
+        params.put("disputeNo", ticketId);
+        params.put("orderId", orderId);
+        params.put("productName", productName);
+        params.put("orderAmount", java.math.BigDecimal.valueOf(amountCents, 2).toPlainString());
+        params.put("reason", reason == null ? "" : reason);
+        params.put("result", resolutionType == null ? "处理中" : resolutionNotice(resolutionType));
+        params.put("resolutionType", resolutionType == null ? "" : resolutionType);
+        return params;
+    }
+
+    private String firstProductName(CabinetOrder order) {
+        if (order.getLines() != null && !order.getLines().isEmpty()) {
+            return order.getLines().get(0).getSkuName() == null
+                    ? "" : order.getLines().get(0).getSkuName();
+        }
+        if (orderLineRepository == null) {
+            return "";
+        }
+        List<CabinetOrderLine> lines = orderLineRepository.selectList(
+                Wrappers.<CabinetOrderLine>lambdaQuery()
+                        .eq(CabinetOrderLine::getOrderId, order.getOrderId())
+                        .orderByAsc(CabinetOrderLine::getId)
+                        .last("LIMIT 1"));
+        return lines.isEmpty() || lines.get(0).getSkuName() == null ? "" : lines.get(0).getSkuName();
     }
 
     @Transactional
@@ -289,6 +349,7 @@ public class DisputeService {
                 userId, session.getSessionId(), request.reason().trim(), "[]",
                 normalizeCategory(request.category()), normalizePriority(request.priority()), null, null));
         fileAttachmentService.bindEvidenceToDispute(userId, dto.ticketId(), request.evidenceFileIds());
+        dispatchDisputeAfterCommit(session, String.valueOf(dto.ticketId()), null, request.reason().trim());
         return toDto(disputeRepository.findById(dto.ticketId()).orElseThrow());
     }
 
@@ -714,18 +775,8 @@ public class DisputeService {
 
     /** 消费者触达：结案/自动免单发 dispute_resolved 站内信（模板缺字段或未启用由 NotificationService 兜底）。 */
     private void notifyConsumerResolved(ShoppingSession session, String ticketId, String resolutionType) {
-        // @Autowired(required=false)：测试直构造无通知依赖时静默跳过（不阻断结案主链）
-        if (notificationService == null || session.getUserId() == null) {
-            return;
-        }
-        try {
-            notificationService.notifyConsumer(session.getUserId(), "dispute_resolved",
-                    java.util.Map.of("disputeNo", String.valueOf(ticketId),
-                            "result", resolutionNotice(resolutionType)),
-                    "DISPUTE", String.valueOf(ticketId));
-        } catch (Exception e) {
-            log.warn("dispute resolved notify failed ticket={}", ticketId, e);
-        }
+        dispatchDisputeAfterCommit(session, String.valueOf(ticketId), resolutionType,
+                resolutionNotice(resolutionType));
     }
 
     private String resolutionNotice(String resolutionType) {

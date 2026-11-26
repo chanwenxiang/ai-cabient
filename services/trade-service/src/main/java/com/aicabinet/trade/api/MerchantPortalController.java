@@ -21,6 +21,7 @@ import com.aicabinet.trade.service.JiangyiPhoneCaptureService;
 import com.aicabinet.trade.service.JiangyiProductStateService;
 import com.aicabinet.trade.service.MerchantScopeService;
 import com.aicabinet.trade.service.ProcurementService;
+import com.aicabinet.trade.service.WeChatOfficialAccountBindingService;
 import com.fasterxml.jackson.annotation.JsonView;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
@@ -64,6 +65,7 @@ public class MerchantPortalController {
     private final AdminAuditService auditService;
     /** MA-407 确认收款：下发 mchId/appId 供小程序拉起微信确认页（必须是建单时那一对）。 */
     private final WeChatPayProperties wxPayProperties;
+    private final WeChatOfficialAccountBindingService officialAccountBindingService;
 
     public MerchantPortalController(MerchantPortalService merchantPortalService,
                                     MerchantPortalControllerSupport support,
@@ -75,7 +77,8 @@ public class MerchantPortalController {
                                     JiangyiProductStateService jiangyiProductStateService,
                                     JiangyiPhoneCaptureService jiangyiPhoneCaptureService,
                                     AdminAuditService auditService,
-                                    WeChatPayProperties wxPayProperties) {
+                                    WeChatPayProperties wxPayProperties,
+                                    WeChatOfficialAccountBindingService officialAccountBindingService) {
         this.merchantPortalService = merchantPortalService;
         this.support = support;
         this.procurementService = procurementService;
@@ -87,6 +90,7 @@ public class MerchantPortalController {
         this.jiangyiPhoneCaptureService = jiangyiPhoneCaptureService;
         this.auditService = auditService;
         this.wxPayProperties = wxPayProperties;
+        this.officialAccountBindingService = officialAccountBindingService;
     }
 
     @GetMapping("/me")
@@ -922,6 +926,24 @@ public class MerchantPortalController {
         auditService.appendLog(userId(request), "MERCHANT_NOTIFY_SUBSCRIBE", "MERCHANT_NOTIFY",
                 String.valueOf(userId(request)), "enabledTypes=" + dto.enabledAlertTypes().size());
         return ApiResponse.ok(dto);
+    }
+
+    @RequiresPermissions("merchant:portal:access")
+    @PostMapping("/notify/official-account/bind-ticket")
+    public ApiResponse<WeChatOfficialBindTicketDto> officialAccountBindTicket(HttpServletRequest request) {
+        Long userId = userId(request);
+        WeChatOfficialBindTicketDto ticket = officialAccountBindingService.createTicket(userId,
+                com.aicabinet.trade.wechat.MiniAppTarget.MERCHANT);
+        auditService.appendLog(userId, "MERCHANT_NOTIFY_OFFICIAL_BIND_TICKET", "MERCHANT_NOTIFY",
+                String.valueOf(userId), "申请服务号通知授权票据");
+        return ApiResponse.ok(ticket);
+    }
+
+    @RequiresPermissions("merchant:portal:access")
+    @GetMapping("/notify/official-account/status")
+    public ApiResponse<WeChatOfficialBindingStatusDto> officialAccountStatus(HttpServletRequest request) {
+        return ApiResponse.ok(officialAccountBindingService.status(userId(request),
+                com.aicabinet.trade.wechat.MiniAppTarget.MERCHANT));
     }
 
     @RequiresPermissions("merchant:users:list")

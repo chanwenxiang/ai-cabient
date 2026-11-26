@@ -15,6 +15,7 @@ export const FILES = {
   scheduled:
     'services/trade-service/src/main/java/com/aicabinet/trade/service/ScheduledTaskService.java',
   alerts: 'infra/prometheus/alert_rules.yml',
+  prometheus: 'infra/monitoring/prometheus.compose.yml',
   backup: 'scripts/backup-database.sh',
   deploy: 'scripts/deploy-prod.sh',
   lb: 'infra/gateway/trade-lb.cfg',
@@ -61,6 +62,18 @@ export function findOperationalContractViolations(input) {
     'aicabinet_scheduled_task_failures_total'
   ]);
 
+  const tradeScrape =
+    (sources.prometheus || '').split('- job_name: trade-service')[1]?.split('- job_name:')[0] || '';
+  requireAll(problems, 'MA-465/多副本抓取', tradeScrape, [
+    'dns_sd_configs:',
+    'names: ["trade-service"]',
+    'type: A',
+    'port: 8080'
+  ]);
+  if (tradeScrape.includes('static_configs:')) {
+    problems.push('MA-465/多副本抓取: trade-service 不得使用单服务名 static_configs');
+  }
+
   requireAll(problems, 'MA-430/异地钩子', sources.backup || '', [
     '/bin/bash "$BACKUP_REMOTE_CMD" "$FINAL_FILE"',
     'BACKUP_ALERT_CMD',
@@ -69,6 +82,12 @@ export function findOperationalContractViolations(input) {
   requireAll(problems, 'MA-430/部署权限', sources.deploy || '', [
     'chmod +x scripts/backup-database.sh scripts/backup-offsite-oss.sh',
     'test -x scripts/backup-offsite-oss.sh'
+  ]);
+
+  requireAll(problems, 'MA-464/监控挂载刷新', sources.deploy || '', [
+    'force-recreate prometheus alertmanager',
+    'wait_monitoring',
+    'ScheduledTaskRecordedFailure 已加载'
   ]);
 
   requireAll(problems, 'MA-429/镜像与副本', sources.deploy || '', [
@@ -121,7 +140,9 @@ function main() {
     }
     process.exit(1);
   }
-  console.log('[check-operational-p0-p1-contracts] OK: MA-422/429/430/431/434/460 契约在位');
+  console.log(
+    '[check-operational-p0-p1-contracts] OK: MA-422/429/430/431/434/460/464/465 契约在位'
+  );
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();

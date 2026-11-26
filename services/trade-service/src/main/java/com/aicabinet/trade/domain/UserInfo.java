@@ -30,6 +30,12 @@ public class UserInfo {
 
     private String wxOpenId;
 
+    private String wxOfficialOpenId;
+
+    private String wxOfficialAppId;
+
+    private Instant wxOfficialBoundAt;
+
     /** 微信昵称：wx.login 不回传，由用户在「我的」页自助填写（openid 用户的可辨识身份）。 */
     private String nickname;
 

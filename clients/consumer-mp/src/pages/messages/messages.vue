@@ -25,6 +25,21 @@
         </button>
       </view>
 
+      <view v-if="isMpWeixin && officialConfigured" class="card official-card">
+        <view class="official-row">
+          <view class="official-copy">
+            <text class="subscribe-title">服务号通知</text>
+            <text class="subscribe-sub"
+              >订单、充值等提醒可发送到微信服务号；需先关注服务号，未绑定仍走小程序订阅。</text
+            >
+            <text class="official-status">{{ officialBound ? '已绑定' : '未绑定' }}</text>
+          </view>
+          <button class="official-btn" :disabled="officialBusy" @click="onOfficialBind">
+            {{ officialBusy ? '请求中…' : officialBound ? '重新绑定' : '去绑定' }}
+          </button>
+        </view>
+      </view>
+
       <view v-if="pendingCount > 0" class="todo-banner" @click="goPendingOrders">
         <view class="todo-copy">
           <text class="todo-title">待办 · 待支付账单</text>
@@ -125,6 +140,9 @@ const subscribeTemplateId = ref('');
 const subscribeAcked = ref(false);
 const SUBSCRIBE_ACK_KEY = 'wechat_subscribe_ack_tmpl';
 const subscribing = ref(false);
+const officialConfigured = ref(false);
+const officialBound = ref(false);
+const officialBusy = ref(false);
 const pendingCount = ref(0);
 const loadError = ref('');
 /** H5 无 requestSubscribeMessage，勿展示「去开启」入口（同 M-P2-14）。编译期平台判定，替代已弃用的 getSystemInfoSync().uniPlatform 运行时探测。 */
@@ -235,12 +253,13 @@ async function load() {
   if (!list.value.length) loading.value = true;
   loadError.value = '';
   try {
-    const [rows, count, prefList, cfg, pending] = await Promise.all([
+    const [rows, count, prefList, cfg, pending, official] = await Promise.all([
       consumerApi.notifications(100),
       consumerApi.notificationUnreadCount(),
       consumerApi.notifyPrefs(),
       consumerApi.consumerPublicConfig(),
-      softFallback(consumerApi.pendingOrderCount(), { count: 0 }, '待支付数')
+      softFallback(consumerApi.pendingOrderCount(), { count: 0 }, '待支付数'),
+      consumerApi.wechatOfficialStatus()
     ]);
     if (seq !== loadSeq) return;
     list.value = rows;
@@ -249,6 +268,8 @@ async function load() {
     subscribeEnabled.value = cfg?.wechatSubscribeEnabled === 'true';
     subscribeTemplateId.value = String(cfg?.wechatSubscribeTemplateId || '');
     subscribeAcked.value = readSubscribeAck(subscribeTemplateId.value);
+    officialConfigured.value = !!official?.configured;
+    officialBound.value = !!official?.bound;
     pendingCount.value = Math.max(0, Number(pending?.count || 0));
   } catch (e) {
     if (seq !== loadSeq) return;
@@ -322,6 +343,25 @@ function onSubscribe() {
       subscribing.value = false;
     }
   });
+}
+
+async function onOfficialBind() {
+  if (!isMpWeixin || officialBusy.value) return;
+  officialBusy.value = true;
+  try {
+    const ticket = await consumerApi.wechatOfficialBindTicket();
+    if (!ticket?.authorizeUrl) {
+      showError('服务号授权地址获取失败');
+      return;
+    }
+    uni.navigateTo({
+      url: '/pages/messages/official-account-bind?url=' + encodeURIComponent(ticket.authorizeUrl)
+    });
+  } catch (e) {
+    showError(e instanceof Error ? e.message : '服务号绑定失败');
+  } finally {
+    officialBusy.value = false;
+  }
 }
 
 async function onPrefChange(p: NotifyPrefDto, ev: { detail?: { value?: boolean } } | Event) {
@@ -566,6 +606,40 @@ function formatTime(t?: string) {
 .pref-label {
   font-size: var(--font-size-body);
   color: var(--text-primary, #1f2a24);
+}
+.official-row {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+}
+.official-copy {
+  flex: 1;
+  min-width: 0;
+}
+.official-status {
+  display: block;
+  margin-top: 8rpx;
+  font-size: var(--font-size-sm);
+  color: var(--brand);
+}
+.official-btn {
+  flex-shrink: 0;
+  min-width: 176rpx;
+  min-height: 88rpx;
+  margin: 0;
+  padding: 0 24rpx;
+  border-radius: 16rpx;
+  font-size: var(--font-size-caption);
+  line-height: 1.2;
+  color: var(--white);
+  background: var(--brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+.official-btn[disabled] {
+  opacity: 0.6;
 }
 .subscribe-banner {
   display: flex;

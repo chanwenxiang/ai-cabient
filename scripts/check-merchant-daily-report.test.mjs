@@ -56,14 +56,24 @@ inject({ notifier: tpl }, '注入①复用待办模板', 'subscribeTemplateId');
 
 // ② 目标端改成消费者 —— 商户 openid 用消费者 token 必 40003
 const wrongTarget = real.notifier.replace(
-  'openId, templateId, page, fields, MiniAppTarget.MERCHANT)',
-  'openId, templateId, page, fields, MiniAppTarget.CONSUMER)'
+  'user.getWxOpenId(), templateId, page, fields, MiniAppTarget.MERCHANT)',
+  'user.getWxOpenId(), templateId, page, fields, MiniAppTarget.CONSUMER)'
 );
 assert(wrongTarget !== real.notifier, '注入②锚点 MiniAppTarget.MERCHANT 找不到');
 inject({ notifier: wrongTarget }, '注入②错端发送', 'MiniAppTarget.MERCHANT');
 
+const wrongOfficialTarget = real.notifier.replace(
+  'MiniAppTarget.MERCHANT, reportProperties.resolvePage())',
+  'MiniAppTarget.CONSUMER, reportProperties.resolvePage())'
+);
+assert(wrongOfficialTarget !== real.notifier, '注入②b锚点服务号 MiniAppTarget.MERCHANT 找不到');
+inject({ notifier: wrongOfficialTarget }, '注入②b服务号错端', '服务号日报');
+
 // ③ 幂等丢掉 channel —— 站内信那条日志会把微信日报挡掉
-const noChannel = real.notifier.replace('.eq(NotificationLog::getChannel, CHANNEL)\n', '');
+const noChannel = real.notifier.replace(
+  '.in(NotificationLog::getChannel, List.of(CHANNEL, OFFICIAL_CHANNEL))\n',
+  ''
+);
 assert(noChannel !== real.notifier, '注入③锚点 channel 条件找不到');
 inject({ notifier: noChannel }, '注入③幂等缺 channel', 'channel');
 
@@ -132,4 +142,4 @@ const emptyMerge = real.scheduler.replace(
 assert(emptyMerge !== real.scheduler, '注入⑪锚点 putIfAbsent 找不到');
 inject({ scheduler: emptyMerge }, '注入⑪扩集合空转', '空转');
 
-console.log(`${TAG} OK：${checks} 项断言全过（真树绿 / CRLF 绿 / 八种注入红 / 注释不误判）`);
+console.log(`${TAG} OK：${checks} 项断言全过（真树绿 / CRLF 绿 / 双渠道注入红 / 注释不误判）`);

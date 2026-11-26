@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.NotificationDispatchMessage;
 import com.aicabinet.trade.config.NotificationProperties;
 import com.aicabinet.trade.config.WeChatMiniAppProperties;
+import com.aicabinet.trade.config.WeChatOfficialAccountProperties;
 import com.aicabinet.trade.domain.NotificationLog;
 import com.aicabinet.trade.domain.NotificationTemplate;
 import com.aicabinet.trade.domain.UserInfo;
@@ -11,6 +12,7 @@ import com.aicabinet.trade.mapper.NotificationTemplateMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.sms.WebhookSmsSender;
 import com.aicabinet.trade.wechat.WeChatMiniAppClient;
+import com.aicabinet.trade.wechat.WeChatOfficialAccountClient;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -25,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -43,12 +46,18 @@ class ExternalNotificationDispatcherTest {
     @Mock private UserInfoMapper userInfoRepository;
     @Mock private NotificationTemplateMapper templateRepository;
     @Mock private WeChatMiniAppClient weChatMiniAppClient;
+    @Mock private WeChatOfficialAccountClient weChatOfficialAccountClient;
     @Mock private WebhookSmsSender smsSender;
     @Mock private AliyunSmsSender aliyunSmsSender;
 
     private static final WeChatMiniAppProperties WECHAT_PROPS =
             new WeChatMiniAppProperties(false, null, null, "merchant-tpl", "pages/alerts/alerts",
                     "consumer-tpl", "pages/messages/messages", null, null, null, null, "formal");
+    private static final WeChatOfficialAccountProperties OFFICIAL_PROPS =
+            new WeChatOfficialAccountProperties(true, "gh_official", "secret", "official-tpl",
+                    "", "https://example.test/callback", "consumer-app", "pages/messages/messages",
+                    "merchant-app", "pages/home/home", "merchant-report-tpl", "official-refund-tpl",
+                    "official-withdraw-tpl", "official-withdraw-failed-tpl", "official-dispute-tpl", "测试品牌");
 
     private ExternalNotificationDispatcher dispatcher(boolean wechat, boolean sms) {
         return dispatcher(wechat, sms, false);
@@ -56,14 +65,14 @@ class ExternalNotificationDispatcherTest {
 
     private ExternalNotificationDispatcher dispatcher(boolean wechat, boolean sms, boolean async) {
         return new ExternalNotificationDispatcher(logRepository, userInfoRepository, templateRepository,
-                weChatMiniAppClient, WECHAT_PROPS, smsSender,
+                weChatMiniAppClient, WECHAT_PROPS, weChatOfficialAccountClient, OFFICIAL_PROPS, smsSender,
                 new NotifyChannelSwitchService(org.mockito.Mockito.mock(SystemConfigService.class), new NotificationProperties(wechat, sms, async)),
                 aliyunSmsSender);
     }
 
     private static NotificationDispatchMessage message() {
         return new NotificationDispatchMessage("order_paid", 100L, "订单支付成功",
-                "您的订单 O1 已支付 12 元", "ORDER", "O1");
+                "您的订单 O1 已支付 12 元", "ORDER", "O1", Map.of("amount", "12.00"), null);
     }
 
     private static NotificationTemplate template(String channels) {
@@ -86,6 +95,13 @@ class ExternalNotificationDispatcherTest {
         u.setUserId(100L);
         u.setWxOpenId(openId);
         u.setPhoneNumber(phone);
+        return u;
+    }
+
+    private static UserInfo officialUser() {
+        UserInfo u = user("mini-openid", null);
+        u.setWxOfficialOpenId("official-openid");
+        u.setWxOfficialAppId("gh_official");
         return u;
     }
 
@@ -134,6 +150,163 @@ class ExternalNotificationDispatcherTest {
         ArgumentCaptor<NotificationLog> captor = ArgumentCaptor.forClass(NotificationLog.class);
         verify(logRepository).save(captor.capture());
         assertEquals("WECHAT_SUBSCRIBE", captor.getValue().getChannel());
+    }
+
+    @Test
+    void dispatch_boundOfficialAccount_usesOfficialTemplateWithClientMsgId() {
+        ExternalNotificationDispatcher dispatcher = dispatcher(true, false);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(officialUser()));
+        when(weChatOfficialAccountClient.sendTemplateMessage(anyString(), eq("official-tpl"), anyMap(),
+                eq("client-1"), eq(MiniAppTarget.CONSUMER),
+                eq("pages/order-detail/order-detail?orderId=O1"), eq(true))).thenReturn(true);
+        NotificationDispatchMessage msg = new NotificationDispatchMessage("order_paid", 100L, "订单支付成功",
+                "您的订单 O1 已支付 12 元", "ORDER", "O1", Map.of("amount", "12.00"), "client-1");
+
+        dispatcher.dispatch(msg);
+
+        ArgumentCaptor<Map<String, String>> data = ArgumentCaptor.forClass(Map.class);
+        verify(weChatOfficialAccountClient).sendTemplateMessage(eq("official-openid"), eq("official-tpl"),
+                data.capture(), eq("client-1"), eq(MiniAppTarget.CONSUMER),
+                eq("pages/order-detail/order-detail?orderId=O1"), eq(true));
+        assertEquals("订单支付成功", data.getValue().get("thing2"));
+        assertEquals("12.00", data.getValue().get("amount3"));
+        assertEquals("测试品牌", data.getValue().get("thing20"));
+        assertTrue(data.getValue().get("time6") != null, "消费时间必须填写");
+        verify(weChatMiniAppClient, never()).sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap(), any());
+        ArgumentCaptor<NotificationLog> captor = ArgumentCaptor.forClass(NotificationLog.class);
+        verify(logRepository).save(captor.capture());
+        assertEquals("WECHAT_OFFICIAL", captor.getValue().getChannel());
+        assertEquals("client-1", captor.getValue().getClientMsgId());
+    }
+
+    @Test
+    void dispatch_refund_usesRefundTemplateAndFields() {
+        ExternalNotificationDispatcher dispatcher = dispatcher(true, false);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(officialUser()));
+        when(weChatOfficialAccountClient.sendTemplateMessage(anyString(), eq("official-refund-tpl"), anyMap(),
+                eq("refund-client"), eq(MiniAppTarget.CONSUMER),
+                eq("pages/order-detail/order-detail?orderId=O1"), eq(true))).thenReturn(true);
+        NotificationDispatchMessage msg = new NotificationDispatchMessage("refund_success", 100L, "退款成功",
+                "您的订单 O1 已退款 5.50 元", "REFUND", "O1", Map.of("amount", "5.50"), "refund-client");
+
+        dispatcher.dispatch(msg);
+
+        ArgumentCaptor<Map<String, String>> data = ArgumentCaptor.forClass(Map.class);
+        verify(weChatOfficialAccountClient).sendTemplateMessage(eq("official-openid"), eq("official-refund-tpl"),
+                data.capture(), eq("refund-client"), eq(MiniAppTarget.CONSUMER),
+                eq("pages/order-detail/order-detail?orderId=O1"), eq(true));
+        assertEquals("5.50", data.getValue().get("amount3"));
+        assertEquals("O1", data.getValue().get("character_string1"));
+        assertEquals("测试品牌", data.getValue().get("thing16"));
+        assertTrue(data.getValue().get("time5") != null);
+    }
+
+    @Test
+    void dispatch_withdrawSuccess_usesMerchantTemplateAndAudience() {
+        ExternalNotificationDispatcher dispatcher = dispatcher(true, false);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(officialUser()));
+        when(weChatOfficialAccountClient.sendTemplateMessage(anyString(), eq("official-withdraw-tpl"), anyMap(),
+                eq("withdraw-1"), eq(MiniAppTarget.MERCHANT), eq("pages/wallet/wallet"), eq(true)))
+                .thenReturn(true);
+        NotificationDispatchMessage msg = new NotificationDispatchMessage("merchant_withdraw_success", 100L,
+                "提现成功通知", "提现 1.00 元已到账", "WITHDRAW_SUCCESS", "W1",
+                Map.of("amount", "1.00", "fee", "0.10", "receivedAmount", "0.90",
+                        "requestTime", "2026年11月26日 10:00"), "withdraw-1", "MERCHANT", "M1");
+
+        dispatcher.dispatch(msg);
+
+        ArgumentCaptor<Map<String, String>> data = ArgumentCaptor.forClass(Map.class);
+        verify(weChatOfficialAccountClient).sendTemplateMessage(eq("official-openid"), eq("official-withdraw-tpl"),
+                data.capture(), eq("withdraw-1"), eq(MiniAppTarget.MERCHANT), eq("pages/wallet/wallet"), eq(true));
+        assertEquals("1.00", data.getValue().get("amount2"));
+        assertEquals("0.10", data.getValue().get("amount4"));
+        assertEquals("0.90", data.getValue().get("amount5"));
+        assertEquals("2026年11月26日 10:00", data.getValue().get("time3"));
+        assertTrue(data.getValue().get("time9") != null);
+        ArgumentCaptor<NotificationLog> logCaptor = ArgumentCaptor.forClass(NotificationLog.class);
+        verify(logRepository).save(logCaptor.capture());
+        assertEquals("MERCHANT", logCaptor.getValue().getAudience());
+        assertEquals("M1", logCaptor.getValue().getMerchantId());
+    }
+
+    @Test
+    void dispatch_withdrawFailed_usesFailureTemplateAndEnumReason() {
+        ExternalNotificationDispatcher dispatcher = dispatcher(true, false);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(officialUser()));
+        when(weChatOfficialAccountClient.sendTemplateMessage(anyString(), eq("official-withdraw-failed-tpl"), anyMap(),
+                eq("withdraw-failed-1"), eq(MiniAppTarget.MERCHANT), eq("pages/wallet/wallet"), eq(true)))
+                .thenReturn(true);
+        NotificationDispatchMessage msg = new NotificationDispatchMessage("merchant_withdraw_failed", 100L,
+                "提现失败提醒", "提现 1.00 元失败", "WITHDRAW_FAILED", "W1",
+                Map.of("amount", "1.00", "account", "M1", "requestTime", "2026年11月26日 10:00",
+                        "failureReason", "备付金不足"), "withdraw-failed-1", "MERCHANT", "M1");
+
+        dispatcher.dispatch(msg);
+
+        ArgumentCaptor<Map<String, String>> data = ArgumentCaptor.forClass(Map.class);
+        verify(weChatOfficialAccountClient).sendTemplateMessage(eq("official-openid"),
+                eq("official-withdraw-failed-tpl"), data.capture(), eq("withdraw-failed-1"),
+                eq(MiniAppTarget.MERCHANT), eq("pages/wallet/wallet"), eq(true));
+        assertEquals("M1", data.getValue().get("character_string5"));
+        assertEquals("1.00", data.getValue().get("amount2"));
+        assertEquals("备付金不足", data.getValue().get("const4"));
+    }
+
+    @Test
+    void dispatch_dispute_usesAfterSaleTemplateAndResultEnum() {
+        ExternalNotificationDispatcher dispatcher = dispatcher(true, false);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(officialUser()));
+        when(weChatOfficialAccountClient.sendTemplateMessage(anyString(), eq("official-dispute-tpl"), anyMap(),
+                eq("dispute-1"), eq(MiniAppTarget.CONSUMER),
+                eq("pages/dispute/detail?ticketId=T1"), eq(true))).thenReturn(true);
+        NotificationDispatchMessage msg = new NotificationDispatchMessage("dispute_resolved", 100L,
+                "售后处理完成", "订单 O1 已退款", "DISPUTE", "T1",
+                Map.of("orderId", "O1", "productName", "雪碧", "orderAmount", "5.00",
+                        "resolutionType", "REFUND"), "dispute-1");
+
+        dispatcher.dispatch(msg);
+
+        ArgumentCaptor<Map<String, String>> data = ArgumentCaptor.forClass(Map.class);
+        verify(weChatOfficialAccountClient).sendTemplateMessage(eq("official-openid"), eq("official-dispute-tpl"),
+                data.capture(), eq("dispute-1"), eq(MiniAppTarget.CONSUMER),
+                eq("pages/dispute/detail?ticketId=T1"), eq(true));
+        assertEquals("O1", data.getValue().get("character_string1"));
+        assertEquals("雪碧", data.getValue().get("thing5"));
+        assertEquals("5.00", data.getValue().get("amount2"));
+        assertEquals("已退款", data.getValue().get("const7"));
+    }
+
+    @Test
+    void dispatch_officialFailure_doesNotFallbackToMiniProgram() {
+        ExternalNotificationDispatcher dispatcher = dispatcher(true, false);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(officialUser()));
+        when(weChatOfficialAccountClient.sendTemplateMessage(anyString(), eq("official-tpl"), anyMap(),
+                anyString(), eq(MiniAppTarget.CONSUMER), anyString(), eq(true))).thenReturn(false);
+
+        dispatcher.dispatch(message());
+
+        verify(weChatMiniAppClient, never()).sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap(), any());
+        ArgumentCaptor<NotificationLog> captor = ArgumentCaptor.forClass(NotificationLog.class);
+        verify(logRepository).save(captor.capture());
+        assertEquals("WECHAT_OFFICIAL", captor.getValue().getChannel());
+        assertEquals("FAILED", captor.getValue().getStatus());
+    }
+
+    @Test
+    void dispatch_officialAppIdMismatch_fallsBackToMiniProgram() {
+        ExternalNotificationDispatcher dispatcher = dispatcher(true, false);
+        UserInfo user = officialUser();
+        user.setWxOfficialAppId("gh_other");
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user));
+        when(weChatMiniAppClient.sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap(), eq(MiniAppTarget.CONSUMER)))
+                .thenReturn(true);
+
+        dispatcher.dispatch(message());
+
+        verify(weChatOfficialAccountClient, never()).sendTemplateMessage(anyString(), anyString(), anyMap(),
+                anyString(), any(MiniAppTarget.class), anyString(), anyBoolean());
+        verify(weChatMiniAppClient).sendSubscribeMessage(eq("mini-openid"), eq("consumer-tpl"),
+                eq("pages/messages/messages"), anyMap(), eq(MiniAppTarget.CONSUMER));
     }
 
     @Test

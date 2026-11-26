@@ -13,9 +13,11 @@ alerting:
 scrape_configs:
   - job_name: trade-service
     metrics_path: /actuator/prometheus
-    static_configs:
-      - targets:
-          - trade-service:8080
+    # 多副本必须逐 IP 抓取；单服务名目标会把不同实例的指标混成同一条序列。
+    dns_sd_configs:
+      - names: ["trade-service"]
+        type: A
+        port: 8080
 
   - job_name: device-service
     metrics_path: /actuator/prometheus

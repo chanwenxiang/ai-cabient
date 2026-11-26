@@ -70,6 +70,28 @@
   color: var(--text-subtle);
   font-size: var(--font-size-sm);
 }
+.official-row {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+}
+.official-copy {
+  flex: 1;
+  min-width: 0;
+}
+.official-desc {
+  display: block;
+  margin-top: 8rpx;
+  font-size: var(--font-size-sm);
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+.official-status {
+  display: block;
+  margin-top: 8rpx;
+  font-size: var(--font-size-sm);
+  color: var(--brand);
+}
 .notify-types {
   display: grid;
   gap: 16rpx;

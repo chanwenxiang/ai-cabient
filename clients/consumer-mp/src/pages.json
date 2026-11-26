@@ -182,6 +182,13 @@
             "enablePullDownRefresh": true,
             "navigationStyle": "custom"
           }
+        },
+        {
+          "path": "official-account-bind",
+          "style": {
+            "navigationBarTitleText": "绑定服务号通知",
+            "backgroundColor": "#ffffff"
+          }
         }
       ]
     },

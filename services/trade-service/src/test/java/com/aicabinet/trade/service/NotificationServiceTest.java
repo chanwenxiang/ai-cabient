@@ -9,6 +9,7 @@ import com.aicabinet.trade.mapper.NotificationLogMapper;
 import com.aicabinet.trade.mapper.NotificationTemplateMapper;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -130,6 +131,46 @@ class NotificationServiceTest {
 
         verify(logRepository).save(any(NotificationLog.class));
         verify(externalDispatcher, never()).dispatch(any());
+    }
+
+    @Test
+    void refundNotification_withoutTransaction_sendsImmediately() {
+        NotificationService service = service(false);
+        NotificationTemplate refund = template("IN_APP,WECHAT_SUBSCRIBE", "ORDER");
+        refund.setTemplateCode("refund_success");
+        refund.setTitleTemplate("退款成功");
+        refund.setBodyTemplate("您的订单 {orderId} 已退款 {amount} 元");
+        when(templateRepository.findByCode("refund_success")).thenReturn(Optional.of(refund));
+        when(notifyPrefService.isEnabled(100L, "ORDER")).thenReturn(true);
+
+        service.notifyRefundAfterCommit(100L, "O1", 550, true);
+
+        ArgumentCaptor<NotificationDispatchMessage> captor =
+                ArgumentCaptor.forClass(NotificationDispatchMessage.class);
+        verify(externalDispatcher).dispatch(captor.capture());
+        assertEquals("REFUND", captor.getValue().bizType());
+        assertEquals("5.50", captor.getValue().smsParams().get("amount"));
+    }
+
+    @Test
+    void refundNotification_insideTransaction_waitsForCommit() {
+        NotificationService service = service(false);
+        NotificationTemplate refund = template("IN_APP,WECHAT_SUBSCRIBE", "ORDER");
+        refund.setTemplateCode("refund_success");
+        refund.setTitleTemplate("退款成功");
+        refund.setBodyTemplate("您的订单 {orderId} 已退款 {amount} 元");
+        when(templateRepository.findByCode("refund_success")).thenReturn(Optional.of(refund));
+        when(notifyPrefService.isEnabled(100L, "ORDER")).thenReturn(true);
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.notifyRefundAfterCommit(100L, "R1", 550, false);
+            verify(externalDispatcher, never()).dispatch(any());
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(org.springframework.transaction.support.TransactionSynchronization::afterCommit);
+            verify(externalDispatcher).dispatch(any());
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     @Test

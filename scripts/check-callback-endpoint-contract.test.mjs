@@ -134,7 +134,9 @@ const CTRL = (rel) => readFileSync(resolve(ROOT, rel), 'utf8');
     public class X {
       @GetMapping("/prefs") public void a() {}
       @PostMapping("/subscribe") public void b() {}
-      @PostMapping("/notify") public void c() {}
+      @PostMapping("/official-account/bind-ticket") public void c() {}
+      @GetMapping("/official-account/status") public void d() {}
+      @PostMapping("/notify") public void e() {}
     }`;
   const e = extractCallbackMappings(src, 'x.java');
   assert(
@@ -164,6 +166,24 @@ const CTRL = (rel) => readFileSync(resolve(ROOT, rel), 'utf8');
   assert(
     p.some((x) => x.includes('payscore/notify') && x.includes('nonce 未归还')),
     `支付分 nonce 不归还须红：${p.join('|')}`
+  );
+}
+
+// 9) trade 面一次性 OAuth 回调漏白名单 ⇒ 红
+{
+  const tradeWithoutOfficial = TRADE_WEB.replace(
+    '"/api/v2/public/wechat-official-account/callback",',
+    ''
+  );
+  const mappings = REGISTRY.entries.map((e) => ({
+    path: e.path,
+    file: e.controller,
+    method: 'POST'
+  }));
+  const p = evaluate(mappings, REGISTRY, tradeWithoutOfficial, GATEWAY_WEB, () => true, CTRL);
+  assert(
+    p.some((x) => x.includes('wechat-official-account/callback') && x.includes('白名单')),
+    `trade 一次性回调漏白名单须红：${p.join('|')}`
   );
 }
 

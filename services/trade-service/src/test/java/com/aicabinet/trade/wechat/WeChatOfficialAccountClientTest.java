@@ -31,7 +31,9 @@ class WeChatOfficialAccountClientTest {
 
     private static final Instant NOW = Instant.parse("2026-11-24T04:00:00Z");
     private static final WeChatOfficialAccountProperties CONFIGURED =
-            new WeChatOfficialAccountProperties(true, "gh_test", "secret", "template-1", "https://example.test/report");
+            new WeChatOfficialAccountProperties(true, "gh_test", "secret", "template-1",
+                    "", "https://example.test/callback", "consumer-app", "pages/messages/messages",
+                    "merchant-app", "pages/home/home", "merchant-report-tpl", "", "", "", "", "");
 
     private MutableClock clock;
     private MockRestServiceServer server;
@@ -48,7 +50,8 @@ class WeChatOfficialAccountClientTest {
     @Test
     void disabledOrIncompleteConfigurationNeverCallsWechat() {
         WeChatOfficialAccountClient disabled = new WeChatOfficialAccountClient(
-                new WeChatOfficialAccountProperties(false, "gh_test", "secret", "template-1", ""),
+                new WeChatOfficialAccountProperties(false, "gh_test", "secret", "template-1",
+                        "", "", "", "", "", "", "", "", "", "", "", ""),
                 new ObjectMapper(), clock, RestClient.builder());
 
         assertThat(disabled.sendTemplateMessage("openid", Map.of("amount1", "1.00"))).isFalse();
@@ -77,7 +80,11 @@ class WeChatOfficialAccountClientTest {
                             "amount1": {"value": "12.50"},
                             "number2": {"value": "3"}
                           },
-                          "url": "https://example.test/report"
+                          "miniprogram": {
+                            "appid": "consumer-app",
+                            "pagepath": "pages/order-detail/order-detail?orderId=O1"
+                          },
+                          "client_msg_id": "client-msg-1"
                         }
                         """))
                 .andRespond(withSuccess("{\"errcode\":0,\"errmsg\":\"ok\"}", MediaType.APPLICATION_JSON));
@@ -85,7 +92,51 @@ class WeChatOfficialAccountClientTest {
         Map<String, String> data = new LinkedHashMap<>();
         data.put("amount1", "12.50");
         data.put("number2", "3");
-        assertThat(client.sendTemplateMessage("openid-1", data)).isTrue();
+        assertThat(client.sendTemplateMessage("openid-1", data, "client-msg-1",
+                MiniAppTarget.CONSUMER, "pages/order-detail/order-detail?orderId=O1")).isTrue();
+        server.verify();
+    }
+
+    @Test
+    void merchantReportUsesMerchantTemplateAndMiniProgram() {
+        server.expect(requestTo(containsString("/cgi-bin/token")))
+                .andRespond(withSuccess("{\"access_token\":\"token-1\",\"expires_in\":7200}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(containsString("/cgi-bin/message/template/send")))
+                .andExpect(content().json("""
+                        {
+                          "touser": "official-openid",
+                          "template_id": "merchant-report-tpl",
+                          "data": {"amount1": {"value": "12.50"}},
+                          "miniprogram": {"appid": "merchant-app", "pagepath": "pages/home/home"},
+                          "client_msg_id": "merchant-report-1"
+                        }
+                        """))
+                .andRespond(withSuccess("{\"errcode\":0}", MediaType.APPLICATION_JSON));
+
+        assertThat(client.sendTemplateMessage("official-openid", Map.of("amount1", "12.50"),
+                "merchant-report-1", MiniAppTarget.MERCHANT, "pages/home/home")).isTrue();
+        server.verify();
+    }
+
+    @Test
+    void authorizeUrlUsesBaseScopeAndEncodedRedirect() {
+        String url = client.authorizeUrl("ticket_1", "https://example.test/callback?from=mp");
+
+        assertThat(url).contains("open.weixin.qq.com/connect/oauth2/authorize")
+                .contains("scope=snsapi_base")
+                .contains("state=ticket_1")
+                .contains("redirect_uri=https%3A%2F%2Fexample.test%2Fcallback%3Ffrom%3Dmp")
+                .endsWith("#wechat_redirect");
+    }
+
+    @Test
+    void oauthCodeExchangesForOfficialOpenId() {
+        server.expect(requestTo(containsString("/sns/oauth2/access_token")))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("{\"openid\":\"official-openid-1\",\"scope\":\"snsapi_base\"}",
+                        MediaType.APPLICATION_JSON));
+
+        assertThat(client.exchangeCodeForOpenId("code-1")).isEqualTo("official-openid-1");
         server.verify();
     }
 

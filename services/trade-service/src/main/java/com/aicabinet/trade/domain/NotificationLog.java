@@ -34,6 +34,8 @@ public class NotificationLog {
 
     private String bizId;
 
+    private String clientMsgId;
+
     private String status = "SENT";
 
     private Instant readAt;

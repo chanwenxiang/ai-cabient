@@ -91,7 +91,7 @@ class MerchantWithdrawConcurrencyTest {
                 payoutAccountService, payoutAccountMapper,
                 merchantFeaturePackService, null, merchantScopeService, permissionService, auditService,
                 distributedLockService, null, WithdrawPolicyResolver.ymlOnly(properties),
-                payoutChannelRegistry, orderRevenueSplitMapper, withdrawEligibilityService, null, null, org.mockito.Mockito.mock(com.aicabinet.trade.payout.PayoutConfirmTicketStore.class), null);
+                payoutChannelRegistry, orderRevenueSplitMapper, withdrawEligibilityService, null, null, org.mockito.Mockito.mock(com.aicabinet.trade.payout.PayoutConfirmTicketStore.class), null, null, null);
         ReflectionTestUtils.setField(service, "self", service);
 
         // V307：所有用例共用一个可用的收款账户（默认对公 + BANK 通道）。

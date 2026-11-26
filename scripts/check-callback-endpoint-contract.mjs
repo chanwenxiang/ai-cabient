@@ -3,13 +3,13 @@
  * 门禁（S11）：外部回调入口契约——「回调漏免登录白名单」「验签失败冒 500」「mock 裸奔」
  * 三族（MA-047 / MA-065 / WebConfig:24）的登记制控制。
  *
- * 依据 scripts/callback-endpoint-registry.json（8 个回调端点全量入册），判据：
+ * 依据 scripts/callback-endpoint-registry.json（回调端点全量入册），判据：
  *   ① **完备性**：trade/gateway/device 主源码里新出现的 notify/callback 映射必须登记
  *     （机械提取：类级 @RequestMapping 前缀 + 方法级路径含 notify|callback，排除
  *     prefs/subscribe/wx-bind 商户配置面）——新回调不登记即红；
  *   ② **白名单锚点（MA-047 本体）**：authMode=SIGNATURE_BYPASS 的 path 必须真实出现在
- *     trade WebConfig 免登录白名单；ONE_TIME_TOKEN 必须在 gateway excludePathPatterns
- *     ——回调漏配白名单=渠道重投全 401=线上死路；
+ *     trade WebConfig 免登录白名单；ONE_TIME_TOKEN 按 registry.whitelist 校验 trade/gateway
+ *     白名单——回调漏配白名单=渠道重投全 401=线上死路；
  *   ③ **mock 裸奔防线**：DEV_ONLY 的 path 必须不在 trade 白名单（WebConfig:24 注释明令）；
  *   ④ **设备面不豁免**：DEVICE_TOKEN 的 path 必须不在 gateway 豁免表（豁免=免 JWT 裸奔）；
  *   ⑤ 控制器文件与路径字面量必须真实存在（防登记漂移，仿 check-ledger-evidence）。
@@ -37,7 +37,12 @@ export function extractCallbackMappings(src, rel) {
     const pathM = m[2].match(/"([^"]+)"/);
     const path = pathM ? pathM[1] : '';
     const full = (clsPrefix + path).replace(/\/+/g, '/');
-    if (/notify|callback/i.test(full) && !/prefs|subscribe|wx-bind/.test(full)) {
+    const merchantOfficialConfig = /\/merchant\/notify\/official-account\//.test(full);
+    if (
+      /notify|callback/i.test(full) &&
+      !/prefs|subscribe|wx-bind/.test(full) &&
+      !merchantOfficialConfig
+    ) {
       out.push({ file: rel, path: full, method: m[1] === 'Post' ? 'POST' : 'GET' });
     }
   }
@@ -87,9 +92,11 @@ export function evaluate(mappings, registry, tradeWebSrc, gatewayWebSrc, existsF
         );
       }
     } else if (e.authMode === 'ONE_TIME_TOKEN') {
-      if (!gatewayWebSrc.includes(e.path)) {
+      const whitelistSrc = e.whitelist === 'trade' ? tradeWebSrc : gatewayWebSrc;
+      const surface = e.whitelist === 'trade' ? 'trade' : '网关面';
+      if (!whitelistSrc.includes(e.path)) {
         problems.push(
-          `MA-047 形态（网关面）：${e.path} 是一次性凭据回调但不在 gateway excludePathPatterns——厂商重投将全 401`
+          `MA-047 形态（${surface}）：${e.path} 是一次性凭据回调但不在免登录白名单——渠道重投将全 401`
         );
       }
     } else if (e.authMode === 'DEV_ONLY') {

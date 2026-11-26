@@ -187,6 +187,8 @@ C=(docker compose -p ai-cabinet --env-file infra/.env.production
   -f infra/docker-compose.production.yml -f infra/docker-compose.prod-server.yml
   -f infra/docker-compose.xxljob.yml --profile apps)
 export IMAGE_TAG="$SHA"
+# tar 解包会替换 bind-mount 文件 inode；监控容器必须重建才能挂到新规则/模板。
+"${C[@]}" up -d --no-deps --force-recreate prometheus alertmanager 2>&1 | tail -3
 "${C[@]}" build trade-service device-service jiangyi-gateway 2>&1 | tail -5
 "${C[@]}" up -d --no-deps --force-recreate --scale "trade-service=$TRADE_REPLICAS" trade-service 2>&1 | tail -3
 "${C[@]}" up -d --no-deps --force-recreate --scale "device-service=$DEVICE_REPLICAS" device-service 2>&1 | tail -3
@@ -231,6 +233,24 @@ wait_healthy trade-service "$TRADE_REPLICAS" "ai-cabinet/trade-service:$SHA"
 wait_healthy device-service "$DEVICE_REPLICAS" "ai-cabinet/device-service:$SHA"
 wait_healthy jiangyi-gateway "$JIANGYI_REPLICAS" "ai-cabinet/jiangyi-gateway:$SHA"
 wait_healthy trade-lb 1 "haproxy:2.9-alpine@sha256:3e29449a6beed63262e36104adf531b4e41b359f61937303f5ea8607987b3748"
+
+wait_monitoring() {
+  local i
+  for i in $(seq 1 30); do
+    if curl -fsS http://127.0.0.1:9090/devops/prometheus/-/ready >/dev/null 2>&1 \
+      && curl -fsS http://127.0.0.1:9090/devops/prometheus/api/v1/rules | grep -q 'ScheduledTaskRecordedFailure' \
+      && curl -fsS http://127.0.0.1:19093/-/ready >/dev/null 2>&1; then
+      echo "✅ prometheus/alertmanager ready，ScheduledTaskRecordedFailure 已加载"
+      return 0
+    fi
+    sleep 2
+  done
+  echo "❌ 监控栈未就绪或新告警规则未加载"
+  docker logs ai-cabinet-prometheus-1 --tail 30 2>&1 || true
+  docker logs ai-cabinet-alertmanager-1 --tail 30 2>&1 || true
+  return 1
+}
+wait_monitoring
 REMOTE2
 
 echo "── [5b/7] recreate gateway（校验文件挂载）──"

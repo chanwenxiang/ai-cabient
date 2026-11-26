@@ -10,9 +10,11 @@ import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.MerchantWalletAccount;
 import com.aicabinet.trade.domain.MerchantWalletLedger;
 import com.aicabinet.trade.domain.MerchantWithdrawRequest;
+import com.aicabinet.trade.domain.OpsUserMerchant;
 import com.aicabinet.trade.domain.PayoutAccount;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.MerchantWithdrawRequestMapper;
+import com.aicabinet.trade.mapper.OpsUserMerchantMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import com.aicabinet.trade.mapper.PayoutAccountMapper;
 import com.aicabinet.trade.payout.PayoutChannel;
@@ -31,6 +33,8 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
@@ -38,6 +42,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -90,6 +95,9 @@ public class MerchantWithdrawService {
     private final ApprovalWorkflowService approvalWorkflowService;
     /** MA-407 确认收款模式：待用户确认票据（24h UX 凭证，放 Redis）。 */
     private final PayoutConfirmTicketStore confirmTicketStore;
+    /** 服务号资金通知：提现成功/终态失败；null 容忍（既有单测不关心通知）。 */
+    private final NotificationService notificationService;
+    private final OpsUserMerchantMapper userMerchantRepository;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final MerchantWithdrawService self;
 
@@ -116,6 +124,8 @@ public class MerchantWithdrawService {
                                    PlatformFundService platformFundService,
                                    SystemConfigService systemConfigService,
                                    PayoutConfirmTicketStore confirmTicketStore,
+                                   NotificationService notificationService,
+                                   OpsUserMerchantMapper userMerchantRepository,
                                    @Lazy MerchantWithdrawService self) {
         this.withdrawMapper = withdrawMapper;
         this.merchantMapper = merchantMapper;
@@ -138,6 +148,8 @@ public class MerchantWithdrawService {
         this.platformFundService = platformFundService;
         this.systemConfigService = systemConfigService;
         this.confirmTicketStore = confirmTicketStore;
+        this.notificationService = notificationService;
+        this.userMerchantRepository = userMerchantRepository;
         this.self = self;
     }
 
@@ -812,6 +824,7 @@ public class MerchantWithdrawService {
                     WithdrawFeeCalculator.netPayoutCents(request.getAmountCents(), feeCents),
                     feeCents,
                     WITHDRAW, String.valueOf(request.getRequestId()), "提现打款成功");
+            notifyWithdrawAfterCommit(request, true, null);
             return toDto(request);
         }
         request.setStatus("FAILED");
@@ -832,6 +845,10 @@ public class MerchantWithdrawService {
         // 打款失败即释放冻结，避免冻结悬挂（与人工 cancelFailed 解冻口径一致；日限额统计仍排除终态）
         merchantWalletService.releaseFrozen(request.getMerchantId(), request.getAmountCents(),
                 WITHDRAW, String.valueOf(request.getRequestId()), "提现打款失败释放");
+        // NOT_ENOUGH 会排下一小时自动重试：此时不发“失败”，等重试耗尽/确定失败再通知。
+        if (!fundingFailure) {
+            notifyWithdrawAfterCommit(request, false, trim(result.message()));
+        }
         return toDto(request);
     }
 
@@ -884,7 +901,94 @@ public class MerchantWithdrawService {
             platformFundService.recordPayoutQuietly(request.getPayChannel(),
                     Math.max(0L, request.getAmountCents() - feeCents), requestId);
         }
+        notifyWithdrawAfterCommit(request, success, message);
         return true;
+    }
+
+    /**
+     * 提现结果通知在事务提交后发：NotificationService 可能同步调微信 HTTP，
+     * 放在扣款/释冻事务里会长时间持锁。重复回调/CAS 未推进的路径不会走到这里。
+     */
+    private void notifyWithdrawAfterCommit(MerchantWithdrawRequest request, boolean success,
+                                           String failureMessage) {
+        if (notificationService == null || userMerchantRepository == null) {
+            return;
+        }
+        Runnable notify = () -> notifyWithdrawOperators(request, success, failureMessage);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    notify.run();
+                }
+            });
+        } else {
+            notify.run();
+        }
+    }
+
+    private void notifyWithdrawOperators(MerchantWithdrawRequest request, boolean success,
+                                         String failureMessage) {
+        try {
+            List<OpsUserMerchant> binds = userMerchantRepository.findByMerchantId(request.getMerchantId());
+            if (binds.isEmpty()) {
+                return;
+            }
+            Merchant merchant = merchantMapper.selectById(request.getMerchantId());
+            String account = merchant != null && merchant.getMerchantName() != null
+                    ? merchant.getMerchantName() : request.getMerchantId();
+            long amount = request.getAmountCents() == null ? 0L : request.getAmountCents();
+            long fee = request.getFeeCents() == null ? 0L : request.getFeeCents();
+            String requestTime = DateTimeFormatter.ofPattern("yyyy年M月d日 HH:mm")
+                    .withZone(ZONE)
+                    .format(request.getCreatedAt() == null ? Instant.now() : request.getCreatedAt());
+            Map<String, String> params = new java.util.LinkedHashMap<>();
+            params.put("amount", yuan(amount));
+            params.put("fee", yuan(fee));
+            params.put("receivedAmount", yuan(Math.max(0L, amount - fee)));
+            params.put("account", account);
+            params.put("requestTime", requestTime);
+            params.put("failureReason", success ? "" : normalizeWithdrawFailureReason(failureMessage));
+            for (OpsUserMerchant bind : binds) {
+                if (bind.getUserId() == null) {
+                    continue;
+                }
+                try {
+                    if (success) {
+                        notificationService.send("MERCHANT", bind.getUserId(), request.getMerchantId(),
+                                "merchant_withdraw_success", params, "WITHDRAW_SUCCESS",
+                                String.valueOf(request.getRequestId()));
+                    } else {
+                        notificationService.send("MERCHANT", bind.getUserId(), request.getMerchantId(),
+                                "merchant_withdraw_failed", params, "WITHDRAW_FAILED",
+                                String.valueOf(request.getRequestId()));
+                    }
+                } catch (Exception e) {
+                    log.warn("withdraw notification failed requestId={} userId={}: {}",
+                            request.getRequestId(), bind.getUserId(), e.toString());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("withdraw notification dispatch failed requestId={}", request.getRequestId(), e);
+        }
+    }
+
+    /** 与「提现失败提醒」模板审核通过的枚举逐字对齐；未知渠道错误统一落「其他原因」。 */
+    private static String normalizeWithdrawFailureReason(String message) {
+        String raw = message == null ? "" : message.toUpperCase(Locale.ROOT);
+        if (raw.contains("NOT_ENOUGH") || raw.contains("备付金不足")) {
+            return "备付金不足";
+        }
+        if (raw.contains("账户") || raw.contains("银行卡") || raw.contains("ACCOUNT") || raw.contains("BANK")) {
+            return "账户信息有误";
+        }
+        if (raw.contains("拒收") || raw.contains("REJECT")) {
+            return "银行卡拒收";
+        }
+        if (raw.contains("渠道") || raw.contains("SYSTEM") || raw.contains("FAIL")) {
+            return "渠道处理失败";
+        }
+        return "其他原因";
     }
 
     /**

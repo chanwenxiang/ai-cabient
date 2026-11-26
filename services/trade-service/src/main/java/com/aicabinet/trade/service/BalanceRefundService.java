@@ -17,6 +17,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -68,6 +69,9 @@ public class BalanceRefundService {
     private final SystemConfigService systemConfigService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效（C05 分阶段事务）。 */
     private final BalanceRefundService self;
+    /** 退款成功服务号通知；字段注入避免既有大量构造夹具同步改动。 */
+    @Autowired
+    private NotificationService notificationService;
 
     private static final String BIZ_BALANCE_REFUND = "BALANCE_REFUND";
 
@@ -647,6 +651,9 @@ public class BalanceRefundService {
     public BalanceRefundRequest markRefundSuccess(long requestId) {
         BalanceRefundRequest req = requestMapper.selectByIdForUpdate(requestId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "退款申请不存在"));
+        if (STATUS_REFUNDED.equals(req.getStatus())) {
+            return req;
+        }
         req.setStatus(STATUS_REFUNDED);
         req.setRefundedAt(Instant.now());
         req.setFailReason(null);
@@ -663,6 +670,10 @@ public class BalanceRefundService {
                 "通过并原路退款 " + req.getRequestNo()
                         + " ¥" + String.format("%.2f", req.getAmountCents() / 100.0));
         log.info("balance refund succeeded request={} amount={}", req.getRequestNo(), req.getAmountCents());
+        if (notificationService != null) {
+            notificationService.notifyRefundAfterCommit(req.getUserId(), req.getRequestNo(),
+                    req.getAmountCents(), false);
+        }
         return req;
     }
 

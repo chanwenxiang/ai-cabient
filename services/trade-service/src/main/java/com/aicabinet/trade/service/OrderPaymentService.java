@@ -25,6 +25,7 @@ import com.aicabinet.trade.util.BizIds;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -91,6 +92,9 @@ public class OrderPaymentService {
     private final OpsAlertDispatcher opsAlertDispatcher;
     private final InvoiceRequestMapper invoiceRequestMapper;
     private final OrderPaymentService self;
+    /** 退款成功服务号通知；字段注入避免既有大量构造夹具同步改动。 */
+    @Autowired
+    private NotificationService notificationService;
 
     public OrderPaymentService(UserInfoMapper userInfoRepository,
                                PayScoreService payScoreService,
@@ -1390,6 +1394,10 @@ public class OrderPaymentService {
         alertIfInvoicedOnFullRefund(locked, prep.refundCents());
         log.info("live channel order refund finalized order={} channel={} amount={} total={} refundStatus={}",
                 prep.orderId(), prep.channel(), prep.channelRefundCents(), prep.refundCents(), channelRefundStatus);
+        if (notificationService != null) {
+            notificationService.notifyRefundAfterCommit(locked.getUserId(), locked.getOrderId(),
+                    prep.channelRefundCents(), true);
+        }
         return true;
     }
 
@@ -1443,6 +1451,10 @@ public class OrderPaymentService {
                 pending.getOrderId(), pending.getIdempotencyKey());
         finalizeRefundInitiated(pending.getIdempotencyKey());
         resumeCompletedOrderRefund(pending.getIdempotencyKey());
+        if (notificationService != null) {
+            notificationService.notifyRefundAfterCommit(pending.getUserId(), pending.getOrderId(),
+                    channelCents, true);
+        }
         return true;
     }
 

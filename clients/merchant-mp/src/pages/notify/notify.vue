@@ -30,6 +30,24 @@
         <text v-else-if="!subscribeReady" class="hint">未配置订阅模板，暂不能推送</text>
       </view>
 
+      <view v-if="isMpWeixin && officialConfigured" class="card official-card">
+        <view class="official-row">
+          <view class="official-copy">
+            <text class="field-label">服务号经营日报</text>
+            <text class="official-desc"
+              >昨日销售额、成交笔数、客单价直接发到微信服务号，点击可回到商户小程序。</text
+            >
+            <text class="official-status">{{ officialBound ? '已绑定' : '未绑定' }}</text>
+          </view>
+          <app-button
+            variant="soft"
+            :loading="officialBusy"
+            :label="officialBound ? '重新绑定' : '去绑定'"
+            @click="onOfficialBind"
+          />
+        </view>
+      </view>
+
       <view v-if="subscribeReady" class="card">
         <text class="field-label">提醒类型</text>
         <view class="notify-types">
@@ -78,6 +96,9 @@ import {
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const notifyBusy = ref(false);
+const officialConfigured = ref(false);
+const officialBound = ref(false);
+const officialBusy = ref(false);
 const wxBound = ref(false);
 const enabledTypes = ref<string[]>([]);
 const alertTypeOptions = MERCHANT_ALERT_TYPES;
@@ -148,6 +169,25 @@ async function onBindWx() {
   }
 }
 
+async function onOfficialBind() {
+  if (!isMpWeixin || officialBusy.value) return;
+  officialBusy.value = true;
+  try {
+    const ticket = await merchantApi.notifyOfficialAccountBindTicket();
+    if (!ticket?.authorizeUrl) {
+      showError('服务号授权地址获取失败');
+      return;
+    }
+    uni.navigateTo({
+      url: '/pages/notify/official-account-bind?url=' + encodeURIComponent(ticket.authorizeUrl)
+    });
+  } catch (e) {
+    showError(e instanceof Error ? e.message : '服务号绑定失败');
+  } finally {
+    officialBusy.value = false;
+  }
+}
+
 async function onSaveSubscribe() {
   notifyBusy.value = true;
   try {
@@ -186,9 +226,14 @@ onShow(async () => {
   runtimeSubscribeTmplId.value = merchantSubscribeTemplateId();
   runtimeDailyReportTmplId.value = merchantDailyReportTemplateId();
   try {
-    const prefs = await merchantApi.notifyPrefs();
+    const [prefs, official] = await Promise.all([
+      merchantApi.notifyPrefs(),
+      merchantApi.notifyOfficialAccountStatus()
+    ]);
     wxBound.value = !!prefs.wxBound;
     enabledTypes.value = [...(prefs.enabledAlertTypes || [])];
+    officialConfigured.value = !!official?.configured;
+    officialBound.value = !!official?.bound;
   } catch {
     /* ignore — page still usable */
   }

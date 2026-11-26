@@ -10,6 +10,10 @@ import type { components } from './openapi';
 export type OpenApiNotificationDto = components['schemas']['NotificationDto'];
 /** 消费者通知偏好 */
 export type OpenApiNotifyPrefDto = components['schemas']['NotifyPrefDto'];
+/** 服务号网页授权一次性票据 */
+export type OpenApiWeChatOfficialBindTicketDto = components['schemas']['WeChatOfficialBindTicketDto'];
+/** 消费者服务号通知绑定状态 */
+export type OpenApiWeChatOfficialBindingStatusDto = components['schemas']['WeChatOfficialBindingStatusDto'];
 /** 商户告警订阅偏好 */
 export type OpenApiMerchantNotifyPrefDto = components['schemas']['MerchantNotifyPrefDto'];
 /** 营销 Banner */

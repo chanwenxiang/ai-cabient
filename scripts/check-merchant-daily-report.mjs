@@ -103,6 +103,9 @@ export function merchantDailyReportProblems({ notifier, scheduler, placeholders 
       '日报发出端点用了待办提醒模板 subscribeTemplateId()（thing 键与金额键不通用，微信必回 400）'
     );
   }
+  if (!/isMerchantDailyReportConfigured\s*\(/.test(n)) {
+    problems.push('日报发出端没有服务号独立日报模板配置判据（不能复用消费者模板）');
+  }
 
   // B 关键词名只从配置取
   for (const key of KEYWORD_LITERALS) {
@@ -113,18 +116,29 @@ export function merchantDailyReportProblems({ notifier, scheduler, placeholders 
     }
   }
 
-  // C 目标端必须 MERCHANT
+  // C 目标端必须 MERCHANT：服务号与小程序订阅两条发送链都不得串到消费者
+  const officialCall = n.match(/sendTemplateMessage\s*\(([\s\S]*?)\)\s*;/);
+  if (!officialCall) {
+    problems.push('日报发出端找不到服务号 sendTemplateMessage 调用（服务号优先链缺失）');
+  } else {
+    if (!/MiniAppTarget\.MERCHANT/.test(officialCall[1])) {
+      problems.push('服务号日报没有指定 MiniAppTarget.MERCHANT（会跳到消费者小程序）');
+    }
+    if (/MiniAppTarget\.CONSUMER/.test(officialCall[1])) {
+      problems.push('服务号日报被改成消费者端（商户收不到，且会污染消费者模板）');
+    }
+  }
   const call = n.match(/sendSubscribeMessage\s*\(([\s\S]*?)\)\s*;/);
   if (!call) {
-    problems.push('日报发出端找不到 sendSubscribeMessage 调用（判据失效，先核对实现）');
+    problems.push('日报发出端找不到 sendSubscribeMessage 回落调用（未绑定服务号的商户会失去通知）');
   } else {
     if (!/MiniAppTarget\.MERCHANT/.test(call[1])) {
       problems.push(
-        '日报发送没有指定 MiniAppTarget.MERCHANT（消费者 token 发商户 openid 必 40003）'
+        '日报订阅回落没有指定 MiniAppTarget.MERCHANT（消费者 token 发商户 openid 必 40003）'
       );
     }
     if (/MiniAppTarget\.CONSUMER/.test(call[1])) {
-      problems.push('日报发送被改成消费者端（商户收不到，且会污染消费者模板）');
+      problems.push('日报订阅回落被改成消费者端（商户收不到，且会污染消费者模板）');
     }
   }
 
