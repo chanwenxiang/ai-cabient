@@ -422,6 +422,11 @@
       "why": "业务/配置实体"
     },
     {
+      "table": "notification_dispatch_outbox",
+      "policy": "RETAIN",
+      "why": "通知投递凭证与持久化重试队列，需保留用于审计和故障追溯"
+    },
+    {
       "table": "notification_log",
       "policy": "months",
       "value": 6,

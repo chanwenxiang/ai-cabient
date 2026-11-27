@@ -402,6 +402,7 @@ public class MerchantWithdrawService {
 
     @Transactional
     public PayoutGate completeReview(Long operatorId, long requestId, boolean approve, String remark) {
+        // CONCURRENCY: review() 持商户钱包分布式锁，本方法仅做审核状态短事务。
         MerchantWithdrawRequest request = requireRequest(requestId);
         if (!"PENDING_REVIEW".equals(request.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可审核");
@@ -427,6 +428,8 @@ public class MerchantWithdrawService {
             auditService.appendLog(operatorId, MERCHANT_WITHDRAW_REVIEW, BIZ_MERCHANT_WITHDRAW,
                     String.valueOf(request.getRequestId()), "驳回；金额(分)=" + request.getAmountCents()
                             + "；备注=" + trim(remark));
+            notifyWithdrawAfterCommit(request, false,
+                    "提现申请已驳回" + (trim(remark).isEmpty() ? "" : "：" + trim(remark)));
             return PayoutGate.done(toDto(request));
         }
         approvalWorkflowService.completeApproved(

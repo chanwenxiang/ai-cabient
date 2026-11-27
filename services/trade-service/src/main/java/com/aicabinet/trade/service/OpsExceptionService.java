@@ -442,7 +442,6 @@ public class OpsExceptionService {
         });
     }
 
-    @Transactional
     public OpsExceptionDto manualResolve(Long operatorId, String exceptionId, String resolutionType,
                                          List<ResolveDisputeRequest.ManualLineItem> lines,
                                          String idempotencyKey, String reason) {
@@ -455,6 +454,26 @@ public class OpsExceptionService {
     private OpsExceptionDto doManualResolve(Long operatorId, String exceptionId, String resolutionType,
                                             List<ResolveDisputeRequest.ManualLineItem> lines,
                                             String idempotencyKey, String reason) {
+        ManualResolvePlan plan = self.prepareManualResolve(operatorId, exceptionId, resolutionType,
+                lines, idempotencyKey, reason);
+        if (plan.replay()) {
+            return self.getManualResolveReplay(plan.exceptionId());
+        }
+        ShoppingSession session = support.sessionRepository().findById(plan.sessionId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        String result = applyManualResolution(session, plan.resolutionType(), plan.lines(), plan.reason());
+        return self.finalizeManualResolve(plan, result);
+    }
+
+    @Transactional(readOnly = true)
+    public OpsExceptionDto getManualResolveReplay(String exceptionId) {
+        return toDto(require(exceptionId));
+    }
+
+    @Transactional
+    public ManualResolvePlan prepareManualResolve(Long operatorId, String exceptionId, String resolutionType,
+                                                  List<ResolveDisputeRequest.ManualLineItem> lines,
+                                                  String idempotencyKey, String reason) {
         OpsException item = requireForUpdate(exceptionId);
         requireScopedDeviceAccess(operatorId, item.getDeviceId());
         if (!Set.of("BALANCE_INSUFFICIENT", "RECOGNITION_UNAVAILABLE", "RECOGNITION_FAILED",
@@ -465,21 +484,19 @@ public class OpsExceptionService {
         boolean replay = support.auditRepository().findByTargetTypeAndTargetIdOrderByCreatedAtAsc(
                         OPS_EXCEPTION, exceptionId).stream()
                 .anyMatch(log -> log.getDetail() != null && log.getDetail().contains(marker));
-        if (replay || STATUS_RESOLVED.equals(item.getStatus())) return toDto(item);
+        if (replay || STATUS_RESOLVED.equals(item.getStatus())) {
+            return new ManualResolvePlan(operatorId, exceptionId, item.getSessionId(), item.getDeviceId(),
+                    resolutionType, lines, marker, reason, true);
+        }
         if (item.getSessionId() == null || item.getSessionId().isBlank()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该异常未关联购物会话");
         }
-        var session = support.sessionRepository().findById(item.getSessionId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-        String result = applyManualResolution(session, item, resolutionType, lines, reason);
         String type = resolutionType == null ? "" : resolutionType.trim().toUpperCase();
-        finalizeManualResolve(new ManualResolveFinalization(
-                operatorId, exceptionId, item, session,
-                new ManualResolveFinalization.ManualResolveOutcome(type, lines, marker, result)));
-        return toDto(item);
+        return new ManualResolvePlan(operatorId, exceptionId, item.getSessionId(), item.getDeviceId(),
+                type, lines, marker, reason, false);
     }
 
-    private String applyManualResolution(ShoppingSession session, OpsException item, String resolutionType,
+    private String applyManualResolution(ShoppingSession session, String resolutionType,
                                          List<ResolveDisputeRequest.ManualLineItem> lines, String reason) {
         String type = resolutionType == null ? "" : resolutionType.trim().toUpperCase();
         if ("WAIVE".equals(type)) {
@@ -493,7 +510,6 @@ public class OpsExceptionService {
                     .toList();
             var settled = support.settlementService().confirmDisputedItems(session, recognized);
             session.setOrderId(settled.order().orderId());
-            item.setOrderId(settled.order().orderId());
             return "人工确认商品，原金额=" + settled.originalAmountCents()
                     + " 分，最终金额=" + settled.finalAmountCents()
                     + " 分，差额=" + settled.adjustmentCents() + " 分；原因=" + reason;
@@ -501,33 +517,35 @@ public class OpsExceptionService {
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "resolutionType 仅支持 CONFIRM、ADJUST、WAIVE");
     }
 
-    private record ManualResolveFinalization(
-            Long operatorId, String exceptionId, OpsException item, ShoppingSession session,
-            ManualResolveOutcome outcome) {
-        private record ManualResolveOutcome(
-                String resolutionType, List<ResolveDisputeRequest.ManualLineItem> lines,
-                String marker, String result) {}
-    }
+    record ManualResolvePlan(
+            Long operatorId, String exceptionId, String sessionId, String deviceId,
+            String resolutionType, List<ResolveDisputeRequest.ManualLineItem> lines,
+            String marker, String reason, boolean replay) {}
 
-    private void finalizeManualResolve(ManualResolveFinalization ctx) {
-        ctx.session().setFailReason(null);
-        support.sessionService().transition(ctx.session(), SessionState.COMPLETED);
+    @Transactional
+    public OpsExceptionDto finalizeManualResolve(ManualResolvePlan plan, String result) {
+        OpsException item = requireForUpdate(plan.exceptionId());
+        requireScopedDeviceAccess(plan.operatorId(), item.getDeviceId());
+        ShoppingSession session = support.sessionRepository().findById(plan.sessionId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        session.setFailReason(null);
+        support.sessionService().transition(session, SessionState.COMPLETED);
         // R2-D3：updateById 跳 null ⇒ 必须显式清列，否则人工结案后的会话仍挂着旧的失败原因。
-        support.sessionService().clearFailReason(ctx.session().getSessionId());
+        support.sessionService().clearFailReason(session.getSessionId());
         support.disputeService().closeOpenTicketForSession(
-                ctx.operatorId(), ctx.session().getSessionId(),
-                ctx.outcome().resolutionType(), ctx.outcome().lines());
-        if ((ctx.item().getOrderId() == null || ctx.item().getOrderId().isBlank())
-                && ctx.session().getOrderId() != null && !ctx.session().getOrderId().isBlank()) {
-            ctx.item().setOrderId(ctx.session().getOrderId());
+                plan.operatorId(), session.getSessionId(), plan.resolutionType(), plan.lines());
+        if ((item.getOrderId() == null || item.getOrderId().isBlank())
+                && session.getOrderId() != null && !session.getOrderId().isBlank()) {
+            item.setOrderId(session.getOrderId());
         }
-        ctx.item().setAssigneeUserId(ctx.operatorId());
-        ctx.item().setStatus(STATUS_RESOLVED);
-        ctx.item().setResolution(trim(ctx.outcome().result()));
-        ctx.item().setResolvedAt(Instant.now());
-        repository.save(ctx.item());
-        support.auditService().appendLog(ctx.operatorId(), "OPS_EXCEPTION_MANUAL_RESOLVE", OPS_EXCEPTION, ctx.exceptionId(),
-                ctx.outcome().marker() + "; " + ctx.outcome().result());
+        item.setAssigneeUserId(plan.operatorId());
+        item.setStatus(STATUS_RESOLVED);
+        item.setResolution(trim(result));
+        item.setResolvedAt(Instant.now());
+        repository.save(item);
+        support.auditService().appendLog(plan.operatorId(), "OPS_EXCEPTION_MANUAL_RESOLVE", OPS_EXCEPTION, plan.exceptionId(),
+                plan.marker() + "; " + result);
+        return toDto(item);
     }
 
     private OpsException require(String id) { return repository.findById(id).orElseThrow(() ->

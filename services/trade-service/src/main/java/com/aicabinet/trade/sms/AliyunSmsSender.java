@@ -37,6 +37,18 @@ import java.util.stream.Collectors;
 public class AliyunSmsSender implements SmsSender {
 
     private static final Logger log = LoggerFactory.getLogger(AliyunSmsSender.class);
+
+    public static final class AmbiguousDispatchException extends IllegalStateException {
+        public AmbiguousDispatchException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    public static final class RejectedDispatchException extends IllegalStateException {
+        public RejectedDispatchException(String message) {
+            super(message);
+        }
+    }
     private static final String ENDPOINT = "https://dysmsapi.aliyuncs.com/";
     private static final DateTimeFormatter ISO = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
             .withZone(ZoneOffset.UTC);
@@ -100,7 +112,7 @@ public class AliyunSmsSender implements SmsSender {
         } catch (IllegalStateException e) {
             throw e;
         } catch (Exception e) {
-            throw new IllegalStateException("Aliyun SMS dispatch failed", e);
+            throw new AmbiguousDispatchException("Aliyun SMS dispatch outcome unknown", e);
         }
     }
 
@@ -243,9 +255,13 @@ public class AliyunSmsSender implements SmsSender {
      * 仍返回 HTTP 200，只看状态码会把失败当成功；必须解析响应体 {@code Code}，仅 {@code OK} 算成功。
      */
     void verifyAliyunAccepted(int status, String responseBody) {
+        if (status >= 500) {
+            log.warn("Aliyun SMS HTTP {} body={}", status, truncate(responseBody));
+            throw new AmbiguousDispatchException("Aliyun SMS HTTP " + status, null);
+        }
         if (status >= 400) {
             log.warn("Aliyun SMS HTTP {} body={}", status, truncate(responseBody));
-            throw new IllegalStateException("Aliyun SMS HTTP " + status);
+            throw new RejectedDispatchException("Aliyun SMS HTTP " + status);
         }
         String code;
         String message;
@@ -254,11 +270,12 @@ public class AliyunSmsSender implements SmsSender {
             code = node.path("Code").asText("");
             message = node.path("Message").asText("");
         } catch (Exception e) {
-            throw new IllegalStateException("Aliyun SMS unexpected response body: " + truncate(responseBody));
+            throw new AmbiguousDispatchException(
+                    "Aliyun SMS unexpected response body: " + truncate(responseBody), e);
         }
         if (!"OK".equals(code)) {
             log.warn("Aliyun SMS rejected code={} message={}", code, message);
-            throw new IllegalStateException("Aliyun SMS business error code=" + code + " message=" + message);
+            throw new RejectedDispatchException("Aliyun SMS business error code=" + code + " message=" + message);
         }
     }
 

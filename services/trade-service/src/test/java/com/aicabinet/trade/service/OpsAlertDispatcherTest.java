@@ -9,6 +9,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.http.HttpStatus;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
@@ -55,6 +57,27 @@ class OpsAlertDispatcherTest {
     void setUp() {
         dispatcher = spy(new OpsAlertDispatcher(systemConfigService, RestClient.builder(), org.mockito.Mockito.mock(SmtpAlertMailer.class), org.mockito.Mockito.mock(com.aicabinet.trade.sms.AliyunSmsSender.class)));
         doReturn(ACCEPTED_BODY).when(dispatcher).postJson(anyString(), any());
+    }
+
+    @Test
+    void sendAfterCommit_waitsForCommitAndIsolatesCallbackFailure() {
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            doThrow(new IllegalStateException("webhook down")).when(dispatcher)
+                    .send("TEST", "标题", "正文", Map.of());
+
+            dispatcher.sendAfterCommit("TEST", "标题", "正文");
+
+            verify(dispatcher, times(0)).send("TEST", "标题", "正文", Map.of());
+            org.junit.jupiter.api.Assertions.assertDoesNotThrow(() ->
+                    TransactionSynchronizationManager.getSynchronizations()
+                            .forEach(TransactionSynchronization::afterCommit));
+            verify(dispatcher).send("TEST", "标题", "正文", Map.of());
+        } finally {
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     @Test

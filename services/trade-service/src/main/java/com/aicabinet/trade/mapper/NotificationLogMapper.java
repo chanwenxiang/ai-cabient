@@ -4,6 +4,7 @@ import com.aicabinet.trade.domain.NotificationLog;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import java.util.Optional;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -11,6 +12,17 @@ import java.util.List;
 
 @Mapper
 public interface NotificationLogMapper extends BaseTradeMapper<NotificationLog> {
+
+    @Insert("""
+            INSERT INTO notification_log
+                (template_code, channel, audience, user_id, merchant_id, title, body,
+                 biz_type, biz_id, client_msg_id, status, created_at)
+            VALUES
+                (#{templateCode}, #{channel}, #{audience}, #{userId}, #{merchantId}, #{title}, #{body},
+                 #{bizType}, #{bizId}, #{clientMsgId}, #{status}, #{createdAt})
+            ON CONFLICT DO NOTHING
+            """)
+    int insertIgnore(NotificationLog logEntry);
 
     NotificationLog findByIdForUpdateRaw(@Param("id") Long id);
 

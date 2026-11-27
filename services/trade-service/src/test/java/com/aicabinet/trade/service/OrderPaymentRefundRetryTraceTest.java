@@ -244,7 +244,7 @@ class OrderPaymentRefundRetryTraceTest {
 
         assertEquals("REFUND_FAILED", t.getStatus());
         verify(paymentOperationRepository).failIfInitiated(eq("OP-rk5"), any());
-        verify(opsAlertDispatcher).send(eq("REFUND_RETRY_EXHAUSTED"), eq("渠道退款重试耗尽"),
+        verify(opsAlertDispatcher).sendAfterCommit(eq("REFUND_RETRY_EXHAUSTED"), eq("渠道退款重试耗尽"),
                 contains("O-RT-5"));
     }
 

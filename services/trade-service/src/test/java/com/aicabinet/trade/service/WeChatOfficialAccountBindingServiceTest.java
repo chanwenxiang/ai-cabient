@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -32,16 +33,23 @@ import static org.mockito.Mockito.when;
 class WeChatOfficialAccountBindingServiceTest {
 
     private static final WeChatOfficialAccountProperties PROPS =
-            new WeChatOfficialAccountProperties(true, "gh_test", "secret", "tpl",
+            new WeChatOfficialAccountProperties(true, "gh_test", "secret", "consumer-tpl",
                     "", "https://example.test/callback", "consumer-app", "pages/messages/messages",
-                    "merchant-app", "pages/home/home", "merchant-report-tpl", "", "", "", "", "");
+                    "merchant-app", "pages/home/home", "merchant-report-tpl", "refund-tpl",
+                    "withdraw-tpl", "withdraw-failed-tpl", "dispute-tpl", "测试品牌");
 
     @Mock private WeChatOfficialAccountClient client;
     @Mock private WeChatOfficialBindingTicketStore ticketStore;
     @Mock private AccountService accountService;
+    @Mock private NotifyChannelSwitchService channelSwitch;
 
     private WeChatOfficialAccountBindingService service() {
-        return new WeChatOfficialAccountBindingService(PROPS, client, ticketStore, accountService);
+        return new WeChatOfficialAccountBindingService(PROPS, client, ticketStore, accountService, channelSwitch);
+    }
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        org.mockito.Mockito.lenient().when(channelSwitch.wechatEnabled()).thenReturn(true);
     }
 
     @Test
@@ -72,27 +80,39 @@ class WeChatOfficialAccountBindingServiceTest {
     }
 
     @Test
-    void consumerBindingAvailableWhenOnlyRefundTemplateConfigured() {
+    void consumerBindingUnavailableWhenOnlyRefundTemplateConfigured() {
         WeChatOfficialAccountProperties props = new WeChatOfficialAccountProperties(
                 true, "gh_test", "secret", "", "", "https://example.test/callback",
                 "consumer-app", "pages/messages/messages", "merchant-app", "pages/home/home",
                 "", "refund-tpl", "", "", "", "");
         WeChatOfficialAccountBindingService service =
-                new WeChatOfficialAccountBindingService(props, client, ticketStore, accountService);
+                new WeChatOfficialAccountBindingService(props, client, ticketStore, accountService, channelSwitch);
 
-        assertTrue(service.status(100L).configured());
+        assertFalse(service.status(100L).configured());
     }
 
     @Test
-    void merchantBindingAvailableWhenOnlyWithdrawTemplateConfigured() {
+    void merchantBindingUnavailableWhenOnlyWithdrawTemplateConfigured() {
         WeChatOfficialAccountProperties props = new WeChatOfficialAccountProperties(
                 true, "gh_test", "secret", "", "", "https://example.test/callback",
                 "consumer-app", "pages/messages/messages", "merchant-app", "pages/home/home",
                 "", "", "withdraw-tpl", "", "", "");
         WeChatOfficialAccountBindingService service =
-                new WeChatOfficialAccountBindingService(props, client, ticketStore, accountService);
+                new WeChatOfficialAccountBindingService(props, client, ticketStore, accountService, channelSwitch);
 
-        assertTrue(service.status(100L, com.aicabinet.trade.wechat.MiniAppTarget.MERCHANT).configured());
+        assertFalse(service.status(100L, com.aicabinet.trade.wechat.MiniAppTarget.MERCHANT).configured());
+    }
+
+    @Test
+    void merchantBindingAvailableWhenAllMerchantTemplatesConfigured() {
+        assertTrue(service().status(100L, com.aicabinet.trade.wechat.MiniAppTarget.MERCHANT).configured());
+    }
+
+    @Test
+    void globalWechatSwitchOff_hidesBindingCapability() {
+        when(channelSwitch.wechatEnabled()).thenReturn(false);
+
+        assertFalse(service().status(100L).configured());
     }
 
     @Test
@@ -146,10 +166,11 @@ class WeChatOfficialAccountBindingServiceTest {
     @Test
     void merchantBindingRejectsMissingRedirectUri() {
         WeChatOfficialAccountProperties noRedirect = new WeChatOfficialAccountProperties(
-                true, "gh_test", "secret", "tpl", "", "", "consumer-app", "pages/messages/messages",
-                "merchant-app", "pages/home/home", "merchant-report-tpl", "", "", "", "", "");
+                true, "gh_test", "secret", "consumer-tpl", "", "", "consumer-app", "pages/messages/messages",
+                "merchant-app", "pages/home/home", "merchant-report-tpl", "refund-tpl",
+                "withdraw-tpl", "withdraw-failed-tpl", "dispute-tpl", "测试品牌");
         WeChatOfficialAccountBindingService service =
-                new WeChatOfficialAccountBindingService(noRedirect, client, ticketStore, accountService);
+                new WeChatOfficialAccountBindingService(noRedirect, client, ticketStore, accountService, channelSwitch);
 
         ResponseStatusException error = assertThrows(ResponseStatusException.class,
                 () -> service.createTicket(100L, MiniAppTarget.MERCHANT));

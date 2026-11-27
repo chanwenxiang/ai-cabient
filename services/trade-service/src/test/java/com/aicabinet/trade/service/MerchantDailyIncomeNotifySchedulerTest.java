@@ -536,7 +536,7 @@ class MerchantDailyIncomeNotifySchedulerTest {
                 new java.util.concurrent.atomic.AtomicReference<>();
         when(dailyReport.send(any())).thenAnswer(inv -> {
             captured.set(inv.getArgument(0));
-            return 1;
+            return new com.aicabinet.trade.service.MerchantDailyReportNotifier.DeliveryResult(1, 0, 0);
         });
         var svc = schedulerWith(splitRepo,
                 mock(com.aicabinet.trade.mapper.MerchantFeeLedgerMapper.class),
@@ -544,14 +544,39 @@ class MerchantDailyIncomeNotifySchedulerTest {
                 mock(com.aicabinet.trade.service.NotificationService.class),
                 mock(com.aicabinet.trade.mapper.NotificationLogMapper.class), dailyReport);
 
-        int sent = svc.sendWechatReportsOnly(java.time.LocalDate.of(2026, 10, 15));
+        var result = svc.sendWechatReportsOnly(java.time.LocalDate.of(2026, 10, 15));
 
-        assertEquals(1, sent, "送达人数要进运营台执行记录");
+        assertEquals(1, result.sent(), "送达人数要进运营台执行记录");
         assertEquals(190_123L, captured.get().salesCents());
         assertEquals(3, captured.get().orderCount());
         assertEquals(63_374L, captured.get().avgCents(), "客单价四舍五入到分（1901.23/3）");
         assertEquals("2026-10-15", captured.get().bizId(), "与站内信同幂等键（日期）");
         assertEquals("2026年10月15日", captured.get().period());
+    }
+
+    @Test
+    void morningReportDeliveryFailureMarksScheduledTaskFailed() {
+        var splitRepo = mock(com.aicabinet.trade.mapper.OrderRevenueSplitMapper.class);
+        when(splitRepo.selectList(any())).thenReturn(List.of(split("M1", "ACCRUED", 150_000L)));
+        var dailyReport = mock(com.aicabinet.trade.service.MerchantDailyReportNotifier.class);
+        when(dailyReport.send(any())).thenReturn(
+                new com.aicabinet.trade.service.MerchantDailyReportNotifier.DeliveryResult(0, 1, 0));
+        var taskService = mock(com.aicabinet.trade.service.ScheduledTaskService.class);
+        when(taskService.tryBegin("merchant-daily-report", 600)).thenReturn(true);
+        var svc = new MerchantDailyIncomeNotifyScheduler(
+                mock(com.aicabinet.trade.mapper.MerchantMapper.class), splitRepo,
+                mock(com.aicabinet.trade.service.NotificationService.class),
+                mock(com.aicabinet.trade.mapper.NotificationLogMapper.class), taskService,
+                deviceRepoWith(device("PURCHASE", null, 0L)),
+                mock(com.aicabinet.trade.mapper.MerchantFeeLedgerMapper.class),
+                mock(com.aicabinet.trade.service.MerchantWalletService.class), configWithLockDays("7"),
+                mock(com.aicabinet.trade.service.DeviceSalesLockService.class),
+                walletArrearsService(), dailyReport);
+
+        svc.notifyYesterdayReport();
+
+        verify(taskService).finish(eq("merchant-daily-report"), eq("FAILED"),
+                org.mockito.ArgumentMatchers.contains("失败 1 人"), org.mockito.ArgumentMatchers.anyLong());
     }
 
     // ---------- 2026-11-20 改判：有柜机的商户每天都要收到，0 元也收到 ----------
@@ -679,7 +704,7 @@ class MerchantDailyIncomeNotifySchedulerTest {
                 new java.util.concurrent.atomic.AtomicReference<>();
         when(dailyReport.send(any())).thenAnswer(inv -> {
             captured.set(inv.getArgument(0));
-            return 1;
+            return new com.aicabinet.trade.service.MerchantDailyReportNotifier.DeliveryResult(1, 0, 0);
         });
         var svc = schedulerWith(splitRepo,
                 mock(com.aicabinet.trade.mapper.MerchantFeeLedgerMapper.class),
@@ -687,9 +712,9 @@ class MerchantDailyIncomeNotifySchedulerTest {
                 mock(com.aicabinet.trade.service.NotificationService.class),
                 mock(com.aicabinet.trade.mapper.NotificationLogMapper.class), dailyReport);
 
-        int sent = svc.sendWechatReportsOnly(java.time.LocalDate.of(2026, 10, 15));
+        var result = svc.sendWechatReportsOnly(java.time.LocalDate.of(2026, 10, 15));
 
-        assertEquals(1, sent);
+        assertEquals(1, result.sent());
         assertEquals(0L, captured.get().salesCents());
         assertEquals(0, captured.get().orderCount());
         assertEquals(0L, captured.get().avgCents());

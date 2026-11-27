@@ -158,6 +158,26 @@ export function merchantDailyReportProblems({ notifier, scheduler, placeholders 
         '日报幂等没有按 merchantId 过滤：同一操作员管理多个商户时会互相抑制，只能收到任意一个商户的日报'
       );
     }
+    if (!/getStatus[\s\S]*"SENT"/.test(dedupe[1])) {
+      problems.push('日报幂等没有限定 SENT：失败日志会挡住后续重试');
+    }
+  }
+
+  const sendBody = methodBody(n, 'public DeliveryResult send(');
+  if (sendBody === null) {
+    problems.push('日报发出端找不到 send 方法（开关/失败可见性判据锚点失效）');
+  } else {
+    if (
+      !/reportProperties\.enabled\s*\(\s*\)[\s\S]*isMerchantDailyReportConfigured/.test(sendBody)
+    ) {
+      problems.push('服务号日报绕过业务开关：MERCHANT_DAILY_REPORT_ENABLED=false 时仍会发送');
+    }
+    if (!/saveLog\([^;]*"FAILED"\)/.test(sendBody)) {
+      problems.push('微信日报发送失败没有落 FAILED 日志，运营无法区分未发与失败');
+    }
+    if (!/new\s+DeliveryResult\s*\(/.test(sendBody)) {
+      problems.push('日报发送结果没有返回失败人数，调度无法识别部分失败');
+    }
   }
 
   // E 未配模板显式跳过
@@ -193,8 +213,22 @@ export function merchantDailyReportProblems({ notifier, scheduler, placeholders 
       '00:20 的日结方法里调用了微信日报发送：会在凌晨弹通知，应只在 07:30 的 notifyYesterdayReport 里发'
     );
   }
-  if (!/int sendWechatReportsOnly\s*\(/.test(s) || !/notifyYesterdayReport\s*\(/.test(s)) {
+  if (
+    !/DeliveryResult\s+sendWechatReportsOnly\s*\(/.test(s) ||
+    !/notifyYesterdayReport\s*\(/.test(s)
+  ) {
     problems.push('调度器里没有早间日报任务（sendWechatReportsOnly / notifyYesterdayReport 缺失）');
+  }
+  const reportTask = methodBody(s, 'public void notifyYesterdayReport()');
+  if (reportTask === null) {
+    problems.push('调度器里找不到 notifyYesterdayReport 方法（失败可见性判据锚点失效）');
+  } else {
+    if (!/outcome\.failed\s*\(\s*\)\s*>\s*0/.test(reportTask)) {
+      problems.push('早间日报任务没有把渠道失败冒泡：微信发送失败仍会记 SUCCESS');
+    }
+    if (!/failed\s*\?\s*"FAILED"\s*:\s*"SUCCESS"/.test(reportTask)) {
+      problems.push('早间日报任务没有按失败人数落 FAILED/SUCCESS 状态');
+    }
   }
 
   // I 零销售日也要发（2026-11-20 改判）。生产长期 0 单时，「有成交才发」= 商户永远收不到
@@ -218,7 +252,7 @@ export function merchantDailyReportProblems({ notifier, scheduler, placeholders 
   }
   for (const [signature, label] of [
     ['NotifyOutcome sendDailyIncomeNotify', '00:20 站内信'],
-    ['int sendWechatReportsOnly', '07:30 微信']
+    ['DeliveryResult sendWechatReportsOnly', '07:30 微信']
   ]) {
     const body = methodBody(s, signature);
     // 缺失由 H 段判红；这里只判「扩集合有没有被摘掉」

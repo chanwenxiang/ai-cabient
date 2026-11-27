@@ -83,7 +83,7 @@ class MerchantDeviceIncidentNotifyServiceTest {
                 .thenReturn(Set.of("CAB-001"));
         UserInfo user = new UserInfo();
         user.setUserId(900L);
-        user.setWxOpenId("ox-demo");
+        user.setWxMerchantOpenId("ox-demo");
         when(userInfoRepository.findById(900L)).thenReturn(Optional.of(user));
         when(notifyLogRepository.findFirstByUserIdAndDigestAndSentAtAfter(eq(900L), anyString(), any()))
                 .thenReturn(Optional.empty());

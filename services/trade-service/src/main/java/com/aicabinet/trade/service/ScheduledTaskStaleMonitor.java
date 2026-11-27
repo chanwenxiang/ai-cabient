@@ -61,6 +61,7 @@ public class ScheduledTaskStaleMonitor {
             java.util.List.of(
                     "session-failed-hold-clear",
                     "refund-retry",
+                    "notification-outbox-retry",
                     "settlement-bill",
                     // R5-E2：config 开关在任务体内，tryBegin/finish 照走（留痕刷新），收编安全
                     "auto-replenish-task",

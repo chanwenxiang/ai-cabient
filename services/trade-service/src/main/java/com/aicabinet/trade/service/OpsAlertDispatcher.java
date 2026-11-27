@@ -8,6 +8,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
@@ -105,6 +107,31 @@ public class OpsAlertDispatcher {
     /** 无附加字段的便捷重载。 */
     public void send(String type, String title, String message) {
         send(type, title, message, Map.of());
+    }
+
+    public void sendAfterCommit(String type, String title, String message) {
+        sendAfterCommit(type, title, message, Map.of());
+    }
+
+    /** 业务事务提交后才外呼；无事务时立即发送，回调异常不得改写已提交业务。 */
+    public void sendAfterCommit(String type, String title, String message,
+                                Map<String, Object> extra, String... extraUrls) {
+        Runnable action = () -> send(type, title, message, extra, extraUrls);
+        if (!TransactionSynchronizationManager.isSynchronizationActive()
+                || !TransactionSynchronizationManager.isActualTransactionActive()) {
+            action.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    action.run();
+                } catch (RuntimeException e) {
+                    log.error("ops alert afterCommit failed type={}", type, e);
+                }
+            }
+        });
     }
 
     /**

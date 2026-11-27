@@ -627,6 +627,68 @@ class ExternalNotificationDispatcherTest {
     }
 
     @Test
+    void dispatch_partialChannelRetry_doesNotResendSuccessfulWechat() {
+        ExternalNotificationDispatcher dispatcher = dispatcher(true, true, true);
+        UserInfo u = officialUser();
+        u.setPhoneNumber("13800138000");
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(u));
+        when(templateRepository.findByCode("order_paid"))
+                .thenReturn(Optional.of(template("IN_APP,WECHAT_SUBSCRIBE,SMS")));
+        when(weChatOfficialAccountClient.sendTemplateMessage(anyString(), eq("official-tpl"), anyMap(),
+                anyString(), eq(MiniAppTarget.CONSUMER), anyString(), eq(true))).thenReturn(true);
+        doThrow(new IllegalStateException("sms gateway down")).when(smsSender)
+                .sendMessage(eq("13800138000"), anyString());
+        when(logRepository.selectCount(any())).thenReturn(0L, 0L, 1L, 0L);
+
+        assertThrows(IllegalStateException.class, () -> dispatcher.dispatch(message()));
+        assertThrows(IllegalStateException.class, () -> dispatcher.dispatch(message()));
+
+        verify(weChatOfficialAccountClient).sendTemplateMessage(anyString(), eq("official-tpl"), anyMap(),
+                anyString(), eq(MiniAppTarget.CONSUMER), anyString(), eq(true));
+        verify(smsSender, org.mockito.Mockito.times(2)).sendMessage(eq("13800138000"), anyString());
+    }
+
+    @Test
+    void dispatch_aliyunAmbiguousFailure_doesNotFallbackToWebhook() {
+        ExternalNotificationDispatcher dispatcher = dispatcher(false, true);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user(null, "13800138000")));
+        when(aliyunSmsSender.isConfigured()).thenReturn(true);
+        when(templateRepository.findByCode("unpaid_order_dunning"))
+                .thenReturn(Optional.of(template("unpaid_order_dunning", "IN_APP,SMS", "SMS_512512665")));
+        doThrow(new AliyunSmsSender.AmbiguousDispatchException("read timeout", null))
+                .when(aliyunSmsSender).sendMessage(anyString(), anyString(), anyMap());
+        NotificationDispatchMessage msg = new NotificationDispatchMessage("unpaid_order_dunning", 100L,
+                "订单未支付提醒", "您的订单 O1 尚未支付 12 元", "ORDER", "O1",
+                Map.of("orderId", "O1", "amount", "12"));
+
+        dispatcher.dispatch(msg);
+
+        verify(smsSender, never()).sendMessage(anyString(), anyString());
+        ArgumentCaptor<NotificationLog> captor = ArgumentCaptor.forClass(NotificationLog.class);
+        verify(logRepository).save(captor.capture());
+        assertEquals("FAILED", captor.getValue().getStatus());
+        assertEquals("SMS", captor.getValue().getChannel());
+    }
+
+    @Test
+    void dispatch_aliyunExplicitRejection_fallsBackToWebhook() {
+        ExternalNotificationDispatcher dispatcher = dispatcher(false, true);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user(null, "13800138000")));
+        when(aliyunSmsSender.isConfigured()).thenReturn(true);
+        when(templateRepository.findByCode("unpaid_order_dunning"))
+                .thenReturn(Optional.of(template("unpaid_order_dunning", "IN_APP,SMS", "SMS_512512665")));
+        doThrow(new AliyunSmsSender.RejectedDispatchException("template rejected"))
+                .when(aliyunSmsSender).sendMessage(anyString(), anyString(), anyMap());
+        NotificationDispatchMessage msg = new NotificationDispatchMessage("unpaid_order_dunning", 100L,
+                "订单未支付提醒", "您的订单 O1 尚未支付 12 元", "ORDER", "O1",
+                Map.of("orderId", "O1", "amount", "12"));
+
+        dispatcher.dispatch(msg);
+
+        verify(smsSender).sendMessage(eq("13800138000"), anyString());
+    }
+
+    @Test
     void notificationLogCarriesNoDeliveryReceiptSoSentCannotMeanArrival() {
         // 表里没有到达/回执列 ⇒ 任何把 SENT 读成「到达率」的界面/报表都是错的。
         // 将来真要接回执，必须同时新增列、改这条钉测与 javadoc 语义，不能悄悄把 SENT 升级成「已送达」。

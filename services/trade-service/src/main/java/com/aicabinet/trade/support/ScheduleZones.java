@@ -149,6 +149,7 @@ public final class ScheduleZones {
             // ScheduledTaskStaleMonitor 的扫描清单 = KEYS ∪ SPRING_RESIDENT_TASK_KEYS。
             Map.entry("session-failed-hold-clear", Duration.ofMinutes(30)),
             Map.entry("refund-retry", Duration.ofMinutes(10)),
+            Map.entry("notification-outbox-retry", Duration.ofMinutes(5)),
             Map.entry("settlement-bill", Duration.ofHours(26)),
             // R5-E2：这两个也是 Spring 常驻（config 开关在任务体内，关闭时仍 tryBegin+finish
             // 刷新 last_run_at ⇒ 收编不会误报 OVERDUE），停跑必须有看护。

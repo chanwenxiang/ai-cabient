@@ -74,7 +74,7 @@ class MerchantDailyReportNotifierTest {
     private UserInfo operator(long userId, String openId) {
         UserInfo u = new UserInfo();
         u.setUserId(userId);
-        u.setWxOpenId(openId);
+        u.setWxMerchantOpenId(openId);
         return u;
     }
 
@@ -120,12 +120,27 @@ class MerchantDailyReportNotifierTest {
     }
 
     @Test
+    void merchantFallback_doesNotUseConsumerOpenId() {
+        Fixture f = fixture(configured(), true, 0L);
+        UserInfo consumerOnly = operator(101L, null);
+        consumerOnly.setWxOpenId("consumer-openid");
+        when(f.userRepo.findById(101L)).thenReturn(Optional.of(consumerOnly));
+
+        MerchantDailyReportNotifier.DeliveryResult result = f.notifier.send(new MerchantDailyReportNotifier.MerchantDailyReport(
+                MERCHANT_ID, "2026-11-26", "2026-11-26", 0, 0));
+
+        assertEquals(0, result.sent());
+        verify(f.client, never()).sendSubscribeMessage(anyString(), anyString(), anyString(), any(), any());
+        verify(f.logRepo, never()).insert(any(NotificationLog.class));
+    }
+
+    @Test
     void sendsToMerchantMiniappWithConfiguredKeys() {
         Fixture f = fixture(configured(), true, 0L);
 
-        int sent = f.notifier().send(report());
+        MerchantDailyReportNotifier.DeliveryResult result = f.notifier().send(report());
 
-        assertEquals(1, sent, "101 有 openid、102 没有 ⇒ 只发 1 人");
+        assertEquals(1, result.sent(), "101 有 openid、102 没有 ⇒ 只发 1 人");
         ArgumentCaptor<Map<String, String>> data = ArgumentCaptor.forClass(Map.class);
         verify(f.client()).sendSubscribeMessage(eq("openid-101"), eq("tpl-daily-report"),
                 eq("pages/home/home"), data.capture(), eq(MiniAppTarget.MERCHANT));
@@ -161,9 +176,9 @@ class MerchantDailyReportNotifierTest {
         when(f.officialClient().sendTemplateMessage(anyString(), anyMap(), anyString(),
                 eq(MiniAppTarget.MERCHANT), anyString())).thenReturn(true);
 
-        int sent = f.notifier().send(report());
+        MerchantDailyReportNotifier.DeliveryResult result = f.notifier().send(report());
 
-        assertEquals(1, sent);
+        assertEquals(1, result.sent());
         ArgumentCaptor<Map<String, String>> data = ArgumentCaptor.forClass(Map.class);
         verify(f.officialClient()).sendTemplateMessage(eq("official-openid"), data.capture(), anyString(),
                 eq(MiniAppTarget.MERCHANT), eq("pages/home/home"));
@@ -177,7 +192,7 @@ class MerchantDailyReportNotifierTest {
         // 未配模板：不是「发一条空消息」，而是根本不打微信接口（fail-closed）
         Fixture f = fixture(MerchantDailyReportProperties.disabled(), true, 0L);
 
-        assertEquals(0, f.notifier().send(report()));
+        assertEquals(0, f.notifier().send(report()).sent());
         verify(f.client(), never()).sendSubscribeMessage(anyString(), anyString(), anyString(), any(), any());
     }
 
@@ -185,7 +200,7 @@ class MerchantDailyReportNotifierTest {
     void skipsWhenWechatChannelSwitchedOff() {
         Fixture f = fixture(configured(), false, 0L);
 
-        assertEquals(0, f.notifier().send(report()));
+        assertEquals(0, f.notifier().send(report()).sent());
         verify(f.client(), never()).sendSubscribeMessage(anyString(), anyString(), anyString(), any(), any());
     }
 
@@ -194,20 +209,34 @@ class MerchantDailyReportNotifierTest {
         // 调度重跑 / 运营台按日期重跑：站内信按商户幂等，微信按「人 × 日期」幂等
         Fixture f = fixture(configured(), true, 1L);
 
-        assertEquals(0, f.notifier().send(report()));
+        assertEquals(0, f.notifier().send(report()).sent());
         verify(f.client(), never()).sendSubscribeMessage(anyString(), anyString(), anyString(), any(), any());
     }
 
     @Test
-    void failedWechatSendIsNotRecordedAsSent() {
-        // 微信回 errcode（模板键名不符 400、超配额 43101）时不得写 SENT 日志，
-        // 否则重跑会被幂等挡住、这条日报永远补不回来
+    void failedWechatSendIsRecordedAsFailedAndCanBeRetried() {
         Fixture f = fixture(configured(), true, 0L);
         when(f.client().sendSubscribeMessage(anyString(), anyString(), anyString(), any(), any()))
                 .thenReturn(false);
 
-        assertEquals(0, f.notifier().send(report()));
-        verify(f.logRepo(), never()).insert(any());
+        MerchantDailyReportNotifier.DeliveryResult result = f.notifier().send(report());
+
+        assertEquals(0, result.sent());
+        assertEquals(1, result.failed());
+        ArgumentCaptor<NotificationLog> captor = ArgumentCaptor.forClass(NotificationLog.class);
+        verify(f.logRepo()).insert(captor.capture());
+        assertEquals("FAILED", captor.getValue().getStatus());
+    }
+
+    @Test
+    void businessSwitchDisabled_blocksOfficialChannelToo() {
+        Fixture f = fixture(MerchantDailyReportProperties.disabled(), true, 0L, officialReady());
+
+        assertEquals(MerchantDailyReportNotifier.DeliveryResult.EMPTY, f.notifier().send(report()));
+
+        verify(f.officialClient(), never()).sendTemplateMessage(anyString(), anyMap(), anyString(),
+                any(MiniAppTarget.class), anyString());
+        verify(f.client, never()).sendSubscribeMessage(anyString(), anyString(), anyString(), any(), any());
     }
 
     private Fixture officialFixture(boolean sendOk) {
@@ -241,7 +270,7 @@ class MerchantDailyReportNotifierTest {
     void officialBoundOperatorUsesServiceAccountAndMerchantJump() {
         Fixture f = officialFixture(true);
 
-        assertEquals(1, f.notifier().send(report()));
+        assertEquals(1, f.notifier().send(report()).sent());
 
         verify(f.officialClient()).sendTemplateMessage(eq("official-openid"), anyMap(),
                 eq("merchant-daily-report:" + MERCHANT_ID + ":101:" + BIZ_ID), eq(MiniAppTarget.MERCHANT),
@@ -254,13 +283,18 @@ class MerchantDailyReportNotifierTest {
     }
 
     @Test
-    void officialFailureDoesNotFallbackToMiniProgram() {
+    void officialFailureDoesNotFallbackAndIsVisible() {
         Fixture f = officialFixture(false);
 
-        assertEquals(0, f.notifier().send(report()));
+        MerchantDailyReportNotifier.DeliveryResult result = f.notifier().send(report());
 
+        assertEquals(0, result.sent());
+        assertEquals(1, result.failed());
         verify(f.client(), never()).sendSubscribeMessage(anyString(), anyString(), anyString(), any(), any());
-        verify(f.logRepo(), never()).insert(any());
+        ArgumentCaptor<NotificationLog> log = ArgumentCaptor.forClass(NotificationLog.class);
+        verify(f.logRepo()).insert(log.capture());
+        assertEquals("FAILED", log.getValue().getStatus());
+        assertEquals("WECHAT_OFFICIAL", log.getValue().getChannel());
     }
 
     @Test
