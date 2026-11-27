@@ -129,6 +129,17 @@ class PlatformBillProviderContractTest {
         assertTrue(ex.getMessage().contains("商户号无权限"), "异常消息应带微信错误信息，实际=" + ex.getMessage());
     }
 
+    @Test
+    @DisplayName("契约⑥ WECHAT：普通 404（非 NO_STATEMENT_EXIST）必须 fail-closed")
+    void wechatPlainNotFound_throws() throws Exception {
+        WeChatPayV3Client client = mock(WeChatPayV3Client.class);
+        when(client.getWithStatus(anyString())).thenReturn(new WeChatPayV3Client.HttpResult(404,
+                MAPPER.readTree("{\"code\":\"NOT_FOUND\",\"message\":\"路由不存在\"}")));
+        WeChatPlatformBillProvider provider =
+                new WeChatPlatformBillProvider(configuredWeChat(), RECON, client);
+        assertThrows(IllegalStateException.class, () -> provider.fetchDailyBill(DAY));
+    }
+
     private static WeChatPayProperties configuredWeChat() {
         return new WeChatPayProperties(
                 true, "APP", "MCH", "https://notify.example/v3", "V3KEY", "SERIAL",

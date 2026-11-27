@@ -77,6 +77,11 @@ const noChannel = real.notifier.replace(
 assert(noChannel !== real.notifier, '注入③锚点 channel 条件找不到');
 inject({ notifier: noChannel }, '注入③幂等缺 channel', 'channel');
 
+// ③b 幂等丢掉 merchantId —— 同一操作员管理多个商户时会互相抑制
+const noMerchantId = real.notifier.replace('.eq(NotificationLog::getMerchantId, merchantId)', '');
+assert(noMerchantId !== real.notifier, '注入③b锚点 merchantId 条件找不到');
+inject({ notifier: noMerchantId }, '注入③b幂等缺 merchantId', 'merchantId');
+
 // ④ 关键词名写死 —— 换模板要改代码（且与后台不一致就 400）
 const hardKey = real.notifier.replace(
   'data.put(reportProperties.resolveSalesKey(), yuan(report.salesCents()));',

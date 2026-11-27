@@ -244,13 +244,13 @@ class MerchantDailyReportNotifierTest {
         assertEquals(1, f.notifier().send(report()));
 
         verify(f.officialClient()).sendTemplateMessage(eq("official-openid"), anyMap(),
-                eq("merchant-daily-report:101:" + BIZ_ID), eq(MiniAppTarget.MERCHANT),
+                eq("merchant-daily-report:" + MERCHANT_ID + ":101:" + BIZ_ID), eq(MiniAppTarget.MERCHANT),
                 eq("pages/home/home"));
         verify(f.client(), never()).sendSubscribeMessage(anyString(), anyString(), anyString(), any(), any());
         ArgumentCaptor<NotificationLog> log = ArgumentCaptor.forClass(NotificationLog.class);
         verify(f.logRepo()).insert(log.capture());
         assertEquals("WECHAT_OFFICIAL", log.getValue().getChannel());
-        assertEquals("merchant-daily-report:101:" + BIZ_ID, log.getValue().getClientMsgId());
+        assertEquals("merchant-daily-report:" + MERCHANT_ID + ":101:" + BIZ_ID, log.getValue().getClientMsgId());
     }
 
     @Test

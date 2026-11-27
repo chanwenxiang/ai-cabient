@@ -152,12 +152,12 @@ public class MerchantDailyReportNotifier {
             if (userId == null) {
                 continue;
             }
-            if (sentToday(userId, report.bizId())) {
+            if (sentToday(userId, report.merchantId(), report.bizId())) {
                 alreadySent++;
                 continue;
             }
             UserInfo user = userInfoRepository.findById(userId).orElse(null);
-            String clientMsgId = "merchant-daily-report:" + userId + ":" + report.bizId();
+            String clientMsgId = "merchant-daily-report:" + report.merchantId() + ":" + userId + ":" + report.bizId();
             boolean ok;
             String channel;
             if (officialReady && user != null
@@ -244,15 +244,16 @@ public class MerchantDailyReportNotifier {
     }
 
     /**
-     * 按「用户 × 日期」幂等：调度重跑或运营台按日期重跑时，同一个人当天只收一条。
+     * 按「用户 × 商户 × 日期」幂等：同一操作员管理多个商户时，各商户日报互不抑制。
      * 站内信那条（channel=IN_APP）不参与本判断——两个渠道各自补发，互不阻塞。
      */
-    private boolean sentToday(Long userId, String bizId) {
+    private boolean sentToday(Long userId, String merchantId, String bizId) {
         Long c = notificationLogRepository.selectCount(Wrappers.<NotificationLog>lambdaQuery()
                 .eq(NotificationLog::getTemplateCode, TEMPLATE_CODE)
                 .in(NotificationLog::getChannel, List.of(CHANNEL, OFFICIAL_CHANNEL))
                 .eq(NotificationLog::getAudience, AUDIENCE)
                 .eq(NotificationLog::getUserId, userId)
+                .eq(NotificationLog::getMerchantId, merchantId)
                 .eq(NotificationLog::getBizType, BIZ_TYPE)
                 .eq(NotificationLog::getBizId, bizId));
         return c != null && c > 0;

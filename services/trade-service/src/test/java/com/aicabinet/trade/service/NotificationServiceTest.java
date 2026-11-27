@@ -10,6 +10,8 @@ import com.aicabinet.trade.mapper.NotificationTemplateMapper;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -117,6 +119,45 @@ class NotificationServiceTest {
         verify(producer).publish(captor.capture());
         assertEquals("order_paid", captor.getValue().templateCode());
         verify(externalDispatcher, never()).dispatch(any());
+    }
+
+    @Test
+    void send_externalDispatch_waitsForCommit() {
+        NotificationService service = service(false);
+        when(templateRepository.findByCode("order_paid"))
+                .thenReturn(Optional.of(template("IN_APP,WECHAT_SUBSCRIBE,SMS", "ORDER")));
+        when(notifyPrefService.isEnabled(100L, "ORDER")).thenReturn(true);
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.notifyConsumer(100L, "order_paid",
+                    Map.of("orderId", "O1", "amount", "12"), "ORDER", "O1");
+            verify(externalDispatcher, never()).dispatch(any());
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(TransactionSynchronization::afterCommit);
+            verify(externalDispatcher).dispatch(any());
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    void send_asyncPublish_waitsForCommit() {
+        NotificationService service = service(true);
+        when(templateRepository.findByCode("order_paid"))
+                .thenReturn(Optional.of(template("IN_APP,WECHAT_SUBSCRIBE", "ORDER")));
+        when(notifyPrefService.isEnabled(100L, "ORDER")).thenReturn(true);
+        when(producerProvider.getIfAvailable()).thenReturn(producer);
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.notifyConsumer(100L, "order_paid",
+                    Map.of("orderId", "O1", "amount", "12"), "ORDER", "O1");
+            verify(producer, never()).publish(any());
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(TransactionSynchronization::afterCommit);
+            verify(producer).publish(any());
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     @Test
