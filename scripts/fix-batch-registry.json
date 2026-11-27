@@ -3288,6 +3288,32 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "5c8329a2",
+      "report": "docs/PROJECT_KNOWLEDGE.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "提现失败模板省略不可用 const4 字段，避免 47003",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/ExternalNotificationDispatcher.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/ExternalNotificationDispatcherTest.java",
+            "docs/COMPETITOR_BENCHMARK.md",
+            "docs/PROJECT_KNOWLEDGE.md"
+          ]
+        },
+        {
+          "id": "售后模板省略不可用 const7 字段，避免 47003",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/ExternalNotificationDispatcher.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/ExternalNotificationDispatcherTest.java",
+            "docs/COMPETITOR_BENCHMARK.md",
+            "docs/PROJECT_KNOWLEDGE.md"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
