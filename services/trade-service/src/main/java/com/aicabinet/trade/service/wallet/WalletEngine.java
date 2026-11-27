@@ -285,10 +285,15 @@ public class WalletEngine {
                 return false;
             }
             WalletAccount account = reload(domain, ownerId);
+            long frozen = value(account.getFrozenCents());
             long balance = value(account.getBalanceCents()) - amountCents;
-            persistBalances(domain, ownerId, balance, value(account.getFrozenCents()));
+            if (balance < frozen) {
+                throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED,
+                        "退款冲正后可用余额不足，请先处理提现冻结");
+            }
+            persistBalances(domain, ownerId, balance, frozen);
             appendLedger(domain, ownerId, entryType, -amountCents,
-                    new BalanceSnapshot(balance, value(account.getFrozenCents())), reverseRefType, reverseRefId, remark);
+                    new BalanceSnapshot(balance, frozen), reverseRefType, reverseRefId, remark);
             return true;
         });
     }
