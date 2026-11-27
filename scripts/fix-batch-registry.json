@@ -3390,6 +3390,32 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "f224a72c",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "MA-493 Kafka 生产端等待 Broker ACK",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/messaging/NotificationDispatchProducer.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/messaging/NotificationDispatchProducerTest.java",
+            "scripts/check-notification-reliability.mjs",
+            "scripts/check-notification-reliability.test.mjs"
+          ]
+        },
+        {
+          "id": "MA-494 Kafka 去重槽 owner PROCESSING/DONE 状态机",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/messaging/NotificationDispatchListener.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/messaging/NotificationDispatchListenerIdempotencyTest.java",
+            "scripts/check-notification-reliability.mjs",
+            "scripts/check-notification-reliability.test.mjs"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
