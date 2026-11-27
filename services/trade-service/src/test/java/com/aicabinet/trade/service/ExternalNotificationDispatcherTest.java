@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -235,7 +236,7 @@ class ExternalNotificationDispatcherTest {
     }
 
     @Test
-    void dispatch_withdrawFailed_usesFailureTemplateAndEnumReason() {
+    void dispatch_withdrawFailed_omitsUnusableConst4Field() {
         ExternalNotificationDispatcher dispatcher = dispatcher(true, false);
         when(userInfoRepository.findById(100L)).thenReturn(Optional.of(officialUser()));
         when(weChatOfficialAccountClient.sendTemplateMessage(anyString(), eq("official-withdraw-failed-tpl"), anyMap(),
@@ -254,11 +255,11 @@ class ExternalNotificationDispatcherTest {
                 eq(MiniAppTarget.MERCHANT), eq("pages/wallet/wallet"), eq(true));
         assertEquals("M1", data.getValue().get("character_string5"));
         assertEquals("1.00", data.getValue().get("amount2"));
-        assertEquals("备付金不足", data.getValue().get("const4"));
+        assertFalse(data.getValue().containsKey("const4"), "微信 const4 当前不可用，必须省略以避免 47003");
     }
 
     @Test
-    void dispatch_dispute_usesAfterSaleTemplateAndResultEnum() {
+    void dispatch_dispute_omitsUnusableConst7Field() {
         ExternalNotificationDispatcher dispatcher = dispatcher(true, false);
         when(userInfoRepository.findById(100L)).thenReturn(Optional.of(officialUser()));
         when(weChatOfficialAccountClient.sendTemplateMessage(anyString(), eq("official-dispute-tpl"), anyMap(),
@@ -278,20 +279,20 @@ class ExternalNotificationDispatcherTest {
         assertEquals("O1", data.getValue().get("character_string1"));
         assertEquals("雪碧", data.getValue().get("thing5"));
         assertEquals("5.00", data.getValue().get("amount2"));
-        assertEquals("已退款", data.getValue().get("const7"));
+        assertFalse(data.getValue().containsKey("const7"), "微信 const7 当前不可用，必须省略以避免 47003");
     }
 
     @Test
-    void dispatch_disputeKeep_mapsTerminalClosedEnum() {
-        assertDisputeResultEnum("KEEP", "已关闭");
+    void dispatch_disputeKeep_omitsUnusableConst7Field() {
+        assertDisputeOmitsConst7("KEEP");
     }
 
     @Test
-    void dispatch_disputeAdjust_mapsTerminalClosedEnum() {
-        assertDisputeResultEnum("ADJUST", "已关闭");
+    void dispatch_disputeAdjust_omitsUnusableConst7Field() {
+        assertDisputeOmitsConst7("ADJUST");
     }
 
-    private void assertDisputeResultEnum(String resolutionType, String expected) {
+    private void assertDisputeOmitsConst7(String resolutionType) {
         ExternalNotificationDispatcher dispatcher = dispatcher(true, false);
         when(userInfoRepository.findById(100L)).thenReturn(Optional.of(officialUser()));
         when(weChatOfficialAccountClient.sendTemplateMessage(anyString(), eq("official-dispute-tpl"), anyMap(),
@@ -307,7 +308,7 @@ class ExternalNotificationDispatcherTest {
         verify(weChatOfficialAccountClient).sendTemplateMessage(eq("official-openid"), eq("official-dispute-tpl"),
                 data.capture(), eq("dispute-" + resolutionType), eq(MiniAppTarget.CONSUMER),
                 eq("pages/dispute/detail?ticketId=T1"), eq(true));
-        assertEquals(expected, data.getValue().get("const7"));
+        assertFalse(data.getValue().containsKey("const7"), "微信 const7 当前不可用，必须省略以避免 47003");
     }
 
     @Test

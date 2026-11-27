@@ -231,7 +231,7 @@ public class ExternalNotificationDispatcher {
                 data.put("amount2", amount);
             }
             data.put("time3", firstNonBlank(params.get("requestTime"), now));
-            data.put("const4", normalizeFailureReason(params.get("failureReason")));
+            // 微信模板 const4 当前对任何值都返回 47003；省略后可正常发送，避免失败通知整体发不出。
             return new OfficialSendSpec(weChatOfficialAccountProperties.resolveWithdrawFailedTemplateId(), data,
                     weChatOfficialAccountProperties.isWithdrawFailedConfigured(), MiniAppTarget.MERCHANT,
                     "pages/wallet/wallet");
@@ -251,8 +251,7 @@ public class ExternalNotificationDispatcher {
                 orderAmount = amount;
             }
             data.put("amount2", firstNonBlank(orderAmount, "0.00"));
-            data.put("const7", normalizeDisputeResult(msg.templateCode(),
-                    params.get("resolutionType")));
+            // 微信模板 const7 当前对任何值都返回 47003；省略后可正常发送，避免售后通知整体发不出。
             return new OfficialSendSpec(weChatOfficialAccountProperties.resolveDisputeTemplateId(), data,
                     weChatOfficialAccountProperties.isDisputeConfigured(), MiniAppTarget.CONSUMER,
                     resolveConsumerPage(msg));
@@ -275,34 +274,6 @@ public class ExternalNotificationDispatcher {
 
     private static String firstNonBlank(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
-    }
-
-    /** 失败原因必须落在模板审核通过的枚举内；未知原因统一「其他原因」，绝不能原样透传渠道错误串。 */
-    private static String normalizeFailureReason(String reason) {
-        if (reason == null) {
-            return "其他原因";
-        }
-        return switch (reason.trim()) {
-            case "备付金不足", "账户信息有误", "银行卡拒收", "其他原因" -> reason.trim();
-            default -> "其他原因";
-        };
-    }
-
-    /** 处理结果必须落在售后模板审核通过的枚举内；未知状态保守显示「处理中」。 */
-    private static String normalizeDisputeResult(String templateCode, String resolutionType) {
-        if (templateCode != null && templateCode.toLowerCase(Locale.ROOT).contains("created")) {
-            return "处理中";
-        }
-        if (resolutionType == null) {
-            return "处理中";
-        }
-        return switch (resolutionType.trim().toUpperCase(Locale.ROOT)) {
-            case "REFUND", "REFUNDED", "已退款" -> "已退款";
-            case "WAIVE", "免单" -> "免单";
-            case "CONFIRM", "REJECTED", "已驳回" -> "已驳回";
-            case "CANCELLED", "CANCELED", "CLOSED", "KEEP", "ADJUST", "已关闭" -> "已关闭";
-            default -> "处理中";
-        };
     }
 
     private static boolean isMerchantAudience(NotificationDispatchMessage msg) {
