@@ -147,8 +147,8 @@ class BalanceRefundResumePlanningTest {
                 List.of(succeeded, slice(2, "RC-2", 600, "FAILED")),
                 List.of(succeeded, slice(2, "RC-2", 600, "FAILED"), slice(3, "RC-2", 600, "FAILED")));
 
-        service.markRefundFailedAndReverse(911L, List.of(succeeded), new IllegalStateException("first"));
-        service.markRefundFailedAndReverse(911L, List.of(succeeded), new IllegalStateException("second"));
+        service.markRefundFailedAndReverse(911L, List.of(succeeded), List.of(), new IllegalStateException("first"));
+        service.markRefundFailedAndReverse(911L, List.of(succeeded), List.of(), new IllegalStateException("second"));
 
         org.mockito.ArgumentCaptor<String> keys = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(balanceLedgerService, org.mockito.Mockito.times(2)).change(
