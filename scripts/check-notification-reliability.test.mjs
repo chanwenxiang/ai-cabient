@@ -70,6 +70,23 @@ inject(
   '唯一索引退化成普通索引',
   '语义唯一索引缺失'
 );
+inject(
+  {
+    producer: real.producer.replace(
+      'future.get(ackTimeout.toMillis(), TimeUnit.MILLISECONDS);',
+      'future.whenComplete((result, error) -> {});'
+    )
+  },
+  'Kafka 生产端丢弃 ACK',
+  '未等待 Broker ACK'
+);
+inject(
+  {
+    listener: real.listener.replaceAll("'|DONE'", "'DONE_LEGACY'")
+  },
+  'Kafka 去重槽退回单态键',
+  'PROCESSING/DONE 状态机'
+);
 
 for (const [key, before] of Object.entries(real)) {
   assert(md5(readFileSync(FILES[key], 'utf8')) === md5(before), `${FILES[key]} 真树字节被污染`);

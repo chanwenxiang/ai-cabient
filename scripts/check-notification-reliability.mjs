@@ -12,6 +12,8 @@ export const FILES = {
   orderPayment: join(JAVA, 'service/OrderPaymentService.java'),
   notification: join(JAVA, 'service/NotificationService.java'),
   outbox: join(JAVA, 'service/NotificationDispatchOutboxService.java'),
+  producer: join(JAVA, 'messaging/NotificationDispatchProducer.java'),
+  listener: join(JAVA, 'messaging/NotificationDispatchListener.java'),
   migration: join(
     ROOT,
     'services/trade-service/src/main/resources/db/migration/V518__notification_inapp_semantic_idempotency.sql'
@@ -37,6 +39,8 @@ export function notificationReliabilityProblems(src) {
   const orderPayment = maskComments(src.orderPayment.replace(/\r\n/g, '\n'));
   const notification = maskComments(src.notification.replace(/\r\n/g, '\n'));
   const outbox = maskComments(src.outbox.replace(/\r\n/g, '\n'));
+  const producer = maskComments(src.producer.replace(/\r\n/g, '\n'));
+  const listener = maskComments(src.listener.replace(/\r\n/g, '\n'));
   const migration = maskComments(src.migration.replace(/\r\n/g, '\n'));
   const problems = [];
 
@@ -88,6 +92,17 @@ export function notificationReliabilityProblems(src) {
   ) {
     problems.push('V518 站内信语义唯一索引缺失');
   }
+  if (!producer.includes('future.get(ackTimeout.toMillis()')) {
+    problems.push('Kafka 生产端未等待 Broker ACK：异步失败仍可能假成功');
+  }
+  if (
+    !listener.includes("'|PROCESSING'") ||
+    !listener.includes("'|DONE'") ||
+    !listener.includes("ARGV[1] .. '|PROCESSING'") ||
+    !listener.includes('return 2')
+  ) {
+    problems.push('Kafka 去重槽缺 owner PROCESSING/DONE 状态机：崩溃或释放失败会永久抑制重投');
+  }
   return problems;
 }
 
@@ -101,7 +116,7 @@ export function run() {
     process.exit(1);
   }
   console.log(
-    '[check-notification-reliability] OK：告警提交后发、站内信语义幂等、outbox 锁内重读均在位'
+    '[check-notification-reliability] OK：告警提交后发、站内信语义幂等、outbox 锁内重读、Kafka ACK 与去重状态机均在位'
   );
 }
 
