@@ -696,7 +696,7 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - **账户与通知**：提现/日报只发给 `user_info.status=ACTIVE` 且未逻辑删除的操作员；服务号模板未配置时消费者回落原小程序订阅链，实际发送失败仍禁止回落；首次备付失败通知一次，后续每小时恢复重试静默，成功后发成功通知。
 - **绑定与售后**：商户服务号绑定前强制校验 `redirectUri`；售后 `KEEP/ADJUST` 终态映射到审核通过的“已关闭”枚举，不再误报“处理中”。
 - **字典与种子**：模板类别归位 `ORDER/MERCHANT`，补 `REFUND/BALANCE_REFUND/WITHDRAW_SUCCESS/WITHDRAW_FAILED` 字典；种子冲突时自愈类别与文案，避免后台“未知”和偏好失效。
-- **验证**：定向 56 个 Java 用例通过；通知种子、shared-dist、fix-batch、189 门禁接线检查通过。修复在隔离分支 `fix/service-account-review`，尚未推送/部署。
+- **验证**：定向 56 个 Java 用例通过；通知种子、shared-dist、fix-batch、189 门禁接线检查通过。修复随 dev `94a18d54` 推送，CI 5/5 全绿；trade 3559 单测 + 132 IT、三端前端 651 例通过。服务器双副本 healthy、公网 200、近 10 分钟 0 ERROR，模板类别与 4 个业务字典已自愈，2 个服务号绑定保留；双端 release 小程序已重建。预授权 0 与日结未动。
 
 ### 2026-11-26（备份告警邮件实际送达）
 
