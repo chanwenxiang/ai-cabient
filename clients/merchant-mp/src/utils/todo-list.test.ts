@@ -349,8 +349,9 @@ describe('matchTodoKpiCategory', () => {
   it('LATE_RECOGNITION 归审核卡——旧实现 startsWith("RECOGNITION") 匹配不到（R19-10）', () => {
     expect(matchTodoKpiCategory('LATE_RECOGNITION', 'dispute')).toBe(true);
   });
-  it('SETTLEMENT_FAILED / BALANCE_INSUFFICIENT 归审核卡（R19-10 前完全不进卡）', () => {
+  it('SETTLEMENT_FAILED / SETTLEMENT_FINALIZE_PENDING / BALANCE_INSUFFICIENT 归审核卡', () => {
     expect(matchTodoKpiCategory('SETTLEMENT_FAILED', 'dispute')).toBe(true);
+    expect(matchTodoKpiCategory('SETTLEMENT_FINALIZE_PENDING', 'dispute')).toBe(true);
     expect(matchTodoKpiCategory('SETTLEMENT_STUCK', 'dispute')).toBe(true);
     expect(matchTodoKpiCategory('BALANCE_INSUFFICIENT', 'dispute')).toBe(true);
   });
@@ -395,6 +396,7 @@ describe('todoBadgeCount · 徽标 = 四卡合计 = 列表行数（R19-10 穷尽
     'BALANCE_INSUFFICIENT',
     'SETTLEMENT_FAILED',
     'SETTLEMENT_STUCK',
+    'SETTLEMENT_FINALIZE_PENDING',
     'INVENTORY_MISMATCH',
     'TEMP_ABNORMAL',
     'RESTOCK_SESSION_TIMEOUT',
