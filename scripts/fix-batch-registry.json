@@ -3283,6 +3283,88 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "60b9e415",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-488 余额退款在途切片不再冲回或标失败",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/BalanceRefundService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/BalanceRefundResumePlanningTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/BalanceRefundSliceProbeTest.java"
+          ]
+        }
+      ],
+      "notAdopted": []
+    },
+    {
+      "commit": "8652ef13",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-485 组合支付部分退按指纹汇总各腿金额",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/OrderPaymentService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SettlementPartialRefundService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/OrderPaymentRefundFingerprintTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SettlementPartialRefundTest.java",
+            "docs/module-audit/ISSUES.md"
+          ]
+        }
+      ],
+      "notAdopted": []
+    },
+    {
+      "commit": "aa223de6",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-486 全额退分账冲正不得击穿提现冻结",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/wallet/WalletEngine.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/MerchantWalletFeeSplitTest.java",
+            "docs/module-audit/ISSUES.md"
+          ]
+        }
+      ],
+      "notAdopted": []
+    },
+    {
+      "commit": "3d5d6211",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-482 已扣款会话超时不再误建未扣款争议",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SessionExpireService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SessionExpireRecognizingTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SessionServiceRecoveryTest.java",
+            "docs/module-audit/ISSUES.md"
+          ]
+        }
+      ],
+      "notAdopted": []
+    },
+    {
+      "commit": "4b4993c6",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-486 部分退负向冲正同样保护冻结余额",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/wallet/WalletEngine.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/MerchantWalletFeeSplitTest.java"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [

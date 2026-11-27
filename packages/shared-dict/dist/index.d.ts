@@ -631,6 +631,7 @@ export declare const DICT: {
         readonly BALANCE_INSUFFICIENT: "余额不足";
         readonly SETTLEMENT_FAILED: "结算失败";
         readonly SETTLEMENT_STUCK: "结算滞留";
+        readonly SETTLEMENT_FINALIZE_PENDING: "已扣款结算收尾未完成";
         readonly INVENTORY_MISMATCH: "库存差异";
         readonly SLOT_DISCREPANCY: "货道账实差异";
         readonly JIANGYI_CLASS_MAPPING_MISS: "将邑识别映射未命中";

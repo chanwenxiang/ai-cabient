@@ -462,6 +462,7 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "JIANGYI_AUTO_RESTOCK_SYNC_FAIL", "将邑货道自动同步失败",
                 "RECOGNITION_UNAVAILABLE", "识别服务不可用", "BALANCE_INSUFFICIENT", "余额不足",
                 "SETTLEMENT_FAILED", "结算失败", "SETTLEMENT_STUCK", "结算滞留",
+                "SETTLEMENT_FINALIZE_PENDING", "已扣款结算收尾未完成",
                 "INVENTORY_MISMATCH", "库存差异",
                 // R20 支付分契约（PayScoreOrderNotifyService）：回调 DONE 但订单已终态的资金异常
                 "PAYSCORE_DONE_ON_TERMINAL_ORDER", "支付分扣款到账但订单已终态",
