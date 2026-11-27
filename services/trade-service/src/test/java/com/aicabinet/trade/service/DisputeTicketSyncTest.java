@@ -64,6 +64,7 @@ class DisputeTicketSyncTest {
     @Mock SessionService sessionService;
     @Mock CabinetMetrics metrics;
     @Mock SystemConfigService systemConfigService;
+    @Mock NotificationService notificationService;
 
     private DisputeService service;
 
@@ -83,6 +84,7 @@ class DisputeTicketSyncTest {
                 fileAttachmentService, null, orderPaymentService, distributedLockService, systemConfigService, null,
                 sessionService, metrics, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "notificationService", notificationService);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L)))
                 .thenReturn(true);
         org.mockito.Mockito.lenient().when(fileAttachmentService.listDisputeEvidence(anyString()))
@@ -119,6 +121,10 @@ class DisputeTicketSyncTest {
         ticket.setItems("[]");
 
         when(disputeRepository.findBySessionId("S-TEST-001")).thenReturn(Optional.of(ticket));
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-TEST-001");
+        session.setUserId(555L);
+        when(sessionRepository.findById("S-TEST-001")).thenReturn(Optional.of(session));
 
         service.closeOpenTicketForSession(10001L, "S-TEST-001", "WAIVE", null);
 
@@ -126,6 +132,8 @@ class DisputeTicketSyncTest {
         verify(disputeRepository).save(captor.capture());
         assertEquals("RESOLVED", captor.getValue().getStatus());
         assertEquals("[]", captor.getValue().getResolutionItems());
+        verify(notificationService).notifyConsumer(eq(555L), eq("dispute_resolved"), anyMap(),
+                eq("DISPUTE"), eq("D-TEST-001"));
     }
 
     @Test

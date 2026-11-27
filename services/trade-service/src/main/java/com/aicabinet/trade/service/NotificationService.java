@@ -131,6 +131,12 @@ public class NotificationService {
 
     public void send(String audience, Long userId, String merchantId, String templateCode,
                      Map<String, String> params, String bizType, String bizId) {
+        sendInternal(audience, userId, merchantId, templateCode, params, bizType, bizId, true);
+    }
+
+    private void sendInternal(String audience, Long userId, String merchantId, String templateCode,
+                              Map<String, String> params, String bizType, String bizId,
+                              boolean deferExternal) {
         NotificationTemplate tpl = templateRepository.findByCode(templateCode).orElse(null);
         if (tpl == null) {
             log.debug("notification template not found or inactive: {}", templateCode);
@@ -156,15 +162,22 @@ public class NotificationService {
         NotificationDispatchMessage message = new NotificationDispatchMessage(
                 tpl.getTemplateCode(), userId, title, body, bizType, bizId, params,
                 UUID.randomUUID().toString().replace("-", ""), audience, merchantId);
-        if (channelSwitch.asyncEnabled()) {
-            NotificationDispatchProducer producer = producerProvider.getIfAvailable();
-            if (producer != null) {
-                producer.publish(message);
-                return;
+        Runnable external = () -> {
+            if (channelSwitch.asyncEnabled()) {
+                NotificationDispatchProducer producer = producerProvider.getIfAvailable();
+                if (producer != null) {
+                    producer.publish(message);
+                    return;
+                }
+                log.warn("notify async enabled but producer unavailable, fallback sync");
             }
-            log.warn("notify async enabled but producer unavailable, fallback sync");
+            externalDispatcher.dispatch(message);
+        };
+        if (deferExternal) {
+            dispatchAfterCommit(external);
+        } else {
+            external.run();
         }
-        externalDispatcher.dispatch(message);
     }
 
     /**
@@ -177,26 +190,30 @@ public class NotificationService {
         if (userId == null) {
             return;
         }
-        Runnable notify = () -> {
+        dispatchAfterCommit(() -> {
             try {
-                self.send(CONSUMER, userId, null, "refund_success",
+                sendInternal(CONSUMER, userId, null, "refund_success",
                         Map.of("orderId", orderOrRequestNo == null ? "" : orderOrRequestNo,
                                 "amount", BigDecimal.valueOf(amountCents, 2).toPlainString(),
                                 "productName", orderRefund ? "订单商品" : "余额退款"),
-                        orderRefund ? "REFUND" : "BALANCE_REFUND", orderOrRequestNo);
+                        orderRefund ? "REFUND" : "BALANCE_REFUND", orderOrRequestNo, false);
             } catch (Exception e) {
                 log.warn("refund notification failed userId={} ref={}", userId, orderOrRequestNo, e);
             }
-        };
+        });
+    }
+
+    /** 站内信随业务事务落库；微信/短信/Kafka 外统一等事务提交后再发，避免回滚后假通知。 */
+    private void dispatchAfterCommit(Runnable action) {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    notify.run();
+                    action.run();
                 }
             });
         } else {
-            notify.run();
+            action.run();
         }
     }
 

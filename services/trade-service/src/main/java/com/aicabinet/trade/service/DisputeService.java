@@ -843,6 +843,8 @@ public class DisputeService {
             recordRecognitionVerdict(ticket, type);
             auditService.appendLog(operatorId, "DISPUTE_SYNC_FROM_OPS_EXCEPTION", DISPUTE, ticket.getTicketId(),
                     SESSION + sessionId + "; type=" + type);
+            sessionRepository.findById(sessionId).ifPresent(session ->
+                    notifyConsumerResolved(session, ticket.getTicketId(), type));
         });
     }
 
@@ -1242,6 +1244,7 @@ public class DisputeService {
                 alignOrderStatusAfterDisputeResolve(order, resolvedType));
         auditService.appendLog(userId, "MERCHANT_DISPUTE_RESOLVE", DISPUTE, ticketId,
                 "type=" + resolutionType);
+        notifyConsumerResolved(session, ticketId, resolutionType);
         return result;
     }
 

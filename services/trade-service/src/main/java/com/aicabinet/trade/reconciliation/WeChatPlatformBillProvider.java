@@ -49,10 +49,9 @@ public class WeChatPlatformBillProvider implements PlatformBillProvider {
         WeChatPayV3Client.HttpResult result = v3Client.getWithStatus(path);
         JsonNode resp = result.body();
         String code = resp.path("code").asText("");
-        // 零交易日不是故障：微信对当天无交易的商户返回 NO_STATEMENT_EXIST（2026-11-26 实证），
-        // 与 WeChatFundBillService#fetchOperatingAccount 的资金账单口径一致——返回空列表，
-        // 由 doReconcile 判 EMPTY（本地也零）或 MISMATCH（本地有交易而平台无账单）。
-        if (result.status() == 404 || "NO_STATEMENT_EXIST".equals(code)) {
+        // 零交易日不是故障：微信对当天无交易的商户返回 400 + NO_STATEMENT_EXIST。
+        // 不能把任意 404 当空账单——网关/路由 404 仍是故障，必须 fail-closed。
+        if ("NO_STATEMENT_EXIST".equals(code)) {
             log.info("wechat v3 trade bill no statement date={} status={}", date, result.status());
             return List.of();
         }

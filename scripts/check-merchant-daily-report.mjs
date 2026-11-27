@@ -6,7 +6,7 @@
  * 接通这条链时最容易犯的四类错，代码本身看不出来，只有跑起来才发现：
  *   ① 复用待办模板（thing1/thing2/time3）发金额 → 微信回 400，静默失败；
  *   ② 用消费者 token 发商户 openid → 40003，同样静默；
- *   ③ 去掉按「人 × 日期」的幂等 → 重跑一次商户收两条；
+ *   ③ 去掉按「人 × 商户 × 日期」的幂等 → 重跑一次商户收两条；或多商户操作员只收到任意一个商户的日报；
  *   ④ 改了站内信文案的占位符（V499 加了 {orders}/{avg}）却没传参 → 商户看到字面量
  *      「{orders} 笔订单」。
  *
@@ -15,8 +15,8 @@
  *     subscribeTemplateId()
  *   B 关键词名只从配置取：发出端不得出现 amount1/number2/amount3/thing1 等字面量键
  *   C 目标端必须是 MERCHANT（消费者 token 发商户 openid 必失败）
- *   D 幂等查询必须同时带 channel 与 userId（只按商户查 = 同商户多人只发一次；
- *     不带 channel = 站内信那条会把微信挡掉）
+ *   D 幂等查询必须同时带 channel、userId 与 merchantId（只按商户查 = 同商户多人只发一次；
+ *     不带 channel = 站内信那条会把微信挡掉；不带 merchantId = 多商户操作员互相抑制）
  *   E 未配模板必须显式跳过（configured() + return 0），不许「发一条空消息」
  *   F 站内信与微信同源：调度器必须用 aggregateSales 的产物构造日报对象
  *   G 模板占位符闭环：V499 文案里的每个 {x} 都必须在调度器里有同名参数
@@ -142,7 +142,7 @@ export function merchantDailyReportProblems({ notifier, scheduler, placeholders 
     }
   }
 
-  // D 幂等查询：channel + userId
+  // D 幂等查询：channel + userId + merchantId
   const dedupe = n.match(/private boolean sentToday\s*\(([\s\S]*?)\n\s*\}\n/);
   if (!dedupe) {
     problems.push('日报发出端找不到 sentToday 幂等判断（重跑会给同一人重复推送）');
@@ -152,6 +152,11 @@ export function merchantDailyReportProblems({ notifier, scheduler, placeholders 
     }
     if (!/getUserId/.test(dedupe[1])) {
       problems.push('日报幂等没有按 userId 过滤：同商户多人只发到一个人，重跑还会重复打扰');
+    }
+    if (!/getMerchantId/.test(dedupe[1])) {
+      problems.push(
+        '日报幂等没有按 merchantId 过滤：同一操作员管理多个商户时会互相抑制，只能收到任意一个商户的日报'
+      );
     }
   }
 
@@ -240,6 +245,6 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     process.exit(1);
   }
   console.log(
-    `${TAG} PASS：模板/键名全部来自配置，端=MERCHANT，按人×日期幂等，文案占位符闭环，零成交有柜商户照发`
+    `${TAG} PASS：模板/键名全部来自配置，端=MERCHANT，按人×商户×日期幂等，文案占位符闭环，零成交有柜商户照发`
   );
 }

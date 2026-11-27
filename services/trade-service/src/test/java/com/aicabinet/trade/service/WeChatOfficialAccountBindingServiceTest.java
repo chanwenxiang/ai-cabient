@@ -72,6 +72,30 @@ class WeChatOfficialAccountBindingServiceTest {
     }
 
     @Test
+    void consumerBindingAvailableWhenOnlyRefundTemplateConfigured() {
+        WeChatOfficialAccountProperties props = new WeChatOfficialAccountProperties(
+                true, "gh_test", "secret", "", "", "https://example.test/callback",
+                "consumer-app", "pages/messages/messages", "merchant-app", "pages/home/home",
+                "", "refund-tpl", "", "", "", "");
+        WeChatOfficialAccountBindingService service =
+                new WeChatOfficialAccountBindingService(props, client, ticketStore, accountService);
+
+        assertTrue(service.status(100L).configured());
+    }
+
+    @Test
+    void merchantBindingAvailableWhenOnlyWithdrawTemplateConfigured() {
+        WeChatOfficialAccountProperties props = new WeChatOfficialAccountProperties(
+                true, "gh_test", "secret", "", "", "https://example.test/callback",
+                "consumer-app", "pages/messages/messages", "merchant-app", "pages/home/home",
+                "", "", "withdraw-tpl", "", "", "");
+        WeChatOfficialAccountBindingService service =
+                new WeChatOfficialAccountBindingService(props, client, ticketStore, accountService);
+
+        assertTrue(service.status(100L, com.aicabinet.trade.wechat.MiniAppTarget.MERCHANT).configured());
+    }
+
+    @Test
     void completeRejectsReplayedTicketBeforeCallingWechat() {
         when(ticketStore.consume("state")).thenReturn(Optional.empty());
 

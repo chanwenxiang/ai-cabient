@@ -61,7 +61,12 @@ public class WeChatOfficialAccountBindingService {
             return false;
         }
         return target == MiniAppTarget.MERCHANT
-                ? properties.isMerchantDailyReportConfigured() : properties.isConfigured();
+                ? properties.isMerchantDailyReportConfigured()
+                        || properties.isWithdrawConfigured()
+                        || properties.isWithdrawFailedConfigured()
+                : properties.isConfigured()
+                        || properties.isRefundConfigured()
+                        || properties.isDisputeConfigured();
     }
 
     public void complete(String code, String state) {

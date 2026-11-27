@@ -33,16 +33,11 @@
         },
         {
           "id": "shared-dict dist 重建（P3-1 批 11~16 新增字典族落 dist，shared-dist-fresh）",
-          "files": [
-            "packages/shared-dict/dist/index.d.ts",
-            "packages/shared-dict/dist/index.js"
-          ]
+          "files": ["packages/shared-dict/dist/index.d.ts", "packages/shared-dict/dist/index.js"]
         },
         {
           "id": "barehex 棘轮判据校准：var(--token,#hex) 令牌兜底剥离 + 基线显式重冻结（负向验证：注入→红→还原→绿）",
-          "files": [
-            "scripts/check-ui-barehex-ratchet.mjs"
-          ]
+          "files": ["scripts/check-ui-barehex-ratchet.mjs"]
         }
       ],
       "notAdopted": []
@@ -60,9 +55,7 @@
         },
         {
           "id": "fix-batch 登记上一批 706dff7d（preflight 登记类修复）",
-          "files": [
-            "scripts/fix-batch-registry.json"
-          ]
+          "files": ["scripts/fix-batch-registry.json"]
         }
       ],
       "notAdopted": []
@@ -144,9 +137,7 @@
         },
         {
           "id": "shared-dict 两族字典同步补值（跨端对齐）",
-          "files": [
-            "packages/shared-dict/src/index.ts"
-          ]
+          "files": ["packages/shared-dict/src/index.ts"]
         }
       ],
       "notAdopted": []
@@ -158,9 +149,7 @@
       "items": [
         {
           "id": "findNegativeArrears 的 <if> 移出 CDATA（欠款名单/导出 HTTP 500）",
-          "files": [
-            "services/trade-service/src/main/resources/mapper/WalletAccountMapper.xml"
-          ]
+          "files": ["services/trade-service/src/main/resources/mapper/WalletAccountMapper.xml"]
         },
         {
           "id": "核销幂等键加欠款段 + 冻结资金>0 直接 409",
@@ -210,15 +199,11 @@
       "items": [
         {
           "id": "「核销欠款」行操作补显式 perm 码（写操作不得只靠 hasPerm 判定）",
-          "files": [
-            "clients/admin-vue/src/views/finance/MerchantWithdrawView.vue"
-          ]
+          "files": ["clients/admin-vue/src/views/finance/MerchantWithdrawView.vue"]
         },
         {
           "id": "空欠款名单导出前按 CSV 同源口径探总数并提示，区分「没欠款」与「不在范围」",
-          "files": [
-            "clients/admin-vue/src/views/finance/MerchantWithdrawView.vue"
-          ]
+          "files": ["clients/admin-vue/src/views/finance/MerchantWithdrawView.vue"]
         }
       ],
       "notAdopted": []
@@ -301,21 +286,15 @@
       "items": [
         {
           "id": "S9 审计证据式改锚调用点 /.s*appendLogs*(/，抽出 hasAuditCallEvidence 供夹具喂源码",
-          "files": [
-            "scripts/check-write-action-attribution.mjs"
-          ]
+          "files": ["scripts/check-write-action-attribution.mjs"]
         },
         {
           "id": "夹具第 5 组 6 条断言（定义 vs 调用 vs 1-hop vs 2-hop 已知盲区），S8③ 判据改动同批带夹具",
-          "files": [
-            "scripts/check-write-action-attribution.test.mjs"
-          ]
+          "files": ["scripts/check-write-action-attribution.test.mjs"]
         },
         {
           "id": "门头注 ⑤ 订正被推翻的「误判为可达不存在」自我豁免声明",
-          "files": [
-            "scripts/check-write-action-attribution.mjs"
-          ]
+          "files": ["scripts/check-write-action-attribution.mjs"]
         }
       ],
       "notAdopted": []
@@ -334,9 +313,7 @@
         },
         {
           "id": "README 把「唯一的坑」订正为两条，并补跑完必做的行数/DELETE 计数/VALIDATE 对账",
-          "files": [
-            "scripts/devops/flyway-repair/README.md"
-          ]
+          "files": ["scripts/devops/flyway-repair/README.md"]
         }
       ],
       "notAdopted": []
@@ -348,15 +325,11 @@
       "items": [
         {
           "id": "枚举改 --format=%H 全长 + isCoveredBy 前缀匹配（%h 宽度随仓库对象数变化 ⇒ CI 全量克隆下 25 条登记全体失配、8 笔被误报未登记）",
-          "files": [
-            "scripts/check-fix-batch-coverage.mjs"
-          ]
+          "files": ["scripts/check-fix-batch-coverage.mjs"]
         },
         {
           "id": "夹具同批 +5 条：8位登记 vs 40位运行、7位豁免前缀、无关 40 位仍红、短于 7 位不得算命中",
-          "files": [
-            "scripts/check-fix-batch-coverage.test.mjs"
-          ]
+          "files": ["scripts/check-fix-batch-coverage.test.mjs"]
         }
       ],
       "notAdopted": []
@@ -391,9 +364,7 @@
         },
         {
           "id": "变异验证：`if (false && !collected)` ⇒ 负例红（Expected ResponseStatusException to be thrown, but nothing was thrown），cmp 逐字节还原",
-          "files": [
-            "docs/AUDIT_FOUR_END_R20_2026-11-12.md"
-          ]
+          "files": ["docs/AUDIT_FOUR_END_R20_2026-11-12.md"]
         }
       ],
       "notAdopted": []
@@ -419,9 +390,7 @@
         },
         {
           "id": "变异验证：退回旧自拼键形态 ⇒ 恰第 2 例红（Argument(s) are different），cmp 逐字节还原",
-          "files": [
-            "docs/PROJECT_KNOWLEDGE.md"
-          ]
+          "files": ["docs/PROJECT_KNOWLEDGE.md"]
         }
       ],
       "notAdopted": []
@@ -440,16 +409,11 @@
         },
         {
           "id": "回归成因与判据落档：键形变更须当场算最坏长度 vs 列宽；预检不跑测试 ⇒ 资金链改完推前跑 mvn verify -DskipITs",
-          "files": [
-            "docs/engineering/lessons-learned.md",
-            "docs/PROJECT_KNOWLEDGE.md"
-          ]
+          "files": ["docs/engineering/lessons-learned.md", "docs/PROJECT_KNOWLEDGE.md"]
         },
         {
           "id": "判据（真库端到端，非新增而是既有）：SettlementComboMatrixE2ETest 按行部分退三面——列宽再被收窄它就红；本批实跑 1/1 绿（原红）",
-          "files": [
-            "docs/AUDIT_FOUR_END_R20_2026-11-12.md"
-          ]
+          "files": ["docs/AUDIT_FOUR_END_R20_2026-11-12.md"]
         }
       ],
       "notAdopted": []
@@ -646,9 +610,7 @@
         },
         {
           "id": "R22 §四 订正 + 提交说明/豁免口径勘误（只留痕不改台账）",
-          "files": [
-            "docs/AUDIT_FOUR_END_R22_2026-11-12.md"
-          ]
+          "files": ["docs/AUDIT_FOUR_END_R22_2026-11-12.md"]
         }
       ],
       "notAdopted": []
@@ -697,15 +659,11 @@
       "items": [
         {
           "id": "R23 计划执行前提订正：删去非项目类窗口条件，只留并发收口 + 快照钉住（原句与追加更新并列矛盾，改为改写原句）",
-          "files": [
-            "docs/AUDIT_R23_PLAN_2026-11-12.md"
-          ]
+          "files": ["docs/AUDIT_R23_PLAN_2026-11-12.md"]
         },
         {
           "id": "拍板清单 ⑧ 补拍板来源 + 竞品台账有意不入 CB 的留痕（内部防御性边界、无公开规格，凑主体会编造证据）",
-          "files": [
-            "docs/PENDING_DECISIONS_R23_2026-11-14.md"
-          ]
+          "files": ["docs/PENDING_DECISIONS_R23_2026-11-14.md"]
         },
         {
           "id": "展示面上限型资金键与判定侧同源：consumerPublicConfig 两键改走 getPositiveLimit + 2 个行为用例（荒谬值/0 回落、合法值透传）",
@@ -716,9 +674,7 @@
         },
         {
           "id": "R8 静态判据 + 内联负向夹具：禁裸 getInt 下发 / 要 getPositiveLimit 在位 / 钉两个行为用例 / 注释掩码防假红",
-          "files": [
-            "scripts/check-system-config-cache.mjs"
-          ]
+          "files": ["scripts/check-system-config-cache.mjs"]
         }
       ],
       "notAdopted": []
@@ -763,10 +719,7 @@
         },
         {
           "id": "台账订正：PENDING_DECISIONS 文末「轻项未修」改为已修（含 R4 多重集实测无变化的勘误）+ R23_PLAN §六三行状态改 ✅ 已修",
-          "files": [
-            "docs/PENDING_DECISIONS_R23_2026-11-14.md",
-            "docs/AUDIT_R23_PLAN_2026-11-12.md"
-          ]
+          "files": ["docs/PENDING_DECISIONS_R23_2026-11-14.md", "docs/AUDIT_R23_PLAN_2026-11-12.md"]
         }
       ],
       "notAdopted": []
@@ -968,9 +921,7 @@
         },
         {
           "id": "门禁 check-payment-callback-silent-trace 增 ②b「扣款↔推进同源」判据，自测夹具 11→13",
-          "files": [
-            "scripts/check-payment-callback-silent-trace.mjs"
-          ]
+          "files": ["scripts/check-payment-callback-silent-trace.mjs"]
         }
       ],
       "notAdopted": []
@@ -1003,9 +954,7 @@
       "items": [
         {
           "id": "MA-271 退款按 COALESCE(refunded_at, created_at) 归日（含精度边界注释）",
-          "files": [
-            "services/trade-service/src/main/resources/mapper/CabinetOrderLineMapper.xml"
-          ]
+          "files": ["services/trade-service/src/main/resources/mapper/CabinetOrderLineMapper.xml"]
         },
         {
           "id": "MerchantBillRefundDaySqlIT 4 例（真库：跨月归月/历史月不改写/未退款不列/老数据兜底）",
@@ -1133,9 +1082,7 @@
         },
         {
           "id": "MA-279 LOW_STOCK 判据与跳转同源",
-          "files": [
-            "clients/admin-vue/src/views/dashboard/DashboardView.vue"
-          ]
+          "files": ["clients/admin-vue/src/views/dashboard/DashboardView.vue"]
         },
         {
           "id": "规则 E 静态判据（逐 case 比对两个 switch）+ sibling 夹具 + 接线 + 移出 exempt",
@@ -1259,9 +1206,7 @@
         },
         {
           "id": "MA-299 单设备流量费「商户级」文案",
-          "files": [
-            "clients/merchant-mp/src/pages/bills/bills.vue"
-          ]
+          "files": ["clients/merchant-mp/src/pages/bills/bills.vue"]
         }
       ],
       "notAdopted": []
@@ -1273,9 +1218,7 @@
       "items": [
         {
           "id": "MA-284 待办快照补 REFUND_SYNC_NOT_ADVANCED（异常台/商户端同卡归类）",
-          "files": [
-            "clients/merchant-mp/src/utils/todo-list.test.ts"
-          ]
+          "files": ["clients/merchant-mp/src/utils/todo-list.test.ts"]
         }
       ],
       "notAdopted": []
@@ -1468,9 +1411,7 @@
       "items": [
         {
           "id": "⑫ merchant-mp 欠款文案披露锁柜停售",
-          "files": [
-            "clients/merchant-mp/src/components/WalletPage.vue"
-          ]
+          "files": ["clients/merchant-mp/src/components/WalletPage.vue"]
         }
       ],
       "notAdopted": []
@@ -1526,9 +1467,7 @@
         },
         {
           "id": "staging 模板显式 XXL_JOB_ENABLED=false（未叠加调度中心）",
-          "files": [
-            "infra/.env.staging.example"
-          ]
+          "files": ["infra/.env.staging.example"]
         }
       ],
       "notAdopted": []
@@ -1616,9 +1555,7 @@
         },
         {
           "id": "S9 端点归因基线重种（279/198）",
-          "files": [
-            "scripts/write-endpoint-attribution-baseline.json"
-          ]
+          "files": ["scripts/write-endpoint-attribution-baseline.json"]
         }
       ],
       "notAdopted": []
@@ -2597,9 +2534,7 @@
         },
         {
           "id": "MA-395（alertmanager email 双配置栈 R15–R18）",
-          "files": [
-            "scripts/check-ops-alert-channels.mjs"
-          ]
+          "files": ["scripts/check-ops-alert-channels.mjs"]
         }
       ]
     },
@@ -2626,10 +2561,7 @@
       "items": [
         {
           "id": "MA-396 #5（check-status-cas 判据前等长脱敏注释，铁律 84① 收口）",
-          "files": [
-            "scripts/check-status-cas.mjs",
-            "scripts/check-status-cas.test.mjs"
-          ]
+          "files": ["scripts/check-status-cas.mjs", "scripts/check-status-cas.test.mjs"]
         }
       ]
     },
@@ -2745,9 +2677,7 @@
       "items": [
         {
           "id": "MA-405（备份自测不依赖宿主 python3 + _selftest 前缀隔离）",
-          "files": [
-            "scripts/backup-offsite-oss.sh"
-          ]
+          "files": ["scripts/backup-offsite-oss.sh"]
         }
       ]
     },
@@ -2874,9 +2804,7 @@
       "items": [
         {
           "id": "MA-409 伴随（openapi-regen 门禁 @RequestHeader 形参误报：header 参数不进 spec，从形状注解正则摘除——与 MA-074 HttpServletRequest 豁免同理）",
-          "files": [
-            "scripts/check-openapi-regen-required.mjs"
-          ]
+          "files": ["scripts/check-openapi-regen-required.mjs"]
         }
       ]
     },
@@ -2946,9 +2874,7 @@
       "items": [
         {
           "id": "MA-416 已打款备注不再常驻，确认收款改主按钮",
-          "files": [
-            "clients/merchant-mp/src/components/WalletPage.vue"
-          ]
+          "files": ["clients/merchant-mp/src/components/WalletPage.vue"]
         }
       ],
       "notAdopted": []
@@ -3144,10 +3070,7 @@
         },
         {
           "id": "数据库备份钩子 bash 兜底、成功新鲜度与失败告警包装",
-          "files": [
-            "scripts/backup-database.sh",
-            "scripts/backup-alert-alertmanager.sh"
-          ]
+          "files": ["scripts/backup-database.sh", "scripts/backup-alert-alertmanager.sh"]
         },
         {
           "id": "基础镜像、PostgreSQL gosu 安全镜像、EMQX 受信 TLS/续期/凭据加固与生产配置",
@@ -3185,9 +3108,7 @@
       "items": [
         {
           "id": "生产 trade 多副本部署移除宿主 8080 端口，避免 scale 端口冲突",
-          "files": [
-            "infra/docker-compose.production.yml"
-          ]
+          "files": ["infra/docker-compose.production.yml"]
         }
       ],
       "notAdopted": []
@@ -3309,6 +3230,54 @@
             "services/trade-service/src/main/java/com/aicabinet/trade/service/ExternalNotificationDispatcher.java",
             "services/trade-service/src/test/java/com/aicabinet/trade/service/ExternalNotificationDispatcherTest.java",
             "docs/COMPETITOR_BENCHMARK.md",
+            "docs/PROJECT_KNOWLEDGE.md"
+          ]
+        }
+      ],
+      "notAdopted": []
+    },
+    {
+      "commit": "82dcfa84",
+      "report": "docs/PROJECT_KNOWLEDGE.md",
+      "totalItems": 5,
+      "items": [
+        {
+          "id": "微信账单任意 404 不得伪装成零交易日",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/reconciliation/WeChatPlatformBillProvider.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/reconciliation/PlatformBillProviderContractTest.java",
+            "docs/module-audit/ISSUES.md"
+          ]
+        },
+        {
+          "id": "商户日报幂等补齐 merchantId，多商户操作员互不抑制",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantDailyReportNotifier.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/MerchantDailyReportNotifierTest.java",
+            "scripts/check-merchant-daily-report.mjs",
+            "scripts/check-merchant-daily-report.test.mjs"
+          ]
+        },
+        {
+          "id": "外部通知与 Kafka 发布移到业务事务提交后",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/NotificationService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/NotificationServiceTest.java",
+            "docs/engineering/lessons-learned.md"
+          ]
+        },
+        {
+          "id": "服务号绑定按角色任一相关模板配置即可用",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/WeChatOfficialAccountBindingService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/WeChatOfficialAccountBindingServiceTest.java"
+          ]
+        },
+        {
+          "id": "异常中心与商户结案路径补消费者售后终态通知",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/DisputeService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/DisputeTicketSyncTest.java",
             "docs/PROJECT_KNOWLEDGE.md"
           ]
         }
