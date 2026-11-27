@@ -3231,6 +3231,63 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "f51794df",
+      "report": "docs/PROJECT_KNOWLEDGE.md",
+      "totalItems": 6,
+      "items": [
+        {
+          "id": "停用/注销操作员不再接收提现与日报通知",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/OpsUserMerchantMapper.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantWithdrawService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantDailyReportNotifier.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/MerchantDailyReportNotifierTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/MerchantWithdrawFundingRetryTest.java"
+          ]
+        },
+        {
+          "id": "服务号模板未配置时消费者回落原小程序订阅链",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/ExternalNotificationDispatcher.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/ExternalNotificationDispatcherTest.java"
+          ]
+        },
+        {
+          "id": "首次备付失败通知一次，后续恢复重试静默",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantWithdrawService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/MerchantWithdrawFundingRetryTest.java",
+            "docs/COMPETITOR_BENCHMARK.md"
+          ]
+        },
+        {
+          "id": "商户服务号绑定前强制校验 redirectUri",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/WeChatOfficialAccountBindingService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/WeChatOfficialAccountBindingServiceTest.java"
+          ]
+        },
+        {
+          "id": "售后 KEEP/ADJUST 终态映射到已关闭枚举",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/ExternalNotificationDispatcher.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/ExternalNotificationDispatcherTest.java"
+          ]
+        },
+        {
+          "id": "通知模板类别与业务字典补齐并自愈",
+          "files": [
+            "services/trade-service/src/main/resources/db/seed/R__seed_service_account_notification_templates.sql",
+            "packages/shared-dict/src/index.ts",
+            "packages/shared-dict/dist/index.d.ts",
+            "packages/shared-dict/dist/index.js",
+            "docs/PROJECT_KNOWLEDGE.md"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
