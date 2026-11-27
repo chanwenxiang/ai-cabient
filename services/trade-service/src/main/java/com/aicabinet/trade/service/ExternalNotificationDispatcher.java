@@ -121,7 +121,10 @@ public class ExternalNotificationDispatcher {
             }
             if (spec != null) {
                 saveFailedLog(msg, "WECHAT_OFFICIAL", "该业务模板未配置");
-                return false;
+                // 模板未配置是确定性跳过：消费者继续尝试原小程序订阅链；商户没有对应订阅模板，保留一条失败日志。
+                if (isMerchantAudience(msg)) {
+                    return false;
+                }
             }
             // 服务号只覆盖 ORDER/RECHARGE/REFUND/WITHDRAW_SUCCESS/WITHDRAW_FAILED/DISPUTE；
             // 其它业务类型继续走下面的消费者小程序订阅链。
@@ -297,7 +300,7 @@ public class ExternalNotificationDispatcher {
             case "REFUND", "REFUNDED", "已退款" -> "已退款";
             case "WAIVE", "免单" -> "免单";
             case "CONFIRM", "REJECTED", "已驳回" -> "已驳回";
-            case "CANCELLED", "CANCELED", "CLOSED", "已关闭" -> "已关闭";
+            case "CANCELLED", "CANCELED", "CLOSED", "KEEP", "ADJUST", "已关闭" -> "已关闭";
             default -> "处理中";
         };
     }

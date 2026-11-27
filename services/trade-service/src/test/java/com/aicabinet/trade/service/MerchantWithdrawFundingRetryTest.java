@@ -4,9 +4,11 @@ import com.aicabinet.common.dto.MerchantWithdrawRequestDto;
 import com.aicabinet.trade.config.MerchantWithdrawProperties;
 import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.MerchantWithdrawRequest;
+import com.aicabinet.trade.domain.OpsUserMerchant;
 import com.aicabinet.trade.domain.PayoutAccount;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.MerchantWithdrawRequestMapper;
+import com.aicabinet.trade.mapper.OpsUserMerchantMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import com.aicabinet.trade.mapper.PayoutAccountMapper;
 import com.aicabinet.trade.payout.PayoutChannelRegistry;
@@ -29,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -61,6 +64,8 @@ class MerchantWithdrawFundingRetryTest {
     @Mock private PlatformFundService platformFundService;
     @Mock private SystemConfigService systemConfigService;
     @Mock private PayoutConfirmTicketStore confirmTicketStore;
+    @Mock private NotificationService notificationService;
+    @Mock private OpsUserMerchantMapper userMerchantRepository;
 
     private MerchantWithdrawService service;
 
@@ -74,7 +79,7 @@ class MerchantWithdrawFundingRetryTest {
                 merchantScopeService, permissionService, auditService, distributedLockService,
                 approvalWorkflowService, WithdrawPolicyResolver.ymlOnly(properties), payoutChannelRegistry,
                 orderRevenueSplitMapper, withdrawEligibilityService, platformFundService, systemConfigService,
-                confirmTicketStore, null, null, null);
+                confirmTicketStore, notificationService, userMerchantRepository, null);
         ReflectionTestUtils.setField(service, "self", service);
         stubPayeeAndMerchant();
         lenient().when(distributedLockService.tryLock(
@@ -115,6 +120,8 @@ class MerchantWithdrawFundingRetryTest {
         when(payoutService.payout(any(), any(), any())).thenReturn(
                 MerchantWithdrawPayoutService.PayoutResult.failure("WECHAT", null,
                         "微信转账失败 code=NOT_ENOUGH 运营账户余额不足"));
+        when(userMerchantRepository.findActiveByMerchantId("M-1"))
+                .thenReturn(List.of(new OpsUserMerchant(101L, "M-1")));
 
         service.retryFundingBlockedWithdraws();
 
@@ -127,6 +134,25 @@ class MerchantWithdrawFundingRetryTest {
                 eq("WITHDRAW"), eq("1"), anyString());
         verify(withdrawMapper).markPayoutFailed(eq(1L), any(), isNull(), anyString(),
                 notNull(), notNull());
+        verify(notificationService).send(eq("MERCHANT"), eq(101L), eq("M-1"),
+                eq("merchant_withdraw_failed"), anyMap(), eq("WITHDRAW_FAILED"), eq("1"));
+    }
+
+    @Test
+    void fundingRetry_notEnoughAfterFirstAttemptDoesNotNotifyAgain() {
+        MerchantWithdrawRequest request = candidate("FAILED");
+        request.setPayoutRetryCount(1);
+        when(withdrawMapper.findFundingRetryCandidates(any())).thenReturn(List.of(request));
+        when(withdrawMapper.findById(1L)).thenReturn(Optional.of(request));
+        when(payoutService.payout(any(), any(), any())).thenReturn(
+                MerchantWithdrawPayoutService.PayoutResult.failure("WECHAT", null,
+                        "微信转账失败 code=NOT_ENOUGH 运营账户余额不足"));
+
+        service.retryFundingBlockedWithdraws();
+
+        assertEquals(2, request.getPayoutRetryCount());
+        verify(notificationService, never()).send(anyString(), anyLong(), anyString(), anyString(),
+                anyMap(), anyString(), anyString());
     }
 
     @Test

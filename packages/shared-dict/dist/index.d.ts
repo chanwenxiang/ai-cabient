@@ -121,6 +121,10 @@ export declare const DICT: {
         readonly OPS_MANUAL: "运营手工";
         readonly DAILY_INCOME: "日结收入";
         readonly FEE_REMINDER: "欠费提醒";
+        readonly REFUND: "退款";
+        readonly BALANCE_REFUND: "余额退款";
+        readonly WITHDRAW_SUCCESS: "提现成功";
+        readonly WITHDRAW_FAILED: "提现失败";
     };
     /** 设备租赁账单状态（V436，MA-131）：词表与 site_rent_bill_status 同族对齐 */
     readonly device_rental_bill_status: {

@@ -64,8 +64,13 @@ class ExternalNotificationDispatcherTest {
     }
 
     private ExternalNotificationDispatcher dispatcher(boolean wechat, boolean sms, boolean async) {
+        return dispatcher(wechat, sms, async, OFFICIAL_PROPS);
+    }
+
+    private ExternalNotificationDispatcher dispatcher(boolean wechat, boolean sms, boolean async,
+                                                       WeChatOfficialAccountProperties officialProps) {
         return new ExternalNotificationDispatcher(logRepository, userInfoRepository, templateRepository,
-                weChatMiniAppClient, WECHAT_PROPS, weChatOfficialAccountClient, OFFICIAL_PROPS, smsSender,
+                weChatMiniAppClient, WECHAT_PROPS, weChatOfficialAccountClient, officialProps, smsSender,
                 new NotifyChannelSwitchService(org.mockito.Mockito.mock(SystemConfigService.class), new NotificationProperties(wechat, sms, async)),
                 aliyunSmsSender);
     }
@@ -274,6 +279,57 @@ class ExternalNotificationDispatcherTest {
         assertEquals("雪碧", data.getValue().get("thing5"));
         assertEquals("5.00", data.getValue().get("amount2"));
         assertEquals("已退款", data.getValue().get("const7"));
+    }
+
+    @Test
+    void dispatch_disputeKeep_mapsTerminalClosedEnum() {
+        assertDisputeResultEnum("KEEP", "已关闭");
+    }
+
+    @Test
+    void dispatch_disputeAdjust_mapsTerminalClosedEnum() {
+        assertDisputeResultEnum("ADJUST", "已关闭");
+    }
+
+    private void assertDisputeResultEnum(String resolutionType, String expected) {
+        ExternalNotificationDispatcher dispatcher = dispatcher(true, false);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(officialUser()));
+        when(weChatOfficialAccountClient.sendTemplateMessage(anyString(), eq("official-dispute-tpl"), anyMap(),
+                anyString(), eq(MiniAppTarget.CONSUMER), anyString(), eq(true))).thenReturn(true);
+        NotificationDispatchMessage msg = new NotificationDispatchMessage("dispute_resolved", 100L,
+                "售后处理完成", "订单 O1 已处理", "DISPUTE", "T1",
+                Map.of("orderId", "O1", "productName", "雪碧", "orderAmount", "5.00",
+                        "resolutionType", resolutionType), "dispute-" + resolutionType);
+
+        dispatcher.dispatch(msg);
+
+        ArgumentCaptor<Map<String, String>> data = ArgumentCaptor.forClass(Map.class);
+        verify(weChatOfficialAccountClient).sendTemplateMessage(eq("official-openid"), eq("official-dispute-tpl"),
+                data.capture(), eq("dispute-" + resolutionType), eq(MiniAppTarget.CONSUMER),
+                eq("pages/dispute/detail?ticketId=T1"), eq(true));
+        assertEquals(expected, data.getValue().get("const7"));
+    }
+
+    @Test
+    void dispatch_officialTemplateMissing_fallsBackToMiniProgram() {
+        WeChatOfficialAccountProperties props = new WeChatOfficialAccountProperties(
+                true, "gh_official", "secret", "official-tpl", "", "https://example.test/callback",
+                "consumer-app", "pages/messages/messages", "merchant-app", "pages/home/home",
+                "merchant-report-tpl", "", "official-withdraw-tpl", "official-withdraw-failed-tpl",
+                "official-dispute-tpl", "测试品牌");
+        ExternalNotificationDispatcher dispatcher = dispatcher(true, false, false, props);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(officialUser()));
+        when(weChatMiniAppClient.sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap(),
+                eq(MiniAppTarget.CONSUMER))).thenReturn(true);
+        NotificationDispatchMessage msg = new NotificationDispatchMessage("refund_success", 100L, "退款成功",
+                "您的订单 O1 已退款 5.50 元", "REFUND", "O1", Map.of("amount", "5.50"), "refund-client");
+
+        dispatcher.dispatch(msg);
+
+        verify(weChatOfficialAccountClient, never()).sendTemplateMessage(anyString(), anyString(), anyMap(),
+                anyString(), any(MiniAppTarget.class), anyString(), anyBoolean());
+        verify(weChatMiniAppClient).sendSubscribeMessage(eq("mini-openid"), eq("consumer-tpl"),
+                eq("pages/messages/messages"), anyMap(), eq(MiniAppTarget.CONSUMER));
     }
 
     @Test

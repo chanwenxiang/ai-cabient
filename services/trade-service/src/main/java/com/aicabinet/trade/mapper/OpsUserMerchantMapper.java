@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import java.util.Collection;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Select;
 
 @Mapper
 public interface OpsUserMerchantMapper extends BaseTradeMapper<OpsUserMerchant> {
@@ -34,6 +35,17 @@ public interface OpsUserMerchantMapper extends BaseTradeMapper<OpsUserMerchant> 
                 .eq(OpsUserMerchant::getMerchantId, merchantId)
                 .orderByAsc(OpsUserMerchant::getUserId));
     }
+
+    /** 通知只发给仍处于 ACTIVE 状态的操作员；停用/注销账号即使保留旧绑定也不收资金信息。 */
+    @Select("""
+            SELECT o.* FROM ops_user_merchant o
+            JOIN user_info u ON u.user_id = o.user_id
+            WHERE o.merchant_id = #{merchantId}
+              AND u.status = 'ACTIVE'
+              AND u.is_deleted = false
+            ORDER BY o.user_id
+            """)
+    List<OpsUserMerchant> findActiveByMerchantId(String merchantId);
 
     /** G2-11 ⑦：单行回收——只摘掉这一条绑定，不动同账号的其它商户。 */
     default void deleteByIdUserIdAndMerchantId(Long userId, String merchantId) {

@@ -5,6 +5,7 @@ import com.aicabinet.common.dto.WeChatOfficialBindingStatusDto;
 import com.aicabinet.trade.config.WeChatOfficialAccountProperties;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.wechat.WeChatOfficialAccountClient;
+import com.aicabinet.trade.wechat.MiniAppTarget;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -20,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -115,6 +117,21 @@ class WeChatOfficialAccountBindingServiceTest {
                 () -> service().complete("code", "state"));
 
         assertEquals(HttpStatus.CONFLICT, error.getStatusCode());
+    }
+
+    @Test
+    void merchantBindingRejectsMissingRedirectUri() {
+        WeChatOfficialAccountProperties noRedirect = new WeChatOfficialAccountProperties(
+                true, "gh_test", "secret", "tpl", "", "", "consumer-app", "pages/messages/messages",
+                "merchant-app", "pages/home/home", "merchant-report-tpl", "", "", "", "", "");
+        WeChatOfficialAccountBindingService service =
+                new WeChatOfficialAccountBindingService(noRedirect, client, ticketStore, accountService);
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> service.createTicket(100L, MiniAppTarget.MERCHANT));
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, error.getStatusCode());
+        verify(ticketStore, never()).issue(anyLong(), any());
     }
 
     @Test

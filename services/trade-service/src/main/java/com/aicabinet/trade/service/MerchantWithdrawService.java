@@ -829,6 +829,8 @@ public class MerchantWithdrawService {
         }
         request.setStatus("FAILED");
         boolean fundingFailure = isFundingFailure(result);
+        boolean firstFundingFailure = fundingFailure
+                && (request.getPayoutRetryCount() == null || request.getPayoutRetryCount() == 0);
         String blockReason = fundingFailure ? trim(result.message()) : null;
         Instant nextRetryAt = fundingFailure ? now.plus(FUNDING_RETRY_DELAY) : null;
         request.setLastPayoutBlockReason(blockReason);
@@ -845,8 +847,8 @@ public class MerchantWithdrawService {
         // 打款失败即释放冻结，避免冻结悬挂（与人工 cancelFailed 解冻口径一致；日限额统计仍排除终态）
         merchantWalletService.releaseFrozen(request.getMerchantId(), request.getAmountCents(),
                 WITHDRAW, String.valueOf(request.getRequestId()), "提现打款失败释放");
-        // NOT_ENOUGH 会排下一小时自动重试：此时不发“失败”，等重试耗尽/确定失败再通知。
-        if (!fundingFailure) {
+        // 首次备付失败通知一次；后续每小时恢复重试保持静默，成功后再发成功通知。
+        if (!fundingFailure || firstFundingFailure) {
             notifyWithdrawAfterCommit(request, false, trim(result.message()));
         }
         return toDto(request);
@@ -930,7 +932,7 @@ public class MerchantWithdrawService {
     private void notifyWithdrawOperators(MerchantWithdrawRequest request, boolean success,
                                          String failureMessage) {
         try {
-            List<OpsUserMerchant> binds = userMerchantRepository.findByMerchantId(request.getMerchantId());
+            List<OpsUserMerchant> binds = userMerchantRepository.findActiveByMerchantId(request.getMerchantId());
             if (binds.isEmpty()) {
                 return;
             }

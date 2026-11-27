@@ -96,7 +96,7 @@ class MerchantDailyReportNotifierTest {
     private Fixture fixture(MerchantDailyReportProperties props, boolean wechatOn, long logCount,
                             WeChatOfficialAccountProperties officialProps) {
         OpsUserMerchantMapper bindRepo = mock(OpsUserMerchantMapper.class);
-        when(bindRepo.findByMerchantId(MERCHANT_ID)).thenReturn(List.of(bind(101L), bind(102L)));
+        when(bindRepo.findActiveByMerchantId(MERCHANT_ID)).thenReturn(List.of(bind(101L), bind(102L)));
         UserInfoMapper userRepo = mock(UserInfoMapper.class);
         when(userRepo.findById(101L)).thenReturn(Optional.of(operator(101L, "openid-101")));
         when(userRepo.findById(102L)).thenReturn(Optional.of(operator(102L, "")));
@@ -212,7 +212,7 @@ class MerchantDailyReportNotifierTest {
 
     private Fixture officialFixture(boolean sendOk) {
         OpsUserMerchantMapper bindRepo = mock(OpsUserMerchantMapper.class);
-        when(bindRepo.findByMerchantId(MERCHANT_ID)).thenReturn(List.of(bind(101L)));
+        when(bindRepo.findActiveByMerchantId(MERCHANT_ID)).thenReturn(List.of(bind(101L)));
         UserInfo user = operator(101L, "mini-openid");
         user.setWxOfficialOpenId("official-openid");
         user.setWxOfficialAppId("gh_official");

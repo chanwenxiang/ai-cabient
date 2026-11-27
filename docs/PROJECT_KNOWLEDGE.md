@@ -691,6 +691,13 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-27（服务号对接独立审查修复）
+
+- **账户与通知**：提现/日报只发给 `user_info.status=ACTIVE` 且未逻辑删除的操作员；服务号模板未配置时消费者回落原小程序订阅链，实际发送失败仍禁止回落；首次备付失败通知一次，后续每小时恢复重试静默，成功后发成功通知。
+- **绑定与售后**：商户服务号绑定前强制校验 `redirectUri`；售后 `KEEP/ADJUST` 终态映射到审核通过的“已关闭”枚举，不再误报“处理中”。
+- **字典与种子**：模板类别归位 `ORDER/MERCHANT`，补 `REFUND/BALANCE_REFUND/WITHDRAW_SUCCESS/WITHDRAW_FAILED` 字典；种子冲突时自愈类别与文案，避免后台“未知”和偏好失效。
+- **验证**：定向 56 个 Java 用例通过；通知种子、shared-dist、fix-batch、189 门禁接线检查通过。修复在隔离分支 `fix/service-account-review`，尚未推送/部署。
+
 ### 2026-11-26（备份告警邮件实际送达）
 
 - 经用户授权发送 `BackupWarning` 测试告警：Alertmanager 已接收，SMTP 登录认证成功，email 通知计数 18、失败 0；用户已确认收到测试邮件，实际送达闭环。未修改备份或邮件配置，测试告警已不处于 active 状态。

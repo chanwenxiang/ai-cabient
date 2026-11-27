@@ -134,7 +134,7 @@ public class MerchantDailyReportNotifier {
             log.debug("merchant daily report skipped: no usable template merchant={}", report.merchantId());
             return 0;
         }
-        List<OpsUserMerchant> binds = userMerchantRepository.findByMerchantId(report.merchantId());
+        List<OpsUserMerchant> binds = userMerchantRepository.findActiveByMerchantId(report.merchantId());
         if (binds.isEmpty()) {
             log.info("merchant daily report skipped: no bound operator merchant={}", report.merchantId());
             return 0;

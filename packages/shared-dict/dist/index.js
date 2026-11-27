@@ -147,7 +147,11 @@ export const DICT = {
         OPS_MANUAL: '运营手工',
         // V436（MA-135）：每日批量落库的两个高频值，缺它们 admin 站内信页整片「未知」
         DAILY_INCOME: '日结收入',
-        FEE_REMINDER: '欠费提醒'
+        FEE_REMINDER: '欠费提醒',
+        REFUND: '退款',
+        BALANCE_REFUND: '余额退款',
+        WITHDRAW_SUCCESS: '提现成功',
+        WITHDRAW_FAILED: '提现失败'
     },
     /** 设备租赁账单状态（V436，MA-131）：词表与 site_rent_bill_status 同族对齐 */
     device_rental_bill_status: { UNPAID: '待付', PAID: '已付', VOID: '已作废' },

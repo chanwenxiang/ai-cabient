@@ -57,6 +57,9 @@ public class WeChatOfficialAccountBindingService {
     }
 
     private boolean isConfigured(MiniAppTarget target) {
+        if (!properties.isBindingConfigured()) {
+            return false;
+        }
         return target == MiniAppTarget.MERCHANT
                 ? properties.isMerchantDailyReportConfigured() : properties.isConfigured();
     }
