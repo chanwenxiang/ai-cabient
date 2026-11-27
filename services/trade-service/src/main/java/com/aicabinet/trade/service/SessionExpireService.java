@@ -3,7 +3,9 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.config.SessionExpireProperties;
+import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.ShoppingSession;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.support.SessionLogContext;
@@ -33,6 +35,7 @@ public class SessionExpireService {
     private static final Logger log = LoggerFactory.getLogger(SessionExpireService.class);
 
     private final ShoppingSessionMapper repository;
+    private final CabinetOrderMapper orderRepository;
     private final SessionExpireProperties sessionExpireProperties;
     private final CabinetMetrics cabinetMetrics;
     private final OpsExceptionService opsExceptionService;
@@ -43,6 +46,7 @@ public class SessionExpireService {
     private final SessionService sessionService;
 
     public SessionExpireService(ShoppingSessionMapper repository,
+                                CabinetOrderMapper orderRepository,
                                 SessionExpireProperties sessionExpireProperties,
                                 CabinetMetrics cabinetMetrics,
                                 OpsExceptionService opsExceptionService,
@@ -52,6 +56,7 @@ public class SessionExpireService {
                                 ScheduledTaskService taskService,
                                 @Lazy SessionService sessionService) {
         this.repository = repository;
+        this.orderRepository = orderRepository;
         this.sessionExpireProperties = sessionExpireProperties != null
                 ? sessionExpireProperties
                 : SessionExpireProperties.defaults();
@@ -330,13 +335,36 @@ public class SessionExpireService {
 
     private void upgradeConsumerRecognizingTimeout(ShoppingSession session) {
         SessionState from = session.getState();
-        String failReason = "识别超时，已转人工审核，本次暂未扣款";
         // C09：升级前释放预授权冻结；失败只记 error 并告警，不阻断状态迁移
         try {
             consumerPreauthService.releaseIfFrozen(session);
         } catch (Exception e) {
             log.error("识别超时释放预授权失败 sessionId={}", session.getSessionId(), e);
         }
+        CabinetOrder order = orderRepository.findBySessionId(session.getSessionId()).orElse(null);
+        if (order != null) {
+            session.setOrderId(order.getOrderId());
+            String reason = "订单已产生（" + order.getStatus() + "），结算收尾未完成，请人工核对";
+            session.setFailReason(reason);
+            if (from.canTransitionTo(SessionState.DISPUTED)) {
+                sessionService.transition(session, SessionState.DISPUTED);
+                try {
+                    disputeService.createTimeoutTicket(session, reason);
+                } catch (Exception ticketEx) {
+                    log.warn("已扣款会话争议单创建失败 {}", SessionLogContext.of(session), ticketEx);
+                }
+            } else {
+                sessionService.transition(session, SessionState.FAILED);
+            }
+            opsExceptionService.report("SETTLEMENT_FINALIZE_PENDING", "HIGH",
+                    new OpsExceptionService.ExceptionReport.ExceptionRefs(
+                            session.getDeviceId(), session.getSessionId(), order.getOrderId(), session.getUserId()),
+                    "已扣款会话结算收尾未完成", reason);
+            log.warn("settling timeout with existing order {} from={} order={} status={}",
+                    SessionLogContext.of(session), from, order.getOrderId(), order.getStatus());
+            return;
+        }
+        String failReason = "识别超时，已转人工审核，本次暂未扣款";
         if (from.canTransitionTo(SessionState.DISPUTED)) {
             session.setFailReason(failReason);
             sessionService.transition(session, SessionState.DISPUTED);

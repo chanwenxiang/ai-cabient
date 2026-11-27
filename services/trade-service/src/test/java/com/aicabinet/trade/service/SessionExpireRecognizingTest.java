@@ -2,7 +2,9 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.config.SessionExpireProperties;
+import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.ShoppingSession;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.metrics.CabinetMetrics;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
@@ -40,6 +43,7 @@ import static org.mockito.Mockito.when;
 class SessionExpireRecognizingTest {
 
     @Mock private ShoppingSessionMapper repository;
+    @Mock private CabinetOrderMapper orderRepository;
     @Mock private CabinetMetrics cabinetMetrics;
     @Mock private OpsExceptionService opsExceptionService;
     @Mock private DisputeService disputeService;
@@ -54,6 +58,7 @@ class SessionExpireRecognizingTest {
     void setUp() {
         expireService = new SessionExpireService(
                 repository,
+                orderRepository,
                 SessionExpireProperties.defaults(),
                 cabinetMetrics,
                 opsExceptionService,
@@ -160,5 +165,25 @@ class SessionExpireRecognizingTest {
         verify(sessionService).transition(stale, SessionState.DISPUTED);
         verify(taskService).finish(eq("session-recognizing-expire"), eq("SUCCESS"),
                 contains("识别超时升级 1"), anyLong());
+    }
+
+    @Test
+    void expireSettling_withPaidOrder_bindsOrderAndDoesNotClaimUnpaid() {
+        ShoppingSession stale = staleRecognizing("S-PAID");
+        stale.setState(SessionState.SETTLING);
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-PAID");
+        order.setSessionId("S-PAID");
+        order.setStatus("PAID");
+        stubBatch(stale);
+        when(repository.findByIdForUpdate("S-PAID")).thenReturn(Optional.of(stale));
+        when(orderRepository.findBySessionId("S-PAID")).thenReturn(Optional.of(order));
+
+        expireService.expireStaleRecognizingSessions();
+
+        assertEquals("O-PAID", stale.getOrderId());
+        verify(disputeService).createTimeoutTicket(eq(stale),
+                argThat(reason -> reason != null && reason.contains("结算收尾未完成")
+                        && !reason.contains("暂未扣款")));
     }
 }
