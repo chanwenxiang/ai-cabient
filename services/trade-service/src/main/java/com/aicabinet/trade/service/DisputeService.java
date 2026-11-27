@@ -239,40 +239,27 @@ public class DisputeService {
 
     /** 消费者触达：迟到识别自动转争议单发 dispute_created 站内信（失败不阻断兜账主链）。 */
     private void notifyConsumerLateRecognition(ShoppingSession session, String ticketId) {
-        dispatchDisputeAfterCommit(session, String.valueOf(ticketId), null,
+        notifyConsumerDispute(session, String.valueOf(ticketId), null,
                 "本次开门会话异常关闭，设备识别到你可能已取货未结算，已转人工核实，结果将通知你");
     }
 
-    private void dispatchDisputeAfterCommit(ShoppingSession session, String ticketId,
+    private void notifyConsumerDispute(ShoppingSession session, String ticketId,
                                             String resolutionType, String reason) {
         if (notificationService == null || session.getUserId() == null) {
             return;
         }
-        Runnable notify = () -> {
-            try {
-                Map<String, String> params = buildDisputeNotificationParams(session, ticketId,
-                        resolutionType, reason);
-                if (resolutionType == null) {
-                    notificationService.notifyConsumer(session.getUserId(), "dispute_created", params,
-                            "DISPUTE", ticketId);
-                } else {
-                    notificationService.notifyConsumer(session.getUserId(), "dispute_resolved", params,
-                            "DISPUTE", ticketId);
-                }
-            } catch (Exception e) {
-                log.warn("dispute notify failed session={} ticket={}", session.getSessionId(), ticketId, e);
+        try {
+            Map<String, String> params = buildDisputeNotificationParams(session, ticketId,
+                    resolutionType, reason);
+            if (resolutionType == null) {
+                notificationService.notifyConsumer(session.getUserId(), "dispute_created", params,
+                        "DISPUTE", ticketId);
+            } else {
+                notificationService.notifyConsumer(session.getUserId(), "dispute_resolved", params,
+                        "DISPUTE", ticketId);
             }
-        };
-        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
-            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
-                    new org.springframework.transaction.support.TransactionSynchronization() {
-                        @Override
-                        public void afterCommit() {
-                            notify.run();
-                        }
-                    });
-        } else {
-            notify.run();
+        } catch (Exception e) {
+            log.warn("dispute notify failed session={} ticket={}", session.getSessionId(), ticketId, e);
         }
     }
 
@@ -311,7 +298,8 @@ public class DisputeService {
 
     @Transactional
     public DisputeTicketDto fileByConsumer(Long userId, FileDisputeRequest request) {
-        ShoppingSession session = sessionRepository.findById(request.sessionId().trim())
+        // CONCURRENCY: 会话行锁覆盖「查重→置 DISPUTED→建工单」整个事务，阻止并发重复申诉。
+        ShoppingSession session = sessionRepository.findByIdForUpdate(request.sessionId().trim())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (!userId.equals(session.getUserId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.PERMISSION_DENIED);
@@ -349,7 +337,7 @@ public class DisputeService {
                 userId, session.getSessionId(), request.reason().trim(), "[]",
                 normalizeCategory(request.category()), normalizePriority(request.priority()), null, null));
         fileAttachmentService.bindEvidenceToDispute(userId, dto.ticketId(), request.evidenceFileIds());
-        dispatchDisputeAfterCommit(session, String.valueOf(dto.ticketId()), null, request.reason().trim());
+        notifyConsumerDispute(session, String.valueOf(dto.ticketId()), null, request.reason().trim());
         return toDto(disputeRepository.findById(dto.ticketId()).orElseThrow());
     }
 
@@ -775,7 +763,7 @@ public class DisputeService {
 
     /** 消费者触达：结案/自动免单发 dispute_resolved 站内信（模板缺字段或未启用由 NotificationService 兜底）。 */
     private void notifyConsumerResolved(ShoppingSession session, String ticketId, String resolutionType) {
-        dispatchDisputeAfterCommit(session, String.valueOf(ticketId), resolutionType,
+        notifyConsumerDispute(session, String.valueOf(ticketId), resolutionType,
                 resolutionNotice(resolutionType));
     }
 

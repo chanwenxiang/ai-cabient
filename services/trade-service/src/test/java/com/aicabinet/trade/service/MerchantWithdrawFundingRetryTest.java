@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.util.List;
@@ -29,6 +30,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -123,7 +125,14 @@ class MerchantWithdrawFundingRetryTest {
         when(userMerchantRepository.findActiveByMerchantId("M-1"))
                 .thenReturn(List.of(new OpsUserMerchant(101L, "M-1")));
 
-        service.retryFundingBlockedWithdraws();
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.retryFundingBlockedWithdraws();
+            assertTrue(TransactionSynchronizationManager.getSynchronizations().isEmpty(),
+                    "提现通知不得再注册 afterCommit：外部副作用统一由 NotificationService 提交后执行");
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
 
         assertEquals("FAILED", request.getStatus());
         assertNotNull(request.getNextPayoutRetryAt());

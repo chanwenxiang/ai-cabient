@@ -26,6 +26,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 import java.util.Optional;
@@ -100,7 +101,7 @@ class DisputeTicketSyncTest {
         restock.setDeviceId("CAB-001");
         restock.setState(SessionState.COMPLETED);
         restock.setReplenishmentTaskId(77L);
-        when(sessionRepository.findById("S-RS-1")).thenReturn(Optional.of(restock));
+        when(sessionRepository.findByIdForUpdate("S-RS-1")).thenReturn(Optional.of(restock));
 
         ResponseStatusException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 ResponseStatusException.class,
@@ -109,6 +110,7 @@ class DisputeTicketSyncTest {
 
         assertEquals(org.springframework.http.HttpStatus.CONFLICT, ex.getStatusCode());
         verify(disputeRepository, never()).save(any());
+        verify(sessionRepository).findByIdForUpdate("S-RS-1");
         verify(sessionService, never()).transition(any(), any());
     }
 
@@ -187,8 +189,16 @@ class DisputeTicketSyncTest {
         when(disputeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        var result = service.resolveTicket(10001L, "D-KEEP-1",
-                new ResolveDisputeRequest(List.of(), "KEEP"));
+        TransactionSynchronizationManager.initSynchronization();
+        final com.aicabinet.common.dto.ResolveDisputeResultDto result;
+        try {
+            result = service.resolveTicket(10001L, "D-KEEP-1",
+                    new ResolveDisputeRequest(List.of(), "KEEP"));
+            assertTrue(TransactionSynchronizationManager.getSynchronizations().isEmpty(),
+                    "售后通知不得再注册 afterCommit：外部副作用统一由 NotificationService 提交后执行");
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
 
         assertEquals("KEEP", result.resolutionType());
         assertEquals(0, result.adjustmentCents());

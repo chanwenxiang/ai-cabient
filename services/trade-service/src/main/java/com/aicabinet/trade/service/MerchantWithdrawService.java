@@ -33,8 +33,6 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
@@ -916,17 +914,8 @@ public class MerchantWithdrawService {
         if (notificationService == null || userMerchantRepository == null) {
             return;
         }
-        Runnable notify = () -> notifyWithdrawOperators(request, success, failureMessage);
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    notify.run();
-                }
-            });
-        } else {
-            notify.run();
-        }
+        // NotificationService 统一负责站内信同事务落库与外部渠道 afterCommit；这里不能再包一层。
+        notifyWithdrawOperators(request, success, failureMessage);
     }
 
     private void notifyWithdrawOperators(MerchantWithdrawRequest request, boolean success,

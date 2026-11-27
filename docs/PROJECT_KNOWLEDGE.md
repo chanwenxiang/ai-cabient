@@ -704,7 +704,8 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - **绑定与售后**：商户服务号绑定前强制校验 `redirectUri`；售后模板 `const7` 经实测对任意值都返回 47003，已改为省略该字段，避免售后通知整体发送失败。
 - **字典与种子**：模板类别归位 `ORDER/MERCHANT`，补 `REFUND/BALANCE_REFUND/WITHDRAW_SUCCESS/WITHDRAW_FAILED` 字典；种子冲突时自愈类别与文案，避免后台“未知”和偏好失效。
 - **第二轮复核**：微信账单仅对明确 `NO_STATEMENT_EXIST` 返回空列表，任意 404 仍 fail-closed；商户日报幂等补齐 `merchantId`，同一操作员管理多商户不再互相抑制；外部通知与 Kafka 发布移到业务事务提交后，退款 afterCommit 回调不再嵌套注册；服务号绑定按角色任一相关模板配置即可用；异常中心/商户结案两条售后路径补消费者终态通知。
-- **验证**：第一轮定向 56 个、第二轮定向 88 个 Java 用例通过；第二轮 trade-service 全量单测 3527/3527 通过；商户日报门禁 43 项断言通过，通知种子、回调端点、事务边界、只读事务写调用门禁通过。两轮修复已合并为 `1db528b2`，CI 5/5 通过并部署双副本；11-25 对账补跑 API 200、`reconId=6` 幂等、`EMPTY 0/0`，微信零账单日志与 MA-431 活跃告警 0 均已核验。
+- **验收补漏**：真实售后验收发现 `DisputeService` 与 `MerchantWithdrawService` 仍在外层 afterCommit 中调用普通 `NotificationService.send`，导致站内信成功但服务号/短信永不外发；两处改为直接通知，由 NotificationService 单点持有提交后副作用。另将 `fileByConsumer` 的会话读取改为 `findByIdForUpdate`，用行锁覆盖查重→置争议→建单，消除并发重复申诉窗口。
+- **验证**：第一轮定向 56 个、第二轮定向 88 个 Java 用例通过；第二轮 trade-service 全量单测 3527/3527 通过；商户日报门禁 43 项断言通过，通知种子、回调端点、事务边界、只读事务写调用门禁通过。两轮修复已合并为 `1db528b2`，CI 5/5 通过并部署双副本；11-25 对账补跑 API 200、`reconId=6` 幂等、`EMPTY 0/0`，微信零账单日志与 MA-431 活跃告警 0 均已核验。最新补漏后全仓后端 3761/3761、前端三端 651/651 与 shared-rbac 测试通过，189 门禁与完整预检通过。
 
 ### 2026-11-26（备份告警邮件实际送达）
 

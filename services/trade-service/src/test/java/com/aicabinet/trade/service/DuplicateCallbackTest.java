@@ -112,7 +112,7 @@ class DuplicateCallbackTest {
     @Test
     void duplicateConsumerAppeal_returnsConflict() {
         ShoppingSession shoppingSession = session("S-DUP-03", SessionState.COMPLETED);
-        when(repository.findById("S-DUP-03")).thenReturn(Optional.of(shoppingSession));
+        when(repository.findByIdForUpdate("S-DUP-03")).thenReturn(Optional.of(shoppingSession));
         when(disputeRepository.findBySessionId("S-DUP-03")).thenReturn(Optional.of(new com.aicabinet.trade.domain.DisputeTicket()));
 
         FileDisputeRequest request = new FileDisputeRequest("S-DUP-03", "wrong-charge", "BILL", "NORMAL");
@@ -126,7 +126,7 @@ class DuplicateCallbackTest {
         ShoppingSession shoppingSession = session("S-DUP-04", SessionState.COMPLETED);
         com.aicabinet.trade.domain.DisputeTicket ticket = new com.aicabinet.trade.domain.DisputeTicket();
         ticket.setStatus("RESOLVED");
-        when(repository.findById("S-DUP-04")).thenReturn(Optional.of(shoppingSession));
+        when(repository.findByIdForUpdate("S-DUP-04")).thenReturn(Optional.of(shoppingSession));
         when(disputeRepository.findBySessionId("S-DUP-04")).thenReturn(Optional.of(ticket));
 
         FileDisputeRequest request = new FileDisputeRequest("S-DUP-04", "re-appeal", "BILL", "NORMAL");
