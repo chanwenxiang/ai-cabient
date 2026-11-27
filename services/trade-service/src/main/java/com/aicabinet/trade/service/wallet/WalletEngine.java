@@ -194,10 +194,12 @@ public class WalletEngine {
                 return false;
             }
             WalletAccount account = reload(domain, ownerId);
+            long frozen = value(account.getFrozenCents());
             long balance = value(account.getBalanceCents()) - amountCents;
-            persistBalances(domain, ownerId, balance, value(account.getFrozenCents()));
+            requireBalanceNotBelowFrozen(account, amountCents);
+            persistBalances(domain, ownerId, balance, frozen);
             appendLedger(domain, ownerId, entryType, -amountCents,
-                    new BalanceSnapshot(balance, value(account.getFrozenCents())), refType, refId, remark);
+                    new BalanceSnapshot(balance, frozen), refType, refId, remark);
             return true;
         });
     }
@@ -287,10 +289,7 @@ public class WalletEngine {
             WalletAccount account = reload(domain, ownerId);
             long frozen = value(account.getFrozenCents());
             long balance = value(account.getBalanceCents()) - amountCents;
-            if (balance < frozen) {
-                throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED,
-                        "退款冲正后可用余额不足，请先处理提现冻结");
-            }
+            requireBalanceNotBelowFrozen(account, amountCents);
             persistBalances(domain, ownerId, balance, frozen);
             appendLedger(domain, ownerId, entryType, -amountCents,
                     new BalanceSnapshot(balance, frozen), reverseRefType, reverseRefId, remark);
@@ -538,6 +537,14 @@ public class WalletEngine {
 
     private static long value(Long v) {
         return v == null ? 0L : v;
+    }
+
+    private static void requireBalanceNotBelowFrozen(WalletAccount account, long amountCents) {
+        long balance = value(account.getBalanceCents()) - amountCents;
+        if (balance < value(account.getFrozenCents())) {
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED,
+                    "退款冲正后可用余额不足，请先处理提现冻结");
+        }
     }
 
     private static String trim(String v, int maxLen) {
