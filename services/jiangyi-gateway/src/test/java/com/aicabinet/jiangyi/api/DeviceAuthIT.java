@@ -235,7 +235,26 @@ class DeviceAuthIT {
         // 透传：开锁失败必须通知 trade open-failed（markOpenDoorFailed 幂等侧）
         verify(tradeInternalClient).postOpenFailed(
                 org.mockito.ArgumentMatchers.eq("S1"), anyString(),
-                org.mockito.ArgumentMatchers.eq("D1"));
+                org.mockito.ArgumentMatchers.eq("D1"),
+                org.mockito.ArgumentMatchers.eq(false));
+    }
+
+    @Test
+    void pullFailIsForwardedWithExplicitPullFailedFlag() throws Exception {
+        String token = deviceTokenService.issue(boundDevice());
+        when(tradeInternalClient.device("D1")).thenReturn(Optional.of(boundDevice()));
+
+        mockMvc.perform(post("/jiangyi/api/device/uploadDoorState")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderNo\":\"S1\",\"doorStatus\":\"fail\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200));
+
+        verify(tradeInternalClient).postOpenFailed(
+                org.mockito.ArgumentMatchers.eq("S1"), anyString(),
+                org.mockito.ArgumentMatchers.eq("D1"),
+                org.mockito.ArgumentMatchers.eq(true));
     }
 
     @Test

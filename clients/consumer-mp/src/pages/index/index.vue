@@ -552,7 +552,8 @@ import {
   showError,
   showSuccess,
   showConfirm,
-  requestOrderSubscribe
+  requestOrderSubscribe,
+  showSubscribeFeedback
 } from '@/utils/notify';
 import { useHomeCatalog } from '@/composables/use-home-catalog';
 import { useSessionPoll } from '@/composables/use-session-poll';
@@ -1567,8 +1568,17 @@ async function openDeviceSession(cabinetId: string) {
   openCreateInFlight.value = false;
 }
 
+let openSubscribeBusy = false;
 function requestOpenSubscribe() {
-  void requestOrderSubscribe(subscribeTmplId.value ? [subscribeTmplId.value] : undefined);
+  if (openSubscribeBusy) return;
+  openSubscribeBusy = true;
+  // 必须在点击/扫码手势内同步进入 wrapper；提示异步返回，不阻塞开门编排。
+  void requestOrderSubscribe(subscribeTmplId.value ? [subscribeTmplId.value] : undefined)
+    .then((result) => showSubscribeFeedback(result, '账单提醒已开启'))
+    .catch(() => showError('提醒授权失败，请重试'))
+    .finally(() => {
+      openSubscribeBusy = false;
+    });
 }
 
 async function startShoppingFlow(id: string, scanChannel?: string | null) {

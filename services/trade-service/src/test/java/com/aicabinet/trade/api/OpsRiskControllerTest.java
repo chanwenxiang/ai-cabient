@@ -63,6 +63,37 @@ class OpsRiskControllerTest {
     }
 
     @Test
+    void disposeRiskEvent_keepsBlacklistPermissionAndDelegates() throws Exception {
+        when(request.getAttribute(AuthInterceptor.ATTR_USER_ID)).thenReturn(5L);
+        when(riskAdminService.disposeRiskEvent(5L, 47L, "已复核"))
+                .thenReturn(new com.aicabinet.common.dto.RiskEventDto(
+                        47L, 1L, "DEV-1", "DISPUTE_CREATED", "WARN", "{}",
+                        java.time.Instant.now(), "ACKED", java.time.Instant.now(), "已复核", 5L));
+        Method method = OpsRiskController.class.getMethod("disposeRiskEvent",
+                HttpServletRequest.class, Long.class, com.aicabinet.common.dto.DisposeRiskEventRequest.class);
+        assertEquals("ops:risk:blacklist", method.getAnnotation(RequiresPermissions.class).value()[0]);
+        assertEquals("/risk/events/{eventId}/dispose",
+                method.getAnnotation(org.springframework.web.bind.annotation.PostMapping.class).value()[0]);
+        ApiResponse<?> response = controller.disposeRiskEvent(request, 47L,
+                new com.aicabinet.common.dto.DisposeRiskEventRequest("已复核"));
+        assertEquals(0, response.code());
+        verify(riskAdminService).disposeRiskEvent(5L, 47L, "已复核");
+    }
+
+    @Test
+    void runtimeConfig_readAndWriteUseSystemConfigPermissions() throws Exception {
+        Method get = OpsRiskController.class.getMethod("riskRuntimeConfig", HttpServletRequest.class);
+        Method put = OpsRiskController.class.getMethod("updateRiskRuntimeConfig",
+                HttpServletRequest.class, OpsRiskController.RiskRuntimeConfigRequest.class);
+        assertEquals("ops:config:list", get.getAnnotation(RequiresPermissions.class).value()[0]);
+        assertEquals("ops:config:edit", put.getAnnotation(RequiresPermissions.class).value()[0]);
+        assertEquals("/risk/runtime-config",
+                get.getAnnotation(GetMapping.class).value()[0]);
+        assertEquals("/risk/runtime-config",
+                put.getAnnotation(org.springframework.web.bind.annotation.PutMapping.class).value()[0]);
+    }
+
+    @Test
     void commercialController_noLongerOwnsRisk() {
         for (Method method : OpsCommercialController.class.getDeclaredMethods()) {
             GetMapping get = method.getAnnotation(GetMapping.class);

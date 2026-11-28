@@ -123,6 +123,9 @@
     "services/trade-service/src/main/java/com/aicabinet/trade/service/OpsDeviceAdminService.java#resetHardwareBinding": {
       "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
     },
+    "services/trade-service/src/main/java/com/aicabinet/trade/service/OpsRiskAdminService.java#disposeRiskEvent": {
+      "why": "2026-11-27 新增：@Transactional 内 findByIdForUpdate 行锁，锁内重读 OPEN 后置 ACKED；与自动处置共用行锁，审计同事务提交"
+    },
     "services/trade-service/src/main/java/com/aicabinet/trade/service/OpsRbacService.java#doUpdatePermission": {
       "why": "存量快照（2026-11-22 F5 类级棘轮种子；待逐点复核：锁内读改写补 why，真无条件写改条件 UPDATE）"
     },

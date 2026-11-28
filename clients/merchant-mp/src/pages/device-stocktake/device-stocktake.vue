@@ -24,6 +24,10 @@ import { absoluteImageUrl } from '@/composables/useReplenishmentDisplay';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
+import {
+  safeChooseImageWithReason,
+  chooseImageErrorMessage
+} from '@aicabinet/shared-uni/safe-uni-call';
 import AppNavBar from '@aicabinet/shared-uni/components/app-nav-bar.vue';
 
 interface StocktakeGoodsRow {
@@ -47,6 +51,7 @@ const deviceId = ref('');
 const deviceName = ref('');
 const loading = ref(false);
 const opening = ref(false);
+const scanning = ref(false);
 
 // ---- 开门柜（商品实盘，2026-10-28） ----
 const isDoorCabinet = ref(false);
@@ -126,13 +131,17 @@ onPullDownRefresh(() => {
 
 // AU-138：弃用页内正则（EG 改版前旧口径，剥前缀+贪婪抓数字段），改走 shared-uni 权威解析
 async function scanDevice() {
-  const id = await scanCabinetDeviceId();
-  if (!id) {
-    return; // 失败/取消/无效编号已在封装内提示或降级手输
+  if (scanning.value) return;
+  scanning.value = true;
+  try {
+    const id = await scanCabinetDeviceId();
+    if (!id) return; // 失败/取消/无效编号已在封装内提示或降级手输
+    deviceId.value = id;
+    // 门禁式：扫码成功即开门（仅开门柜；开门不结算无资金影响，全程留痕）
+    await loadDevice(true);
+  } finally {
+    scanning.value = false;
   }
-  deviceId.value = id;
-  // 门禁式：扫码成功即开门（仅开门柜；开门不结算无资金影响，全程留痕）
-  void loadDevice(true);
 }
 
 /**
@@ -235,21 +244,25 @@ function openDoor() {
 }
 
 // ---- 凭证照（两分支共用） ----
-function chooseEvidence() {
-  if (uploadingEvidence.value) return; // 在途门闩：连点拍照只发一次（第四轮审计，对齐补货证据口径）
-  uni.chooseImage({
-    count: 1,
-    sourceType: ['camera'],
-    success: (res) => {
-      const path = res.tempFilePaths?.[0];
-      if (path) void uploadEvidence(path);
+async function chooseEvidence() {
+  if (uploadingEvidence.value) return;
+  // busy 从打开系统选图开始，一直覆盖到上传结束，不能只覆盖上传半程。
+  uploadingEvidence.value = true;
+  try {
+    const chosen = await safeChooseImageWithReason(1, { sourceType: ['camera'] });
+    if (chosen.status === 'cancelled') return;
+    const path = chosen.paths[0];
+    if (chosen.status !== 'success' || !path) {
+      showError(chooseImageErrorMessage(chosen, '拍照'));
+      return;
     }
-  });
+    await uploadEvidence(path);
+  } finally {
+    uploadingEvidence.value = false;
+  }
 }
 
 async function uploadEvidence(path: string) {
-  if (uploadingEvidence.value) return;
-  uploadingEvidence.value = true;
   try {
     // 5MB 预检（第四轮审计）：与补货证据同口径，避免大图直撞后端报原始错误
     await assertLocalImageSize(path);
@@ -258,8 +271,6 @@ async function uploadEvidence(path: string) {
     showSuccess('凭证已上传');
   } catch (e) {
     showError(e instanceof Error ? e.message : '凭证上传失败');
-  } finally {
-    uploadingEvidence.value = false;
   }
 }
 
@@ -400,7 +411,7 @@ async function doSubmitDoor(lines: { skuId: string; countedQuantity: number }[])
             <view class="scan-mark" aria-hidden="true"><text class="scan-mark-txt">扫</text></view>
             <text class="scan-title">扫描柜机二维码开始盘点</text>
             <text class="scan-hint">扫码后自动开门；盘点不涉及结算，开门与关门全程留痕</text>
-            <app-button label="扫码识别柜机" @click="scanDevice" />
+            <app-button label="扫码识别柜机" :loading="scanning" @click="scanDevice" />
           </view>
           <view v-else class="cabinet-head">
             <image
@@ -419,6 +430,7 @@ async function doSubmitDoor(lines: { skuId: string; countedQuantity: number }[])
                   size="sm"
                   :block="false"
                   label="重新扫码"
+                  :loading="scanning"
                   @click="scanDevice"
                 />
               </view>

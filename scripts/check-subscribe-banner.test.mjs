@@ -21,7 +21,10 @@ assert(
   '去掉回执判据必须红（原实炸形态）'
 );
 
-const noAck = real.replace('subscribeAcked.value = true;', '');
+const noAck = real.replace(
+  'subscribeAcked.value = result.items.some(',
+  'subscribeAcked.value = false;('
+);
 assert(noAck !== real, '注入锚点 accept 置位找不到');
 assert(
   subscribeBannerProblems(noAck).some((p) => p.includes('置 true')),

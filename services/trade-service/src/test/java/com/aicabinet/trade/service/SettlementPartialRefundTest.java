@@ -44,6 +44,7 @@ class SettlementPartialRefundTest {
     @Mock RevenueSplitService revenueSplitService;
     @Mock CouponService couponService;
     @Mock DisplaySnapshotHelper displaySnapshotHelper;
+    @Mock NotificationService notificationService;
 
     SettlementService settlementService;
 
@@ -62,6 +63,7 @@ class SettlementPartialRefundTest {
                 orderRepository, orderPaymentService, inventoryService, revenueSplitService,
                 couponService, orderSupport, null);
         org.springframework.test.util.ReflectionTestUtils.setField(partialRefundService, "self", partialRefundService);
+        org.springframework.test.util.ReflectionTestUtils.setField(partialRefundService, "notificationService", notificationService);
         org.springframework.test.util.ReflectionTestUtils.setField(
                 settlementService, "settlementPartialRefundService", partialRefundService);
         lenient().when(couponService.settleAfterPartialRefund(any(), anyInt(), anyInt())).thenReturn(0);
@@ -106,6 +108,9 @@ class SettlementPartialRefundTest {
         assertEquals(120, order.getCouponDiscountCents());
         verify(couponService).settleAfterPartialRefund(order, 1000, 600);
         verify(orderPaymentService).refundOrder(eq(order), eq(320), eq("coupon partial"), any(), any());
+        verify(notificationService).notifyRefundAfterCommit(10001L, "O-C", 320, true,
+                RefundResumeService.partialToken("O-C",
+                        List.of(new OrderRefundRequest.PartialRefundLine("SKU-A", 1, false))));
     }
 
     @Test
@@ -438,5 +443,8 @@ class SettlementPartialRefundTest {
         verify(orderPaymentService, never()).refundOrder(any(), anyInt(), anyString(), any(), any());
         assertEquals(600, order.getTotalAmountCents());
         assertEquals(400, order.getRefundedCents());
+        verify(notificationService).notifyRefundAfterCommit(10001L, "O-R", 400, true,
+                RefundResumeService.partialToken("O-R",
+                        List.of(new OrderRefundRequest.PartialRefundLine("SKU-A", 1, false))));
     }
 }

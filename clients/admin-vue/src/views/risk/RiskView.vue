@@ -24,7 +24,16 @@
       <el-tab-pane label="风险事件" name="events">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <CrudTable :table="eventsCrud" row-key="eventId" selectable empty-text="暂无风险事件">
+            <CrudTable
+              :table="eventsCrud"
+              row-key="eventId"
+              selectable
+              empty-text="暂无风险事件"
+              :actions="canBlacklist ? eventActions : undefined"
+              :action-width="100"
+              actions-testid="risk-events"
+              @action="onEventAction"
+            >
               <el-table-column label="事件" min-width="140" class-name="col-text">
                 <template #default="{ row }">
                   <div class="id-cell">
@@ -117,6 +126,19 @@
               </el-table-column>
               <el-table-column
                 align="center"
+                label="操作人"
+                width="110"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
+                <template #default="{ row }">
+                  <span v-if="row.dispositionOperatorId">{{ row.dispositionOperatorId }}</span>
+                  <span v-else-if="row.dispositionStatus === 'ACKED'" class="muted">系统</span>
+                  <span v-else class="muted">—</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                align="center"
                 label="时间"
                 width="168"
                 class-name="col-status"
@@ -192,6 +214,28 @@
       </el-tab-pane>
     </el-tabs>
 
+    <el-dialog v-model="disposeDialog" title="确认处置" destroy-on-close>
+      <el-form ref="disposeFormRef" :model="disposeForm" :rules="disposeRules" label-width="auto">
+        <el-form-item label="事件 ID">
+          <span>{{ disposingEvent?.eventId }}</span>
+        </el-form-item>
+        <el-form-item label="处置备注" prop="note">
+          <el-input
+            v-model="disposeForm.note"
+            type="textarea"
+            :rows="4"
+            maxlength="256"
+            show-word-limit
+            placeholder="请填写复核结论或处置依据（必填）"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="disposeDialog = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="saveDisposition">确认处置</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="addDialog" title="加入黑名单" destroy-on-close>
       <!-- H08：userId 不预填 1，必填校验走 el-form rules -->
       <el-form ref="addFormRef" :model="addForm" :rules="addRules" label-width="auto">
@@ -219,7 +263,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { Delete } from '@element-plus/icons-vue';
+import { Delete, Check } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { api, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
@@ -242,6 +286,11 @@ import {
 } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
+import {
+  canDisposeRiskEvent,
+  normalizeDispositionNote,
+  validDispositionNote
+} from '@/utils/risk-admin-guards';
 
 function dispositionLabel(s?: string) {
   const m: Record<string, string> = {
@@ -274,6 +323,14 @@ const addForm = reactive<{ userId?: number; reason: string }>({ userId: undefine
 const addRules: FormRules = {
   userId: [{ required: true, message: '请填写用户 ID', trigger: 'blur' }],
   reason: [{ required: true, message: '请填写原因', trigger: 'blur' }]
+};
+
+const disposeDialog = ref(false);
+const disposingEvent = ref<RiskEventRow | null>(null);
+const disposeFormRef = ref<FormInstance>();
+const disposeForm = reactive({ note: '' });
+const disposeRules: FormRules = {
+  note: [{ required: true, message: '请填写处置备注', trigger: 'blur' }]
 };
 
 // 列表状态机统一交给 CrudTable：分页 / 多选 / 竞态 / 空态 / 刷新 全部内建
@@ -391,6 +448,49 @@ function onTabChange(name: string | number) {
   if (!loaded.value.has(key)) {
     if (key === 'blacklist') void blacklistCrud.load();
     else void eventsCrud.load();
+  }
+}
+
+function eventActions(row: RiskEventRow): CrudRowAction[] {
+  if (!canDisposeRiskEvent(row)) return [];
+  return [{ key: 'dispose', label: '确认处置', icon: Check, type: 'primary' }];
+}
+
+function onEventAction({ key, row }: { key: string; row: RiskEventRow }) {
+  if (key === 'dispose') openDispose(row);
+}
+
+function openDispose(row: RiskEventRow) {
+  disposingEvent.value = row;
+  disposeForm.note = '';
+  disposeDialog.value = true;
+}
+
+async function saveDisposition() {
+  const row = disposingEvent.value;
+  if (!row?.eventId) return;
+  if (disposeFormRef.value) {
+    const valid = await disposeFormRef.value.validate().then(
+      () => true,
+      () => false
+    );
+    if (!valid) return;
+  }
+  const note = normalizeDispositionNote(disposeForm.note);
+  if (!validDispositionNote(note)) {
+    ElMessage.warning('请填写 1～256 个字符的处置备注');
+    return;
+  }
+  saving.value = true;
+  try {
+    await api.request(AdminEndpoints.riskEventDispose(row.eventId), 'POST', { note });
+    disposeDialog.value = false;
+    ElMessage.success('已确认处置');
+    await eventsCrud.load();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '处置失败'));
+  } finally {
+    saving.value = false;
   }
 }
 

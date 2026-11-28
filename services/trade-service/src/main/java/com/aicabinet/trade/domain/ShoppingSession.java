@@ -30,6 +30,8 @@ public class ShoppingSession {
 
     private Instant openTime;
     private Instant closeTime;
+    /** 已收到设备物理拉门 OPEN；解锁指令 ACK 不算。 */
+    private boolean physicalOpenConfirmed;
 
     private String orderId;
 

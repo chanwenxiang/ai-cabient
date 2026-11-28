@@ -10,6 +10,7 @@
  */
 import { readFileSync } from 'node:fs';
 import {
+  allowsUnseededRuntimeFallback,
   makeReadRe,
   countPositiveLimitSites,
   evaluateReadAnchor,
@@ -105,6 +106,25 @@ const REAL_SITES = [
     '同一 /g 正则连续扫两次结果一致（lastIndex 复位）',
     first === 5 && second === 5,
     `${first}/${second}`
+  );
+}
+
+// 5) 唯独风险纠纷阈值允许不 seed：缺行必须保留环境变量/启动配置回退
+{
+  const allowed = {
+    key: 'risk.max_disputes_per_7_days',
+    runtimeFallback: true,
+    default: '3'
+  };
+  check('指定运行回退键允许不 seed', allowsUnseededRuntimeFallback(allowed));
+  check(
+    '其它键不得借 runtimeFallback 绕过 R5',
+    !allowsUnseededRuntimeFallback({ ...allowed, key: 'risk.other' })
+  );
+  check('默认值被改也不得绕过 R5', !allowsUnseededRuntimeFallback({ ...allowed, default: '5' }));
+  check(
+    '未显式声明不得绕过 R5',
+    !allowsUnseededRuntimeFallback({ ...allowed, runtimeFallback: false })
   );
 }
 

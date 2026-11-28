@@ -17,6 +17,8 @@ type UniLike = {
   }) => void;
   chooseImage?: (o: {
     count?: number;
+    sourceType?: ('camera' | 'album')[];
+    sizeType?: ('original' | 'compressed')[];
     success?: (r: { tempFilePaths?: string[]; tempFiles?: unknown[] }) => void;
     fail?: (e?: unknown) => void;
   }) => void;
@@ -62,23 +64,45 @@ export function safeSetClipboardData(data: string, onCopied?: () => void): boole
   return ok;
 }
 
-/** 扫码；无实现/用户取消返回 null，成功返回码文本。 */
-export function safeScanCode(): Promise<string | null> {
+export type PlatformCallStatus = 'success' | 'cancelled' | 'denied' | 'failed' | 'unsupported';
+
+export interface ScanCodeResult {
+  result: string | null;
+  status: PlatformCallStatus;
+}
+
+function platformFailStatus(err?: unknown): PlatformCallStatus {
+  const msg = String((err as { errMsg?: string })?.errMsg || '');
+  if (/cancel/i.test(msg)) return 'cancelled';
+  if (/auth deny|authorize|denied|permission/i.test(msg)) return 'denied';
+  return 'failed';
+}
+
+/** 扫码并保留取消/拒权/失败终态，调用方必须对非成功结果给出反馈或明确降级。 */
+export function safeScanCodeWithReason(): Promise<ScanCodeResult> {
   const api = uniApi();
   const scan = api.scanCode;
   if (typeof scan !== 'function') {
-    return Promise.resolve(null);
+    return Promise.resolve({ result: null, status: 'unsupported' });
   }
   return new Promise((resolve) => {
     try {
       scan({
-        success: (r) => resolve(r?.result ?? null),
-        fail: () => resolve(null)
+        success: (r) => {
+          const result = String(r?.result || '').trim();
+          resolve({ result: result || null, status: result ? 'success' : 'failed' });
+        },
+        fail: (err) => resolve({ result: null, status: platformFailStatus(err) })
       });
     } catch {
-      resolve(null);
+      resolve({ result: null, status: 'failed' });
     }
   });
+}
+
+/** 兼容旧调用：只取码文本；需要区分失败原因时用 safeScanCodeWithReason。 */
+export function safeScanCode(): Promise<string | null> {
+  return safeScanCodeWithReason().then((outcome) => outcome.result);
 }
 
 /** 选图；无实现/取消返回空数组，成功返回临时路径。 */
@@ -101,33 +125,56 @@ export function safeChooseImage(count = 1): Promise<string[]> {
   });
 }
 
+export interface ChooseImageResult {
+  paths: string[];
+  denied: boolean;
+  status: PlatformCallStatus;
+}
+
 /**
- * 选图并区分「用户拒绝授权」与「用户取消」（2026-10-23 第五轮审计）：
- * 旧口径把 auth deny 归一成空数组，调用方静默 return，用户得不到任何反馈，
- * 也无法区分「功能坏了」和「我拒绝了」。
- * 注意：老基础库 fail 可能不带可判定 errCode，此时 denied=false（保守不误报）。
+ * 选图并区分成功、取消、拒权和失败。老基础库无法判定原因时保守归为 failed，
+ * 由调用方提示重试，不能再把失败静默成空数组。
  */
 export function safeChooseImageWithReason(
-  count = 1
-): Promise<{ paths: string[]; denied: boolean }> {
+  count = 1,
+  options?: { sourceType?: ('camera' | 'album')[]; sizeType?: ('original' | 'compressed')[] }
+): Promise<ChooseImageResult> {
   const api = uniApi();
   const choose = api.chooseImage;
   if (typeof choose !== 'function') {
-    return Promise.resolve({ paths: [], denied: false });
+    return Promise.resolve({ paths: [], denied: false, status: 'unsupported' });
   }
   return new Promise((resolve) => {
     try {
       choose({
         count,
-        success: (r) => resolve({ paths: r?.tempFilePaths ?? [], denied: false }),
+        sourceType: options?.sourceType,
+        sizeType: options?.sizeType,
+        success: (r) => {
+          const paths = r?.tempFilePaths ?? [];
+          resolve({ paths, denied: false, status: paths.length ? 'success' : 'failed' });
+        },
         fail: (err) => {
-          const msg = String((err as { errMsg?: string })?.errMsg || '');
-          const denied = /auth deny|authorize|denied|permission/i.test(msg);
-          resolve({ paths: [], denied });
+          const status = platformFailStatus(err);
+          resolve({ paths: [], denied: status === 'denied', status });
         }
       });
     } catch {
-      resolve({ paths: [], denied: false });
+      resolve({ paths: [], denied: false, status: 'failed' });
     }
   });
+}
+
+export function chooseImageErrorMessage(result: ChooseImageResult, action = '选图'): string {
+  if (result.status === 'denied') return `${action}失败，请允许相机或相册权限后重试`;
+  if (result.status === 'unsupported') return '当前环境不支持选图，请在微信小程序中操作';
+  if (result.status === 'cancelled') return `已取消${action}`;
+  return `${action}失败，请检查相机或相册后重试`;
+}
+
+export function scanCodeErrorMessage(result: ScanCodeResult): string {
+  if (result.status === 'denied') return '扫码失败，请允许相机权限后重试';
+  if (result.status === 'unsupported') return '当前环境不支持扫码，请手动输入柜机编号';
+  if (result.status === 'cancelled') return '已取消扫码';
+  return '扫码失败，请重试或手动输入柜机编号';
 }

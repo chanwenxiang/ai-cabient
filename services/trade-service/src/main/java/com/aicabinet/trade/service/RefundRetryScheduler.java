@@ -10,28 +10,19 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
- * B1/G1（2026-10-15）：渠道退款重试闭环（分钟级）。
+ * 渠道退款闭环：只读查单/终态推进每分钟执行；重发与耗尽转人工每小时执行。
  *
- * <p>背景：渠道退款提交失败/进程中断此前本地零痕迹（「钱已退、账未记」只能靠 T+1 对账
- * 金额级兜底）。OrderPaymentService 现已在 HTTP 前落 REFUND_INITIATED 痕迹（H41 同构），
- * 本任务负责闭环：
- * <ol>
- *   <li><b>REFUND_INITIATED 超时</b>（updated_at &lt; now-2min）：查单优先（微信 queryRefund，
- *       渠道可能已退成功只是本地未达），确认无结果才同号重发（out_refund_no 渠道侧幂等）；
- *       距痕迹创建 &gt;30min 仍无终态 ⇒ 置 REFUND_FAILED + HIGH 告警转人工（不自动冲账）。</li>
- *   <li><b>PROCESSING 查单推进</b>：复用 {@link WeChatRefundReconciler#advanceProcessingRefunds()}
- *       （原每日对账附属、LIMIT 50，提升到分钟级；对账里的调用幂等保留为第二道）。</li>
- * </ol>
- * 微信 ABNORMAL 不自动重发（渠道侧需人工，臆断重发有双退风险）；支付宝同步接口无中间态，
- * 直接按同一 out_request_no 重发。余额退款卡单（balance_refund_request PROCESSING 超时）
- * 留待后续批次（H63 复审续退已部分覆盖）。
+ * <p>拆频目的：退款状态应尽快跟随渠道事实，但自动重发会动真钱，降为小时级减少风险。
+ * 微信 ABNORMAL 不自动重发；支付宝同步接口无中间态，仍按原 out_request_no 重发。</p>
  */
 @Component
 public class RefundRetryScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(RefundRetryScheduler.class);
+    static final String REFUND_QUERY = "refund-query";
     static final String REFUND_RETRY = "refund-retry";
     /** 痕迹创建超过该时长仍无终态 ⇒ 耗尽转人工。 */
     static final long EXHAUST_AFTER_MINUTES = 30;
@@ -56,33 +47,49 @@ public class RefundRetryScheduler {
         this.taskService = taskService;
     }
 
-    @Scheduled(fixedRate = 60_000, initialDelay = 58000)
-    public void run() {
-        long start = System.nanoTime();
+    /** 只读查单与本地终态推进：每分钟，不重发渠道退款。 */
+    @Scheduled(fixedRate = 60_000, initialDelay = 58_000)
+    public void runQuery() {
+        if (!taskService.tryBegin(REFUND_QUERY, 600)) {
+            return;
+        }
+        run(REFUND_QUERY, () -> {
+            int advanced = weChatRefundReconciler.advanceProcessingRefunds();
+            int resumed = refundResumeService == null ? 0 : refundResumeService.resumePendingCompletedRefunds(20);
+            return new Counts(0, advanced, resumed, 0);
+        });
+    }
+
+    /** 自动重发与耗尽转人工：每小时，动钱动作降频。 */
+    @Scheduled(fixedRate = 3_600_000, initialDelay = 58_000)
+    public void runRetry() {
         if (!taskService.tryBegin(REFUND_RETRY, 600)) {
             return;
         }
+        run(REFUND_RETRY, () -> new Counts(closeStaleInitiated(), 0, 0, exhaustOverdue()));
+    }
+
+    private void run(String taskKey, Supplier<Counts> action) {
+        long start = System.nanoTime();
         boolean failed = false;
         String summary = "无待闭环退款";
         try {
-            int closed = closeStaleInitiated();
-            int advanced = weChatRefundReconciler.advanceProcessingRefunds();
-            int resumed = refundResumeService == null ? 0 : refundResumeService.resumePendingCompletedRefunds(20);
-            int exhausted = exhaustOverdue();
-            if (closed <= 0 && advanced <= 0 && resumed <= 0 && exhausted <= 0) {
+            Counts counts = action.get();
+            if (counts.closed() <= 0 && counts.advanced() <= 0
+                    && counts.resumed() <= 0 && counts.exhausted() <= 0) {
                 return;
             }
-            summary = "退款重试闭环 " + closed + " 笔，查单推进 " + advanced + " 笔，下游补跑 "
-                    + resumed + " 笔，耗尽转人工 " + exhausted + " 笔";
-            log.info("refund retry closed={} advanced={} resumed={} exhausted={}",
-                    closed, advanced, resumed, exhausted);
+            summary = "退款闭环 重发 " + counts.closed() + " 笔，查单推进 " + counts.advanced()
+                    + " 笔，下游补跑 " + counts.resumed() + " 笔，耗尽转人工 " + counts.exhausted() + " 笔";
+            log.info("refund task={} closed={} advanced={} resumed={} exhausted={}", taskKey,
+                    counts.closed(), counts.advanced(), counts.resumed(), counts.exhausted());
         } catch (Exception e) {
             failed = true;
-            taskService.finish(REFUND_RETRY, "FAILED", e.getMessage(), start);
+            taskService.finish(taskKey, "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish(REFUND_RETRY, "SUCCESS", summary, start);
+                taskService.finish(taskKey, "SUCCESS", summary, start);
             }
         }
     }
@@ -153,4 +160,6 @@ public class RefundRetryScheduler {
             trace.setUpdatedAt(now);
         }
     }
+
+    private record Counts(int closed, int advanced, int resumed, int exhausted) {}
 }

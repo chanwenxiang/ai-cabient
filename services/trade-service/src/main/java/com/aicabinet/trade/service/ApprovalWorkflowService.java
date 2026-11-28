@@ -654,16 +654,29 @@ public class ApprovalWorkflowService {
     }
 
     private void createTasksForNode(ApprovalInstance instance, ApprovalNode node) {
+        // CONCURRENCY: 调用方持审批实例 FOR UPDATE；新建实例与任务同事务，节点推进不会并发重复建任务。
         Set<Long> assignees = new LinkedHashSet<>(resolveAssignees(node));
-        if (assignees.isEmpty() && instance.getSubmitterId() != null) {
-            // 部门/角色未配置成员时回退到提交人，避免节点推进后无人可办导致流程卡死
+        if ("BALANCE_REFUND".equals(instance.getBizType())) {
+            // 余额退款是资金动作：消费者提交人绝不是运营审批人。角色/部门即使误配了消费者账号也剔除。
+            assignees.removeIf(id -> id == null
+                    || id < com.aicabinet.common.constants.CabinetConstants.OPERATOR_USER_ID_START);
+        }
+        if (assignees.isEmpty() && instance.getSubmitterId() != null
+                && !"BALANCE_REFUND".equals(instance.getBizType())) {
+            // 其它存量流程维持原回退语义；余额退款绝不回退给提交人（maker-checker 资金闸）。
             log.warn("approval node has no assignees, fallback to submitter bizType={} node={} submitter={}",
                     instance.getBizType(), node.getNodeName(), instance.getSubmitterId());
             assignees.add(instance.getSubmitterId());
         }
         if (assignees.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "审批节点「" + node.getNodeName() + "」无处理人，请先在部门管理中配置成员");
+            String diagnostic = "审批节点「" + node.getNodeName() + "」无有效运营审批人（类型="
+                    + node.getAssigneeType() + "，取值=" + node.getAssigneeValue()
+                    + "），已拒绝提交；请先在审批流/部门管理中配置运营审批人";
+            if ("BALANCE_REFUND".equals(instance.getBizType())) {
+                log.error("balance refund approval fail-closed bizType={} bizId={} node={} submitter={}",
+                        instance.getBizType(), instance.getBizId(), node.getNodeName(), instance.getSubmitterId());
+            }
+            throw new ResponseStatusException(HttpStatus.CONFLICT, diagnostic);
         }
         String body = "节点「" + node.getNodeName() + "」待您处理";
         for (Long assigneeId : assignees) {

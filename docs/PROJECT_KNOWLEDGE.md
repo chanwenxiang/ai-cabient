@@ -5,7 +5,7 @@
 > **维护 Skill**：`.cursor/skills/project-knowledge/SKILL.md`  
 > **已解决问题 Skill**：`.cursor/skills/solved-problems-playbook/SKILL.md`  
 > **封装流程 Skill**：`.cursor/skills/encapsulate-solved-problem/SKILL.md`  
-> **最后校准**：2026-11-26（§2 迁移与 trade 单测规模、最终部署验收已按实测回填）
+> **最后校准**：2026-11-27（§2 迁移按 `integration/2026-11-27-fixes` 集成树实测；dev 已提交到 V518）
 
 ---
 
@@ -34,13 +34,13 @@
 
 | 维度 | 当前值 | 备注 |
 |------|--------|------|
-| Flyway 迁移 | **506** 个 V 脚本（仅 `services/trade-service`），最新 **V513**（2026-11-26 部署后实核） | 合入前查重号；门禁拦同号；勿再写已占用版本号 |
+| Flyway 迁移 | dev 已提交 **511** 个 V 脚本、最新 **V518**；`integration/2026-11-27-fixes` 为 **514** 个、最新 **V521**（2026-11-27 实测） | V519 退款拆频、V520 门状态、V521 风控；测试库 V516 仍是早期门迁移，合并部署前须按 Changelog 的冲突清单处理 |
 | trade Controllers | **94** | `*Controller.java`（2026-11-17 实测） |
 | trade 单测 | **539** `*Test.java`（2026-11-25 全量 3523 例） | 含大量并发测；全量 `mvn -o -pl services/trade-service -am test` |
 | admin-vue 业务视图 | **85** `.vue` | `src/views`（2026-11-17 实测） |
 | consumer-mp / merchant-mp | 独立 uni-app | 分包 + `preloadRule`；H5 `:3002` / `:3001` |
 | shared packages | types / api / dict / rbac / uni | 改 API 后 `pnpm gen:api-types` |
-| 踩坑总册条目 | **346 号 / 337 行**（编号不连续） | `docs/engineering/lessons-learned.md` |
+| 踩坑总册条目 | **472 行 / 最大编号 402**（编号不连续，2026-11-27 实测） | `docs/engineering/lessons-learned.md` |
 | 竞品对照台账 | **18 条 / 96 行含 URL** | `docs/COMPETITOR_BENCHMARK.md`；门禁 `check:competitor-benchmark` |
 | 审计门禁 | `pnpm check:audit-gates` | 新建脚本须进 `ci.yml` |
 | 将邑开门柜接入 | `services/jiangyi-gateway` **:8083**（全栈 Docker `127.0.0.1:18084`） | 模式一外采套件，CB-022；方案+现状速查 `docs/JIANGYI_GATEWAY_DESIGN.md`；`JIANGYI_JWT_SECRET` 未配置则 fail-closed 503 |
@@ -691,6 +691,16 @@ gross − member − activity − coupon = total      （部分退款单例外�
 ---
 
 ## 12. Changelog（按日追加，新条目在上）
+
+### 2026-11-27（真机问题批修复与集成收口）
+
+- **门状态 #55**：解锁 ACK 只把 `OPENING` 救到 `SHOPPING`，不再置物理开门确认；只有设备 `source=PHYSICAL` 的 OPEN 或孤儿 CLOSE 才确认物理开门。显式拉门失败仅能在“尚未物理开门”的消费者会话失败，普通看门狗仍只处理 `CREATED/OPENING`。修复已提交 `5e241ddd` 并部署测试服，V516 回填 9/9；真人“开门不拉门”验收仍待柜机可用。
+- **退款 #50/#52/#60/#62/#63**：全额/部分/余额/mock/免单/续跑统一稳定退款令牌；站内信随终态事务落库，外发走最新 outbox 并在提交后执行；部分退款按订单+行集指纹区分。退款弹层默认“全额退款”，按行模式自动带可退数量并拦截空选择。余额退款无运营审批人时 fail-closed 409，不再回退消费者提交人。微信退款查单移除不接受的 `mchid`；查单每分钟、重发每小时且重发默认停用。
+- **小程序 #49/#51/#53/#54**：逐模板读取微信 `accept/reject` 回执并持久化授权键；扫码/选图区分取消、拒权、失败和不支持；纯消费者隐藏“开通免密收款”；购物底栏拆为购物车主行、关门状态、主操作“刷新状态”、次操作“未出账单？”，保留 88rpx 热区与读屏状态。
+- **运营台 #47/#48/#61**：风控事件支持人工确认处置，行锁内重读 `OPEN`，操作人/时间/备注与 `RISK_EVENT_DISPOSE` 审计同事务；`risk.max_disputes_per_7_days` 移到“参数配置 → 风控自动拉黑”，明确标注“次 / 7 天”，接口权限对齐 `ops:config:list/edit`，后台值优先于启动配置，生产默认 3（dev profile 为 50），非法写值拒绝且强制配置审计。高德缺 Key/行政区服务不可用时返回 409，地址选择器退回手填并保留原坐标，不伪造地址。隔离浏览器实测：阈值填 7 并保存后 `system_config=7`、`CONFIG_UPSERT` 审计落库；测试事件 102 经“确认处置”后 `ACKED`、操作人/备注/`RISK_EVENT_DISPOSE` 审计齐全；仓库编辑弹窗显示手填降级提示且原地址保留。
+- **集成验证**：隔离树 `integration/2026-11-27-fixes` 定向后端 200/200、trade 全量 3636/3636、前端全量 consumer 225/225 + merchant 288/288 + admin 160/160、三端 `vue-tsc` 与 shared-types 构建通过；双端 mp-weixin dev/release 构建与 scoped 哈希、admin 生产构建通过，消费者产物含“退款范围/按行退款”和新底栏文案。风控 OpenAPI 用真实 `/v3/api-docs`（722 paths）重生成。修复集成时发现的 5 个门禁问题（shared dist 依赖、配置并发声明、端点归因快照、通知字面锚点、状态 CAS 基线）后，最终 190 个门禁全绿（失败 0）。
+- **迁移冲突已处理（2026-11-27 测试服）**：测试服早期部署把门状态迁移占在 `V516`，dev 后续已提交 `V516 notification_dispatch_outbox / V517 identity / V518 inapp`。集成树已改为 `V519 refund split / V520 door / V521 risk`，V520 用 `IF NOT EXISTS`。已先 `pg_dump` 并双端校验备份（服务器 `/data/apps/backups/v516-repair-20261127-225416/`，SHA-256 `a0569f79ee964c05336779ae99ff43773dfb0592ae7649ca9d51cd44e837ed36`），在测试库执行 dev V516 的 outbox DDL/种子，再用 Flyway `repair` 将 V516 checksum 对齐为 `-822350595`；`VALIDATE=PASS`（515 migrations），history 仍 514 行、DELETE 0，双 trade/device/jiangyi 均 healthy。V519–V521 尚未应用，须随本批部署执行。
+- **边界**：本批除 #55 外未提交、未推送、未部署；真实微信授权回执、相机/相册权限弹窗、退款通知与审批、风控 UI、高德有效 Key 解析及门状态真机验收仍未完成。日结、预授权、`checkout.preauth_cents=0` 均未改动。
 
 ### 2026-11-27（消费者退款范围选择优化）
 

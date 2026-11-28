@@ -889,6 +889,15 @@
       "description": "商户端完成补货是否必须上传现场凭证照片；false=可跳过（仍可上传）"
     },
     {
+      "key": "risk.max_disputes_per_7_days",
+      "group": "风控自动处置",
+      "type": "NUMBER",
+      "default": "3",
+      "description": "近 7 天纠纷达到该正整数次数后自动拉黑；后台值优先，未配置时回落 RISK_MAX_DISPUTES_PER_7_DAYS/启动配置",
+      "unit": "次",
+      "runtimeFallback": true
+    },
+    {
       "key": "risk.auto_ack_warn_hours",
       "group": "风控自动处置",
       "type": "NUMBER",

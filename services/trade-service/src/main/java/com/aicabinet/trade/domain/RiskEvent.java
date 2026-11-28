@@ -36,4 +36,7 @@ public class RiskEvent {
     private Instant dispositionAt;
 
     private String dispositionNote;
+
+    /** 人工处置操作人；自动处置为空。 */
+    private Long dispositionOperatorId;
 }

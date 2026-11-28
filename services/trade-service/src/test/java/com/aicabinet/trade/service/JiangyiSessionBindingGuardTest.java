@@ -108,6 +108,40 @@ class JiangyiSessionBindingGuardTest {
         verify(sessionService).transition(any(ShoppingSession.class), eq(SessionState.FAILED));
     }
 
+    @Test
+    void markPullFailed_matchingDevice_unlockOnlyShopping_failsAndReleases() {
+        ShoppingSession shopping = session(SessionState.SHOPPING);
+        when(repository.findByIdForUpdate(SESSION)).thenReturn(Optional.of(shopping));
+
+        openService.markPullFailed(SESSION, "拉门失败", OWNER_DEVICE);
+
+        verify(sessionService).transition(any(ShoppingSession.class), eq(SessionState.FAILED));
+        verify(consumerPreauthService).releaseIfFrozen(any());
+    }
+
+    @Test
+    void markPullFailed_physicalOpenConfirmed_noTransitionNoRelease() {
+        ShoppingSession shopping = session(SessionState.SHOPPING);
+        shopping.setPhysicalOpenConfirmed(true);
+        when(repository.findByIdForUpdate(SESSION)).thenReturn(Optional.of(shopping));
+
+        openService.markPullFailed(SESSION, "迟到拉门失败", OWNER_DEVICE);
+
+        verify(sessionService, never()).transition(any(), any());
+        verify(consumerPreauthService, never()).releaseIfFrozen(any());
+    }
+
+    @Test
+    void markPullFailed_foreignDevice_noTransitionNoRelease() {
+        ShoppingSession shopping = session(SessionState.SHOPPING);
+        when(repository.findByIdForUpdate(SESSION)).thenReturn(Optional.of(shopping));
+
+        openService.markPullFailed(SESSION, "他人设备伪造拉门失败", FOREIGN_DEVICE);
+
+        verify(sessionService, never()).transition(any(), any());
+        verify(consumerPreauthService, never()).releaseIfFrozen(any());
+    }
+
     // ── recognize-timeout ────────────────────────────────────────────────
 
     private static final String NO_REPORT = JiangyiRecognitionTimeoutService.CAUSE_NO_REPORT;

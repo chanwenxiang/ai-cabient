@@ -187,10 +187,15 @@ public class TradeInternalClient {
         return v.length() <= 200 ? v : v.substring(0, 200);
     }
 
-    /** 开锁失败通知（trade markOpenDoorFailed 幂等：非 OPENING no-op；AU-060 带上报设备做归属校验）。 */
+    /** 普通开门失败通知（watchdog/开锁失败），不回收已救援的 SHOPPING 会话。 */
     public void postOpenFailed(String sessionId, String reason, String deviceId) {
+        postOpenFailed(sessionId, reason, deviceId, false);
+    }
+
+    /** 开锁/拉门失败通知；pullFailed=true 时 trade 可回收“仅解锁未拉门”的救援会话。 */
+    public void postOpenFailed(String sessionId, String reason, String deviceId, boolean pullFailed) {
         post("/internal/v1/sessions/{sessionId}/open-failed",
-                new OpenDoorFailedRequest(reason, deviceId), sessionId);
+                new OpenDoorFailedRequest(reason, deviceId, pullFailed), sessionId);
     }
 
     /**
@@ -313,8 +318,8 @@ public class TradeInternalClient {
     /** 与 trade JiangyiInternalController.GatherFinishNotifyRequest 对齐。 */
     record GatherFinishNotifyRequest(String finishNotifyId, String msg) {}
 
-    /** 与 trade SessionInternalController.OpenDoorFailedRequest 对齐（AU-060 增 deviceId）。 */
-    record OpenDoorFailedRequest(String reason, String deviceId) {}
+    /** 与 trade SessionInternalController.OpenDoorFailedRequest 对齐（AU-060 增 deviceId/pullFailed）。 */
+    record OpenDoorFailedRequest(String reason, String deviceId, Boolean pullFailed) {}
 
     // ---------- 转发面（上报归一化用） ----------
 

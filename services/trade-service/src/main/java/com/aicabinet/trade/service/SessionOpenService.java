@@ -104,6 +104,20 @@ public class SessionOpenService {
     /** AU-060：reportingDeviceId 非空时须与会话绑定设备一致（将邑转发链透传 token deviceId）。 */
     @Transactional
     public void markOpenDoorFailed(String sessionId, String failReason, String reportingDeviceId) {
+        markOpenDoorFailedInternal(sessionId, failReason, reportingDeviceId, false);
+    }
+
+    /**
+     * 设备明确上报“拉门失败”。若此前只有解锁 ACK 把消费会话救到 SHOPPING，
+     * 该信号可撤销假开门；已确认物理拉门的会话仍忽略迟到的失败信号。
+     */
+    @Transactional
+    public void markPullFailed(String sessionId, String failReason, String reportingDeviceId) {
+        markOpenDoorFailedInternal(sessionId, failReason, reportingDeviceId, true);
+    }
+
+    private void markOpenDoorFailedInternal(String sessionId, String failReason,
+                                            String reportingDeviceId, boolean explicitPullFailure) {
         if (!distributedLockService.tryLock(SessionService.sessionLifeLockKey(sessionId), 30, 0)) {
             log.warn("mark open door failed skipped busy session={}", sessionId);
             return;
@@ -120,13 +134,17 @@ public class SessionOpenService {
                         sessionId, session.getDeviceId(), reportingDeviceId);
                 return;
             }
-            // 状态 CAS：只有「门还没确认打开」的早期态允许标开门失败。SHOPPING 及之后
-            // （含 WAITING_UPLOAD/RECOGNIZING/SETTLING）说明设备已确认开锁/拉门（将邑
-            // lockStatus/doorStatus、edge ACK 均属开门确认），此时到达的开门超时必是误报
-            // ——2026-10-09 联调实测：将邑 watchdog 15s 兜底与识别链路赛跑，把 RECOGNIZING
-            // 会话腰斩成 FAILED 并误释预授权。终态同样不迁移。
-            if (session.getState() != SessionState.CREATED && session.getState() != SessionState.OPENING) {
-                log.info("mark open door failed skipped state={} session={}", session.getState(), sessionId);
+            boolean earlyState = session.getState() == SessionState.CREATED
+                    || session.getState() == SessionState.OPENING;
+            boolean pullFailedAfterUnlockOnly = explicitPullFailure
+                    && session.getState() == SessionState.SHOPPING
+                    && !session.isPhysicalOpenConfirmed()
+                    && !DeviceValidationService.isNonConsumerSession(session);
+            // 普通 ACK 超时仍只允许早期态，避免误杀已物理开门/识别中的会话；
+            // 只有设备明确 pull-fail 才可回收“仅解锁未拉门”的救援会话。
+            if (!earlyState && !pullFailedAfterUnlockOnly) {
+                log.info("mark open door failed skipped state={} session={} physicalOpenConfirmed={}",
+                        session.getState(), sessionId, session.isPhysicalOpenConfirmed());
                 return;
             }
             session.setFailReason(failReason);

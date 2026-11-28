@@ -139,10 +139,11 @@ public class ScheduledTaskRegistry {
                 expiryAlertScheduler::scanExpiry);
         register("reconciliation", "每日对账", FINANCE, ScheduleZones.desc("每日 10:30（14:30 重试）"), 1800,
                 reconciliationScheduler::runDailyReconciliation);
-        // B1/G1（2026-10-15）：渠道退款重试闭环（分钟级，Spring 常驻不进 XXL 托管——
-        // 分钟级轻任务，托管后调度中心排期反而放大延迟）
-        register("refund-retry", "渠道退款重试闭环", FINANCE, V_60, 600,
-                refundRetryScheduler::run);
+        // 退款查单每分钟推进终态；自动重发/耗尽转人工降为每小时，动钱动作降频。
+        register("refund-query", "退款查单推进", FINANCE, V_60, 600,
+                refundRetryScheduler::runQuery);
+        register("refund-retry", "渠道退款重试闭环", FINANCE, "每 1 小时", 600,
+                refundRetryScheduler::runRetry);
         register("notification-outbox-retry", "通知外发重试队列", SYSTEM, V_60, 300,
                 notificationDispatchOutboxScheduler::retry);
         // B1-B2：CHARGE_PENDING 对账（分钟级，Spring 常驻不进 XXL，同 refund-retry）

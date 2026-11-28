@@ -1,5 +1,8 @@
 import { nextTick, type ComputedRef, type Ref } from 'vue';
-import { safeChooseImage } from '@aicabinet/shared-uni/safe-uni-call';
+import {
+  safeChooseImageWithReason,
+  chooseImageErrorMessage
+} from '@aicabinet/shared-uni/safe-uni-call';
 import { showError } from '@/utils/notify';
 import { merchantApi, softFallback } from '@/utils/merchant-api';
 import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
@@ -262,8 +265,13 @@ export function useReplenishmentDetail(opts: {
     }
     addingEvidence = true;
     try {
-      const paths = await safeChooseImage(5 - opts.evidenceItems.value.length);
-      for (const path of paths) {
+      const chosen = await safeChooseImageWithReason(5 - opts.evidenceItems.value.length);
+      if (chosen.status === 'cancelled') return;
+      if (chosen.status !== 'success' || !chosen.paths.length) {
+        showError(chooseImageErrorMessage(chosen, '拍照'));
+        return;
+      }
+      for (const path of chosen.paths) {
         try {
           await assertLocalImageSize(path);
           const uploaded = await merchantApi.uploadReplenishmentEvidence(taskId, path);

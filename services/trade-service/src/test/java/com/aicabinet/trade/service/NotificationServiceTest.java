@@ -6,7 +6,6 @@ import com.aicabinet.trade.domain.NotificationTemplate;
 import com.aicabinet.trade.mapper.NotificationLogMapper;
 import com.aicabinet.trade.mapper.NotificationTemplateMapper;
 import org.springframework.http.HttpStatus;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
@@ -22,11 +21,15 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -210,7 +213,7 @@ class NotificationServiceTest {
     }
 
     @Test
-    void refundNotification_insideTransaction_waitsForCommit() {
+    void refundNotification_insideTransaction_persistsInAppNowAndDefersExternal() {
         NotificationService service = service();
         NotificationTemplate refund = template("IN_APP,WECHAT_SUBSCRIBE", "ORDER");
         refund.setTemplateCode("refund_success");
@@ -221,16 +224,68 @@ class NotificationServiceTest {
         TransactionSynchronizationManager.initSynchronization();
         try {
             service.notifyRefundAfterCommit(100L, "R1", 550, false);
+            verify(logRepository).insertIgnore(any(NotificationLog.class));
             ArgumentCaptor<NotificationDispatchMessage> captor =
                     ArgumentCaptor.forClass(NotificationDispatchMessage.class);
             verify(outboxService).enqueue(captor.capture());
             verify(outboxService, never()).dispatchByKey(any());
             TransactionSynchronizationManager.getSynchronizations()
-                    .forEach(org.springframework.transaction.support.TransactionSynchronization::afterCommit);
+                    .forEach(TransactionSynchronization::afterCommit);
             verify(outboxService).dispatchByKey(captor.getValue().clientMsgId());
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }
+    }
+
+    @Test
+    void refundNotification_sameSemanticKey_resumeUsesSameInAppAndOutboxKeys() {
+        NotificationService service = service();
+        NotificationTemplate refund = template("IN_APP,WECHAT_SUBSCRIBE", "ORDER");
+        refund.setTemplateCode("refund_success");
+        refund.setTitleTemplate("退款成功");
+        refund.setBodyTemplate("您的订单 {orderId} 已退款 {amount} 元");
+        when(templateRepository.findByCode("refund_success")).thenReturn(Optional.of(refund));
+        when(notifyPrefService.isEnabled(100L, "ORDER")).thenReturn(true);
+
+        service.notifyRefundAfterCommit(100L, "O-RESUME", 550, true, "FULL:O-RESUME");
+        service.notifyRefundAfterCommit(100L, "O-RESUME", 550, true, "FULL:O-RESUME");
+
+        ArgumentCaptor<NotificationDispatchMessage> messages =
+                ArgumentCaptor.forClass(NotificationDispatchMessage.class);
+        verify(outboxService, times(2)).enqueue(messages.capture());
+        assertEquals(messages.getAllValues().get(0).clientMsgId(),
+                messages.getAllValues().get(1).clientMsgId());
+        verify(outboxService, times(2)).dispatchByKey(messages.getValue().clientMsgId());
+        ArgumentCaptor<NotificationLog> logs = ArgumentCaptor.forClass(NotificationLog.class);
+        verify(logRepository, times(2)).insertIgnore(logs.capture());
+        assertEquals("inapp:" + messages.getValue().clientMsgId(), logs.getValue().getClientMsgId());
+        assertEquals(logs.getAllValues().get(0).getClientMsgId(), logs.getAllValues().get(1).getClientMsgId());
+    }
+
+    @Test
+    void refundNotification_differentPartialKeys_sameOrderAndAmountBothDeliver() {
+        NotificationService service = service();
+        NotificationTemplate refund = template("IN_APP,WECHAT_SUBSCRIBE", "ORDER");
+        refund.setTemplateCode("refund_success");
+        refund.setTitleTemplate("退款成功");
+        refund.setBodyTemplate("您的订单 {orderId} 已退款 {amount} 元");
+        when(templateRepository.findByCode("refund_success")).thenReturn(Optional.of(refund));
+        when(notifyPrefService.isEnabled(100L, "ORDER")).thenReturn(true);
+
+        service.notifyRefundAfterCommit(100L, "O-PART", 200, true, "PARTIAL:O-PART:lines-a");
+        service.notifyRefundAfterCommit(100L, "O-PART", 200, true, "PARTIAL:O-PART:lines-b");
+
+        ArgumentCaptor<NotificationDispatchMessage> messages =
+                ArgumentCaptor.forClass(NotificationDispatchMessage.class);
+        verify(outboxService, times(2)).enqueue(messages.capture());
+        assertNotEquals(messages.getAllValues().get(0).clientMsgId(),
+                messages.getAllValues().get(1).clientMsgId());
+        verify(outboxService).dispatchByKey(messages.getAllValues().get(0).clientMsgId());
+        verify(outboxService).dispatchByKey(messages.getAllValues().get(1).clientMsgId());
+        ArgumentCaptor<NotificationLog> logs = ArgumentCaptor.forClass(NotificationLog.class);
+        verify(logRepository, times(2)).insertIgnore(logs.capture());
+        assertNotEquals(logs.getAllValues().get(0).getClientMsgId(),
+                logs.getAllValues().get(1).getClientMsgId());
     }
 
     @Test

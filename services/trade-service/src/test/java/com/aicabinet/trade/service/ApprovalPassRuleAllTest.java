@@ -14,6 +14,7 @@ import com.aicabinet.trade.mapper.OpsUserDepartmentMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -24,6 +25,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
@@ -161,6 +163,64 @@ class ApprovalPassRuleAllTest {
         assertEquals("APPROVED", mine.getStatus());
         assertEquals("SKIPPED", others.getStatus(), "或签：一人通过后其余待办 SKIP");
         assertEquals("APPROVED", instance.getStatus(), "末节点通过即完结");
+    }
+
+    @Test
+    void balanceRefund_noApprovers_failsClosedWithoutAssigningConsumer() {
+        com.aicabinet.trade.domain.ApprovalDefinition def = new com.aicabinet.trade.domain.ApprovalDefinition();
+        def.setDefId(20L);
+        def.setBizType("BALANCE_REFUND");
+        def.setEnabled(true);
+        ApprovalNode node = node(1, "ANY");
+        node.setAssigneeType("DEPT");
+        node.setAssigneeValue("MANAGER");
+        when(definitionRepository.findByBizType("BALANCE_REFUND")).thenReturn(Optional.of(def));
+        when(nodeRepository.findByDefIdOrderBySeqAsc(20L)).thenReturn(List.of(node));
+        when(userDepartmentRepository.findUserIdsByDeptKey("MANAGER")).thenReturn(List.of());
+        when(instanceRepository.save(any())).thenAnswer(inv -> {
+            ApprovalInstance instance = inv.getArgument(0);
+            instance.setInstanceId(20L);
+            return instance;
+        });
+
+        org.springframework.web.server.ResponseStatusException error = org.junit.jupiter.api.Assertions.assertThrows(
+                org.springframework.web.server.ResponseStatusException.class,
+                () -> service.start("BALANCE_REFUND", "77", 1L, "余额退款"));
+
+        assertEquals(org.springframework.http.HttpStatus.CONFLICT, error.getStatusCode());
+        org.junit.jupiter.api.Assertions.assertTrue(error.getReason().contains("无有效运营审批人"));
+        org.junit.jupiter.api.Assertions.assertTrue(error.getReason().contains("MANAGER"));
+        verify(taskRepository, never()).save(any());
+        verify(notificationService, never()).notifyOpsInApp(anyLong(), anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void balanceRefund_withOperatorApprover_assignsOnlyOperatorNotConsumer() {
+        com.aicabinet.trade.domain.ApprovalDefinition def = new com.aicabinet.trade.domain.ApprovalDefinition();
+        def.setDefId(21L);
+        def.setBizType("BALANCE_REFUND");
+        def.setEnabled(true);
+        ApprovalNode node = node(1, "ANY");
+        node.setAssigneeType("DEPT");
+        node.setAssigneeValue("MANAGER");
+        when(definitionRepository.findByBizType("BALANCE_REFUND")).thenReturn(Optional.of(def));
+        when(nodeRepository.findByDefIdOrderBySeqAsc(21L)).thenReturn(List.of(node));
+        when(userDepartmentRepository.findUserIdsByDeptKey("MANAGER"))
+                .thenReturn(List.of(1L, 100000006L));
+        when(instanceRepository.save(any())).thenAnswer(inv -> {
+            ApprovalInstance instance = inv.getArgument(0);
+            instance.setInstanceId(21L);
+            return instance;
+        });
+
+        service.start("BALANCE_REFUND", "78", 1L, "余额退款");
+
+        ArgumentCaptor<ApprovalTask> tasks = ArgumentCaptor.forClass(ApprovalTask.class);
+        verify(taskRepository).save(tasks.capture());
+        assertEquals(100000006L, tasks.getValue().getAssigneeUserId());
+        verify(notificationService).notifyOpsInApp(eq(100000006L), anyString(), anyString(),
+                eq("BALANCE_REFUND"), eq("78"));
+        verify(notificationService, never()).notifyOpsInApp(eq(1L), anyString(), anyString(), anyString(), anyString());
     }
 
     /** M01：REJECTED 实例重新发起后，remark/finishedAt 会被 wrapper 显式置空。 */

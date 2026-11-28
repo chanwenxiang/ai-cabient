@@ -90,6 +90,18 @@ export function maskCommentsOnly(src) {
 }
 
 /**
+ * 少量运行配置刻意不 seed：数据库缺行时才保留环境变量/启动配置回退。
+ * 只允许本键显式声明 runtimeFallback，且默认仍为 3；其它键不得借此绕过 R5。
+ */
+export function allowsUnseededRuntimeFallback(flag) {
+  return (
+    flag?.key === 'risk.max_disputes_per_7_days' &&
+    flag.runtimeFallback === true &&
+    flag.default === '3'
+  );
+}
+
+/**
  * MA-201：R2 消费者判定（纯函数）。入参全部是**已剥注释**的文本：
  *
  *   - flags            注册表条目（{key, deprecated}）

@@ -8,7 +8,9 @@
           <!-- R2-B6：去掉 @blur 自动查 —— 该接口「首次查询会为未采集商品建采集任务」，
                文案明写「只限用户显式点击」，失焦触发等于替用户建了采集任务。 -->
           <input v-model="barCode" class="input" placeholder="扫描或输入条码" />
-          <button size="mini" class="mini" @click="scan">扫码</button>
+          <button size="mini" class="mini" :disabled="scanning" @click="scan">
+            {{ scanning ? '扫码中…' : '扫码' }}
+          </button>
         </view>
         <view class="row">
           <button size="mini" class="mini" :disabled="!barCode" @click="loadState">查状态</button>
@@ -39,8 +41,8 @@
           <text class="shot-hint">{{ index + 1 }}. {{ hint }}</text>
           <image v-if="photos[index]" :src="photos[index]" class="thumb" mode="aspectFill" />
           <text v-else class="shot-empty">未拍摄</text>
-          <button size="mini" class="mini" @click="take(index)">
-            {{ photos[index] ? '重拍' : '拍照' }}
+          <button size="mini" class="mini" :disabled="picking" @click="take(index)">
+            {{ picking ? '选图中…' : photos[index] ? '重拍' : '拍照' }}
           </button>
         </view>
         <button class="submit" :disabled="!canSubmit || submitting" @click="submit">
@@ -56,6 +58,13 @@
 import { computed, ref } from 'vue';
 import { jiangyiStateText, jiangyiNextActionText } from '@aicabinet/shared-uni/format';
 import { onLoad } from '@dcloudio/uni-app';
+import { showError } from '@/utils/notify';
+import {
+  safeScanCodeWithReason,
+  safeChooseImageWithReason,
+  scanCodeErrorMessage,
+  chooseImageErrorMessage
+} from '@aicabinet/shared-uni/safe-uni-call';
 import {
   fetchJiangyiCapturePolicy,
   fetchJiangyiCaptureState,
@@ -72,6 +81,7 @@ const photos = ref<string[]>([]);
 const error = ref('');
 const submitting = ref(false);
 const picking = ref(false);
+const scanning = ref(false);
 
 /**
  * R12-MA-173：loadState 竞态守卫。
@@ -142,38 +152,45 @@ async function loadState() {
   }
 }
 
-function scan() {
-  uni.scanCode({
-    success(res) {
-      barCode.value = res.result || '';
-      loadState();
+async function scan() {
+  if (scanning.value) return;
+  scanning.value = true;
+  try {
+    const scanned = await safeScanCodeWithReason();
+    if (scanned.status === 'cancelled') return;
+    if (scanned.status !== 'success' || !scanned.result) {
+      error.value = scanCodeErrorMessage(scanned);
+      showError(error.value);
+      return;
     }
-  });
+    barCode.value = scanned.result;
+    await loadState();
+  } finally {
+    scanning.value = false;
+  }
 }
 
-function take(index: number) {
-  if (picking.value) {
-    return;
-  }
+async function take(index: number) {
+  if (picking.value) return;
   // R3-B-R3-2：手改条码不点「查状态」直接拍/提交的旁路 —— 槽里的照片还属于上一个条码。
-  if (photosForBarCode !== barCode.value.trim()) {
-    resetPhotos();
-  }
+  if (photosForBarCode !== barCode.value.trim()) resetPhotos();
   picking.value = true;
-  uni.chooseImage({
-    count: 1,
-    sizeType: ['compressed'],
-    sourceType: ['camera', 'album'],
-    success(res) {
-      const path = res.tempFilePaths?.[0];
-      if (path) {
-        photos.value[index] = path;
-      }
-    },
-    complete() {
-      picking.value = false;
+  try {
+    const chosen = await safeChooseImageWithReason(1, {
+      sizeType: ['compressed'],
+      sourceType: ['camera', 'album']
+    });
+    if (chosen.status === 'cancelled') return;
+    const path = chosen.paths[0];
+    if (chosen.status !== 'success' || !path) {
+      error.value = chooseImageErrorMessage(chosen, '拍照');
+      showError(error.value);
+      return;
     }
-  });
+    photos.value[index] = path;
+  } finally {
+    picking.value = false;
+  }
 }
 
 async function submit() {

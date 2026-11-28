@@ -81,6 +81,21 @@ class SystemConfigFundKeyGuardTest {
     }
 
     @Test
+    void upsert_riskThreshold_validValue_saves() {
+        service.upsert(SystemConfigService.RISK_MAX_DISPUTES_PER_7_DAYS, "5", "d", 9L);
+        verify(repository).save(any(SystemConfig.class));
+    }
+
+    @Test
+    void upsert_riskThreshold_auditDisabled_stillForcesHistoryAndAdminAudit() {
+        auditSwitchRow("false");
+        service.upsert(SystemConfigService.RISK_MAX_DISPUTES_PER_7_DAYS, "5", "d", 9L);
+        verify(historyRepository).save(any(SystemConfigHistory.class));
+        verify(auditService).appendLog(9L, "CONFIG_UPSERT", "system_config",
+                SystemConfigService.RISK_MAX_DISPUTES_PER_7_DAYS, "（未配置） → 5");
+    }
+
+    @Test
     void upsert_fundKey_negativeValue_rejected400() {
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> service.upsert(SystemConfigService.RECHARGE_MAX_CENTS, "-1", "d", 9L));

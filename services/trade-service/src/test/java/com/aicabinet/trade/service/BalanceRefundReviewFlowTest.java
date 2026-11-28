@@ -66,6 +66,7 @@ class BalanceRefundReviewFlowTest {
     @Mock private DistributedLockService distributedLockService;
     @Mock private ApprovalWorkflowService approvalWorkflowService;
     @Mock private SystemConfigService systemConfigService;
+    @Mock private NotificationService notificationService;
 
     private BalanceRefundService service;
 
@@ -76,6 +77,7 @@ class BalanceRefundReviewFlowTest {
                 paymentService, balanceLedgerService, permissionService, auditService,
                 distributedLockService, approvalWorkflowService, systemConfigService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "notificationService", notificationService);
         doNothing().when(permissionService).requirePermission(anyLong(), anyString());
         lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
         // 审批实例默认存在（G9-4 §7-B：无实例时应 409，由缺实例专项用例覆盖）
@@ -279,5 +281,22 @@ class BalanceRefundReviewFlowTest {
         assertEquals("REFUNDED", dto.status());
         verify(balanceLedgerService, never()).change(
                 anyLong(), anyInt(), anyString(), anyString(), anyString(), anyString());
+        verify(notificationService).notifyRefundAfterCommit(10001L, "BRTL77", 600, false,
+                "BALANCE_REFUND:BRTL77");
+    }
+
+    @Test
+    void markRefundSuccess_retry_reusesStableNotificationKeyForGatewayDedupe() {
+        BalanceRefundRequest req = pendingRequest();
+        req.setStatus("REFUNDED");
+        when(requestMapper.selectByIdForUpdate(77L)).thenReturn(Optional.of(req));
+
+        service.markRefundSuccess(77L);
+        service.markRefundSuccess(77L);
+
+        ArgumentCaptor<String> keys = ArgumentCaptor.forClass(String.class);
+        verify(notificationService, org.mockito.Mockito.times(2)).notifyRefundAfterCommit(
+                eq(10001L), eq("BRTL77"), eq(600), eq(false), keys.capture());
+        assertEquals(List.of("BALANCE_REFUND:BRTL77", "BALANCE_REFUND:BRTL77"), keys.getAllValues());
     }
 }

@@ -35,6 +35,10 @@ public class SettlementWaiveRefundService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private RefundFlowService refundFlowService;
 
+    /** 退款终态通知；同步、mock、争议免单与续跑统一在本 finalizer 收口。 */
+    @org.springframework.beans.factory.annotation.Autowired
+    private NotificationService notificationService;
+
     private final ShoppingSessionMapper sessionRepository;
     private final CabinetOrderMapper orderRepository;
     private final CabinetOrderLineMapper orderLineRepository;
@@ -130,6 +134,7 @@ public class SettlementWaiveRefundService {
         CabinetOrder order = orderRepository.findByIdForUpdate(prep.order().getOrderId())
                 .orElse(prep.order());
         if (CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus())) {
+            notifyRefundFinalized(order, prep.refundCents());
             return prep.refundCents();
         }
         if (order.getRefundedAt() == null) {
@@ -160,7 +165,16 @@ public class SettlementWaiveRefundService {
         revenueSplitService.voidSplitOnFullRefund(order.getOrderId());
         log.info("争议免单退款完成 order={} refund={} channel={} restoreInventory={}",
                 order.getOrderId(), prep.refundCents(), order.getPayChannel(), prep.restoreInventory());
+        notifyRefundFinalized(order, prep.refundCents());
         return prep.refundCents();
+    }
+
+    private void notifyRefundFinalized(CabinetOrder order, int refundCents) {
+        if (notificationService == null || refundCents <= 0 || order.getUserId() == null) {
+            return;
+        }
+        notificationService.notifyRefundAfterCommit(order.getUserId(), order.getOrderId(), refundCents,
+                true, RefundResumeService.fullToken(order.getOrderId()));
     }
 
     private void performWaiveRestore(CabinetOrder order) {

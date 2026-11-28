@@ -21,7 +21,11 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -128,6 +132,13 @@ public class NotificationService {
     private void sendInternal(String audience, Long userId, String merchantId, String templateCode,
                               Map<String, String> params, String bizType, String bizId,
                               boolean deferExternal) {
+        sendInternal(audience, userId, merchantId, templateCode, params, bizType, bizId,
+                deferExternal, null);
+    }
+
+    private void sendInternal(String audience, Long userId, String merchantId, String templateCode,
+                              Map<String, String> params, String bizType, String bizId,
+                              boolean deferExternal, String requestedClientMsgId) {
         NotificationTemplate tpl = templateRepository.findByCode(templateCode).orElse(null);
         if (tpl == null) {
             log.debug("notification template not found or inactive: {}", templateCode);
@@ -135,8 +146,10 @@ public class NotificationService {
         }
         String title = render(tpl.getTitleTemplate(), params);
         String body = render(tpl.getBodyTemplate(), params);
-        String clientMsgId = NotificationDispatchOutboxService.idempotencyKey(new NotificationDispatchMessage(
-                tpl.getTemplateCode(), userId, title, body, bizType, bizId, params, "", audience, merchantId));
+        String clientMsgId = requestedClientMsgId == null || requestedClientMsgId.isBlank()
+                ? NotificationDispatchOutboxService.idempotencyKey(new NotificationDispatchMessage(
+                        tpl.getTemplateCode(), userId, title, body, bizType, bizId, params, "", audience, merchantId))
+                : requestedClientMsgId;
         List<String> channelList = channels(tpl.getChannels(), tpl.getChannel());
         if (channelList.contains(IN_APP)) {
             self.persistInAppLog(new NotificationLogDraft(tpl.getTemplateCode(), IN_APP,
@@ -179,20 +192,48 @@ public class NotificationService {
     }
 
     /**
-     * 退款成功通知在事务提交后发：退款服务可能同步走微信 HTTP，不能占着资金事务。
+     * 退款成功通知：站内信随退款终态事务落库，微信/短信/Kafka 在事务提交后发，
+     * 避免外部 HTTP 占用资金事务，也避免回滚后假通知。
      *
      * @param orderRefund true=原路退款（深链订单详情）；false=余额退款（深链消息中心）
      */
     public void notifyRefundAfterCommit(Long userId, String orderOrRequestNo, int amountCents,
                                         boolean orderRefund) {
-        if (userId == null) {
+        notifyRefundAfterCommit(userId, orderOrRequestNo, amountCents, orderRefund,
+                (orderRefund ? "FULL:" : "BALANCE_REFUND:") + orderOrRequestNo);
+    }
+
+    /**
+     * @param notificationKey 退款幂等令牌；全额=FULL:orderId，部分=PARTIAL:orderId:行集指纹，
+     *                        余额=BALANCE_REFUND:requestNo。同步/续跑必须复用同一令牌。
+     */
+    public void notifyRefundAfterCommit(Long userId, String orderOrRequestNo, int amountCents,
+                                        boolean orderRefund, String notificationKey) {
+        if (userId == null || amountCents <= 0 || notificationKey == null || notificationKey.isBlank()) {
             return;
         }
-        sendInternal(CONSUMER, userId, null, "refund_success",
-                Map.of("orderId", orderOrRequestNo == null ? "" : orderOrRequestNo,
-                        "amount", BigDecimal.valueOf(amountCents, 2).toPlainString(),
-                        "productName", orderRefund ? "订单商品" : "余额退款"),
-                orderRefund ? "REFUND" : "BALANCE_REFUND", orderOrRequestNo, true);
+        String clientMsgId = refundClientMsgId(userId, notificationKey);
+        try {
+            // 站内信立即加入当前退款终态事务；外部渠道仍由 sendInternal 注册到 afterCommit。
+            sendInternal(CONSUMER, userId, null, "refund_success",
+                    Map.of("orderId", orderOrRequestNo == null ? "" : orderOrRequestNo,
+                            "amount", BigDecimal.valueOf(amountCents, 2).toPlainString(),
+                            "productName", orderRefund ? "订单商品" : "余额退款"),
+                    orderRefund ? "REFUND" : "BALANCE_REFUND", orderOrRequestNo, true, clientMsgId);
+        } catch (Exception e) {
+            log.warn("refund notification failed userId={} ref={}", userId, orderOrRequestNo, e);
+        }
+    }
+
+    private static String refundClientMsgId(Long userId, String notificationKey) {
+        String raw = "refund_success|" + userId + "|" + notificationKey;
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(raw.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest, 0, 16);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
     }
 
     /** 站内信随业务事务落库；微信/短信/Kafka 外统一等事务提交后再发，避免回滚后假通知。 */

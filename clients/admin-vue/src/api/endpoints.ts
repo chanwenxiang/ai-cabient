@@ -868,6 +868,9 @@ export const AdminEndpoints = {
       ? `${ops}/risk/events?${query}`
       : `${ops}/risk/events?${query.toString()}`,
   riskEventsExport: `${ops}/risk/events/export`,
+  riskEventDispose: (eventId: string | number) =>
+    `${ops}/risk/events/${encodeURIComponent(String(eventId))}/dispose`,
+  riskRuntimeConfig: `${ops}/risk/runtime-config`,
   riskBlacklist: `${ops}/risk/blacklist`,
   riskBlacklistList: (query: URLSearchParams | string) =>
     typeof query === 'string'

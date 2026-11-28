@@ -365,13 +365,21 @@ async function hydrateFromExisting(value: string) {
   }
 }
 
+/** 缺 Key/上游不可用时只改变录入方式，不清空地址，更不碰调用方已有坐标。 */
+function useManualAddress() {
+  options.value = [];
+  regionReady.value = false;
+  hintWarn.value = true;
+  hint.value = '行政区划服务暂不可用，已切换为手动填写地址；已有地址和坐标会保留';
+}
+
 onMounted(async () => {
   try {
     options.value = await fetchDistricts('');
     regionReady.value = options.value.length > 0;
+    if (!regionReady.value) useManualAddress();
   } catch {
-    options.value = [];
-    regionReady.value = false;
+    useManualAddress();
   }
   if (props.modelValue) await hydrateFromExisting(props.modelValue);
 });

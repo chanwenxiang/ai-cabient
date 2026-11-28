@@ -45,6 +45,38 @@ public class OpsRiskController {
         return ApiResponse.ok(riskAdminService.listRiskEvents(operatorId(request), page, size));
     }
 
+    @RequiresPermissions("ops:risk:blacklist")
+    @PostMapping("/risk/events/{eventId}/dispose")
+    public ApiResponse<RiskEventDto> disposeRiskEvent(
+            HttpServletRequest request,
+            @PathVariable Long eventId,
+            @Valid @RequestBody DisposeRiskEventRequest body) {
+        return ApiResponse.ok(riskAdminService.disposeRiskEvent(
+                operatorId(request), eventId, body.note()));
+    }
+
+    @RequiresPermissions("ops:config:list")
+    @GetMapping("/risk/runtime-config")
+    public ApiResponse<com.aicabinet.common.dto.RiskRuntimeConfigDto> riskRuntimeConfig(
+            HttpServletRequest request) {
+        return ApiResponse.ok(riskAdminService.riskRuntimeConfig());
+    }
+
+    @RequiresPermissions("ops:config:edit")
+    @PutMapping("/risk/runtime-config")
+    public ApiResponse<com.aicabinet.common.dto.RiskRuntimeConfigDto> updateRiskRuntimeConfig(
+            HttpServletRequest request,
+            @Valid @RequestBody RiskRuntimeConfigRequest body) {
+        return ApiResponse.ok(riskAdminService.updateRiskRuntimeConfig(
+                operatorId(request), body.maxDisputesPer7Days()));
+    }
+
+    /** 运行阈值只接受正整数；默认值仍由启动配置决定。 */
+    public record RiskRuntimeConfigRequest(
+            @jakarta.validation.constraints.Min(value = 1, message = "纠纷阈值必须大于 0")
+            int maxDisputesPer7Days
+    ) {}
+
     @RequiresPermissions("ops:risk:export")
     @GetMapping(value = "/risk/events/export", produces = "text/csv")
     public ResponseEntity<byte[]> exportRiskEvents(HttpServletRequest request) {

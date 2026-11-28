@@ -1,5 +1,7 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.dto.DoorEventRequest;
+import com.aicabinet.common.enums.DoorState;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.client.DeviceServiceClient;
 import com.aicabinet.trade.domain.ShoppingSession;
@@ -52,11 +54,13 @@ class RestockDoorOpenReportTest {
     @Mock com.aicabinet.trade.mapper.UserInfoMapper userInfoRepository;
     @Mock com.aicabinet.trade.mapper.CabinetOrderMapper orderRepository;
     @Mock ConsumerPreauthService consumerPreauthService;
+    @Mock OpsAlertDispatcher opsAlertDispatcher;
     @Mock DistributedLockService distributedLockService;
     @Mock com.aicabinet.trade.service.JiangyiDeviceDirectory jiangyiDeviceDirectory;
 
     private SessionService service;
     private SessionDoorService doorService;
+    private SessionOpenService openService;
 
     @BeforeEach
     void setUp() {
@@ -72,6 +76,8 @@ class RestockDoorOpenReportTest {
                 cabinetMetrics, domainEventPublisher, service, null, jiangyiDeviceDirectory);
         org.springframework.test.util.ReflectionTestUtils.setField(doorService, "self", doorService);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionDoorService", doorService);
+        openService = new SessionOpenService(repository, null, null, null,
+                consumerPreauthService, null, service, distributedLockService, opsAlertDispatcher, null);
         lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
         lenient().when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }
@@ -128,7 +134,65 @@ class RestockDoorOpenReportTest {
         assertTrue(doorService.applyRestockDoorOpened("EG943322621391", "S-RO-2"));
         assertEquals(SessionState.SHOPPING, session.getState());
         assertNotNull(session.getOpenTime());
+        assertFalse(session.isPhysicalOpenConfirmed(), "解锁 ACK 不代表用户已拉门");
         verify(settlementService, never()).settle(any());
+    }
+
+    @Test
+    void physicalOpenAfterUnlockAck_marksPhysicalConfirmed() {
+        ShoppingSession session = consumerSession();
+        when(repository.findById("S-RO-2")).thenReturn(Optional.of(session));
+        when(repository.findByIdForUpdate("S-RO-2")).thenReturn(Optional.of(session));
+
+        assertTrue(doorService.applyRestockDoorOpened("EG943322621391", "S-RO-2"));
+        doorService.handleDoorEvent(new DoorEventRequest("S-RO-2", "EG943322621391",
+                DoorState.OPEN, System.currentTimeMillis()));
+
+        assertTrue(session.isPhysicalOpenConfirmed());
+        assertEquals(SessionState.SHOPPING, session.getState());
+    }
+
+    @Test
+    void explicitPullFailAfterUnlockOnly_failsAndReleasesPreauth() {
+        ShoppingSession session = consumerSession();
+        when(repository.findById("S-RO-2")).thenReturn(Optional.of(session));
+        when(repository.findByIdForUpdate("S-RO-2")).thenReturn(Optional.of(session));
+        assertTrue(doorService.applyRestockDoorOpened("EG943322621391", "S-RO-2"));
+
+        openService.markPullFailed("S-RO-2", "将邑设备上报拉门失败", "EG943322621391");
+
+        assertEquals(SessionState.FAILED, session.getState());
+        assertEquals("将邑设备上报拉门失败", session.getFailReason());
+        verify(consumerPreauthService).releaseIfFrozen(session);
+        verify(settlementService, never()).settle(any());
+    }
+
+    @Test
+    void genericOpenFailAfterUnlockOnly_doesNotKillRescuedSession() {
+        ShoppingSession session = consumerSession();
+        when(repository.findById("S-RO-2")).thenReturn(Optional.of(session));
+        when(repository.findByIdForUpdate("S-RO-2")).thenReturn(Optional.of(session));
+        assertTrue(doorService.applyRestockDoorOpened("EG943322621391", "S-RO-2"));
+
+        openService.markOpenDoorFailed("S-RO-2", "开门指令超时", "EG943322621391");
+
+        assertEquals(SessionState.SHOPPING, session.getState());
+        verify(consumerPreauthService, never()).releaseIfFrozen(any());
+    }
+
+    @Test
+    void explicitPullFailAfterPhysicalOpen_isIgnored() {
+        ShoppingSession session = consumerSession();
+        when(repository.findById("S-RO-2")).thenReturn(Optional.of(session));
+        when(repository.findByIdForUpdate("S-RO-2")).thenReturn(Optional.of(session));
+        assertTrue(doorService.applyRestockDoorOpened("EG943322621391", "S-RO-2"));
+        doorService.handleDoorEvent(new DoorEventRequest("S-RO-2", "EG943322621391",
+                DoorState.OPEN, System.currentTimeMillis()));
+
+        openService.markPullFailed("S-RO-2", "迟到的拉门失败", "EG943322621391");
+
+        assertEquals(SessionState.SHOPPING, session.getState());
+        verify(consumerPreauthService, never()).releaseIfFrozen(any());
     }
 
     @Test

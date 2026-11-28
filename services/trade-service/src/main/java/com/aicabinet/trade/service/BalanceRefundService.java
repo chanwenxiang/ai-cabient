@@ -649,9 +649,11 @@ public class BalanceRefundService {
     /** 事务②成功路径：置 REFUNDED 并审计。 */
     @Transactional
     public BalanceRefundRequest markRefundSuccess(long requestId) {
+        // CONCURRENCY: 退款申请行 FOR UPDATE，锁内重读终态并串行化切片状态与审计。
         BalanceRefundRequest req = requestMapper.selectByIdForUpdate(requestId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "退款申请不存在"));
         if (STATUS_REFUNDED.equals(req.getStatus())) {
+            notifyRefundFinalized(req);
             return req;
         }
         req.setStatus(STATUS_REFUNDED);
@@ -670,11 +672,16 @@ public class BalanceRefundService {
                 "通过并原路退款 " + req.getRequestNo()
                         + " ¥" + String.format("%.2f", req.getAmountCents() / 100.0));
         log.info("balance refund succeeded request={} amount={}", req.getRequestNo(), req.getAmountCents());
-        if (notificationService != null) {
-            notificationService.notifyRefundAfterCommit(req.getUserId(), req.getRequestNo(),
-                    req.getAmountCents(), false);
-        }
+        notifyRefundFinalized(req);
         return req;
+    }
+
+    private void notifyRefundFinalized(BalanceRefundRequest req) {
+        if (notificationService == null || req.getUserId() == null || req.getAmountCents() <= 0) {
+            return;
+        }
+        notificationService.notifyRefundAfterCommit(req.getUserId(), req.getRequestNo(),
+                req.getAmountCents(), false, "BALANCE_REFUND:" + req.getRequestNo());
     }
 
     /**
