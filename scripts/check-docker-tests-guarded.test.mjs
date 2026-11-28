@@ -142,4 +142,18 @@ for (const name of ['ProcurementReceiveAllocationSqlIT', 'StartupStateSqlIT']) {
   assert(/job:\s*'integration'/.test(entry[2]), `${name} 是 *IT.java ⇒ job 必须是 integration`);
 }
 
+const supplierFunding = entries.find(([, rel]) => rel.endsWith('SupplierFundingSafetySqlIT.java'));
+assert(
+  !!supplierFunding,
+  'SupplierFundingSafetySqlIT 必须在 GUARDED 里登记（付款幂等与已付退货回滚的真库证据）'
+);
+assert(
+  /job:\s*'integration'/.test(supplierFunding[2]),
+  'SupplierFundingSafetySqlIT 是 *IT.java ⇒ job 必须是 integration（failsafe）'
+);
+assert(
+  /付款/.test(supplierFunding[2]) && /回滚/.test(supplierFunding[2]),
+  'SupplierFundingSafetySqlIT 的 why 必须点名付款只入账一次与退货整事务回滚两条真库判据'
+);
+
 console.log(`${TAG} OK：${checks} 项断言全过（GUARDED ${entries.length} 条逐条验真）`);
