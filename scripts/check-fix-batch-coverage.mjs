@@ -117,6 +117,12 @@ export function isCoveredBy(hash, prefixes) {
   });
 }
 
+export function resolveCurrentPath(path, renumberExceptions = []) {
+  const normalized = String(path || '').replace(/\\/g, '/');
+  const hit = renumberExceptions.find((e) => e.from === normalized);
+  return hit ? hit.to : normalized;
+}
+
 export function evaluateRegistry(registry, fixCommits) {
   const problems = [];
   const seen = new Map();
@@ -157,6 +163,14 @@ async function main() {
   if (!existsSync(registryPath)) fail(`登记表缺失 ${REGISTRY_PATH}`);
   const registry = JSON.parse(readFileSync(registryPath, 'utf8'));
   if (!registry.coverageCutoff) fail('登记表缺 coverageCutoff（增量完备性无从起算）');
+  let renumberExceptions = [];
+  try {
+    renumberExceptions =
+      JSON.parse(readFileSync(join(ROOT, 'scripts/migration-renumber-exceptions.json'), 'utf8'))
+        .exceptions || [];
+  } catch (e) {
+    fail(`迁移重排例外表读取失败：${e.message}`);
+  }
 
   // ① 每批：commit 存在性 + diff 文件集
   const problems = [];
@@ -193,7 +207,14 @@ async function main() {
     if (batch.report && !existsSync(join(ROOT, batch.report))) {
       problems.push(`${batch.commit}: 登记的审计报告不存在：${batch.report}`);
     }
-    problems.push(...evaluateBatch(batch, files, (rel) => existsSync(join(ROOT, rel)), deleted));
+    problems.push(
+      ...evaluateBatch(
+        batch,
+        files,
+        (rel) => existsSync(join(ROOT, resolveCurrentPath(rel, renumberExceptions))),
+        deleted
+      )
+    );
   }
 
   // ③ 增量完备性：cutoff..HEAD 的 fix/perf 提交必须已登记或豁免

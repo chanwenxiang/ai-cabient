@@ -113,30 +113,35 @@ if (!/^\s+out-of-order\s*:\s*true\s*$/m.test(appYml)) {
 
 // ── 新增文件（相对基线）─────────────────────────────────────────────────────
 const baseRef = process.env.MIGRATION_BASE_REF || 'origin/dev';
-let diff = await git([
+const committedDiff = await git([
   'diff',
   '--name-only',
-  '--diff-filter=A',
+  '--diff-filter=AR',
   `${baseRef}...HEAD`,
   '--',
   MIGRATION_DIR,
   SEED_DIR
 ]);
-if (!diff.ok) {
-  diff = await git([
-    'diff',
-    '--name-only',
-    '--diff-filter=A',
-    'HEAD',
-    '--',
-    MIGRATION_DIR,
-    SEED_DIR
-  ]);
+const workingDiff = await git([
+  'diff',
+  '--name-only',
+  '--diff-filter=AR',
+  baseRef,
+  '--',
+  MIGRATION_DIR,
+  SEED_DIR
+]);
+if (!committedDiff.ok || !workingDiff.ok) {
+  err('git 不可用，无法判定新增/重排迁移 —— 拒绝静默放行');
 }
+const diff = {
+  ok: true,
+  out: [committedDiff.out, workingDiff.out].filter(Boolean).join('\n')
+};
 // 刻意不加 --exclude-standard：未跟踪的 .sql 同样是一次真实的新迁移（与 check:migration-safety 同口径）
 const untracked = await git(['ls-files', '--others', '--', MIGRATION_DIR, SEED_DIR]);
-if (!diff.ok && !untracked.ok) {
-  err('git 不可用，无法判定新增迁移 —— 拒绝静默放行');
+if (!untracked.ok) {
+  err('git 不可用，无法判定未跟踪迁移 —— 拒绝静默放行');
 }
 
 const files = [

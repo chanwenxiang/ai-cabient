@@ -16,7 +16,7 @@ export const FILES = {
   listener: join(JAVA, 'messaging/NotificationDispatchListener.java'),
   migration: join(
     ROOT,
-    'services/trade-service/src/main/resources/db/migration/V518__notification_inapp_semantic_idempotency.sql'
+    'services/trade-service/src/main/resources/db/migration/V521__notification_inapp_semantic_idempotency.sql'
   )
 };
 
@@ -90,7 +90,7 @@ export function notificationReliabilityProblems(src) {
     !migration.includes('uk_notification_log_inapp_semantic') ||
     !migration.includes("client_msg_id LIKE 'inapp:%'")
   ) {
-    problems.push('V518 站内信语义唯一索引缺失');
+    problems.push('V521 站内信语义唯一索引缺失');
   }
   if (!producer.includes('future.get(ackTimeout.toMillis()')) {
     problems.push('Kafka 生产端未等待 Broker ACK：异步失败仍可能假成功');

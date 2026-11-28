@@ -55,6 +55,17 @@ check('同版本判 0（同版本即倒挂，不放行）', compareVersions('402
   check('judge 判同目录重复号（等于基线最大号也算倒挂）', r.violations.length === 1);
 }
 {
+  const r = judge(
+    ['402'],
+    [{ path: 'V399__applied.sql', version: '399', content: '' }],
+    [{ path: 'V399__applied.sql', reason: 'target already applied' }]
+  );
+  check(
+    'judge 精确登记的已应用低号放行且留痕',
+    r.violations.length === 0 && r.acknowledged.length === 1
+  );
+}
+{
   const r = judge(['402'], [{ path: 'V398__x.sql', version: '398', unparsable: true }]);
   check('judge 把解析不出版本的文件计为 unparsable（fail-closed）', r.unparsable.length === 1);
 }
@@ -83,6 +94,10 @@ async function freshRepo() {
   // 门禁按自身文件位置定位 ROOT ⇒ 把脚本与它依赖的 lib 拷进沙箱，判据一行不改
   cpSync(join(ROOT, GATE), join(SANDBOX, GATE));
   cpSync(join(ROOT, 'scripts/lib/async-spawn.mjs'), join(SANDBOX, 'scripts/lib/async-spawn.mjs'));
+  cpSync(
+    join(ROOT, 'scripts/migration-renumber-exceptions.json'),
+    join(SANDBOX, 'scripts/migration-renumber-exceptions.json')
+  );
   await sh(['init', '-q', '-b', 'main']);
   await sh(['config', 'user.email', 'selftest@example.invalid']);
   await sh(['config', 'user.name', 'selftest']);
@@ -144,6 +159,23 @@ try {
   r = await runGate({ MIGRATION_BASE_REF: 'HEAD~1' });
   check('绿：带 FLYWAY_OUT_OF_ORDER 头的低号放行', r.status === 0, (r.stderr || '').slice(0, 200));
   check('留痕：豁免仍然逐条打日志（放行≠沉默）', /豁免留痕/.test(r.stdout));
+
+  // ④b 已应用迁移的精确登记例外 ⇒ 绿且留痕；改目标路径不得放行
+  await freshRepo();
+  put('V399__applied.sql', HEADERS.plain);
+  await commit('add V399 already applied elsewhere');
+  writeFileSync(
+    join(SANDBOX, 'scripts/migration-renumber-exceptions.json'),
+    JSON.stringify({
+      outOfOrderExceptions: [
+        { path: `${MIG}/V399__applied.sql`, reason: 'target already applied' }
+      ],
+      exceptions: []
+    })
+  );
+  r = await runGate({ MIGRATION_BASE_REF: 'HEAD~1' });
+  check('绿：精确登记的已应用低号放行', r.status === 0, (r.stderr || '').slice(0, 200));
+  check('留痕：登记例外打日志', /豁免留痕/.test(r.stdout));
 
   // ⑤ 基线 ref 取不到 ⇒ fail-closed，绝不等于「没有违规」
   await freshRepo();
