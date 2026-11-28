@@ -3122,3 +3122,51 @@
 > 提现失败模板的 `const4` 与售后模板的 `const7` 字段当前对任何值都返回 47003，实测省略后可正常发送，因此代码不再下发这两个字段。提现 `NOT_ENOUGH` 首次失败发一次提醒，后续每小时恢复重试保持静默，成功后再发成功通知；退款/提现/售后通知均在事务提交后执行，避免 HTTP 占用资金事务。
 >
 > 证据：<https://developers.weixin.qq.com/doc/service/api/notify/template/api_sendtemplatemessage.html>（模板消息发送）、<https://developers.weixin.qq.com/doc/service/guide/product/template_message/Template_Message_Operation_Specifications.html>（模板消息运营规范）、<https://developers.weixin.qq.com/doc/service/guide/product/subscription_messages/intro.html>（订阅通知对照，本次不采用）。取证日期：2026-11-26。
+
+### CB-089 【新】供应商付款幂等：键必填、重试同参回放、异参冲突，不截断键
+
+> 触发：2026-11-28 MA-475。先列主体：Stripe（支付官方）｜PayPal（支付官方）｜SAP（ERP 官方）。开门柜同行未公开供应商付款实现，不编造。
+
+- **竞品做法 / 官方口径**：
+  - **Stripe**（⭕ 官方）：幂等请求要求同一 key 对应同一请求参数；重试返回首次结果，参数不同会报错，避免重复扣款。
+  - **PayPal**（⭕ 官方）：API 幂等键在重试窗口内标识同一业务请求，调用方必须复用键与请求体，响应丢失后可安全重试。
+  - **SAP S/4HANA**（⭕ 官方）：供应商发票与付款业务以单据、期间和唯一业务键控制重复过账，强调同一业务只能入账一次。
+- **对照主体**：Stripe｜PayPal｜SAP
+- **证据**：
+  - <https://docs.stripe.com/api/idempotent_requests> （⭕ Stripe：同键同参回放、异参报错）
+  - <https://developer.paypal.com/reference/guidelines/idempotency/> （⭕ PayPal：幂等键与请求体重试契约）
+  - <https://learning.sap.com/courses/establishing-core-supply-chain-processes-in-sap-s-4hana-cloud-public-edition-zh/%E4%BA%86%E8%A7%A3%E9%80%80%E8%B4%A7%E8%87%B3%E4%BE%9B%E5%BA%94%E5%95%86-bmk-%E5%9C%BA%E6%99%AF_c73e0390-45fc-4929-95d1-8af0a467f0a9_zh-CN> （⭕ SAP：退货至供应商业务场景）
+- **取证日期**：2026-11-28
+- **我们的结论**：**采纳**「键必填且不截断、同键同单同额回放、异单异额 409」。后台每次打开付款弹窗生成稳定 requestId，失败重试复用；服务层在应付行锁内重查，并以 `INSERT ... ON CONFLICT DO NOTHING` 处理并发赢家，禁止在 PostgreSQL 已中止事务里 catch 唯一键冲突后继续查回。
+
+### CB-090 【新】已付款采购退货：资金动作必须独立留痕，不能把超付钳零关闭
+
+> 触发：2026-11-28 MA-476。先列主体：SAP（ERP 官方）｜Shopify（零售官方）｜Stripe（支付官方）。用户已拍板本期采用「已付退货直接拒绝，先走供应商退款/人工处理」。
+
+- **竞品做法 / 官方口径**：
+  - **SAP S/4HANA**（⭕ 官方）：退货至供应商是独立业务场景，需按原始采购/收货关系处理数量与后续信贷，不能只改应付余额。
+  - **Shopify**（⭕ 官方）：退货与退款是订单上的显式动作，退款会记录退款金额与状态，库存是否重新上架单独选择。
+  - **Stripe**（⭕ 官方）：退款不能超过原收款；需要向客户列示贷项时使用独立 credit note，资金与单据留痕可追溯。
+- **对照主体**：SAP｜Shopify｜Stripe
+- **证据**：
+  - <https://learning.sap.com/courses/establishing-core-supply-chain-processes-in-sap-s-4hana-cloud-public-edition-zh/%E4%BA%86%E8%A7%A3%E9%80%80%E8%B4%A7%E8%87%B3%E4%BE%9B%E5%BA%94%E5%95%86-bmk-%E5%9C%BA%E6%99%AF_c73e0390-45fc-4929-95d1-8af0a467f0a9_zh-CN> （⭕ SAP：退货至供应商）
+  - <https://help.shopify.com/en/manual/orders/returns-refunds> （⭕ Shopify：退货、退款与重新上架）
+  - <https://docs.stripe.com/invoicing/credit-notes> （⭕ Stripe：独立贷项记录）
+- **取证日期**：2026-11-28
+- **我们的结论**：**采纳**「已付款后不允许走普通退货直接冲减应付」；**有意不同**于完整供应商应收/贷项方案，本期不新建资金状态机。任何 `paid_amount_cents > 0` 的应付单在行锁内直接 409，库存、收货分配、退货单与应付流水随外层事务全部回滚；后续确需退款时再单独实现可追踪的供应商应收/退款单。
+
+### CB-091 【新】效期扫描与库存修复：稳定游标追平，锁内读最新值后才允许修
+
+> 触发：2026-11-28 MA-478/480。先列主体：PostgreSQL（数据库官方）｜MySQL（数据库官方）｜Microsoft Dynamics 365（ERP 官方）。
+
+- **竞品做法 / 官方口径**：
+  - **PostgreSQL**（⭕ 官方）：事务隔离级别决定并发读写可见性；需要避免并发覆盖时，必须用锁或明确的条件更新，不能依赖旧快照。
+  - **MySQL**（⭕ 官方）：InnoDB locking reads 在事务内读取并锁定当前最新行，适合「读后修改」的并发控制。
+  - **Microsoft Dynamics 365**（⭕ 官方）：库存调整向导按当前库存执行受控调整并保留记录，修复动作必须基于当前账实。
+- **对照主体**：PostgreSQL｜MySQL｜Microsoft Dynamics 365
+- **证据**：
+  - <https://www.postgresql.org/docs/current/transaction-iso.html> （⭕ PostgreSQL：事务隔离）
+  - <https://dev.mysql.com/doc/refman/8.4/en/innodb-locking-reads.html> （⭕ MySQL：锁定读）
+  - <https://learn.microsoft.com/en-us/dynamics365/finance/localizations/russia/rus-inventory-adjustment-wizard> （⭕ Microsoft：库存调整向导）
+- **取证日期**：2026-11-28
+- **我们的结论**：**采纳**「效期扫描用 `(expiry_date, lot_id)` keyset 游标连续追平，不用 OFFSET；库存修复复用 `inv:<deviceId>` 锁，锁内重算在架批次合计，与巡检快照不一致就拒绝并要求重新巡检」。锁释放挂到事务 `afterCompletion`，保证锁覆盖到提交；两条修复都保留原 SQL 写侧语义，不借修复偷偷物料化裸库存。

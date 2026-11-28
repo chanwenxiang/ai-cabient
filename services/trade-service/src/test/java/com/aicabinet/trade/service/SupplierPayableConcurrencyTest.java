@@ -44,7 +44,7 @@ class SupplierPayableConcurrencyTest {
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.pay(1L, 88L, new com.aicabinet.common.dto.PaySupplierRequest(1000L, null, null)));
+                () -> service.pay(1L, 88L, new com.aicabinet.common.dto.PaySupplierRequest(1000L, null, "PAY-BUSY")));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }

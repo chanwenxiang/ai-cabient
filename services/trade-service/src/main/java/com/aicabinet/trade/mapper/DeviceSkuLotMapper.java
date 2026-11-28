@@ -120,16 +120,23 @@ public interface DeviceSkuLotMapper extends BaseTradeMapper<DeviceSkuLot> {
     }
 
     /**
-     * 临期/过期扫描：仅扫有库存且到期日不晚于 horizon 的批次，按到期日升序批量拉取。
+     * 临期/过期扫描：按 (expiry_date, lot_id) keyset 游标连续取批次。
+     * 状态会随扫描变化，OFFSET 会跳行；游标则保证前一批处理后仍能追到后续批次。
      */
-    default List<DeviceSkuLot> findForExpiryScan(List<String> statuses, LocalDate horizonDate, int limit) {
+    default List<DeviceSkuLot> findForExpiryScan(List<String> statuses, LocalDate horizonDate,
+                                                  LocalDate afterExpiryDate, String afterLotId, int limit) {
         int lim = Math.max(1, Math.min(limit, 500));
-        return selectList(Wrappers.<DeviceSkuLot>lambdaQuery()
+        var query = Wrappers.<DeviceSkuLot>lambdaQuery()
                 .in(DeviceSkuLot::getStatus, statuses)
                 .gt(DeviceSkuLot::getQuantity, 0)
                 .le(DeviceSkuLot::getExpiryDate, horizonDate)
-                .orderByAsc(DeviceSkuLot::getExpiryDate)
-                .last("LIMIT " + lim));
+                .orderByAsc(DeviceSkuLot::getExpiryDate, DeviceSkuLot::getLotId);
+        if (afterExpiryDate != null) {
+            query.and(w -> w.gt(DeviceSkuLot::getExpiryDate, afterExpiryDate)
+                    .or(x -> x.eq(DeviceSkuLot::getExpiryDate, afterExpiryDate)
+                            .gt(DeviceSkuLot::getLotId, afterLotId)));
+        }
+        return selectList(query.last("LIMIT " + lim));
     }
 
     List<LinkedHashMap<String, Object>> selectSumBookQtyBySlot(@Param("deviceId") String deviceId);

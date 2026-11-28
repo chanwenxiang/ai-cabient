@@ -92,6 +92,7 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
     notes: ''
   });
   const payTarget = ref<WarehouseEntityRow>({});
+  const paymentIdempotencyKey = ref('');
   const inboundForm = reactive<WarehouseEntityRow>({
     warehouseId: '',
     refNo: '',
@@ -265,6 +266,11 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
     paymentForm.payableId = row.payableId;
     paymentForm.amountYuan = centsToYuanNumber(row.balanceCents || 0);
     paymentForm.notes = '';
+    const uuid =
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    paymentIdempotencyKey.value = `supplier-pay-${uuid}`;
     paymentDialog.value = true;
   }
 
@@ -276,7 +282,8 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
     try {
       await api.request(AdminEndpoints.suppliersPayablePay(paymentForm.payableId), 'POST', {
         amountCents,
-        notes: paymentForm.notes
+        notes: paymentForm.notes,
+        idempotencyKey: paymentIdempotencyKey.value
       });
       paymentDialog.value = false;
       ElMessage.success('付款登记成功');

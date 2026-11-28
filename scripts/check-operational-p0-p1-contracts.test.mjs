@@ -47,7 +47,32 @@ const cases = [
     'nginxFull',
     (s) => s.replace('set $trade_upstream trade-lb:8080', 'set $trade_upstream trade-service:8080')
   ],
-  ['MA-434', 'apps', (s) => s.replaceAll('trade-lb:', 'trade-lb-disabled:')]
+  ['MA-434', 'apps', (s) => s.replaceAll('trade-lb:', 'trade-lb-disabled:')],
+  [
+    'MA-475',
+    'paySupplierRequest',
+    (s) => s.replace('@NotBlank @Size(max = 64) String idempotencyKey', 'String idempotencyKey')
+  ],
+  [
+    'MA-475',
+    'warehouseDialogs',
+    (s) => s.replace('idempotencyKey: paymentIdempotencyKey.value', "idempotencyKey: ''")
+  ],
+  [
+    'MA-476',
+    'supplierPayable',
+    (s) => s.replaceAll('payable.getPaidAmountCents() > 0', 'false')
+  ],
+  [
+    'MA-478',
+    'lotMapper',
+    (s) => s.replace('.gt(DeviceSkuLot::getLotId, afterLotId)', '.gt(DeviceSkuLot::getSkuId, afterLotId)')
+  ],
+  [
+    'MA-480',
+    'dataConsistency',
+    (s) => s.replace('currentLotQty != parseRecordCents(consistencyRecord.getActualValue())', 'false')
+  ]
 ];
 for (const [id, key, mutate] of cases) {
   const changed = { ...sources, [key]: mutate(sources[key]) };

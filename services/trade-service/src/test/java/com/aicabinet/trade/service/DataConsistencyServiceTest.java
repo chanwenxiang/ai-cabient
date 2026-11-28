@@ -59,6 +59,7 @@ class DataConsistencyServiceTest {
                 cabinetOrderRepository, orderPaymentService, revenueSplitService, auditService, null);
         ReflectionTestUtils.setField(service, "self", service);
         when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
+        when(distributedLockService.tryLock(anyString(), eq(30L), eq(5L))).thenReturn(true);
         // MA-124：修复链现在读 refundOrder 的返回值（false=未确认即不得回报「已退多收」）
         lenient().when(orderPaymentService.refundOrder(any(), anyInt(), anyString())).thenReturn(true);
     }
@@ -498,7 +499,9 @@ class DataConsistencyServiceTest {
         consistencyRecord.setStatus(DataConsistencyService.STATUS_FAIL);
 
         when(consistencyRepository.findByIdForUpdate(8L)).thenReturn(java.util.Optional.of(consistencyRecord));
-        when(jdbcTemplate.update(startsWith("UPDATE device_sku_inventory"), eq("12"), eq("DEV-1"), eq("SKU-9")))
+        when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(quantity)"), anyIntExtractor(),
+                eq("DEV-1"), eq("SKU-9"))).thenReturn(12);
+        when(jdbcTemplate.update(startsWith("UPDATE device_sku_inventory"), eq(12), eq("DEV-1"), eq("SKU-9")))
                 .thenReturn(1);
 
         DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(OPERATOR, 8L);
@@ -506,6 +509,27 @@ class DataConsistencyServiceTest {
         assertTrue(outcome.fixed());
         assertEquals(DataConsistencyService.STATUS_FIXED, consistencyRecord.getStatus());
         assertTrue(outcome.message().contains("12"));
+    }
+
+    @Test
+    void fixInconsistency_inventoryMismatch_withChangedLotSum_rejectsStaleSnapshot() {
+        DataConsistencyRecord consistencyRecord = new DataConsistencyRecord();
+        consistencyRecord.setId(9L);
+        consistencyRecord.setCheckType("INVENTORY_MISMATCH");
+        consistencyRecord.setCheckKey("DEV-1|SKU-9");
+        consistencyRecord.setActualValue("5");
+        consistencyRecord.setStatus(DataConsistencyService.STATUS_FAIL);
+        when(consistencyRepository.findByIdForUpdate(9L)).thenReturn(java.util.Optional.of(consistencyRecord));
+        when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(quantity)"), anyIntExtractor(),
+                eq("DEV-1"), eq("SKU-9"))).thenReturn(4);
+
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(OPERATOR, 9L);
+
+        assertFalse(outcome.fixed());
+        assertTrue(outcome.message().contains("重新巡检"));
+        assertEquals(DataConsistencyService.STATUS_FAIL, consistencyRecord.getStatus());
+        verify(jdbcTemplate, never()).update(startsWith("UPDATE device_sku_inventory"),
+                any(), any(), any());
     }
 
     @Test
@@ -842,6 +866,27 @@ class DataConsistencyServiceTest {
         assertTrue(outcome.fixed());
         assertTrue(outcome.message().contains("7"));
         assertEquals(DataConsistencyService.STATUS_FIXED, consistencyRecord.getStatus());
+    }
+
+    @Test
+    void fixInconsistency_orphanLot_withChangedLotSum_rejectsStaleSnapshot() {
+        DataConsistencyRecord consistencyRecord = new DataConsistencyRecord();
+        consistencyRecord.setId(22L);
+        consistencyRecord.setCheckType("INVENTORY_ORPHAN_LOT");
+        consistencyRecord.setCheckKey("CAB-X|SKU-Y");
+        consistencyRecord.setActualValue("7");
+        consistencyRecord.setStatus(DataConsistencyService.STATUS_FAIL);
+        when(consistencyRepository.findByIdForUpdate(22L)).thenReturn(java.util.Optional.of(consistencyRecord));
+        when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(quantity)"), anyIntExtractor(),
+                eq("CAB-X"), eq("SKU-Y"))).thenReturn(6);
+
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(OPERATOR, 22L);
+
+        assertFalse(outcome.fixed());
+        assertTrue(outcome.message().contains("重新巡检"));
+        assertEquals(DataConsistencyService.STATUS_FAIL, consistencyRecord.getStatus());
+        verify(jdbcTemplate, never()).update(startsWith("INSERT INTO device_sku_inventory"),
+                any(), any(), any());
     }
 
     @Test

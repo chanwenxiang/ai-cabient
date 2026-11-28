@@ -15,7 +15,6 @@ import com.aicabinet.trade.mapper.SupplierPayableMapper;
 import com.aicabinet.trade.mapper.SupplierPaymentMapper;
 import com.aicabinet.trade.mapper.WarehouseMapper;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -147,21 +146,17 @@ public class SupplierPayableService {
         if (request.amountCents() <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amountCents must be positive");
         }
-        String idemKey = normalizeIdempotencyKey(request.idempotencyKey());
-        if (idemKey != null) {
-            var existingPayment = paymentRepository.findByIdempotencyKey(idemKey);
-            if (existingPayment.isPresent()) {
-                SupplierPayable payable = payableRepository.findById(existingPayment.get().getPayableId())
-                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "payable not found"));
-                return toDto(payable);
-            }
-        }
+        String idemKey = requireIdempotencyKey(request.idempotencyKey());
         return runWithPayableLock(payableId, () -> doPay(operatorId, payableId, request, idemKey));
     }
 
     private SupplierPayableDto doPay(Long operatorId, Long payableId, PaySupplierRequest request, String idemKey) {
         SupplierPayable payable = payableRepository.findByIdForUpdate(payableId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "payable not found"));
+        SupplierPayment existingPayment = paymentRepository.findByIdempotencyKey(idemKey).orElse(null);
+        if (existingPayment != null) {
+            return replayPayment(existingPayment, payableId, request.amountCents());
+        }
         long balance = balance(payable);
         if (balance <= 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "payable has no outstanding balance");
@@ -178,16 +173,10 @@ public class SupplierPayableService {
         payment.setNotes(trimToNull(request.notes()));
         payment.setIdempotencyKey(idemKey);
         payment.setCreatedAt(Instant.now());
-        try {
-            paymentRepository.save(payment);
-        } catch (DuplicateKeyException e) {
-            if (idemKey != null) {
-                return paymentRepository.findByIdempotencyKey(idemKey)
-                        .map(p -> payableRepository.findById(p.getPayableId()).orElse(payable))
-                        .map(this::toDto)
-                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "付款幂等冲突"));
-            }
-            throw e;
+        if (paymentRepository.insertIfAbsent(payment) == 0) {
+            SupplierPayment raced = paymentRepository.findByIdempotencyKey(idemKey)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "付款幂等冲突"));
+            return replayPayment(raced, payableId, request.amountCents());
         }
 
         payable.setPaidAmountCents(payable.getPaidAmountCents() + request.amountCents());
@@ -200,6 +189,15 @@ public class SupplierPayableService {
         }
         payable.setUpdatedAt(Instant.now());
         payableRepository.save(payable);
+        return toDto(payable);
+    }
+
+    private SupplierPayableDto replayPayment(SupplierPayment payment, Long payableId, long amountCents) {
+        if (!payment.getPayableId().equals(payableId) || payment.getAmountCents() != amountCents) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "付款幂等键已用于不同应付单或金额");
+        }
+        SupplierPayable payable = payableRepository.findById(payment.getPayableId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "payable not found"));
         return toDto(payable);
     }
 
@@ -253,6 +251,10 @@ public class SupplierPayableService {
                 .orElse(null);
         if (payable == null) {
             return;
+        }
+        if (payable.getPaidAmountCents() > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "该采购单已有付款，不能直接退货；请先走供应商退款或人工资金处理");
         }
         // 🔴 RETURN entry 记「实际冲减额」（old−new），不是请求额 returnedValueCents：
         // 主表用 Math.max(0,…) 截断时（超退/重复退），流水若记请求额会破坏
@@ -334,12 +336,15 @@ public class SupplierPayableService {
         }
     }
 
-    private static String normalizeIdempotencyKey(String raw) {
+    private static String requireIdempotencyKey(String raw) {
         if (raw == null || raw.isBlank()) {
-            return null;
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "idempotencyKey 不能为空");
         }
         String trimmed = raw.trim();
-        return trimmed.length() > 64 ? trimmed.substring(0, 64) : trimmed;
+        if (trimmed.length() > 64) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "idempotencyKey 不能超过 64 个字符");
+        }
+        return trimmed;
     }
 
     private void refreshStatus(SupplierPayable payable) {

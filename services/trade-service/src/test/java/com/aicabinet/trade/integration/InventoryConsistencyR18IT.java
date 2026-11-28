@@ -4,6 +4,8 @@ import com.aicabinet.trade.domain.DeviceSkuInventory;
 import com.aicabinet.trade.domain.DeviceSkuInventoryId;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
 import com.aicabinet.trade.mapper.DeviceSkuLotMapper;
+import com.aicabinet.trade.service.DataConsistencyService;
+import com.aicabinet.trade.service.InventoryLotService;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +31,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -85,6 +88,8 @@ class InventoryConsistencyR18IT {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private DeviceSkuLotMapper lotMapper;
     @Autowired private DeviceSkuInventoryMapper inventoryMapper;
+    @Autowired private InventoryLotService inventoryLotService;
+    @Autowired private DataConsistencyService dataConsistencyService;
 
     @BeforeEach
     void seedSubjects() {
@@ -216,6 +221,81 @@ class InventoryConsistencyR18IT {
                 "SELECT version FROM device_sku_inventory WHERE device_id = ? AND sku_id = ?",
                 Long.class, DEVICE_ID, SKU_ID);
         assertEquals(vAfter + 1, vFinal, "当前 version 的 save 应成功并递增 version");
+    }
+
+    @Test
+    @DisplayName("MA-478 真库 501 条：最早 500 条已处理也不能挡住后续过期批次")
+    void expiryScan_501stLotIsNotStarved() {
+        jdbc.update("DELETE FROM pull_off_task WHERE device_id = ?", DEVICE_ID);
+        jdbc.update("DELETE FROM device_sku_lot WHERE device_id = ? AND lot_id LIKE 'IT-EXP-%'", DEVICE_ID);
+        LocalDate firstExpiry = LocalDate.now().minusDays(2);
+        List<Object[]> lots = new ArrayList<>();
+        List<Object[]> tasks = new ArrayList<>();
+        for (int i = 1; i <= 500; i++) {
+            String lotId = "IT-EXP-" + i;
+            String batchNo = "B-EXP-" + i;
+            lots.add(new Object[]{lotId, DEVICE_ID, SKU_ID, batchNo, firstExpiry, 1, "BLOCKED"});
+            tasks.add(new Object[]{DEVICE_ID, SKU_ID, lotId, batchNo, 1, "EXPIRED", "OPEN"});
+        }
+        lots.add(new Object[]{"IT-EXP-501", DEVICE_ID, SKU_ID, "B-EXP-501",
+                LocalDate.now().minusDays(1), 1, "ON_SALE"});
+        jdbc.batchUpdate("INSERT INTO device_sku_lot "
+                + "(lot_id, device_id, sku_id, batch_no, expiry_date, quantity, status) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?)", lots);
+        jdbc.batchUpdate("INSERT INTO pull_off_task "
+                + "(device_id, sku_id, lot_id, batch_no, quantity, reason, status) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?)", tasks);
+
+        inventoryLotService.scanExpiryAlerts();
+
+        assertEquals("BLOCKED", jdbc.queryForObject(
+                "SELECT status FROM device_sku_lot WHERE lot_id = 'IT-EXP-501'", String.class));
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM pull_off_task WHERE lot_id = 'IT-EXP-501' AND status = 'OPEN'",
+                Integer.class));
+    }
+
+    @Test
+    @DisplayName("MA-480 真库：巡检后批次从 5 变 4，旧记录不得把汇总写回 5")
+    void staleInventoryMismatchSnapshot_isRejectedAndKeepsCurrentQuantity() {
+        String deviceId = "IT-INV-STALE";
+        String skuId = "IT-SKU-STALE";
+        jdbc.update("DELETE FROM data_consistency_record WHERE check_key = ?", deviceId + "|" + skuId);
+        jdbc.update("DELETE FROM device_sku_inventory WHERE device_id = ? AND sku_id = ?", deviceId, skuId);
+        jdbc.update("DELETE FROM device_sku_lot WHERE device_id = ? AND sku_id = ?", deviceId, skuId);
+        jdbc.update("INSERT INTO device_info (device_id, device_name, device_type, online_status) "
+                + "VALUES (?, 'MA480 陈旧快照 IT 柜', 'AI_CABINET_V1', 'OFFLINE') "
+                + "ON CONFLICT (device_id) DO NOTHING", deviceId);
+        jdbc.update("INSERT INTO sku_catalog (sku_id, sku_name, price_cents, vision_enabled) "
+                + "VALUES (?, 'MA480 陈旧快照 IT 商品', 350, FALSE) "
+                + "ON CONFLICT (sku_id) DO NOTHING", skuId);
+        jdbc.update("INSERT INTO user_info (user_id, phone_number) VALUES (9801, '13900009801') "
+                + "ON CONFLICT (user_id) DO NOTHING");
+        String lotId = "IT-LOT-STALE";
+        jdbc.update("INSERT INTO device_sku_lot "
+                + "(lot_id, device_id, sku_id, batch_no, expiry_date, quantity, status) "
+                + "VALUES (?, ?, ?, 'B-STALE', ?, 5, 'ON_SALE')",
+                lotId, deviceId, skuId, LocalDate.now().plusDays(30));
+        jdbc.update("INSERT INTO device_sku_inventory "
+                + "(device_id, sku_id, quantity, capacity, low_threshold) VALUES (?, ?, 5, 20, 2)",
+                deviceId, skuId);
+        Long recordId = jdbc.queryForObject("INSERT INTO data_consistency_record "
+                        + "(check_type, table_name, check_key, expected_value, actual_value, status) "
+                        + "VALUES ('INVENTORY_MISMATCH', 'device_sku_inventory', ?, '5', '5', 'FAIL') "
+                        + "RETURNING id",
+                Long.class, deviceId + "|" + skuId);
+
+        assertEquals(1, lotMapper.deductQuantityAtomic(lotId, 1));
+        assertEquals(1, inventoryMapper.deductQuantityAtomic(deviceId, skuId, 1));
+
+        DataConsistencyService.FixOutcome outcome =
+                dataConsistencyService.fixInconsistencyDetailed(9801L, recordId);
+
+        assertFalse(outcome.fixed());
+        assertTrue(outcome.message().contains("重新巡检"));
+        assertEquals(4, jdbc.queryForObject(
+                "SELECT quantity FROM device_sku_inventory WHERE device_id = ? AND sku_id = ?",
+                Integer.class, deviceId, skuId));
     }
 
     // ==== 并发助手（与 InventoryDeductAtomicityIT 同款） ====

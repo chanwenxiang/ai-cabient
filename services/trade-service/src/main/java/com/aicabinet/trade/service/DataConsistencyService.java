@@ -1576,6 +1576,36 @@ public class DataConsistencyService {
         }
     }
 
+    private <T> T runWithDeviceInventoryLock(String deviceId, java.util.function.Supplier<T> action) {
+        String key = InventoryService.deviceLockKey(deviceId);
+        if (!distributedLockService.tryLock(key, 30, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "库存繁忙，请稍后重试");
+        }
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager
+                    .registerSynchronization(new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCompletion(int status) {
+                            distributedLockService.unlock(key);
+                        }
+                    });
+            try {
+                return action.get();
+            } catch (RuntimeException e) {
+                if (!org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()
+                        || !org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+                    distributedLockService.unlock(key);
+                }
+                throw e;
+            }
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
+    }
+
     private FixOutcome applyFix(DataConsistencyRecord consistencyRecord, List<RefundIntent> refunds) {
         String checkType = consistencyRecord.getCheckType();
         if (isWalletScanOnlyType(checkType)) {
@@ -1922,13 +1952,26 @@ public class DataConsistencyService {
         if (parts.length < 2) {
             return FixOutcome.fail("库存键格式无效，期望 deviceId|skuId");
         }
-        String sql = "UPDATE device_sku_inventory SET quantity = CAST(? AS INT) "
-                + "WHERE device_id = ? AND sku_id = ?";
-        int updated = jdbcTemplate.update(sql, consistencyRecord.getActualValue(), parts[0], parts[1]);
-        if (updated <= 0) {
-            return FixOutcome.fail("未更新到库存行");
-        }
-        return FixOutcome.ok("已将汇总库存改为在架批次合计 " + consistencyRecord.getActualValue());
+        String deviceId = parts[0];
+        String skuId = parts[1];
+        return runWithDeviceInventoryLock(deviceId, () -> {
+            int currentLotQty = queryInt(
+                    "SELECT COALESCE(SUM(quantity), 0) FROM device_sku_lot "
+                            + "WHERE device_id = ? AND sku_id = ? "
+                            + "AND UPPER(COALESCE(status, '')) IN ('ON_SALE', 'NEAR_EXPIRY')",
+                    deviceId, skuId);
+            if (currentLotQty != parseRecordCents(consistencyRecord.getActualValue())) {
+                return FixOutcome.fail("巡检后在架批次合计已变化，请重新巡检后再修复");
+            }
+            int updated = jdbcTemplate.update(
+                    "UPDATE device_sku_inventory SET quantity = CAST(? AS INT) "
+                            + "WHERE device_id = ? AND sku_id = ?",
+                    currentLotQty, deviceId, skuId);
+            if (updated <= 0) {
+                return FixOutcome.fail("未更新到库存行");
+            }
+            return FixOutcome.ok("已将汇总库存改为在架批次合计 " + currentLotQty);
+        });
     }
 
     /** 按在架批次合计补建/回写缺失的汇总库存行。 */
@@ -1939,21 +1982,26 @@ public class DataConsistencyService {
         }
         String deviceId = parts[0];
         String skuId = parts[1];
-        int lotQty = queryInt(
-                "SELECT COALESCE(SUM(quantity), 0) FROM device_sku_lot "
-                        + "WHERE device_id = ? AND sku_id = ? "
-                        + "AND UPPER(COALESCE(status, '')) IN ('ON_SALE', 'NEAR_EXPIRY')",
-                deviceId, skuId);
-        int updated = jdbcTemplate.update(
-                "INSERT INTO device_sku_inventory (device_id, sku_id, quantity, updated_at) "
-                        + "VALUES (?, ?, ?, NOW()) "
-                        + "ON CONFLICT (device_id, sku_id) DO UPDATE "
-                        + "SET quantity = EXCLUDED.quantity, updated_at = NOW()",
-                deviceId, skuId, lotQty);
-        if (updated <= 0) {
-            return FixOutcome.fail("未能写入汇总库存行");
-        }
-        return FixOutcome.ok("已按在架批次合计 " + lotQty + " 补齐汇总库存");
+        return runWithDeviceInventoryLock(deviceId, () -> {
+            int lotQty = queryInt(
+                    "SELECT COALESCE(SUM(quantity), 0) FROM device_sku_lot "
+                            + "WHERE device_id = ? AND sku_id = ? "
+                            + "AND UPPER(COALESCE(status, '')) IN ('ON_SALE', 'NEAR_EXPIRY')",
+                    deviceId, skuId);
+            if (lotQty != parseRecordCents(consistencyRecord.getActualValue())) {
+                return FixOutcome.fail("巡检后在架批次合计已变化，请重新巡检后再修复");
+            }
+            int updated = jdbcTemplate.update(
+                    "INSERT INTO device_sku_inventory (device_id, sku_id, quantity, updated_at) "
+                            + "VALUES (?, ?, ?, NOW()) "
+                            + "ON CONFLICT (device_id, sku_id) DO UPDATE "
+                            + "SET quantity = EXCLUDED.quantity, updated_at = NOW()",
+                    deviceId, skuId, lotQty);
+            if (updated <= 0) {
+                return FixOutcome.fail("未能写入汇总库存行");
+            }
+            return FixOutcome.ok("已按在架批次合计 " + lotQty + " 补齐汇总库存");
+        });
     }
 
     public List<DataConsistencyRecord> getFailedChecks() {

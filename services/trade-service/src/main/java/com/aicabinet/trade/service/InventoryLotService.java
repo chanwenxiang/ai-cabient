@@ -651,11 +651,24 @@ public class InventoryLotService {
         LocalDate today = LocalDate.now();
         // 覆盖常见 nearExpiryDays（通常 ≤30）；更长窗口留给后续批次/手动盘点
         LocalDate horizon = today.plusDays(90);
-        List<DeviceSkuLot> lots = lotRepository.findForExpiryScan(
-                List.of(ON_SALE, NEAR_EXPIRY, BLOCKED), horizon, 500);
         int alerts = 0;
-        for (DeviceSkuLot lot : lots) {
-            alerts += scanSingleLotForExpiry(lot, today);
+        LocalDate cursorExpiry = null;
+        String cursorLotId = null;
+        while (true) {
+            List<DeviceSkuLot> lots = lotRepository.findForExpiryScan(
+                    List.of(ON_SALE, NEAR_EXPIRY, BLOCKED), horizon, cursorExpiry, cursorLotId, 500);
+            if (lots.isEmpty()) {
+                break;
+            }
+            for (DeviceSkuLot lot : lots) {
+                alerts += scanSingleLotForExpiry(lot, today);
+            }
+            if (lots.size() < 500) {
+                break;
+            }
+            DeviceSkuLot last = lots.get(lots.size() - 1);
+            cursorExpiry = last.getExpiryDate();
+            cursorLotId = last.getLotId();
         }
         return alerts;
     }

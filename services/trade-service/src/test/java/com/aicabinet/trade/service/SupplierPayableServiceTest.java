@@ -19,6 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
@@ -58,6 +59,7 @@ class SupplierPayableServiceTest {
                 distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
+        when(paymentRepository.insertIfAbsent(any())).thenReturn(1);
     }
 
     @Test
@@ -99,16 +101,33 @@ class SupplierPayableServiceTest {
     }
 
     @Test
+    void recordReturn_whenPayableHasAnyPayment_rejectsWithoutChangingLedger() {
+        SupplierPayable existing = payable(10000L, 2000L, "PARTIAL");
+        when(payableRepository.findByPurchaseOrderIdForUpdate(any())).thenReturn(Optional.of(existing));
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> service.recordReturn(1L, order(), 2000L));
+
+        assertEquals(HttpStatus.CONFLICT, error.getStatusCode());
+        assertTrue(error.getReason().contains("供应商退款"));
+        assertEquals(10000L, existing.getAmountCents());
+        assertEquals(2000L, existing.getPaidAmountCents());
+        assertEquals("PARTIAL", existing.getStatus());
+        verify(payableRepository, org.mockito.Mockito.never()).save(any());
+        verify(entryRepository, org.mockito.Mockito.never()).insert(any());
+    }
+
+    @Test
     void pay_shouldMarkPaidWhenFullSettlement() {
         SupplierPayable existing = payable(10000L, 0L, "UNPAID");
         when(payableRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
 
-        service.pay(1L, 1L, new PaySupplierRequest(10000L, "对公转账", null));
+        service.pay(1L, 1L, new PaySupplierRequest(10000L, "对公转账", "PAY-FULL"));
 
         assertEquals(10000L, existing.getPaidAmountCents());
         assertEquals("PAID", existing.getStatus());
         ArgumentCaptor<SupplierPayment> captor = ArgumentCaptor.forClass(SupplierPayment.class);
-        verify(paymentRepository).save(captor.capture());
+        verify(paymentRepository).insertIfAbsent(captor.capture());
         assertEquals(10000L, captor.getValue().getAmountCents());
         assertEquals(1L, captor.getValue().getPayableId());
     }
@@ -118,7 +137,7 @@ class SupplierPayableServiceTest {
         SupplierPayable existing = payable(10000L, 0L, "UNPAID");
         when(payableRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
 
-        service.pay(1L, 1L, new PaySupplierRequest(4000L, null, null));
+        service.pay(1L, 1L, new PaySupplierRequest(4000L, null, "PAY-PARTIAL"));
 
         assertEquals("PARTIAL", existing.getStatus());
         assertEquals(4000L, existing.getPaidAmountCents());
@@ -130,7 +149,7 @@ class SupplierPayableServiceTest {
         when(payableRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
 
         assertThrows(ResponseStatusException.class,
-                () -> service.pay(1L, 1L, new PaySupplierRequest(6000L, null, null)));
+                () -> service.pay(1L, 1L, new PaySupplierRequest(6000L, null, "PAY-OVER")));
     }
 
     @Test
@@ -141,11 +160,72 @@ class SupplierPayableServiceTest {
         prior.setPayableId(1L);
         prior.setAmountCents(5000L);
         when(paymentRepository.findByIdempotencyKey("PAY-1")).thenReturn(Optional.of(prior));
+        when(payableRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
         when(payableRepository.findById(1L)).thenReturn(Optional.of(existing));
 
         var dto = service.pay(1L, 1L, new PaySupplierRequest(5000L, "retry", "PAY-1"));
 
         assertEquals(5000L, dto.balanceCents());
+        verify(paymentRepository, org.mockito.Mockito.never()).insertIfAbsent(any());
+    }
+
+    @Test
+    void pay_shouldRejectBlankIdempotencyKey() {
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> service.pay(1L, 1L, new PaySupplierRequest(1000L, null, "  ")));
+
+        assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
+    }
+
+    @Test
+    void pay_shouldRejectOverlongIdempotencyKeyWithoutTruncation() {
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> service.pay(1L, 1L, new PaySupplierRequest(1000L, null, "K".repeat(65))));
+
+        assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
+    }
+
+    @Test
+    void pay_shouldRejectSameKeyWithDifferentAmount() {
+        SupplierPayable existing = payable(10000L, 5000L, "PARTIAL");
+        SupplierPayment prior = priorPayment(1L, 5000L);
+        when(paymentRepository.findByIdempotencyKey("PAY-1")).thenReturn(Optional.of(prior));
+        when(payableRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
+        when(payableRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> service.pay(1L, 1L, new PaySupplierRequest(4000L, null, "PAY-1")));
+
+        assertEquals(HttpStatus.CONFLICT, error.getStatusCode());
+    }
+
+    @Test
+    void pay_shouldRejectSameKeyWithDifferentPayable() {
+        SupplierPayment prior = priorPayment(2L, 5000L);
+        when(paymentRepository.findByIdempotencyKey("PAY-1")).thenReturn(Optional.of(prior));
+        when(payableRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(payable(10000L, 5000L, "PARTIAL")));
+        when(payableRepository.findById(2L)).thenReturn(Optional.of(payable(10000L, 5000L, "PARTIAL")));
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> service.pay(1L, 1L, new PaySupplierRequest(5000L, null, "PAY-1")));
+
+        assertEquals(HttpStatus.CONFLICT, error.getStatusCode());
+    }
+
+    @Test
+    void pay_whenConcurrentInsertWins_replaysWithoutSecondAccrual() {
+        SupplierPayable existing = payable(10000L, 0L, "UNPAID");
+        SupplierPayment prior = priorPayment(1L, 4000L);
+        when(payableRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
+        when(paymentRepository.findByIdempotencyKey("PAY-RACE"))
+                .thenReturn(Optional.empty(), Optional.of(prior));
+        when(paymentRepository.insertIfAbsent(any())).thenReturn(0);
+        when(payableRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        service.pay(1L, 1L, new PaySupplierRequest(4000L, null, "PAY-RACE"));
+
+        assertEquals(0L, existing.getPaidAmountCents());
+        verify(payableRepository, org.mockito.Mockito.never()).save(any());
         verify(paymentRepository, org.mockito.Mockito.never()).save(any());
     }
 
@@ -183,6 +263,14 @@ class SupplierPayableServiceTest {
         assertEquals(2, result.get(0).payableCount());
         assertEquals(5000L, result.get(0).totalBalanceCents());
         assertEquals(2000L, result.get(0).overdueBalanceCents());
+    }
+
+    private static SupplierPayment priorPayment(Long payableId, long amountCents) {
+        SupplierPayment prior = new SupplierPayment();
+        prior.setPaymentId(9L);
+        prior.setPayableId(payableId);
+        prior.setAmountCents(amountCents);
+        return prior;
     }
 
     private static PurchaseOrder order() {

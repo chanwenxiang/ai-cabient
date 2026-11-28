@@ -18,12 +18,15 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -68,9 +71,32 @@ class InventoryLotExpiryScanR18Test {
     }
 
     @Test
+    void scanExpiry_moreThan500_continuesWithStableCursor() {
+        LocalDate expiry = LocalDate.now().minusDays(1);
+        List<DeviceSkuLot> firstPage = IntStream.rangeClosed(1, 500)
+                .mapToObj(i -> lot("L-" + i, expiry, "BLOCKED"))
+                .toList();
+        DeviceSkuLot later = lot("L-501", expiry.minusDays(1), "ON_SALE");
+        when(lotRepository.findForExpiryScan(any(), any(), isNull(), isNull(), eq(500)))
+                .thenReturn(firstPage);
+        when(lotRepository.findForExpiryScan(any(), any(), eq(expiry), eq("L-500"), eq(500)))
+                .thenReturn(List.of(later));
+        when(skuCatalogRepository.findById(anyString())).thenReturn(java.util.Optional.empty());
+        when(pullOffTaskRepository.findByLotIdAndStatus(anyString(), eq("OPEN")))
+                .thenReturn(java.util.Optional.empty());
+
+        service.scanExpiryAlerts();
+
+        verify(lotRepository).findForExpiryScan(any(), any(), isNull(), isNull(), eq(500));
+        verify(lotRepository).findForExpiryScan(any(), any(), eq(expiry), eq("L-500"), eq(500));
+        verify(lotRepository, times(2)).findForExpiryScan(any(), any(), any(), any(), eq(500));
+        verify(lotRepository).updateStatusAndSlotById(eq("L-501"), eq("BLOCKED"), eq(null));
+    }
+
+    @Test
     void scanExpiry_expiredLot_usesUpdateStatusAndSlotNotSave() {
         DeviceSkuLot expired = lot("L-EXP", LocalDate.now().minusDays(1), "ON_SALE");
-        when(lotRepository.findForExpiryScan(any(), any(), any(Integer.class)))
+        when(lotRepository.findForExpiryScan(any(), any(), isNull(), isNull(), eq(500)))
                 .thenReturn(List.of(expired));
         when(skuCatalogRepository.findById(anyString())).thenReturn(java.util.Optional.empty());
         when(pullOffTaskRepository.findByLotIdAndStatus(eq("L-EXP"), eq("OPEN")))
@@ -87,7 +113,7 @@ class InventoryLotExpiryScanR18Test {
     @Test
     void scanExpiry_nearExpiryLot_usesUpdateStatusAndSlotNotSave() {
         DeviceSkuLot near = lot("L-NEAR", LocalDate.now().plusDays(3), "ON_SALE");
-        when(lotRepository.findForExpiryScan(any(), any(), any(Integer.class)))
+        when(lotRepository.findForExpiryScan(any(), any(), isNull(), isNull(), eq(500)))
                 .thenReturn(List.of(near));
         when(skuCatalogRepository.findById(anyString())).thenReturn(java.util.Optional.empty());
         when(pullOffTaskRepository.findByLotIdAndStatus(eq("L-NEAR"), eq("OPEN")))

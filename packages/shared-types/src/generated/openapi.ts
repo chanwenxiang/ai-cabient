@@ -14079,7 +14079,7 @@ export interface components {
             /** Format: int64 */
             amountCents: number;
             notes?: string;
-            idempotencyKey?: string;
+            idempotencyKey: string;
         };
         ApiResponseSupplierPayableDto: {
             /** Format: int32 */
