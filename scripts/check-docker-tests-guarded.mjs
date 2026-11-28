@@ -112,6 +112,15 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/service/SupplierFundingSafetySqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
+        'MA-475/476 真 PG 实证供应商付款顺序/并发重试只入账一次，以及已付采购退货被拒后库存、收货分配、退货单与应付流水全部回滚'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/ScheduledTaskLeaseRenewalIT.java',
     {
       job: 'integration',
