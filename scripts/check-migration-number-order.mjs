@@ -91,7 +91,7 @@ export function compareVersions(a, b) {
  * @param {{path:string, version:string, content:string}[]} newMigrations 本分支新增的迁移
  * @returns {{violations:{path:string,version:string,baseMax:string}[],acknowledged:{path:string,version:string,reason:string}[],unparsable:string[]}}
  */
-export function judge(baselineVersions, newMigrations) {
+export function judge(baselineVersions, newMigrations, outOfOrderExceptions = []) {
   const violations = [];
   const acknowledged = [];
   const unparsable = [];
@@ -106,6 +106,11 @@ export function judge(baselineVersions, newMigrations) {
       continue;
     }
     if (compareVersions(m.version, baseMax) > 0) continue;
+    const registered = outOfOrderExceptions.find((e) => e.path === m.path);
+    if (registered) {
+      acknowledged.push({ ...m, reason: registered.reason });
+      continue;
+    }
     const ack = m.content ? m.content.match(ACK) : null;
     if (ack) acknowledged.push({ ...m, reason: ack[1].trim() });
     else violations.push({ path: m.path, version: m.version, baseMax });
@@ -198,7 +203,12 @@ async function main() {
     newMigrations.push({ path: rel, version: m[1], content });
   }
 
-  const { violations, acknowledged, unparsable } = judge(baselineVersions, newMigrations);
+  const { violations, acknowledged, unparsable } = judge(
+    baselineVersions,
+    newMigrations,
+    JSON.parse(readFileSync(join(ROOT, 'scripts/migration-renumber-exceptions.json'), 'utf8'))
+      .outOfOrderExceptions || []
+  );
   let baseMax = baselineVersions[0];
   for (const v of baselineVersions) if (compareVersions(v, baseMax) > 0) baseMax = v;
 

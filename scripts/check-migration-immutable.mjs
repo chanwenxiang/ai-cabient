@@ -26,6 +26,10 @@
  *   「已应用迁移的历史遗留修正」（如 S14 抓到的 47 处引用已 DROP 表的死语句清理），
  *   须以测试库重建/flyway repair 消化 checksum 变化为前提（生产库不适用）。
  *
+ *   **未应用迁移纯重排例外**：目标库尚未应用时，可按
+ *   `scripts/migration-renumber-exceptions.json` 精确登记 from/to；门禁逐字比对
+ *   基线旧文件与新文件内容（仅忽略行尾），内容变化仍硬红。已应用迁移不适用。
+ *
  *
  * 负向验证：`git mv V400__x.sql V401__x.sql` 或改一行已提交迁移的注释 => 本门禁必须红；
  * 新增一个 V401__*.sql 文件（基线里没有）=> 仍绿。
@@ -41,6 +45,14 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TAG = '[check-migration-immutable]';
 const MIGRATION_PATHS = ['services'];
 const ACK_RE = /^\s*--+\s*MIGRATION_IMMUTABLE_EXEMPT\s*:\s*(\S.*)$/im;
+const RENUMBER_FILE = join(ROOT, 'scripts/migration-renumber-exceptions.json');
+
+function approvedRenumber(hit, exceptions) {
+  if (!hit.status.startsWith('D') && !hit.status.startsWith('R')) return null;
+  const from = hit.paths[0];
+  const to = hit.status.startsWith('R') ? hit.paths[1] : null;
+  return exceptions.find((e) => e.from === from && (to === null || e.to === to)) || null;
+}
 
 function fail(msg) {
   console.error(`${TAG} FAIL: ${msg}`);
@@ -106,6 +118,23 @@ function selfTest() {
     fail('selfTest: 豁免头缩进形态未匹配');
   if (ACK_RE.test('-- 普通注释 MIGRATION_IMMUTABLE_EXEMPT 少冒号'))
     fail('selfTest: 无冒号行不应匹配豁免头');
+  const renumberExceptions = [{ from: 'V516__old.sql', to: 'V519__old.sql', reason: 'test' }];
+  if (
+    !approvedRenumber(
+      { status: 'R100', paths: ['V516__old.sql', 'V519__old.sql'] },
+      renumberExceptions
+    )
+  )
+    fail('selfTest: 精确登记的纯重排未命中');
+  if (
+    approvedRenumber(
+      { status: 'R100', paths: ['V516__old.sql', 'V520__old.sql'] },
+      renumberExceptions
+    )
+  )
+    fail('selfTest: 未登记的目标版本不得豁免');
+  if (approvedRenumber({ status: 'D', paths: ['V517__other.sql'] }, renumberExceptions))
+    fail('selfTest: 未登记的删除不得豁免');
 }
 
 if (process.argv.includes('--self-test')) {
@@ -136,10 +165,34 @@ for (const [label, args] of checks) {
   }
 }
 
+let renumberExceptions = [];
+try {
+  const registry = JSON.parse(readFileSync(RENUMBER_FILE, 'utf8'));
+  renumberExceptions = registry.exceptions || [];
+} catch (e) {
+  fail(`迁移重排例外表读取失败：${e.message}`);
+}
+
 if (violations.length > 0) {
   const hard = [];
   const acknowledged = [];
   for (const v of violations) {
+    const renumber = approvedRenumber(v, renumberExceptions);
+    if (renumber) {
+      const shown = await gitAsync(['show', `${base}:${renumber.from}`], { cwd: ROOT });
+      const target = join(ROOT, renumber.to);
+      const sameContent =
+        shown.ok &&
+        existsSync(target) &&
+        shown.out.replace(/\r\n/g, '\n').trimEnd() ===
+          readFileSync(target, 'utf8').replace(/\r\n/g, '\n').trimEnd();
+      if (sameContent) {
+        acknowledged.push({ ...v, reason: renumber.reason });
+      } else {
+        hard.push(v);
+      }
+      continue;
+    }
     if (v.status !== 'M') {
       hard.push(v);
       continue;
@@ -171,7 +224,8 @@ if (violations.length > 0) {
     fail(
       `已合入基线的 Flyway 脚本被删除/改名/修改（基线 ${base}）：\n${detail.join('\n')}\n` +
         '正解：保留旧文件不动，新增一条迁移；要下线种子数据时把旧文件改成幂等墓碑（不要删文件）。' +
-        '内容修改须带 `-- MIGRATION_IMMUTABLE_EXEMPT: <理由>` 头且理由含 to_regclass 实测输出（仅 M 开放，D/R 不豁免）。'
+        '内容修改须带 `-- MIGRATION_IMMUTABLE_EXEMPT: <理由>` 头且理由含 to_regclass 实测输出（仅 M 开放，D/R 不豁免）。' +
+        '未应用迁移的纯内容重排仅可按 scripts/migration-renumber-exceptions.json 精确登记 from/to 后豁免。'
     );
   }
   for (const a of acknowledged) {

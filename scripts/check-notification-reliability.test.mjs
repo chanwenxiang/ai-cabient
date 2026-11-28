@@ -16,6 +16,10 @@ const real = Object.fromEntries(
 
 assert(notificationReliabilityProblems(real).length === 0, '真实仓面必须绿');
 assert(
+  FILES.migration.endsWith('V521__notification_inapp_semantic_idempotency.sql'),
+  '语义幂等门禁必须指向顺延后的 V521'
+);
+assert(
   notificationReliabilityProblems({
     ...real,
     payment: real.payment.replace(/\r\n/g, '\n'),
