@@ -3416,6 +3416,46 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "f84a82c3",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 3,
+      "items": [
+        {
+          "id": "MA-495 通知迁移顺延并补回服务器已应用 V516",
+          "files": [
+            "services/trade-service/src/main/resources/db/migration/V516__shopping_session_physical_open_confirmed.sql",
+            "services/trade-service/src/main/resources/db/migration/V519__notification_dispatch_outbox.sql",
+            "services/trade-service/src/main/resources/db/migration/V520__split_consumer_merchant_miniapp_identity.sql",
+            "services/trade-service/src/main/resources/db/migration/V521__notification_inapp_semantic_idempotency.sql",
+            "scripts/migration-renumber-exceptions.json",
+            "scripts/check-migration-immutable.mjs",
+            "scripts/check-migration-number-order.mjs",
+            "scripts/check-migration-number-order.test.mjs"
+          ]
+        },
+        {
+          "id": "支付回调静默告警门禁改认 sendAfterCommit",
+          "files": [
+            "scripts/check-payment-callback-silent-trace.mjs"
+          ]
+        },
+        {
+          "id": "迁移安全与种子分离门禁覆盖暂存重排",
+          "files": [
+            "scripts/check-migration-safety.mjs",
+            "scripts/check-migration-safety.test.mjs",
+            "scripts/check-flyway-seed-separation.mjs",
+            "scripts/check-flyway-seed-separation.test.mjs",
+            "scripts/check-fix-batch-coverage.mjs",
+            "scripts/check-fix-batch-coverage.test.mjs",
+            "scripts/check-notification-reliability.mjs",
+            "scripts/check-notification-reliability.test.mjs"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
