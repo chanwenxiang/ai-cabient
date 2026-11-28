@@ -27,10 +27,15 @@ export function subscribeBannerProblems(raw) {
   } else if (!/!\s*subscribeAcked\.value/.test(computed[1])) {
     problems.push('展示判据必须排除已授权模板（!subscribeAcked.value）');
   }
-  if (!/subscribeAcked\.value\s*=\s*true/.test(src)) {
-    problems.push('accept 分支必须把 subscribeAcked 置 true');
+  const ack = /subscribeAcked\.value\s*=\s*result\.items\.some\(([\s\S]*?)\);/.exec(src);
+  if (
+    !ack ||
+    !/item\.status\s*===\s*'accept'/.test(ack[1]) ||
+    !/item\.tmplId\s*===\s*subscribeTemplateId\.value/.test(ack[1])
+  ) {
+    problems.push('当前模板的 accept 回执必须把 subscribeAcked 置 true');
   }
-  if (!/markSubscribeAck\s*\(/.test(src)) {
+  if (!/if\s*\(item\.status\s*===\s*'accept'\)\s*markSubscribeAck\(item\.tmplId\)/.test(src)) {
     problems.push('accept 分支必须调用 markSubscribeAck 持久化回执');
   }
   if (!/subscribeAcked\.value\s*=\s*readSubscribeAck\s*\(/.test(src)) {

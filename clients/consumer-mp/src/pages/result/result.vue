@@ -222,7 +222,15 @@
 
 <script setup lang="ts">
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
-import { showError, showSuccess, showConfirm, requestOrderSubscribe } from '@/utils/notify';
+import {
+  showError,
+  showSuccess,
+  showConfirm,
+  requestOrderSubscribe,
+  readSubscribeAck,
+  markSubscribeAck,
+  showSubscribeFeedback
+} from '@/utils/notify';
 import { computed, ref } from 'vue';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi, type MarketingPopup } from '@/utils/consumer-api';
@@ -442,14 +450,18 @@ let isMpWeixin = false;
 isMpWeixin = true;
 // #endif
 const subscribeTmplId = ref('');
+const subscribeAcked = ref(false);
 const subscribing = ref(false);
-const showSubscribeEntry = computed(() => isMpWeixin && !!subscribeTmplId.value);
+const showSubscribeEntry = computed(
+  () => isMpWeixin && !!subscribeTmplId.value && !subscribeAcked.value
+);
 
 async function loadSubscribeTemplateId() {
   try {
     const cfg = await consumerApi.consumerPublicConfig();
     // 拉取失败按无模板处理——订阅是增益功能，不阻断结果页主流程
     subscribeTmplId.value = String(cfg?.wechatSubscribeTemplateId || '').trim();
+    subscribeAcked.value = readSubscribeAck(subscribeTmplId.value);
   } catch {
     subscribeTmplId.value = '';
   }
@@ -460,9 +472,14 @@ async function onSubscribeBill() {
   if (!subscribeTmplId.value || subscribing.value) return;
   subscribing.value = true;
   try {
-    // wrapper 在 complete 即 resolve，无法区分同意/拒绝——微信弹窗本身就是反馈，
-    // 用户选了「总是保持以上选择」后再次点击不会重复弹窗
-    await requestOrderSubscribe([subscribeTmplId.value]);
+    const result = await requestOrderSubscribe([subscribeTmplId.value]);
+    for (const item of result.items) {
+      if (item.status === 'accept') markSubscribeAck(item.tmplId);
+    }
+    subscribeAcked.value = result.items.some(
+      (item) => item.tmplId === subscribeTmplId.value && item.status === 'accept'
+    );
+    showSubscribeFeedback(result, '账单提醒已开启');
   } finally {
     subscribing.value = false;
   }

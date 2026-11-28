@@ -3,6 +3,7 @@ import {
   buildBalanceRefundBody,
   buildOrderRefundBody,
   buildOrderRefundLines,
+  buildOrderRefundRows,
   buildRechargePrepayBody,
   canRefundOnOrderDetail,
   canRefundOnResultPage,
@@ -108,6 +109,23 @@ describe('money-ui-contracts · 退款请求体', () => {
       evidenceFileIds: [],
       lines
     });
+  });
+
+  it('退款范围：默认全额不预选数量；切换按行自动带入可退数量', () => {
+    const lines = [
+      { skuId: 'A', skuName: '商品A', quantity: 2 },
+      { skuId: 'B', skuName: '商品B', quantity: 1 },
+      { skuId: '', skuName: '无效行', quantity: 3 },
+      { skuId: 'C', skuName: '零数量', quantity: 0 }
+    ];
+    expect(buildOrderRefundRows(lines, false)).toEqual([
+      { skuId: 'A', skuName: '商品A', maxQty: 2, qty: 0 },
+      { skuId: 'B', skuName: '商品B', maxQty: 1, qty: 0 }
+    ]);
+    expect(buildOrderRefundRows(lines, true)).toEqual([
+      { skuId: 'A', skuName: '商品A', maxQty: 2, qty: 2 },
+      { skuId: 'B', skuName: '商品B', maxQty: 1, qty: 1 }
+    ]);
   });
 
   it('确认文案：全额/按行 × 回库三态', () => {

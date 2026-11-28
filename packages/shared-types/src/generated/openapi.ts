@@ -265,6 +265,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/risk/runtime-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["riskRuntimeConfig"];
+        put: operations["updateRiskRuntimeConfig"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/rbac/users/{userId}/roles": {
         parameters: {
             query?: never;
@@ -2489,6 +2505,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/risk/events/{eventId}/dispose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["disposeRiskEvent"];
         delete?: never;
         options?: never;
         head?: never;
@@ -12095,6 +12127,25 @@ export interface components {
         ToggleScheduledTaskRequest: {
             enabled?: boolean;
         };
+        RiskRuntimeConfigRequest: {
+            /** Format: int32 */
+            maxDisputesPer7Days?: number;
+        };
+        ApiResponseRiskRuntimeConfigDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["RiskRuntimeConfigDto"];
+        };
+        RiskRuntimeConfigDto: {
+            /** Format: int32 */
+            maxDisputesPer7Days?: number;
+            /** Format: int32 */
+            defaultMaxDisputesPer7Days?: number;
+            source?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
         ApiResponseOpsUserRolesDto: {
             /** Format: int32 */
             code?: number;
@@ -13050,6 +13101,7 @@ export interface components {
         OpenDoorFailedRequest: {
             reason?: string;
             deviceId?: string;
+            pullFailed?: boolean;
         };
         LiveCartItem: {
             skuId: string;
@@ -13107,6 +13159,8 @@ export interface components {
             /** Format: int64 */
             timestamp?: number;
             gravityDeltasJson?: string;
+            /** @enum {string} */
+            source?: "PHYSICAL" | "UNLOCK_ACK";
         };
         EdgeAlertRequest: {
             alertType?: string;
@@ -14255,6 +14309,33 @@ export interface components {
             lastMessage?: string;
             /** Format: int64 */
             lastDurationMs?: number;
+        };
+        DisposeRiskEventRequest: {
+            note: string;
+        };
+        ApiResponseRiskEventDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["RiskEventDto"];
+        };
+        RiskEventDto: {
+            /** Format: int64 */
+            eventId?: number;
+            /** Format: int64 */
+            userId?: number;
+            deviceId?: string;
+            eventType?: string;
+            severity?: string;
+            detail?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            dispositionStatus?: string;
+            /** Format: date-time */
+            dispositionAt?: string;
+            dispositionNote?: string;
+            /** Format: int64 */
+            dispositionOperatorId?: number;
         };
         AddBlacklistRequest: {
             /** Format: int64 */
@@ -17322,22 +17403,6 @@ export interface components {
             size?: number;
             /** Format: int64 */
             total?: number;
-        };
-        RiskEventDto: {
-            /** Format: int64 */
-            eventId?: number;
-            /** Format: int64 */
-            userId?: number;
-            deviceId?: string;
-            eventType?: string;
-            severity?: string;
-            detail?: string;
-            /** Format: date-time */
-            createdAt?: string;
-            dispositionStatus?: string;
-            /** Format: date-time */
-            dispositionAt?: string;
-            dispositionNote?: string;
         };
         ApiResponseListUserBlacklistDto: {
             /** Format: int32 */
@@ -21485,6 +21550,50 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseScheduledTaskDto"];
+                };
+            };
+        };
+    };
+    riskRuntimeConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseRiskRuntimeConfigDto"];
+                };
+            };
+        };
+    };
+    updateRiskRuntimeConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RiskRuntimeConfigRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseRiskRuntimeConfigDto"];
                 };
             };
         };
@@ -25685,6 +25794,32 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseScheduledTaskRunResultDto"];
+                };
+            };
+        };
+    };
+    disposeRiskEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DisposeRiskEventRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseRiskEventDto"];
                 };
             };
         };

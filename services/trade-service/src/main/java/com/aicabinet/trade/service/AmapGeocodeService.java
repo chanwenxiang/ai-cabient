@@ -78,7 +78,7 @@ public class AmapGeocodeService {
      * @param districtAdcode 所选区县的 adcode（6 位）；给定时校验更严格
      */
     public GeocodeResponse geocode(String address, String cityAdcode, String districtAdcode) {
-        ensureConfigured();
+        ensureConfigured("地址解析服务未启用，请手动填写地址和坐标");
         String addr = address == null ? "" : address.trim();
         if (addr.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "地址不能为空");
@@ -138,7 +138,7 @@ public class AmapGeocodeService {
      * <p>实测返回体很小（全国省份 4.4KB、区县 1.5–2.2KB），适合做级联的懒加载来源。
      */
     public List<GeoDistrictNode> districts(String parent) {
-        ensureConfigured();
+        ensureConfigured("行政区划服务未启用，请手动填写详细地址");
         String key = parent == null ? "" : parent.trim();
         CachedDistricts cached = districtCache.get(key);
         if (cached != null && cached.expiresAt() > System.currentTimeMillis()) {
@@ -179,9 +179,13 @@ public class AmapGeocodeService {
 
     // ---- 内部 ----
 
-    private void ensureConfigured() {
+    /**
+     * 缺 Key 是功能未启用的业务状态，不是调用方参数错误，也不是服务崩溃。
+     * 用 409 让全局异常链返回可诊断的业务错误并避免 5xx 告警；界面据此保留手填能力。
+     */
+    private void ensureConfigured(String message) {
         if (!isConfigured()) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "未配置高德 Web Key（AMAP_WEB_KEY），地址解析不可用");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, message);
         }
     }
 

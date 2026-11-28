@@ -1,5 +1,6 @@
 package com.aicabinet.common.dto;
 
+import com.aicabinet.common.enums.DoorEventSource;
 import com.aicabinet.common.enums.DoorState;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -14,9 +15,19 @@ public record DoorEventRequest(
         @NotBlank String deviceId,
         @NotNull DoorState doorState,
         Long timestamp,
-        String gravityDeltasJson
+        String gravityDeltasJson,
+        DoorEventSource source
 ) {
+    public DoorEventRequest {
+        source = source == null ? DoorEventSource.PHYSICAL : source;
+    }
+
+    public DoorEventRequest(String sessionId, String deviceId, DoorState doorState, Long timestamp,
+                            String gravityDeltasJson) {
+        this(sessionId, deviceId, doorState, timestamp, gravityDeltasJson, DoorEventSource.PHYSICAL);
+    }
+
     public DoorEventRequest(String sessionId, String deviceId, DoorState doorState, Long timestamp) {
-        this(sessionId, deviceId, doorState, timestamp, null);
+        this(sessionId, deviceId, doorState, timestamp, null, DoorEventSource.PHYSICAL);
     }
 }

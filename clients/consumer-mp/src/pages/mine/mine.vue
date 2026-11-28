@@ -140,7 +140,12 @@
         </view>
         <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
-      <view v-if="authed" role="button" class="menu-cell" @click="goPayoutAuthorization">
+      <view
+        v-if="authed && canUsePayoutAuthorization"
+        role="button"
+        class="menu-cell"
+        @click="goPayoutAuthorization"
+      >
         <image class="menu-icon" :src="menuIcon('balance')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">开通免密收款</text>
@@ -331,6 +336,7 @@ import { fmtMoney } from '@aicabinet/shared-uni/format';
 import { menuIcon } from '@/utils/menu-icon';
 import {
   availableCents,
+  canUsePayoutAuthorization as canAccessPayoutAuthorization,
   isPayReady,
   parsePreauthCents,
   payReadyHint,
@@ -455,6 +461,7 @@ function onProfileTap() {
 }
 /** G9：是否已有生效的免密代扣（任一渠道）——决定是否显示「关闭免密支付」。 */
 const passwordFreeReady = computed(() => !!account.value?.passwordFreeReady);
+const canUsePayoutAuthorization = computed(() => canAccessPayoutAuthorization(account.value));
 // 🔴 2026-11-20：实名入口归位商户端，消费者端只保留支付开通提示。
 // 横幅只在 !payReady 时出现（needsSetup 已同步收窄），提示语统一走 payReadyHint。
 const setupHint = computed(() => payReadyHint(account.value, null, preauthCents.value));
@@ -649,6 +656,10 @@ function goBalance() {
 
 /** MA-407：开通微信免确认收款授权（一次性，之后提现免逐笔确认）。 */
 function goPayoutAuthorization() {
+  if (!canUsePayoutAuthorization.value) {
+    showError('仅商户或运营账号可开通免密收款');
+    return;
+  }
   uni.navigateTo({ url: '/pages/payout-authorization/authorization' });
 }
 

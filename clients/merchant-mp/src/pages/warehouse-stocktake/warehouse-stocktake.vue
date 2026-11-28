@@ -277,10 +277,12 @@
                 v-if="!isDone && photos.length < 5"
                 role="button"
                 class="photo-add"
-                aria-label="拍照或从相册选图"
+                :class="{ 'is-busy': uploadingPhoto }"
+                :aria-disabled="uploadingPhoto"
+                :aria-label="uploadingPhoto ? '照片处理中' : '拍照或从相册选图'"
                 @click="choosePhoto"
               >
-                <text class="photo-add-txt">＋</text>
+                <text class="photo-add-txt">{{ uploadingPhoto ? '处理中…' : '＋' }}</text>
               </view>
             </view>
             <text v-if="!photos.length" class="empty-inline">暂无照片</text>
@@ -342,6 +344,10 @@ import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
+import {
+  safeChooseImageWithReason,
+  chooseImageErrorMessage
+} from '@aicabinet/shared-uni/safe-uni-call';
 // 铁律 40 家族：mp 运行时无 URLSearchParams（shared-uni/query.ts 注释自证），
 // 修复 2026-10-14 盘点列表在真机恒「加载失败」的 ReferenceError。
 import { toQuery } from '@aicabinet/shared-uni/query';
@@ -845,21 +851,25 @@ function previewPhoto(p: PhotoView) {
   uni.previewImage({ urls: photos.value.map((x) => x.localPath), current: p.localPath });
 }
 
-function choosePhoto() {
-  if (uploadingPhoto.value) return; // 在途门闩：连点拍照只发一次（2026-10-24 缺陷类门禁 F4）
-  uni.chooseImage({
-    count: 1,
-    sourceType: ['camera', 'album'],
-    success: (res) => {
-      const path = res.tempFilePaths?.[0];
-      if (path) void uploadPhoto(path);
+async function choosePhoto() {
+  if (uploadingPhoto.value) return;
+  // 选图与上传是一个异步周期，busy 必须在系统弹窗打开前就置位。
+  uploadingPhoto.value = true;
+  try {
+    const chosen = await safeChooseImageWithReason(1, { sourceType: ['camera', 'album'] });
+    if (chosen.status === 'cancelled') return;
+    const path = chosen.paths[0];
+    if (chosen.status !== 'success' || !path) {
+      showError(chooseImageErrorMessage(chosen, '拍照'));
+      return;
     }
-  });
+    await uploadPhoto(path);
+  } finally {
+    uploadingPhoto.value = false;
+  }
 }
 
 async function uploadPhoto(path: string) {
-  if (uploadingPhoto.value) return;
-  uploadingPhoto.value = true;
   try {
     // R15-L4：与 device-stocktake / replenishment / dispute 同族对齐——上传前本地先卡
     // 尺寸上限（超限抛错走 showError），不给用户「传了半天被后端 5MB 门拒」的体验。
@@ -869,8 +879,6 @@ async function uploadPhoto(path: string) {
     await loadPhotos();
   } catch (e) {
     showError(e instanceof Error ? e.message : '照片上传失败');
-  } finally {
-    uploadingPhoto.value = false;
   }
 }
 

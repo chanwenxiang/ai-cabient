@@ -97,6 +97,12 @@ class RoutePlanningServiceTest {
                 .plan(new PlanRouteRequest("R1", null, LocalDate.now(), List.of("A", "B"), null, null));
 
         assertEquals(2, route.waypoints().size());
+        assertEquals(31.2304, route.waypoints().get(0).latitude());
+        assertEquals(121.4737, route.waypoints().get(0).longitude());
+        assertEquals("A地址", route.waypoints().get(0).address());
+        assertEquals(31.2300, route.waypoints().get(1).latitude());
+        assertEquals(121.4730, route.waypoints().get(1).longitude());
+        assertEquals("B地址", route.waypoints().get(1).address());
     }
 
     private static DeviceInfo device(String deviceId, double lat, double lng) {

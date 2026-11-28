@@ -4,6 +4,7 @@ import { DEFAULT_PREAUTH_CENTS } from '@aicabinet/shared-types';
 import {
   MIN_BALANCE_CENTS,
   availableCents,
+  canUsePayoutAuthorization,
   channelLabel,
   detectRuntimeEntryChannel,
   isPayReady,
@@ -22,6 +23,15 @@ type PayAcc = MoneyAcc & Partial<AccountDto>;
 function acc(over: Partial<AccountDto> = {}): PayAcc {
   return { balanceCents: 0, frozenCents: 0, availableCents: 0, ...over };
 }
+
+describe('canUsePayoutAuthorization', () => {
+  it('仅明确运营/商户角色可见可用', () => {
+    expect(canUsePayoutAuthorization(acc({ operator: true }))).toBe(true);
+    expect(canUsePayoutAuthorization(acc({ operator: false }))).toBe(false);
+    expect(canUsePayoutAuthorization(acc())).toBe(false);
+    expect(canUsePayoutAuthorization(null)).toBe(false);
+  });
+});
 
 describe('normalizeEntryChannel', () => {
   it('大小写与首尾空白归一化', () => {

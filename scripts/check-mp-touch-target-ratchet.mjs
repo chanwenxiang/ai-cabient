@@ -69,7 +69,8 @@ const TOUCH_BASELINE_DEFAULT = 0;
 // 273→270（2026-11-20）：实名入口归位商户端，consumer-mp 删除 pages/realname（2 个 input + 提交按钮族的不可验项）；
 // 新增的 merchant-mp 实名页只用 app-button / 带 min-height 88rpx 的 input，未引入新的不可验项。
 // 270→269（2026-11-26）：HomeLanding 的券包入口与错误关闭按钮补足 88rpx 热区，不可验项各减 1。
-const TOUCH_UNVERIFIABLE_BASELINE_DEFAULT = 269;
+// 269→267（2026-11-27 #54）：HomeCartBar 购物车主操作、再次开门与求助按钮补足可测热区。
+const TOUCH_UNVERIFIABLE_BASELINE_DEFAULT = 267;
 
 /**
  * E-R3-4：基线环境变量收紧。旧写法 `Number(env || 默认)` 有两个洞：

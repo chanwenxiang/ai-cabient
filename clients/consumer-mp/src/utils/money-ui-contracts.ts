@@ -47,6 +47,30 @@ export type OrderRefundLine = {
   restoreInventory?: boolean;
 };
 
+export type OrderRefundRow = {
+  skuId: string;
+  skuName: string;
+  maxQty: number;
+  qty: number;
+};
+
+export function buildOrderRefundRows(
+  lines: { skuId?: string | null; skuName?: string | null; quantity?: number | null }[],
+  partial: boolean
+): OrderRefundRow[] {
+  return lines
+    .filter((line) => line?.skuId && Number(line.quantity || 0) > 0)
+    .map((line) => {
+      const maxQty = Number(line.quantity || 0);
+      return {
+        skuId: String(line.skuId),
+        skuName: String(line.skuName || line.skuId),
+        maxQty,
+        qty: partial ? maxQty : 0
+      };
+    });
+}
+
 export function buildOrderRefundBody(input: {
   reason: string;
   evidenceFileIds: number[];

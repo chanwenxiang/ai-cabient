@@ -91,7 +91,11 @@ import {
   requestMerchantSubscribe,
   wxLoginCode,
   showError,
-  showSuccess
+  showSuccess,
+  showLongError,
+  showSubscribeFeedback,
+  subscribeFeedbackText,
+  type SubscribeRequestResult
 } from '@/utils/notify';
 import { isMerchantLoggedIn, merchantApi } from '@/utils/merchant-api';
 import { seedMerchantMeDisplayCache, useMerchantMe } from '@/composables/useMerchantMe';
@@ -141,18 +145,26 @@ async function onBindWx() {
     return;
   }
   notifyBusy.value = true;
+  let subscribe: SubscribeRequestResult | null = null;
   try {
-    const sub = await requestMerchantSubscribe(subscribeTmplIds());
-    if (sub === 'failed') {
-      showError('微信授权未完成，仍可继续绑定账号');
-    }
+    subscribe = await requestMerchantSubscribe(subscribeTmplIds());
     const code = await wxLoginCode();
     const prefs = await merchantApi.notifyWxBind(code);
     wxBound.value = !!prefs.wxBound;
     enabledTypes.value = [...(prefs.enabledAlertTypes || [])];
-    showSuccess('已绑定微信提醒');
+    if (subscribe.status === 'ok') showSubscribeFeedback(subscribe, '微信提醒已绑定');
+    else {
+      uni.showModal({
+        title: '微信账号已绑定',
+        content: subscribeFeedbackText(subscribe),
+        showCancel: false,
+        confirmText: '我知道了'
+      });
+    }
   } catch (e) {
-    showError(e instanceof Error ? e.message : '绑定失败');
+    const reason = e instanceof Error ? e.message : '绑定失败';
+    if (subscribe) showLongError(`${subscribeFeedbackText(subscribe)}；${reason}`, '绑定失败');
+    else showError(reason);
   } finally {
     notifyBusy.value = false;
   }
@@ -179,22 +191,31 @@ async function onOfficialBind() {
 
 async function onSaveSubscribe() {
   notifyBusy.value = true;
+  let subscribe: SubscribeRequestResult | null = null;
   try {
-    if (isMpWeixin && subscribeReady.value) {
-      const sub = await requestMerchantSubscribe(subscribeTmplIds());
-      if (sub === 'failed') {
-        showError('微信授权未完成，偏好仍会保存');
-      }
+    if (isMpWeixin) {
+      subscribe = await requestMerchantSubscribe(subscribeTmplIds());
     }
     const prefs = await merchantApi.notifySubscribe(enabledTypes.value);
     enabledTypes.value = [...(prefs.enabledAlertTypes || [])];
     if (!isMpWeixin) {
       showSuccess('偏好已保存（推送请在微信小程序开启）');
+    } else if (subscribe?.status === 'ok') {
+      showSubscribeFeedback(subscribe, '提醒已开启，偏好已保存');
+    } else if (subscribe) {
+      uni.showModal({
+        title: '偏好已保存',
+        content: subscribeFeedbackText(subscribe),
+        showCancel: false,
+        confirmText: '我知道了'
+      });
     } else {
-      showSuccess(subscribeReady.value ? '已保存' : '偏好已保存（未配置推送模板）');
+      showSuccess('偏好已保存');
     }
   } catch (e) {
-    showError(e instanceof Error ? e.message : '保存失败');
+    const reason = e instanceof Error ? e.message : '保存失败';
+    if (subscribe) showLongError(`${subscribeFeedbackText(subscribe)}；${reason}`, '保存失败');
+    else showError(reason);
   } finally {
     notifyBusy.value = false;
   }

@@ -237,7 +237,15 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { showError, showSuccess, showConfirm, requestOrderSubscribe } from '@/utils/notify';
+import {
+  showError,
+  showSuccess,
+  showLongError,
+  showConfirm,
+  requestOrderSubscribe,
+  subscribeFeedbackText,
+  type SubscribeRequestResult
+} from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
 import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
@@ -613,15 +621,29 @@ async function onRecharge() {
 async function onWeChatRecharge() {
   if (!selectedAmountCents.value || loading.value) return;
   loading.value = true;
+  let subscribe: SubscribeRequestResult | null = null;
   try {
-    await requestOrderSubscribe(subscribeTmplId.value ? [subscribeTmplId.value] : undefined);
+    subscribe = await requestOrderSubscribe(
+      subscribeTmplId.value ? [subscribeTmplId.value] : undefined
+    );
     const key = `wechat-recharge-${Date.now()}-${secureRandomToken(6)}`;
     const { mode } = await runWeChatRecharge(selectedAmountCents.value, key);
-    showSuccess(mode === 'live' ? '充值已到账' : '充值成功');
+    const rechargeText = mode === 'live' ? '充值已到账' : '充值成功';
+    if (subscribe.status === 'ok') showSuccess(`${rechargeText}，提醒已开启`);
+    else {
+      uni.showModal({
+        title: rechargeText,
+        content: subscribeFeedbackText(subscribe),
+        showCancel: false,
+        confirmText: '我知道了'
+      });
+    }
     await loadBalance();
     await loadRecords();
   } catch (e) {
-    showError(e instanceof Error ? e.message : '微信充值失败');
+    const reason = e instanceof Error ? e.message : '微信充值失败';
+    if (subscribe) showLongError(`${subscribeFeedbackText(subscribe)}；${reason}`, '微信充值失败');
+    else showError(reason);
   } finally {
     loading.value = false;
   }

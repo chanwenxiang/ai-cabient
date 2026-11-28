@@ -110,45 +110,130 @@ export function hasSubscribeTemplates(extra?: string[]) {
   return mergeSubscribeTmplIds(extra).length > 0;
 }
 
-/**
- * 请求微信订阅授权（消费端）：无模板或非微信环境时静默跳过。
- * @param extra 运行时模板 ID（后端 SystemConfig 的 wechatSubscribeTemplateId）——
- *   编译期 VITE_WX_SUBSCRIBE_TMPL_IDS 与运行期配置合并，任一有值即请求
- *   （2026-10-23 第五轮审计：此前只读编译期 env，而 consumer-mp 全链路未配置该 env，
- *   订阅授权 100% 静默失效）。
- */
-export async function requestOrderSubscribe(
-  extra?: string[]
-): Promise<'ok' | 'skipped' | 'failed'> {
+export type SubscribeTemplateStatus = 'accept' | 'reject' | 'skipped' | 'failed';
+
+export interface SubscribeTemplateResult {
+  tmplId: string;
+  status: SubscribeTemplateStatus;
+}
+
+export interface SubscribeRequestResult {
+  /** 汇总状态只用于展示；逐模板决策必须读 items，不能把 success 回调当成全部同意。 */
+  status: 'ok' | 'partial' | 'rejected' | 'skipped' | 'failed';
+  items: SubscribeTemplateResult[];
+}
+
+function summarizeSubscribe(items: SubscribeTemplateResult[]): SubscribeRequestResult['status'] {
+  if (!items.length || items.every((item) => item.status === 'skipped')) return 'skipped';
+  if (items.every((item) => item.status === 'accept')) return 'ok';
+  if (items.every((item) => item.status === 'reject')) return 'rejected';
+  if (items.every((item) => item.status === 'failed')) return 'failed';
+  return 'partial';
+}
+
+function skippedSubscribeResult(tmplIds: string[]): SubscribeRequestResult {
+  const items = tmplIds.map((tmplId) => ({ tmplId, status: 'skipped' as const }));
+  return { status: 'skipped', items };
+}
+
+async function requestSubscribe(extra?: string[]): Promise<SubscribeRequestResult> {
   const tmplIds = mergeSubscribeTmplIds(extra);
-  if (!canSubscribeMessage() || !tmplIds.length) return 'skipped';
+  if (!canSubscribeMessage() || !tmplIds.length) return skippedSubscribeResult(tmplIds);
   return await new Promise((resolve) => {
-    uni.requestSubscribeMessage({
-      tmplIds,
-      success: () => resolve('ok'),
-      fail: () => resolve('failed'),
-      complete: () => {}
-    });
+    try {
+      uni.requestSubscribeMessage({
+        tmplIds,
+        success: (res) => {
+          const receipts = (res || {}) as unknown as Record<string, unknown>;
+          const items = tmplIds.map((tmplId) => {
+            const receipt = receipts[tmplId];
+            const status: SubscribeTemplateStatus =
+              receipt === 'accept' || receipt === 'reject' ? receipt : 'failed';
+            return { tmplId, status };
+          });
+          resolve({ status: summarizeSubscribe(items), items });
+        },
+        // 整个请求失败时每个模板都是 failed；不能伪造 accept/reject。
+        fail: () => {
+          const items = tmplIds.map((tmplId) => ({ tmplId, status: 'failed' as const }));
+          resolve({ status: 'failed', items });
+        }
+      });
+    } catch {
+      const items = tmplIds.map((tmplId) => ({ tmplId, status: 'failed' as const }));
+      resolve({ status: 'failed', items });
+    }
   });
 }
 
 /**
- * 请求微信订阅授权（商户端）。
- * @returns `'ok' | 'skipped' | 'failed'`
+ * 请求微信订阅授权（消费端）：逐模板返回微信 accept/reject 回执。
+ * @param extra 运行时模板 ID（后端 SystemConfig 的 wechatSubscribeTemplateId）——
+ *   编译期 VITE_WX_SUBSCRIBE_TMPL_IDS 与运行期配置合并，任一有值即请求。
  */
-export async function requestMerchantSubscribe(
-  extra?: string[]
-): Promise<'ok' | 'skipped' | 'failed'> {
-  const tmplIds = mergeSubscribeTmplIds(extra);
-  if (!canSubscribeMessage() || !tmplIds.length) return 'skipped';
-  return await new Promise((resolve) => {
-    uni.requestSubscribeMessage({
-      tmplIds,
-      success: () => resolve('ok'),
-      fail: () => resolve('failed'),
-      complete: () => {}
-    });
-  });
+export function requestOrderSubscribe(extra?: string[]): Promise<SubscribeRequestResult> {
+  return requestSubscribe(extra);
+}
+
+/** 请求微信订阅授权（商户端），与消费端共享逐模板回执模型。 */
+export function requestMerchantSubscribe(extra?: string[]): Promise<SubscribeRequestResult> {
+  return requestSubscribe(extra);
+}
+
+/** 已授权回执按模板 ID 独立持久化；后台换模板后不会误用旧授权。 */
+const SUBSCRIBE_ACK_PREFIX = 'wechat_subscribe_ack_tmpl:';
+const LEGACY_SUBSCRIBE_ACK_KEY = 'wechat_subscribe_ack_tmpl';
+
+export function readSubscribeAck(tmplId: string): boolean {
+  const id = String(tmplId || '').trim();
+  if (!id) return false;
+  try {
+    return (
+      uni.getStorageSync(SUBSCRIBE_ACK_PREFIX + id) === true ||
+      String(uni.getStorageSync(LEGACY_SUBSCRIBE_ACK_KEY) || '') === id
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function markSubscribeAck(tmplId: string): void {
+  const id = String(tmplId || '').trim();
+  if (!id) return;
+  try {
+    uni.setStorageSync(SUBSCRIBE_ACK_PREFIX + id, true);
+  } catch {
+    /* 存储不可用只影响本次会话，不阻断授权成功提示。 */
+  }
+}
+
+/** 统一可见反馈文案；所有调用点都必须消费逐模板结果，不能只看汇总 status。 */
+export function subscribeFeedbackText(
+  result: SubscribeRequestResult,
+  acceptedText = '消息提醒已开启'
+): string {
+  const counts = { accept: 0, reject: 0, skipped: 0, failed: 0 };
+  for (const item of result.items) counts[item.status] += 1;
+  if (counts.accept && counts.accept === result.items.length) return acceptedText;
+  if (counts.reject === result.items.length && counts.reject > 0) {
+    return '已拒绝提醒，可在设置中开启';
+  }
+  if (counts.skipped === result.items.length) return '提醒未开启：环境或模板不可用';
+  if (counts.failed === result.items.length && counts.failed > 0) return '提醒授权失败，请重试';
+  if (counts.accept) {
+    return `部分授权：同意${counts.accept}项，拒绝${counts.reject}项，跳过${counts.skipped}项，失败${counts.failed}项`;
+  }
+  return `未授权：拒绝${counts.reject}项，跳过${counts.skipped}项，失败${counts.failed}项`;
+}
+
+export function showSubscribeFeedback(
+  result: SubscribeRequestResult,
+  acceptedText = '消息提醒已开启'
+): void {
+  const text = subscribeFeedbackText(result, acceptedText);
+  if (result.status === 'ok') showSuccess(text);
+  else if (text.length > 20) showLongError(text, '提醒授权结果');
+  else showError(text);
 }
 
 export function wxLoginCode(): Promise<string> {

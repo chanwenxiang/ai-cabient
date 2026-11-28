@@ -42,6 +42,7 @@ class SettlementWaiveInventoryTest {
     @Mock CouponService couponService;
     @Mock ShoppingSessionMapper sessionRepository;
     @Mock DistributedLockService distributedLockService;
+    @Mock NotificationService notificationService;
 
     SettlementService settlementService;
 
@@ -52,6 +53,7 @@ class SettlementWaiveInventoryTest {
                 orderPaymentService, inventoryService, revenueSplitService,
                 distributedLockService, couponService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(waiveRefundService, "self", waiveRefundService);
+        org.springframework.test.util.ReflectionTestUtils.setField(waiveRefundService, "notificationService", notificationService);
         settlementService = new SettlementService(
                 sessionRepository, orderRepository,
                 waiveRefundService, null, null, null, null,
@@ -120,6 +122,34 @@ class SettlementWaiveInventoryTest {
                 argThat(batches -> "BATCH-A".equals(batches.get("SKU-A"))),
                 eq("O-I4"));
         verify(inventoryService, never()).restoreForOrder(anyString(), anyList(), anyMap(), anyString());
+    }
+
+    @Test
+    void waiveAndRefund_mockOrBalanceRefund_notifiesOnlyAfterTerminalOrderSave() {
+        ShoppingSession session = session("S-NOTIFY");
+        CabinetOrder order = deductedOrder("O-NOTIFY", "S-NOTIFY");
+        order.setInventoryDeducted(false);
+        order.setPayChannel("MOCK");
+
+        when(orderRepository.findBySessionId("S-NOTIFY")).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate("O-NOTIFY")).thenReturn(Optional.of(order));
+        when(orderPaymentService.netCompletedCents("O-NOTIFY")).thenReturn(500);
+        when(orderPaymentService.refundOrder(eq(order), eq(500), anyString(), any(), any()))
+                .thenAnswer(inv -> {
+                    order.setRefundedCents(500);
+                    return true;
+                });
+        when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        doNothing().when(revenueSplitService).voidSplitOnFullRefund("O-NOTIFY");
+
+        int refunded = settlementService.waiveAndRefund(session, false);
+
+        assertEquals(500, refunded);
+        assertEquals("REFUNDED", order.getStatus());
+        org.mockito.InOrder ordered = org.mockito.Mockito.inOrder(orderRepository, notificationService);
+        ordered.verify(orderRepository).save(order);
+        ordered.verify(notificationService).notifyRefundAfterCommit(10001L, "O-NOTIFY", 500, true,
+                "FULL:O-NOTIFY");
     }
 
     private static ShoppingSession session(String id) {

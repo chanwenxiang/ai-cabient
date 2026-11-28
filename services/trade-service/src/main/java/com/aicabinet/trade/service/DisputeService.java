@@ -243,6 +243,14 @@ public class DisputeService {
                 "本次开门会话异常关闭，设备识别到你可能已取货未结算，已转人工核实，结果将通知你");
     }
 
+    private void notifyOrderRefundFinalized(Long userId, String orderId, int refundCents,
+                                            String notificationKey) {
+        if (notificationService == null || userId == null || refundCents <= 0) {
+            return;
+        }
+        notificationService.notifyRefundAfterCommit(userId, orderId, refundCents, true, notificationKey);
+    }
+
     private void notifyConsumerDispute(ShoppingSession session, String ticketId,
                                             String resolutionType, String reason) {
         if (notificationService == null || session.getUserId() == null) {
@@ -408,6 +416,8 @@ public class DisputeService {
                 "ORDER", order.getOrderId(),
                 "refund=" + outcome.refundedCents() + "; status=" + outcome.status()
                         + "; restore=" + outcome.anyInventoryRestored() + "; reason=" + reason);
+        notifyOrderRefundFinalized(order.getUserId(), order.getOrderId(), outcome.refundedCents(),
+                RefundResumeService.partialToken(order.getOrderId(), request.lines()));
         String hint = outcome.anyInventoryRestored() ? "（含回库行）" : "（未回库/仅退款）";
         String message = (outcome.status().equals(CabinetConstants.ORDER_STATUS_REFUNDED) ? "退款成功" : "部分退款成功")
                 + "，已退回 ¥" + String.format("%.2f", outcome.refundedCents() / 100.0)
@@ -426,6 +436,7 @@ public class DisputeService {
 
     private OrderRefundResultDto executeFullRefund(Long actorId, CabinetOrder order, OrderRefundRequest request,
                                                    boolean operator) {
+        // CONCURRENCY: 全额退入口统一经 runWithOrderPaymentLock，锁内订单快照覆盖prepare→渠道→finalize。
         if (CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "订单已退款");
         }
@@ -452,6 +463,8 @@ public class DisputeService {
                 "ORDER", order.getOrderId(),
                 "ticket=" + ticket.getTicketId() + "; refund=" + refunded
                         + "; restoreInventory=" + restoreInventory + "; reason=" + reason);
+        notifyOrderRefundFinalized(order.getUserId(), order.getOrderId(), refunded,
+                RefundResumeService.fullToken(order.getOrderId()));
         String inventoryHint = restoreInventory ? "，库存已回库" : "，库存未回库（货已离柜/仅退款）";
         String message = refunded > 0
                 ? "退款成功，已退回 ¥" + String.format("%.2f", refunded / 100.0) + inventoryHint

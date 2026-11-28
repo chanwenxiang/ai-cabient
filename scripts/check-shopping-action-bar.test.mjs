@@ -21,29 +21,53 @@ assert(actionBarProblems(real).length === 0, '真实仓面必须绿');
 const wrap = real.replace('flex-wrap: nowrap;', 'flex-wrap: wrap;');
 assert(wrap !== real, '注入锚点 flex-wrap 找不到');
 assert(
-  actionBarProblems(wrap).some((p) => p.includes('flex-wrap: nowrap')),
-  '恢复 wrap 必须红（这正是「未出账单?」掉第二行的成因）'
+  actionBarProblems(wrap).some((p) => p.includes('不换行')),
+  '恢复 wrap 必须红'
 );
 
 const width = real.replace('  flex-wrap: nowrap;', '  max-width: 58%;\n  flex-wrap: nowrap;');
 assert(width !== real, '注入锚点 max-width 找不到');
 assert(
   actionBarProblems(width).some((p) => p.includes('max-width')),
-  '重加 58% 宽度上限必须红'
+  '重加宽度上限必须红'
 );
 
-const dropped = real.replace('未出账单？', '');
+const dropped = real.replaceAll('未出账单？', '');
 assert(dropped !== real, '注入锚点「未出账单？」找不到');
 assert(
   actionBarProblems(dropped).some((p) => p.includes('未出账单')),
   '靠删掉求助按钮换整齐必须红'
 );
 
-const promoted = real.replace('.live-door-actions .cart-help-btn.ghost', '.cart-help-btn.ghost');
-assert(promoted !== real, '注入锚点 ghost 降级规则找不到');
+const promoted = real.replace('.cart-help-btn.ghost {', '.cart-help-btn {');
+assert(promoted !== real, '注入锚点 ghost 次操作规则找不到');
 assert(
-  actionBarProblems(promoted).some((p) => p.includes('降级规则')),
-  '去掉 ghost 降级、让求助重回主按钮形态必须红'
+  actionBarProblems(promoted).some((p) => p.includes('次操作')),
+  '去掉 ghost 次操作规则必须红'
 );
 
-console.log(`${TAG} OK：${checks} 项断言全过（真树绿 / 四种注入红）`);
+const flat = real.replace('flex-direction: column;', 'flex-direction: row;');
+assert(flat !== real, '注入锚点购物态分层找不到');
+assert(
+  actionBarProblems(flat).some((p) => p.includes('flex-direction: column')),
+  '把购物车、状态、按钮重新混排必须红'
+);
+
+const smallHit = real.replace(
+  '.cart-help-btn {\n  margin: 0;\n  padding: 0 24rpx;\n  min-width: 88rpx;\n  min-height: 88rpx;',
+  '.cart-help-btn {\n  margin: 0;\n  padding: 0 24rpx;\n  min-width: 88rpx;\n  min-height: 64rpx;'
+);
+assert(smallHit !== real, '注入锚点 88rpx 热区找不到');
+assert(
+  actionBarProblems(smallHit).some((p) => p.includes('88rpx')),
+  '缩小主操作热区必须红'
+);
+
+const nakedColor = real.replace('background: var(--card-bg);', 'background: #ffffff;');
+assert(nakedColor !== real, '注入锚点令牌背景找不到');
+assert(
+  actionBarProblems(nakedColor).some((p) => p.includes('令牌')),
+  '新增裸色值必须红'
+);
+
+console.log(`${TAG} OK：${checks} 项断言全过（真树绿 / 七种注入红）`);

@@ -60,6 +60,7 @@ class OrderPaymentRefundRetryTraceTest {
     @Mock OpsAlertDispatcher opsAlertDispatcher;
     @Mock com.aicabinet.trade.mapper.ShoppingSessionMapper sessionRepository;
     @Mock MemberService memberService;
+    @Mock NotificationService notificationService;
 
     private OrderPaymentService service;
 
@@ -87,6 +88,7 @@ class OrderPaymentRefundRetryTraceTest {
                 memberService,
                 null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "notificationService", notificationService);
     }
 
     private CabinetOrder order(String orderId) {
@@ -316,6 +318,8 @@ class OrderPaymentRefundRetryTraceTest {
         assertTrue(service.confirmProcessingOrderRefund(pending));
         assertEquals(800, o.getRefundedCents());
         verify(memberService).clawbackPointsOnRefund(10001L, 800, "O-PROC-2", "rk-proc-2");
+        verify(notificationService).notifyRefundAfterCommit(10001L, "O-PROC-2", 800, true,
+                "rk-proc-2");
     }
 
     @Test
@@ -375,12 +379,15 @@ class OrderPaymentRefundRetryTraceTest {
         when(paymentOperationRepository.findByIdempotencyKey("rk-ok")).thenReturn(Optional.empty());
 
         OrderPaymentService.OrderRefundPrep prep = new OrderPaymentService.OrderRefundPrep(
-                "O-OK-1", 10001L, 800, 800, "退款", "rk-ok", "WECHAT", "PT-O-OK-1", 800, false, true);
+                "O-OK-1", 10001L, 800, 800, "退款", "rk-ok", "WECHAT", "PT-O-OK-1", 800, false, true)
+                .withRefundContext(RefundResumeService.fullContext("O-OK-1", true, 800, "退款"));
 
         assertTrue(service.finalizeLiveOrderRefund(prep, "SUCCESS"));
         assertEquals(800, o.getRefundedCents());
         ArgumentCaptor<PaymentOperation> saved = ArgumentCaptor.forClass(PaymentOperation.class);
         verify(paymentOperationRepository).save(saved.capture());
         assertEquals("COMPLETED", saved.getValue().getStatus());
+        verify(notificationService).notifyRefundAfterCommit(10001L, "O-OK-1", 800, true,
+                "FULL:O-OK-1");
     }
 }

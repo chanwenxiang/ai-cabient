@@ -6,6 +6,11 @@ export const MIN_BALANCE_CENTS = DEFAULT_PREAUTH_CENTS;
 
 export type EntryChannel = 'WECHAT' | 'ALIPAY';
 
+/** 免确认收款仅面向商户/运营账号；字段缺失或纯消费者一律 fail-closed。 */
+export function canUsePayoutAuthorization(acc?: Pick<AccountDto, 'operator'> | null): boolean {
+  return acc?.operator === true;
+}
+
 export function normalizeEntryChannel(channel?: string | null): EntryChannel | null {
   const c = String(channel || '')
     .trim()

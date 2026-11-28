@@ -170,6 +170,10 @@ public class NotificationDispatchOutboxService {
     }
 
     public static String idempotencyKey(NotificationDispatchMessage message) {
+        if ("refund_success".equals(message.templateCode())
+                && message.clientMsgId() != null && !message.clientMsgId().isBlank()) {
+            return message.clientMsgId().trim();
+        }
         String raw = String.format("%s|%s|%s|%s|%s|%s",
                 nullToEmpty(message.audience()),
                 nullToEmpty(message.userId()),

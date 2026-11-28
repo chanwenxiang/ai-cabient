@@ -37,6 +37,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  allowsUnseededRuntimeFallback,
   evaluateReadAnchor,
   findConsumerlessFlags,
   makeReadRe,
@@ -293,7 +294,9 @@ if (missingInRegistry.length) {
 }
 
 // ── R5：注册表 → seed ─────────────────────────────────────────────────────
-const notSeeded = flags.filter((f) => !seeded.has(f.key)).map((f) => f.key);
+const notSeeded = flags
+  .filter((f) => !seeded.has(f.key) && !allowsUnseededRuntimeFallback(f))
+  .map((f) => f.key);
 if (notSeeded.length) {
   problems.push(
     `R5 注册表里有但没 seed（默认值不存在，新环境开关会「无值」）：\n    - ` +

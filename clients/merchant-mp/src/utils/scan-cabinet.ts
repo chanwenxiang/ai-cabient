@@ -1,5 +1,5 @@
 import { normalizeDeviceId, parseCabinetScan } from '@aicabinet/shared-uni/qrcode';
-import { safeScanCode } from '@aicabinet/shared-uni/safe-uni-call';
+import { safeScanCodeWithReason, scanCodeErrorMessage } from '@aicabinet/shared-uni/safe-uni-call';
 import { showError } from '@/utils/notify';
 import { promptText } from '@/utils/text-prompt';
 
@@ -39,14 +39,13 @@ async function promptManualDeviceId(hint?: string): Promise<string> {
 /** 扫柜门二维码，返回柜机编号；失败时 toast 并返回空串；H5 可手输 */
 export async function scanCabinetDeviceId(): Promise<string> {
   // C9：无扫码实现（H5）直接走手输降级
-  const raw = await safeScanCode();
-  if (!raw) {
-    if (isBrowserH5()) {
-      return promptManualDeviceId();
-    }
-    showError('扫码取消或失败，请重试或手动输入柜机编号');
+  const scanned = await safeScanCodeWithReason();
+  if (scanned.status !== 'success' || !scanned.result) {
+    if (isBrowserH5()) return promptManualDeviceId();
+    if (scanned.status !== 'cancelled') showError(scanCodeErrorMessage(scanned));
     return '';
   }
+  const raw = scanned.result;
   const parsed = parseCabinetScan(raw);
   const id = parsed.deviceId || '';
   if (!id) {

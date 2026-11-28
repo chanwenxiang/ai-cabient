@@ -110,7 +110,7 @@ public class DeviceReportController {
             return ok();
         }
         log.warn("jiangyi lock FAIL deviceId={} orderNo={} — notify open-failed", deviceId, orderNo);
-        notifyOpenFailed(orderNo, deviceId, "将邑设备上报开锁失败");
+        notifyOpenFailed(orderNo, deviceId, "将邑设备上报开锁失败", false);
         return ok();
     }
 
@@ -118,8 +118,8 @@ public class DeviceReportController {
 
     /**
      * §4.2.8「上报用户拉门状态」：doorStatus=success = 用户拉门打开（door-event OPEN，
-     * 会话 OPENING→SHOPPING）；fail = 拉门失败 → **立即** postOpenFailed 转 FAILED（幂等），
-     * 不等 300s CLOSE 兜底（§4.2.8「如果开门失败，不会上报订单结果」⇒ 必无后续识别上报）。
+     * 会话 OPENING→SHOPPING）；fail = 拉门失败 → post pull-failed，trade 可回收
+     * “仅解锁 ACK 未物理拉门”的会话；已确认物理开门的会话忽略迟到失败。
      * 「关门」在模式一无独立上报——由识别上报到达时 gateway 统一合成 CLOSED（RECOGNIZING）。
      */
     @PostMapping("/jiangyi/api/device/uploadDoorState")
@@ -165,7 +165,7 @@ public class DeviceReportController {
             }
             // V16 §4.2.8「如果开门失败，不会上报订单结果」——明确失败才立即 open-failed（幂等）
             log.warn("jiangyi door FAIL deviceId={} orderNo={} — notify open-failed", deviceId, orderNo);
-            notifyOpenFailed(orderNo, deviceId, "将邑设备上报拉门失败");
+            notifyOpenFailed(orderNo, deviceId, "将邑设备上报拉门失败", true);
             return ok();
         }
         if (isBlank(orderNo)) {
@@ -191,13 +191,13 @@ public class DeviceReportController {
     }
 
     /** open-failed 统一出口：orderNo 空守卫（真机实发 ""——拼 URL 会产出 /sessions//open-failed）。 */
-    private void notifyOpenFailed(String orderNo, String deviceId, String reason) {
+    private void notifyOpenFailed(String orderNo, String deviceId, String reason, boolean pullFailed) {
         if (isBlank(orderNo)) {
             log.warn("jiangyi open-failed skipped (blank orderNo) deviceId={} reason={}", deviceId, reason);
             return;
         }
         try {
-            tradeInternalClient.postOpenFailed(orderNo, reason, deviceId);
+            tradeInternalClient.postOpenFailed(orderNo, reason, deviceId, pullFailed);
         } catch (Exception e) {
             log.error("jiangyi open-failed notify failed orderNo={}", orderNo, e);
         }

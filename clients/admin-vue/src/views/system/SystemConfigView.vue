@@ -119,6 +119,43 @@
       </el-form>
     </el-card>
 
+    <el-card class="brand-card" shadow="never">
+      <template #header>
+        <div class="brand-card-head">
+          <span>风控自动拉黑</span>
+          <HelpTip
+            content="统计最近 7 天内纠纷次数；达到阈值后自动拉黑。数值单位是次数，不是天数。"
+            aria-label="风控自动拉黑阈值说明"
+          />
+        </div>
+      </template>
+      <el-form label-width="auto" class="brand-form" @submit.prevent="saveRiskRuntimeConfig">
+        <el-form-item label="7天纠纷拉黑阈值">
+          <el-input-number
+            v-model="riskRuntimeConfig.maxDisputesPer7Days"
+            :min="1"
+            :precision="0"
+            :disabled="!canEditRiskConfig || riskRuntimeConfigSaving"
+            controls-position="right"
+          />
+          <span class="runtime-config-unit">次 / 7 天</span>
+          <span class="runtime-config-source">
+            {{ riskRuntimeConfig.source === 'DATABASE' ? '后台配置' : '启动配置' }} · 默认
+            {{ riskRuntimeConfig.defaultMaxDisputesPer7Days }} 次
+          </span>
+        </el-form-item>
+        <el-form-item>
+          <el-button
+            v-if="canEditRiskConfig"
+            type="primary"
+            :loading="riskRuntimeConfigSaving"
+            @click="saveRiskRuntimeConfig"
+            >保存并运行期生效</el-button
+          >
+        </el-form-item>
+      </el-form>
+    </el-card>
+
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="关键词">
         <el-input
@@ -304,6 +341,7 @@ import { sortByPrimaryKey } from '@/utils/sort-by-pk';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import { registerUnsavedGuard } from '@/utils/unsaved-guard';
 import { validateImageFile } from '@/utils/upload-validate';
+import { parseMaxDisputes } from '@/utils/risk-admin-guards';
 
 const BRAND_KEYS = {
   title: 'ops.brand.title',
@@ -676,6 +714,50 @@ async function saveJiangyiDomain() {
   }
 }
 
+interface RiskRuntimeConfig {
+  maxDisputesPer7Days: number;
+  defaultMaxDisputesPer7Days: number;
+  source: 'DATABASE' | 'STARTUP';
+  updatedAt?: string;
+}
+const riskRuntimeConfig = reactive<RiskRuntimeConfig>({
+  maxDisputesPer7Days: 3,
+  defaultMaxDisputesPer7Days: 3,
+  source: 'STARTUP'
+});
+const riskRuntimeConfigSaving = ref(false);
+const canEditRiskConfig = computed(() => auth.hasPerm('ops:config:edit'));
+
+async function loadRiskRuntimeConfig() {
+  try {
+    const result = await api.request<RiskRuntimeConfig>(AdminEndpoints.riskRuntimeConfig, 'GET');
+    Object.assign(riskRuntimeConfig, result);
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '风控运行配置加载失败'));
+  }
+}
+
+async function saveRiskRuntimeConfig() {
+  const value = parseMaxDisputes(riskRuntimeConfig.maxDisputesPer7Days);
+  if (value == null) {
+    ElMessage.warning('纠纷阈值必须为正整数');
+    return;
+  }
+  riskRuntimeConfigSaving.value = true;
+  try {
+    const result = await api.request<RiskRuntimeConfig>(AdminEndpoints.riskRuntimeConfig, 'PUT', {
+      maxDisputesPer7Days: value
+    });
+    Object.assign(riskRuntimeConfig, result);
+    ElMessage.success('已保存，运行期生效');
+    await crud.load();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '保存失败'));
+  } finally {
+    riskRuntimeConfigSaving.value = false;
+  }
+}
+
 async function upsertBrandKey(configKey: string, configValue: string, description: string) {
   await api.request(AdminEndpoints.systemConfigs, 'PUT', {
     configKey,
@@ -866,6 +948,7 @@ onMounted(() => {
   applyRouteQuery();
   void crud.load();
   void loadFeatureFlags();
+  void loadRiskRuntimeConfig();
 });
 
 async function reloadFromRouteQuery() {
@@ -928,6 +1011,14 @@ onActivated(() => {
 }
 .brand-form {
   max-width: 560px;
+}
+.runtime-config-unit {
+  margin-left: 12px;
+  color: var(--el-text-color-primary);
+}
+.runtime-config-source {
+  margin-left: 12px;
+  color: var(--el-text-color-secondary);
 }
 .brand-logo-row {
   display: flex;

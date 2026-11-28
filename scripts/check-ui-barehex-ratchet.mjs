@@ -45,8 +45,9 @@ const BASELINES = {
   //  强制形态，不是裸色选择）后实测——admin hex6 239→188 / hex3 40→19 / rgba 144→143；
   //  mp hex6 1075→205 / hex3 71→8 / rgba 163→161。数百处伪命中原为令牌兜底语法，
   //  剩余为真裸色，棘轮继续只减不增。
+  // 2026-11-27 #54：HomeCartBar 阴影/清空按钮底色改语义令牌，mp rgba 161→158。
   admin: { hex6: 188, hex3: 19, hex8: 1, rgba: 143 },
-  mp: { hex6: 205, hex3: 8, hex8: 0, rgba: 161 }
+  mp: { hex6: 205, hex3: 8, hex8: 0, rgba: 158 }
 };
 
 const ADMIN_GLOBS = [

@@ -293,6 +293,8 @@ public class SystemConfigService {
     public static final String RISK_AUTO_CLEAR_INFO_HOURS = "risk.auto_clear_info_hours";
     /** 风控自动处置：待确认工单超多少小时告警。⚠️ 原先只有代码里读、没 seed（本次补齐）。 */
     public static final String RISK_AUTO_ACK_WARN_HOURS = "risk.auto_ack_warn_hours";
+    /** 近 7 天纠纷自动拉黑阈值；后台值优先，缺行回落 RiskControlProperties（环境变量/代码默认）。 */
+    public static final String RISK_MAX_DISPUTES_PER_7_DAYS = "risk.max_disputes_per_7_days";
 
     // ── 扩展功能域（路线图功能的总闸，2026-09-20 第二十七轮）────────────────────
     // 🔴 语义：每个开关都控制一个**已接入的真实行为**（入口可见性），默认 false = 维持现状（零行为变化）。
@@ -550,7 +552,7 @@ public class SystemConfigService {
      * {@code admin_audit_log} ⇒ 「谁把自动免单打开了」无从追。登记在这里的键走强制留痕（MA-068）。</p>
      */
     static final java.util.Set<String> AUDIT_FORCED_SWITCH_KEYS = java.util.Set.of(
-            DISPUTE_AUTO_WAIVE_ENABLED);
+            DISPUTE_AUTO_WAIVE_ENABLED, RISK_MAX_DISPUTES_PER_7_DAYS);
 
     /**
      * 资金键值校验：非负整数且不超 int（读取侧 getInt 的硬约束）；S12 扩面追加<b>天花板</b>校验
@@ -601,6 +603,18 @@ public class SystemConfigService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "资金配置 " + key + " 超出天花板 " + ceiling + "（S12 扩面 2026-11-14 拍板："
                             + "防手填荒谬值；如确需更高上限先改代码评审，勿在线上直填）");
+        }
+    }
+
+    /** 纠纷自动拉黑阈值必须是正整数；0/负数会在读取侧回落，写侧直接拒绝。 */
+    private static void validateRiskMaxDisputes(String value) {
+        try {
+            if (Integer.parseInt(value == null ? "" : value.trim()) <= 0) {
+                throw new NumberFormatException();
+            }
+        } catch (NumberFormatException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "风控纠纷阈值必须是大于 0 的整数");
         }
     }
 
@@ -950,11 +964,15 @@ public class SystemConfigService {
     }
 
     private SystemConfigDto doUpsert(String key, String value, String description, Long operatorId) {
+        // CONCURRENCY: 外层 Redis 同键锁串行化，行内 findByIdForUpdate 再保护并发覆盖与审计旧值。
         // AU-048：资金阈值键写侧校验——放在任何写副作用之前，违规零落库。
         // S12 扩面：按商户费率覆盖键 merchant.withdraw.fee_bps.{merchantId} 不在
         // FUND_GUARDED_KEYS（前缀无法穷举），按前缀命中同一校验（含 S12 天花板）。
         if (FUND_GUARDED_KEYS.contains(key) || key.startsWith(MERCHANT_WITHDRAW_FEE_BPS_PREFIX)) {
             validateFundKeyValue(key, value);
+        }
+        if (RISK_MAX_DISPUTES_PER_7_DAYS.equals(key)) {
+            validateRiskMaxDisputes(value);
         }
         java.util.Optional<SystemConfig> existing = repository.findByIdForUpdate(key);
         // 覆盖前先留旧值：这才是「版本」的全部信息量（写入后旧值即不可追）。

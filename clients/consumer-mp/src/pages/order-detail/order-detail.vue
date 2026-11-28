@@ -272,16 +272,40 @@
       >
         <template #partial>
           <view v-if="refundMode && refundLineRows.length" class="partial-block">
-            <text class="field-label">按行退款（不选则全额退）</text>
-            <view v-for="row in refundLineRows" :key="row.skuId" class="partial-row">
-              <text class="partial-name">{{ row.skuName }}</text>
-              <text class="partial-meta">可退 {{ row.maxQty }}</text>
-              <input
-                class="partial-qty"
-                type="number"
-                :value="String(row.qty)"
-                @input="onPartialQtyInput(row, $event)"
-              />
+            <text class="field-label">退款范围</text>
+            <view class="refund-scope" role="group" aria-label="选择退款范围">
+              <view
+                class="scope-option"
+                :style="scopeStyle(!partialRefundEnabled)"
+                role="button"
+                aria-label="全额退款"
+                @click="setRefundScope(false)"
+              >
+                <text>全额退款</text>
+              </view>
+              <view
+                class="scope-option"
+                :style="scopeStyle(partialRefundEnabled)"
+                role="button"
+                aria-label="按行退款"
+                @click="setRefundScope(true)"
+              >
+                <text>按行退款</text>
+              </view>
+            </view>
+            <text v-if="!partialRefundEnabled" class="hint">将退回本单全部可退金额</text>
+            <view v-else class="partial-lines">
+              <view v-for="row in refundLineRows" :key="row.skuId" class="partial-row">
+                <text class="partial-name">{{ row.skuName }}</text>
+                <text class="partial-meta">可退 {{ row.maxQty }}</text>
+                <input
+                  class="partial-qty"
+                  type="number"
+                  :value="String(row.qty)"
+                  placeholder="数量"
+                  @input="onPartialQtyInput(row, $event)"
+                />
+              </view>
             </view>
           </view>
         </template>
@@ -355,8 +379,10 @@ import {
 import {
   buildOrderRefundBody,
   buildOrderRefundLines,
+  buildOrderRefundRows,
   canRefundOnOrderDetail,
-  refundConfirmContent
+  refundConfirmContent,
+  type OrderRefundRow
 } from '@/utils/money-ui-contracts';
 import {
   buildFileDisputeBody,
@@ -726,21 +752,34 @@ async function submitInvoice() {
     invoiceLoading.value = false;
   }
 }
-type RefundLineRow = { skuId: string; skuName: string; maxQty: number; qty: number };
-const refundLineRows = ref<RefundLineRow[]>([]);
+const refundLineRows = ref<OrderRefundRow[]>([]);
+const partialRefundEnabled = ref(false);
 
 function syncRefundLines() {
-  refundLineRows.value = (order.value?.lines || [])
-    .filter((l) => l?.skuId && (l.quantity || 0) > 0)
-    .map((l) => ({
-      skuId: String(l.skuId),
-      skuName: String(l.skuName || l.skuId),
-      maxQty: Number(l.quantity || 0),
-      qty: 0
-    }));
+  partialRefundEnabled.value = false;
+  refundLineRows.value = buildOrderRefundRows(order.value?.lines || [], false);
 }
 
-function onPartialQty(row: RefundLineRow, e: unknown) {
+function setRefundScope(partial: boolean) {
+  partialRefundEnabled.value = partial;
+  if (!partial) return;
+  for (const row of refundLineRows.value) {
+    if (row.qty <= 0) row.qty = row.maxQty;
+  }
+}
+
+function scopeStyle(active: boolean) {
+  return active
+    ? {
+        borderColor: 'var(--brand)',
+        background: 'var(--brand-soft)',
+        color: 'var(--brand)',
+        fontWeight: 600
+      }
+    : {};
+}
+
+function onPartialQty(row: OrderRefundRow, e: unknown) {
   const ev = e as { detail?: { value?: string }; target?: { value?: string } };
   const raw = String(ev?.detail?.value ?? ev?.target?.value ?? '').trim();
   if (!raw) {
@@ -757,7 +796,7 @@ function onPartialQty(row: RefundLineRow, e: unknown) {
 
 /** 模板内联适配器（2026-10-23 第五轮审计）：Vue 模板表达式不支持 TS 类型字面量
  * 花括号，@input 事件经此转入 onPartialQty，避免为绕开类型报错而写 any。 */
-function onPartialQtyInput(row: RefundLineRow, e: unknown) {
+function onPartialQtyInput(row: OrderRefundRow, e: unknown) {
   onPartialQty(row, e);
 }
 
@@ -960,10 +999,16 @@ async function submitRefund() {
     return;
   }
   const restoreInventory = inferRestoreInventory(reason, selectedChip.value);
-  const lines = buildOrderRefundLines({
-    rows: refundLineRows.value.map((r) => ({ skuId: r.skuId, qty: r.qty })),
-    restoreInventory
-  });
+  const lines = partialRefundEnabled.value
+    ? buildOrderRefundLines({
+        rows: refundLineRows.value.map((r) => ({ skuId: r.skuId, qty: r.qty })),
+        restoreInventory
+      })
+    : [];
+  if (partialRefundEnabled.value && lines.length === 0) {
+    showError('请至少选择一件退款商品');
+    return;
+  }
   const isPartial = lines.length > 0;
   const confirmed = await showConfirm({
     title: isPartial ? '确认按行退款' : '确认退款',
@@ -1398,6 +1443,35 @@ function callSupport() {
 .partial-block {
   margin: 16rpx 0 8rpx;
 }
+.refund-scope {
+  display: flex;
+  gap: 12rpx;
+  margin-bottom: 12rpx;
+}
+.scope-option {
+  flex: 1;
+  width: 100%;
+  min-height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 1rpx solid var(--color-border);
+  border-radius: var(--radius-tag);
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-size: var(--font-size-body);
+}
+.hint {
+  display: block;
+  margin-bottom: 8rpx;
+  color: var(--text-subtle);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+.partial-lines {
+  margin-top: 12rpx;
+}
 .partial-row {
   display: flex;
   align-items: center;
@@ -1407,7 +1481,7 @@ function callSupport() {
 .partial-name {
   flex: 1;
   font-size: var(--font-size-body);
-  color: var(--text-primary, #1e293b);
+  color: var(--text-primary);
 }
 .partial-meta {
   font-size: var(--font-size-sm);
@@ -1415,11 +1489,12 @@ function callSupport() {
 }
 .partial-qty {
   width: 100rpx;
-  height: 56rpx;
+  height: 88rpx;
+  box-sizing: border-box;
   border: 1rpx solid var(--color-border);
   border-radius: var(--radius-tag);
   text-align: center;
   font-size: var(--font-size-body);
-  background: var(--card-bg, #ffffff);
+  background: var(--card-bg);
 }
 </style>

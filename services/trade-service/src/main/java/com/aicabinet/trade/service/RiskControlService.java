@@ -1,5 +1,7 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.dto.RiskRuntimeConfigDto;
+import com.aicabinet.common.dto.SystemConfigDto;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.config.RiskControlProperties;
 import com.aicabinet.trade.domain.RiskEvent;
@@ -44,6 +46,45 @@ public class RiskControlService {
      * 为 null 时阶梯校验整体跳过（退化为 V324 的行为），不阻断既有用法。
      */
     private UnpaidDunningService unpaidDunningService;
+
+    /** 运行期配置可选注入，保留既有六参构造器的调用方；缺省时完全维持启动配置行为。 */
+    private SystemConfigService systemConfigService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setSystemConfigService(SystemConfigService systemConfigService) {
+        this.systemConfigService = systemConfigService;
+    }
+
+    /** 当前生效阈值：后台配置 > 启动配置（含环境变量）> RiskControlProperties 代码默认 3。 */
+    public int maxDisputesPer7Days() {
+        int fallback = properties.maxDisputesPer7Days();
+        return systemConfigService == null
+                ? fallback
+                : systemConfigService.getPositiveLimit(
+                        SystemConfigService.RISK_MAX_DISPUTES_PER_7_DAYS, fallback);
+    }
+
+    public RiskRuntimeConfigDto runtimeConfig() {
+        int fallback = properties.maxDisputesPer7Days();
+        String raw = systemConfigService == null
+                ? null : systemConfigService.getValue(SystemConfigService.RISK_MAX_DISPUTES_PER_7_DAYS, null);
+        int effective = maxDisputesPer7Days();
+        boolean database = raw != null && raw.trim().equals(String.valueOf(effective));
+        return new RiskRuntimeConfigDto(effective, fallback,
+                database ? "DATABASE" : "STARTUP", null);
+    }
+
+    /** 写路径由 SystemConfigService 统一校验、版本留痕和 admin_audit_log。 */
+    public RiskRuntimeConfigDto updateMaxDisputesPer7Days(Long operatorId, int value) {
+        if (systemConfigService == null) {
+            throw new IllegalStateException("系统配置服务未装配");
+        }
+        SystemConfigDto saved = systemConfigService.upsert(
+                SystemConfigService.RISK_MAX_DISPUTES_PER_7_DAYS, String.valueOf(value),
+                "近 7 天纠纷达到该次数后自动拉黑；后台值优先，删除后回落启动配置", operatorId);
+        return new RiskRuntimeConfigDto(maxDisputesPer7Days(), properties.maxDisputesPer7Days(),
+                "DATABASE", saved.updatedAt());
+    }
 
     /** 由 Spring 在容器装配完成后注入（{@code @Autowired(required=false)} 语义）。 */
     @org.springframework.beans.factory.annotation.Autowired
@@ -143,7 +184,7 @@ public class RiskControlService {
         Instant since7d = Instant.now().minus(7, ChronoUnit.DAYS);
         long disputes = sessionRepository.countByUserIdAndStateAndCreatedAtAfter(
                 userId, SessionState.DISPUTED, since7d);
-        if (disputes >= properties.maxDisputesPer7Days()) {
+        if (disputes >= maxDisputesPer7Days()) {
             autoBlacklist(userId, "频繁申诉 " + disputes + " 次/7天");
             recordEvent(userId, null, "FREQUENT_DISPUTE", "WARN", Map.of("count", disputes));
         }

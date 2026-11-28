@@ -34,6 +34,10 @@ public class SettlementPartialRefundService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private RefundFlowService refundFlowService;
 
+    /** 部分退款终态通知；正常落库与断点续跑共用同一幂等令牌。 */
+    @org.springframework.beans.factory.annotation.Autowired
+    private NotificationService notificationService;
+
     private final CabinetOrderMapper orderRepository;
     private final OrderPaymentService orderPaymentService;
     private final InventoryService inventoryService;
@@ -162,12 +166,13 @@ public class SettlementPartialRefundService {
                 && fresh.getRefundedCents() >= priorRefunded + refundCents) {
             log.info("partial refund retry already finalized order={} refundCents={} status={}",
                     orderId, refundCents, fresh.getStatus());
+            notifyRefundFinalized(fresh, refundCents, partialNotificationKey(orderId, refundLines));
             return new PartialRefundResult(refundCents, fresh.getStatus(), false);
         }
         // prepare 与「本地已扣行」标记同事务提交；有标记就只补 finalize，绝不重复扣行
         if (orderPaymentService.isPartialRefundPrepared(
                 orderId, refundLinesFingerprint(refundLines))) {
-            return finalizeOnly(fresh, refundCents, priorRefunded);
+            return finalizeOnly(fresh, refundLines, refundCents, priorRefunded);
         }
         try {
             PartialRefundPrep prep = self.preparePartialRefund(
@@ -178,17 +183,20 @@ public class SettlementPartialRefundService {
             if (!refundLinesAlreadyRemoved(fresh, refundLines)) {
                 throw e;
             }
-            return finalizeOnly(fresh, refundCents, priorRefunded);
+            return finalizeOnly(fresh, refundLines, refundCents, priorRefunded);
         }
     }
 
-    private PartialRefundResult finalizeOnly(CabinetOrder fresh, int refundCents, int priorRefunded) {
+    private PartialRefundResult finalizeOnly(CabinetOrder fresh,
+                                              List<OrderRefundRequest.PartialRefundLine> refundLines,
+                                              int refundCents, int priorRefunded) {
         orderSupport.hydrateOrderLines(fresh);
         boolean remainingEmpty = fresh.getLines() == null || fresh.getLines().isEmpty();
         log.info("partial refund retry resumes at finalize order={} refundCents={} remainingEmpty={}",
                 fresh.getOrderId(), refundCents, remainingEmpty);
         return self.finalizePartialRefund(new PartialRefundPrep(
-                fresh, refundCents, priorRefunded, remainingEmpty, false));
+                fresh, refundCents, priorRefunded, remainingEmpty, false,
+                partialNotificationKey(fresh.getOrderId(), refundLines)));
     }
 
     /** 请求的每一行都已扣到不足 ⇒ prepare 已提交过；只要有一行还够，就不能判定为重试。 */
@@ -232,13 +240,15 @@ public class SettlementPartialRefundService {
             int refundCents,
             int priorRefunded,
             boolean remainingEmpty,
-            boolean anyRestored) {}
+            boolean anyRestored,
+            String notificationKey) {}
 
     @Transactional
     public PartialRefundPrep preparePartialRefund(String orderId,
                                                   List<OrderRefundRequest.PartialRefundLine> refundLines,
                                                   boolean defaultRestore,
                                                   int priorRefundedBeforeChannel) {
+        // CONCURRENCY: 订单 FOR UPDATE 覆盖行集校验、扣行与 prepare 标记，重放不能并发重复扣行。
         CabinetOrder order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
         orderSupport.hydrateOrderLines(order);
@@ -270,11 +280,13 @@ public class SettlementPartialRefundService {
         // 与 prepare 同事务打标：重试时据此判定「行已扣过」，避免同参数重复退款
         orderPaymentService.markPartialRefundPrepared(
                 order.getOrderId(), refundLinesFingerprint(refundLines));
-        return new PartialRefundPrep(order, refundCents, priorRefunded, remaining.isEmpty(), partition.anyRestored());
+        return new PartialRefundPrep(order, refundCents, priorRefunded, remaining.isEmpty(), partition.anyRestored(),
+                partialNotificationKey(order.getOrderId(), refundLines));
     }
 
     @Transactional
     public PartialRefundResult finalizePartialRefund(PartialRefundPrep prep) {
+        // CONCURRENCY: 订单 FOR UPDATE 锁内重读可退行与已退金额，防止并发 finalize 重复累加。
         CabinetOrder order = orderRepository.findByIdForUpdate(prep.order().getOrderId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
         orderSupport.hydrateOrderLines(order);
@@ -310,7 +322,22 @@ public class SettlementPartialRefundService {
         orderSupport.replaceOrderLines(order);
         log.info("partial refund order={} refundCents={} status={} anyRestored={}",
                 order.getOrderId(), refundCents, order.getStatus(), prep.anyRestored());
+        notifyRefundFinalized(order, refundCents, prep.notificationKey());
         return new PartialRefundResult(refundCents, order.getStatus(), prep.anyRestored());
+    }
+
+    private static String partialNotificationKey(String orderId,
+                                                  List<OrderRefundRequest.PartialRefundLine> refundLines) {
+        return RefundResumeService.partialToken(orderId, refundLines);
+    }
+
+    private void notifyRefundFinalized(CabinetOrder order, int refundCents, String notificationKey) {
+        if (notificationService == null || refundCents <= 0 || order.getUserId() == null
+                || notificationKey == null || notificationKey.isBlank()) {
+            return;
+        }
+        notificationService.notifyRefundAfterCommit(order.getUserId(), order.getOrderId(), refundCents,
+                true, notificationKey);
     }
 
     private record PartialRefundPartition(

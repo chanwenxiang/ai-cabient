@@ -144,6 +144,17 @@ class NotificationDispatchOutboxServiceTest {
     }
 
     @Test
+    void idempotencyKey_refundUsesStableClientMsgIdAcrossPartialLines() {
+        NotificationDispatchMessage first = new NotificationDispatchMessage("refund_success", 100L,
+                "退款成功", "退款 2.00 元", "REFUND", "O-1", Map.of(), "stable-a", "CONSUMER", null);
+        NotificationDispatchMessage second = new NotificationDispatchMessage("refund_success", 100L,
+                "退款成功", "退款 2.00 元", "REFUND", "O-1", Map.of(), "stable-b", "CONSUMER", null);
+
+        assertEquals("stable-a", NotificationDispatchOutboxService.idempotencyKey(first));
+        assertEquals("stable-b", NotificationDispatchOutboxService.idempotencyKey(second));
+    }
+
+    @Test
     void idempotencyKey_withoutBizId_keepsDistinctMessagesApart() {
         NotificationDispatchMessage first = new NotificationDispatchMessage("order_paid", 100L,
                 "标题A", "正文A", "ORDER", null);

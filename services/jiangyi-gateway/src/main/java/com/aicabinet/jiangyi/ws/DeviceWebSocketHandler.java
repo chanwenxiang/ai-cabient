@@ -193,24 +193,19 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
     }
 
     /**
-     * 门已开回执转发 trade（补货会话据此 OPENING→SHOPPING）。
+     * 解锁指令回执转发 trade。该回执只证明指令已执行，不证明物理拉门；
+     * trade 用它救援 OPENING 会话，但保持 physicalOpenConfirmed=false。
      *
-     * <p>2026-10-27 EG943322621391 两轮实锤：真机补货链路只有这条 WS 回执 +
-     * HTTP uploadAddGoodsCloseStatus，没有消费链的 uploadDoorState——不转发则 trade
-     * 90 秒 OPENING 超时必杀会话，小程序「关门后继续核对上架」永不到来。</p>
-     *
-     * <p>2026-10-30：会话类型判定从网关 tracker 移到 trade——tracker 登记在 watchdog
-     * 15s open-failed 时已被清除，回执稍慢就丢（补货会话照旧被 90s 扫杀）。网关不再判
-     * 会话类型，一律按 sessionId 转发；消费/盘点/运维会话由 trade 侧非补货即忽略。
-     * 转发失败仅告警不重试——90s 超时兜底仍在，用户重试即可。</p>
+     * <p>2026-10-27 补货链与 2026-11-12 消费弱网链都依赖这条回执避免超时误杀。
+     * 会话类型与终态判定统一由 trade 负责；转发失败仅告警，超时兜底仍在。</p>
      */
     private void forwardDoorAck(String deviceId, String sessionId) {
         try {
             boolean applied = tradeInternalClient.restockDoorOpened(deviceId, sessionId);
-            log.info("jiangyi ws door-open ack forwarded deviceId={} sessionId={} applied={}",
+            log.info("jiangyi ws door-unlock ack forwarded deviceId={} sessionId={} applied={}",
                     deviceId, sessionId, applied);
         } catch (Exception e) {
-            log.warn("jiangyi ws door-open ack forward failed deviceId={} sessionId={}: {}",
+            log.warn("jiangyi ws door-unlock ack forward failed deviceId={} sessionId={}: {}",
                     deviceId, sessionId, e.getMessage());
         }
     }

@@ -1377,6 +1377,8 @@ public class OrderPaymentService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
         var existing = paymentOperationRepository.findByIdempotencyKey(prep.idemKey());
         if (existing.isPresent() && STATUS_COMPLETED.equals(existing.get().getStatus())) {
+            notifyOrderRefundFinalized(locked, prep.refundCents(),
+                    prep.refundContext() != null ? prep.refundContext().resumeToken() : prep.idemKey());
             return true;
         }
         if (existing.isPresent() && "REFUND_PROCESSING".equals(existing.get().getStatus())) {
@@ -1426,11 +1428,18 @@ public class OrderPaymentService {
         alertIfInvoicedOnFullRefund(locked, prep.refundCents());
         log.info("live channel order refund finalized order={} channel={} amount={} total={} refundStatus={}",
                 prep.orderId(), prep.channel(), prep.channelRefundCents(), prep.refundCents(), channelRefundStatus);
-        if (notificationService != null) {
-            notificationService.notifyRefundAfterCommit(locked.getUserId(), locked.getOrderId(),
-                    prep.refundCents(), true);
-        }
+        notifyOrderRefundFinalized(locked, prep.refundCents(),
+                prep.refundContext() != null ? prep.refundContext().resumeToken() : prep.idemKey());
         return true;
+    }
+
+    private void notifyOrderRefundFinalized(CabinetOrder order, int refundCents, String notificationKey) {
+        if (notificationService == null || order.getUserId() == null || refundCents <= 0
+                || notificationKey == null || notificationKey.isBlank()) {
+            return;
+        }
+        notificationService.notifyRefundAfterCommit(order.getUserId(), order.getOrderId(), refundCents,
+                true, notificationKey);
     }
 
     private void recordProcessingRefund(CabinetOrder order, OrderRefundPrep prep) {
@@ -1460,6 +1469,7 @@ public class OrderPaymentService {
 
     @Transactional
     public boolean confirmProcessingOrderRefund(PaymentOperation pending) {
+        // CONCURRENCY: finishProcessingRefund 条件 CAS 抢先认领，随后订单 FOR UPDATE 串行化本地收口。
         String nextReason = pending.getReason().replace("[refund:PROCESSING]", "[refund:SUCCESS]");
         if (paymentOperationRepository.finishProcessingRefund(
                 pending.getOperationId(), pending.getReason(), nextReason, STATUS_COMPLETED) == 0) {
@@ -1483,10 +1493,10 @@ public class OrderPaymentService {
                 pending.getOrderId(), pending.getIdempotencyKey());
         finalizeRefundInitiated(pending.getIdempotencyKey());
         resumeCompletedOrderRefund(pending.getIdempotencyKey());
-        if (notificationService != null) {
-            notificationService.notifyRefundAfterCommit(pending.getUserId(), pending.getOrderId(),
-                    channelCents + Math.max(0, balanceCents), true);
-        }
+        String notificationKey = RefundResumeService.parseOrderContext(pending.getRefundContextJson())
+                .map(RefundResumeService.OrderRefundContext::resumeToken)
+                .orElse(pending.getIdempotencyKey());
+        notifyOrderRefundFinalized(order, channelCents + Math.max(0, balanceCents), notificationKey);
         return true;
     }
 

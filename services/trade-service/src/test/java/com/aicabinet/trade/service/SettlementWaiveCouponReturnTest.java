@@ -37,6 +37,7 @@ class SettlementWaiveCouponReturnTest {
     @Mock private RevenueSplitService revenueSplitService;
     @Mock private DistributedLockService distributedLockService;
     @Mock private CouponService couponService;
+    @Mock private NotificationService notificationService;
 
     private SettlementWaiveRefundService service;
 
@@ -45,6 +46,7 @@ class SettlementWaiveCouponReturnTest {
         service = new SettlementWaiveRefundService(sessionRepository, orderRepository, null,
                 orderPaymentService, inventoryService, revenueSplitService,
                 distributedLockService, couponService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "notificationService", notificationService);
     }
 
     @Test
@@ -70,6 +72,7 @@ class SettlementWaiveCouponReturnTest {
     void finalizeFullRefund_alreadyRefunded_isIdempotentAndDoesNotSettleTwice() {
         CabinetOrder order = new CabinetOrder();
         order.setOrderId("O-147B");
+        order.setUserId(10001L);
         order.setStatus("REFUNDED");
         order.setCouponId(56L);
         when(orderRepository.findByIdForUpdate("O-147B")).thenReturn(Optional.of(order));
@@ -80,5 +83,7 @@ class SettlementWaiveCouponReturnTest {
         org.junit.jupiter.api.Assertions.assertEquals(300, cents);
         verify(couponService, org.mockito.Mockito.never()).settleAfterFullRefund(org.mockito.ArgumentMatchers.any());
         verify(orderRepository, org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
+        verify(notificationService).notifyRefundAfterCommit(10001L, "O-147B", 300, true,
+                "FULL:O-147B");
     }
 }

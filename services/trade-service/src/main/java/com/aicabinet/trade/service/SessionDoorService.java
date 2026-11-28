@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.DoorEventRequest;
 import com.aicabinet.common.dto.SessionDto;
+import com.aicabinet.common.enums.DoorEventSource;
 import com.aicabinet.common.enums.DoorState;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.domain.ShoppingSession;
@@ -118,20 +119,15 @@ public class SessionDoorService {
     }
 
     /**
-     * 将邑开门回执推进（WS sendOpenStockDoorSure/openDoorSure，2026-10-30）：网关只按
-     * sessionId 转发，是否放行由本方法判定——tracker 的 stock 标记不可靠，watchdog 15s
-     * open-failed 会先把登记清掉，回执稍慢就丢。
+     * 将邑解锁指令回执推进（WS sendOpenStockDoorSure/openDoorSure，2026-10-30）。
      *
-     * <p>2026-11-12 真机事故（会话 1794452035347297629828）放开消费会话：弱网下设备
-     * HTTP uploadLockState 迟到 2m13s（花生壳 1Mbps 隧道被视频上传挤占），10s
-     * OPEN_TIMEOUT 清扫误杀真开门；openDoorSure 回执迟到 14.3s 却是唯一能在清扫前
-     * 到达的设备响应信号。回执=设备已执行解锁指令，与 HTTP 门事件同一
-     * {@link #onDoorOpened} 语义（OPENING→SHOPPING；已 SHOPPING 幂等）。终态
-     * （CANCELLED/FAILED/COMPLETED 等）仍拒绝——救会话只发生在清扫尚未杀掉时，
-     * 已杀会话的兜账走迟到识别上报的运维异常路径，不在此复活。</p>
+     * <p>该回执只证明设备执行了解锁指令，不证明用户已拉门。2026-11-12 弱网事故
+     * （会话 1794452035347297629828）需要它把仍处 OPENING 的消费会话救到 SHOPPING，
+     * 避免物理门磁上报迟到时被超时清扫误杀；但 {@code physicalOpenConfirmed} 必须保持
+     * false。随后若设备明确上报拉门失败，可按“仅解锁未拉门”回收会话。</p>
      *
-     * @return true=设备一致的活跃会话（OPENING/SHOPPING）且已投递 {@link DoorState#OPEN}
-     *         （已开为幂等 no-op）；false=无此会话/设备不符/会话已终态
+     * @return true=设备一致的活跃会话（OPENING/SHOPPING）且已按解锁 ACK 推进；
+     *         false=无此会话/设备不符/会话已终态
      */
     @Transactional
     public boolean applyRestockDoorOpened(String deviceId, String sessionId) {
@@ -145,8 +141,8 @@ public class SessionDoorService {
             return false;
         }
         SessionDto after = handleDoorEvent(new DoorEventRequest(sessionId, deviceId,
-                DoorState.OPEN, System.currentTimeMillis()));
-        log.info("restock door-open ack applied session={} device={} state={}",
+                DoorState.OPEN, System.currentTimeMillis(), null, DoorEventSource.UNLOCK_ACK));
+        log.info("door unlock ack applied session={} device={} state={}",
                 sessionId, deviceId, after.state());
         return true;
     }
@@ -167,15 +163,32 @@ public class SessionDoorService {
         }
 
         return switch (event.doorState()) {
-            case OPEN -> onDoorOpened(session);
+            case OPEN -> event.source() == DoorEventSource.UNLOCK_ACK
+                    ? onDoorUnlockAck(session) : onDoorOpened(session);
             case CLOSED -> onDoorClosed(session);
             default -> sessionService.toDto(session);
         };
     }
 
+    private SessionDto onDoorUnlockAck(ShoppingSession session) {
+        if (session.getState() == SessionState.OPENING) {
+            session.setOpenTime(Instant.now());
+            session.setPhysicalOpenConfirmed(false);
+            sessionService.transition(session, SessionState.SHOPPING);
+            Map<String, Object> payload = session.getUserId() != null
+                    ? Map.of(DEVICEID, session.getDeviceId(), "userId", session.getUserId())
+                    : Map.of(DEVICEID, session.getDeviceId());
+            domainEventPublisher.publish("DoorUnlocked", session.getSessionId(), payload);
+            log.info("door unlock ack advanced session={} state=SHOPPING physicalOpenConfirmed=false",
+                    session.getSessionId());
+        }
+        return sessionService.toDto(session);
+    }
+
     private SessionDto onDoorOpened(ShoppingSession session) {
         if (session.getState() == SessionState.OPENING) {
             session.setOpenTime(Instant.now());
+            session.setPhysicalOpenConfirmed(true);
             sessionService.transition(session, SessionState.SHOPPING);
             cabinetMetrics.recordDoorOpen(true);
             // Map.of 拒 null（铁律 24-27）：运维/盘点等会话可能无 userId，缺了降级为不带该键而非 NPE
@@ -184,14 +197,20 @@ public class SessionDoorService {
                     : Map.of(DEVICEID, session.getDeviceId());
             domainEventPublisher.publish("DoorOpened", session.getSessionId(), payload);
             log.info("door opened {}", SessionLogContext.of(session));
+        } else if (!session.isPhysicalOpenConfirmed()) {
+            session.setPhysicalOpenConfirmed(true);
+            repository.save(session);
+            log.info("late physical door-open confirmed session={}", session.getSessionId());
         }
         return sessionService.toDto(session);
     }
 
     private SessionDto onDoorClosed(ShoppingSession session) {
+        // CONCURRENCY: applyDoorEvent 持 session:life 锁并在事务内 FOR UPDATE，门状态与物理开门标记串行更新。
         boolean orphanClose = false;
         if (session.getState() == SessionState.OPENING) {
             session.setOpenTime(Instant.now());
+            session.setPhysicalOpenConfirmed(true);
             sessionService.transition(session, SessionState.SHOPPING);
             orphanClose = true;
             log.warn("door closed while opening, treat as shopping {}", SessionLogContext.of(session));

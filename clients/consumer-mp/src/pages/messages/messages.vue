@@ -112,7 +112,14 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { showError, showSuccess } from '@/utils/notify';
+import {
+  showError,
+  showSuccess,
+  requestOrderSubscribe,
+  readSubscribeAck,
+  markSubscribeAck,
+  showSubscribeFeedback
+} from '@/utils/notify';
 import { onLoad, onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import {
   consumerApi,
@@ -138,7 +145,6 @@ const subscribeTemplateId = ref('');
  *  唯一能拿到的权威信号就是 requestSubscribeMessage 的 accept 回执，
  *  故本地按模板 id 记账；拒绝/未选保持 false，横幅继续可点。 */
 const subscribeAcked = ref(false);
-const SUBSCRIBE_ACK_KEY = 'wechat_subscribe_ack_tmpl';
 const subscribing = ref(false);
 const officialConfigured = ref(false);
 const officialBound = ref(false);
@@ -299,50 +305,25 @@ function goPendingOrders() {
   goOrdersTab(true);
 }
 
-function readSubscribeAck(tmplId: string): boolean {
-  if (!tmplId) return false;
-  try {
-    return String(uni.getStorageSync(SUBSCRIBE_ACK_KEY) || '') === tmplId;
-  } catch {
-    return false;
-  }
-}
-
-function markSubscribeAck(tmplId: string): void {
-  try {
-    uni.setStorageSync(SUBSCRIBE_ACK_KEY, tmplId);
-  } catch {
-    /* 存储不可用只影响本次会话，不阻断授权成功提示 */
-  }
-}
-
-function onSubscribe() {
+async function onSubscribe() {
   if (!isMpWeixin) {
     showError('请在微信小程序中开启提醒');
     return;
   }
-  if (!subscribeTemplateId.value) return;
+  if (!subscribeTemplateId.value || subscribing.value) return;
   subscribing.value = true;
-  uni.requestSubscribeMessage({
-    tmplIds: [subscribeTemplateId.value],
-    success: (res) => {
-      const status = Reflect.get(res as object, subscribeTemplateId.value);
-      const accept = status === 'accept';
-      if (accept) {
-        subscribeAcked.value = true;
-        markSubscribeAck(subscribeTemplateId.value);
-        showSuccess('已开启，消息将及时送达');
-      } else {
-        showError('未开启，可在设置中打开');
-      }
-    },
-    fail: () => {
-      showError('当前环境不支持订阅授权');
-    },
-    complete: () => {
-      subscribing.value = false;
+  try {
+    const result = await requestOrderSubscribe([subscribeTemplateId.value]);
+    for (const item of result.items) {
+      if (item.status === 'accept') markSubscribeAck(item.tmplId);
     }
-  });
+    subscribeAcked.value = result.items.some(
+      (item) => item.tmplId === subscribeTemplateId.value && item.status === 'accept'
+    );
+    showSubscribeFeedback(result, '已开启，消息将及时送达');
+  } finally {
+    subscribing.value = false;
+  }
 }
 
 async function onOfficialBind() {

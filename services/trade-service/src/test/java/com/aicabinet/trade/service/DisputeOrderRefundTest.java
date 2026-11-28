@@ -71,6 +71,7 @@ class DisputeOrderRefundTest {
     @Mock DistributedLockService distributedLockService;
     @Mock SessionService sessionService;
     @Mock CabinetMetrics metrics;
+    @Mock NotificationService notificationService;
 
     private DisputeService service;
 
@@ -90,6 +91,7 @@ class DisputeOrderRefundTest {
                 fileAttachmentService, null, orderPaymentService, distributedLockService, null, null,
                 sessionService, metrics, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "notificationService", notificationService);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L)))
                 .thenReturn(true);
         org.mockito.Mockito.lenient().when(fileAttachmentService.listDisputeEvidence(anyString()))
@@ -140,6 +142,8 @@ class DisputeOrderRefundTest {
         assertNotNull(ticket.getReopenedAt());
         assertEquals(SessionState.COMPLETED, session.getState());
         verify(settlementService, times(1)).waiveAndRefund(session, false);
+        verify(notificationService).notifyRefundAfterCommit(90001L, "O-FULL-1", 500, true,
+                "FULL:O-FULL-1");
 
         ResponseStatusException second = assertThrows(ResponseStatusException.class,
                 () -> service.refundByOperator(10001L, "O-FULL-1",
@@ -147,6 +151,8 @@ class DisputeOrderRefundTest {
         assertEquals(org.springframework.http.HttpStatus.CONFLICT, second.getStatusCode());
         assertTrue(second.getReason().contains("已退款"));
         verify(settlementService, times(1)).waiveAndRefund(any(), anyBoolean());
+        verify(notificationService, times(1)).notifyRefundAfterCommit(
+                anyLong(), anyString(), anyInt(), anyBoolean(), anyString());
     }
 
     // ── MA-154：消费者自助退款（钱会动的那条）的归属闸 ──────────────────────────

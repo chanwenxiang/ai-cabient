@@ -12,10 +12,12 @@ public record RiskEventDto(
         Instant createdAt,
         String dispositionStatus,
         Instant dispositionAt,
-        String dispositionNote
+        String dispositionNote,
+        Long dispositionOperatorId
 ) {
     public RiskEventDto(Long eventId, Long userId, String deviceId, String eventType,
                         String severity, String detail, Instant createdAt) {
-        this(eventId, userId, deviceId, eventType, severity, detail, createdAt, "OPEN", null, null);
+        this(eventId, userId, deviceId, eventType, severity, detail, createdAt,
+                "OPEN", null, null, null);
     }
 }

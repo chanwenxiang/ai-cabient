@@ -60,6 +60,7 @@ public class ScheduledTaskStaleMonitor {
     static final java.util.List<String> SPRING_RESIDENT_TASK_KEYS =
             java.util.List.of(
                     "session-failed-hold-clear",
+                    "refund-query",
                     "refund-retry",
                     "notification-outbox-retry",
                     "settlement-bill",
