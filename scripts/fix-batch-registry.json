@@ -3456,6 +3456,24 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "0050223b",
+      "report": "docs/PROJECT_KNOWLEDGE.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "迁移编号冲突收口与重复门迁移删除",
+          "files": [
+            "docs/PROJECT_KNOWLEDGE.md",
+            "docs/engineering/lessons-learned.md",
+            "services/trade-service/src/main/resources/db/migration/V520__shopping_session_physical_open_confirmed.sql",
+            "services/trade-service/src/main/resources/db/migration/V522__split_refund_query_and_retry.sql",
+            "services/trade-service/src/main/resources/db/migration/V523__risk_manual_disposition_operator.sql"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
