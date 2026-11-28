@@ -970,17 +970,45 @@ public class OrderPaymentService {
      * 重试时当前行集可能已被本地 prepare 扣减，无法先算出 amount，故用指纹前缀反查。</p>
      */
     public Optional<PaymentOperation> findCompletedRefundByFingerprint(String orderId, String fingerprint) {
+        return findCompletedRefundsByFingerprint(orderId, fingerprint).stream().findFirst();
+    }
+
+    /**
+     * 同一指纹最近一次退款请求的已完成金额合计（分）。组合支付会按渠道腿/余额腿分别落流水，
+     * 重试判据必须汇总各腿，不能把最新一条渠道腿金额当成请求总额。
+     */
+    public int findCompletedRefundCentsByFingerprint(String orderId, String fingerprint) {
+        List<PaymentOperation> operations = findCompletedRefundsByFingerprint(orderId, fingerprint).stream()
+                .sorted(java.util.Comparator.comparing(
+                        PaymentOperation::getCreatedAt,
+                        java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
+                .toList();
+        if (operations.isEmpty()) {
+            return 0;
+        }
+        String latestBaseKey = baseRefundIdempotencyKey(operations.get(0).getIdempotencyKey());
+        return operations.stream()
+                .filter(op -> latestBaseKey.equals(baseRefundIdempotencyKey(op.getIdempotencyKey())))
+                .mapToInt(PaymentOperation::getAmountCents)
+                .sum();
+    }
+
+    private List<PaymentOperation> findCompletedRefundsByFingerprint(String orderId, String fingerprint) {
         if (orderId == null || orderId.isBlank() || fingerprint == null || fingerprint.isBlank()) {
-            return Optional.empty();
+            return List.of();
         }
         return paymentOperationRepository.selectList(Wrappers.<PaymentOperation>lambdaQuery()
-                        .eq(PaymentOperation::getOrderId, orderId)
-                        .eq(PaymentOperation::getOperationType, REFUND)
-                        .eq(PaymentOperation::getStatus, STATUS_COMPLETED)
-                        .likeRight(PaymentOperation::getIdempotencyKey, "REFUND:" + orderId + ":")
-                        .like(PaymentOperation::getIdempotencyKey, ":L:" + fingerprint)
-                        .orderByDesc(PaymentOperation::getCreatedAt))
-                .stream().findFirst();
+                .eq(PaymentOperation::getOrderId, orderId)
+                .eq(PaymentOperation::getOperationType, REFUND)
+                .eq(PaymentOperation::getStatus, STATUS_COMPLETED)
+                .likeRight(PaymentOperation::getIdempotencyKey, "REFUND:" + orderId + ":")
+                .like(PaymentOperation::getIdempotencyKey, ":L:" + fingerprint)
+                .orderByDesc(PaymentOperation::getCreatedAt));
+    }
+
+    private static String baseRefundIdempotencyKey(String idempotencyKey) {
+        return idempotencyKey == null ? null
+                : idempotencyKey.replaceAll(":(BALANCE|WECHAT|ALIPAY)$", "");
     }
 
     /** 部分退 prepare 已提交的本地标记（与 prepare 同事务写入，用于重试时跳过二次扣行）。 */

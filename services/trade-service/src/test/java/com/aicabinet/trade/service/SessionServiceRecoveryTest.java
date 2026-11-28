@@ -61,6 +61,7 @@ class SessionServiceRecoveryTest {
         org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionSettleService", settleService);
         expireService = new SessionExpireService(
                 repository,
+                orderRepository,
                 com.aicabinet.trade.config.SessionExpireProperties.defaults(),
                 cabinetMetrics,
                 opsExceptionService,

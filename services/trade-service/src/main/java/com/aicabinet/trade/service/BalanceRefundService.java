@@ -492,8 +492,8 @@ public class BalanceRefundService {
         }
         List<BalanceRefundAllocation> allSucceeded = new ArrayList<>(doneBefore);
         allSucceeded.addAll(succeeded);
-        self.markRefundFailedAndReverse(req.getRequestId(), allSucceeded, failure);
-        // 失败已落库（PARTIAL/FAILED + 冲回），这里沿用既有契约向上抛错
+        self.markRefundFailedAndReverse(req.getRequestId(), allSucceeded, processing, failure);
+        // 失败/在途状态已落库（PROCESSING/PARTIAL/FAILED + 仅冲回确定失败额），这里沿用既有契约向上抛错
         throw new IllegalStateException("balance refund approve failed request=" + req.getRequestNo(), failure);
     }
 
@@ -691,12 +691,14 @@ public class BalanceRefundService {
     @Transactional
     public BalanceRefundRequest markRefundFailedAndReverse(long requestId,
                                                            List<BalanceRefundAllocation> succeeded,
+                                                           List<BalanceRefundAllocation> processing,
                                                            RuntimeException cause) {
         // CONCURRENCY: 申请行 FOR UPDATE 后读取切片轮次，保证失败冲回键按轮次唯一。
         BalanceRefundRequest req = requestMapper.selectByIdForUpdate(requestId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "退款申请不存在"));
         int succeededCents = succeeded.stream().mapToInt(BalanceRefundAllocation::getAmountCents).sum();
-        int reverseCents = Math.max(0, req.getAmountCents() - succeededCents);
+        int processingCents = processing.stream().mapToInt(BalanceRefundAllocation::getAmountCents).sum();
+        int reverseCents = Math.max(0, req.getAmountCents() - succeededCents - processingCents);
         if (reverseCents > 0) {
             int failureRound = allocationMapper.findByRequestId(requestId).size();
             String roundSuffix = failureRound == 0 ? "" : ":" + failureRound;
@@ -706,26 +708,35 @@ public class BalanceRefundService {
                     "余额退款渠道失败冲回 " + req.getRequestNo());
         }
         // H63: 有已成功切片时置 PARTIAL 保留进度（复审可续退剩余部分，且不可驳回）；
-        // 全部失败仍置 FAILED。
-        // AU-137：切片行级状态落权威——成功切片 SUCCEEDED，其余（失败片+未遍历片）FAILED；
-        // 续退规划据此只跳过成功切片的单，失败切片金额重新补扣重退
-        // 按 allocationId 精确判定（同一充值单可能跨批出现成功+失败切片，按单号会误标）
+        // 全部失败仍置 FAILED。仍在途切片既不能冲回余额，也不能标 FAILED。
+        // AU-137：切片行级状态落权威——成功切片 SUCCEEDED，在途切片保持 PROCESSING，
+        // 其余（失败片+未遍历片）FAILED；后续回调仍可确认在途片成功。
         java.util.Set<Long> succeededSliceIds = succeeded.stream()
                 .map(BalanceRefundAllocation::getAllocationId)
                 .collect(java.util.stream.Collectors.toSet());
+        java.util.Set<Long> processingSliceIds = processing.stream()
+                .map(BalanceRefundAllocation::getAllocationId)
+                .collect(java.util.stream.Collectors.toSet());
         for (BalanceRefundAllocation slice : allocationMapper.findByRequestId(requestId)) {
-            String target = succeededSliceIds.contains(slice.getAllocationId())
-                    ? SLICE_SUCCEEDED : SLICE_FAILED;
+            String target;
+            if (succeededSliceIds.contains(slice.getAllocationId())) {
+                target = SLICE_SUCCEEDED;
+            } else if (processingSliceIds.contains(slice.getAllocationId())) {
+                target = SLICE_PROCESSING;
+            } else {
+                target = SLICE_FAILED;
+            }
             if (!target.equals(slice.getStatus())) {
                 allocationMapper.updateStatus(slice.getAllocationId(), target);
             }
         }
-        req.setStatus(succeededCents > 0 ? STATUS_PARTIAL : STATUS_FAILED);
+        req.setStatus(!processing.isEmpty() ? STATUS_PROCESSING
+                : (succeededCents > 0 ? STATUS_PARTIAL : STATUS_FAILED));
         req.setFailReason(cause.getMessage() == null ? "渠道退款失败" : cause.getMessage());
         req.setUpdatedAt(Instant.now());
         requestMapper.updateById(req);
-        log.error("balance refund failed request={} reversed={} succeeded={}",
-                req.getRequestNo(), reverseCents, succeededCents, cause);
+        log.error("balance refund failed request={} reversed={} succeeded={} processing={}",
+                req.getRequestNo(), reverseCents, succeededCents, processingCents, cause);
         return req;
     }
 

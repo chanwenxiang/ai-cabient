@@ -159,6 +159,40 @@ class MerchantWalletFeeSplitTest {
         assertEquals(-10_000L, captor.getValue().getAmountCents());
     }
 
+    @Test
+    @DisplayName("分账冲正不得把余额压到冻结额以下")
+    void reverseCredit_rejectsWhenBalanceWouldFallBelowFrozen() {
+        when(accountMapper.findByOwnerForUpdate("MERCHANT", "M-1"))
+                .thenReturn(Optional.of(account(100L, 100L)));
+        when(ledgerMapper.findByRef("MERCHANT", "M-1", "SPLIT", "S-1"))
+                .thenReturn(Optional.of(new WalletLedger()));
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> engine.reverseCreditAllowNegativeIfPresent(
+                        WalletDomain.MERCHANT, "M-1", 100L, "SPLIT_REVERSE",
+                        "SPLIT_REV", "S-1", "SPLIT", "S-1", "退款冲正"));
+
+        assertEquals(HttpStatus.PRECONDITION_FAILED, e.getStatusCode());
+        verify(accountMapper, never()).updateBalances(anyString(), anyString(), anyLong(), anyLong(), any());
+        verify(ledgerMapper, never()).insert(any(WalletLedger.class));
+    }
+
+    @Test
+    @DisplayName("负向冲正旁路也不得把余额压到冻结额以下")
+    void debitAllowNegative_rejectsWhenBalanceWouldFallBelowFrozen() {
+        when(accountMapper.findByOwnerForUpdate("MERCHANT", "M-1"))
+                .thenReturn(Optional.of(account(100L, 100L)));
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> engine.debitIfAbsentAllowNegative(
+                        WalletDomain.MERCHANT, "M-1", 100L, "SPLIT_PARTIAL_REVERSE",
+                        "SPLIT_PARTIAL_REV", "S-1:g0", "部分退冲正"));
+
+        assertEquals(HttpStatus.PRECONDITION_FAILED, e.getStatusCode());
+        verify(accountMapper, never()).updateBalances(anyString(), anyString(), anyLong(), anyLong(), any());
+        verify(ledgerMapper, never()).insert(any(WalletLedger.class));
+    }
+
     private static WalletLedger find(List<WalletLedger> lines, String entryType) {
         return lines.stream().filter(l -> entryType.equals(l.getEntryType())).findFirst().orElseThrow();
     }

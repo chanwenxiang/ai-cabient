@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -104,7 +105,7 @@ class BalanceRefundSliceProbeTest {
 
         assertEquals(r, out);
         verify(paymentService).finalizeChannelPartialRefundQuietly("RC-1", 400, "BR901-S1");
-        verify(spySelf, never()).markRefundFailedAndReverse(anyLong(), anyList(), any(RuntimeException.class));
+        verify(spySelf, never()).markRefundFailedAndReverse(anyLong(), anyList(), anyList(), any(RuntimeException.class));
     }
 
     @Test
@@ -113,13 +114,13 @@ class BalanceRefundSliceProbeTest {
         channelThrows();
         when(paymentService.probeChannelRefundAccepted("RC-1", "BR901-S1"))
                 .thenReturn(PaymentService.SliceRefundProbe.NOT_FOUND);
-        doReturn(r).when(spySelf).markRefundFailedAndReverse(anyLong(), anyList(), any(RuntimeException.class));
+        doReturn(r).when(spySelf).markRefundFailedAndReverse(anyLong(), anyList(), anyList(), any(RuntimeException.class));
 
         assertThrows(IllegalStateException.class,
                 () -> ReflectionTestUtils.invokeMethod(service, "runChannelSlices",
                         r, List.of(alloc()), List.of()));
 
-        verify(spySelf).markRefundFailedAndReverse(anyLong(), anyList(), any(RuntimeException.class));
+        verify(spySelf).markRefundFailedAndReverse(anyLong(), anyList(), anyList(), any(RuntimeException.class));
         verify(paymentService, never()).finalizeChannelPartialRefundQuietly(anyString(), anyInt(), anyString());
     }
 
@@ -137,7 +138,7 @@ class BalanceRefundSliceProbeTest {
         assertEquals(r, out);
         verify(spySelf).markChannelSliceProgress(eq(901L), anyList());
         verify(paymentService, never()).finalizeChannelPartialRefundQuietly(anyString(), anyInt(), anyString());
-        verify(spySelf, never()).markRefundFailedAndReverse(anyLong(), anyList(), any(RuntimeException.class));
+        verify(spySelf, never()).markRefundFailedAndReverse(anyLong(), anyList(), anyList(), any(RuntimeException.class));
     }
 
     @Test
@@ -154,7 +155,7 @@ class BalanceRefundSliceProbeTest {
         assertEquals(r, out);
         verify(spySelf).markChannelSliceProgress(eq(901L), anyList());
         verify(paymentService, never()).finalizeChannelPartialRefundQuietly(anyString(), anyInt(), anyString());
-        verify(spySelf, never()).markRefundFailedAndReverse(anyLong(), anyList(), any(RuntimeException.class));
+        verify(spySelf, never()).markRefundFailedAndReverse(anyLong(), anyList(), anyList(), any(RuntimeException.class));
     }
 
     /** probe 无异常路径不受影响：渠道正常成功时不得触发查单。 */
@@ -171,7 +172,7 @@ class BalanceRefundSliceProbeTest {
         assertSame(r, out);
         verify(spySelf).markChannelSliceProgress(eq(901L), anyList());
         verify(spySelf, never()).markRefundSuccess(anyLong());
-        verify(spySelf, never()).markRefundFailedAndReverse(anyLong(), anyList(), any());
+        verify(spySelf, never()).markRefundFailedAndReverse(anyLong(), anyList(), anyList(), any());
     }
 
     @Test
@@ -185,5 +186,42 @@ class BalanceRefundSliceProbeTest {
                 r, List.of(alloc()), List.of());
 
         verify(paymentService, never()).probeChannelRefundAccepted(anyString(), anyString());
+    }
+
+    @Test
+    void processingSliceBeforeDefinitiveFailure_isNotReversedOrMarkedFailed() {
+        BalanceRefundRequest r = req();
+        r.setAmountCents(400);
+        BalanceRefundAllocation inFlight = alloc(1L, "RC-1", 200, "BR901-S1");
+        BalanceRefundAllocation failed = alloc(2L, "RC-2", 200, "BR901-S2");
+        when(paymentService.refundRechargeChannelPartial(eq("RC-1"), eq(200), anyString(), eq("BR901-S1")))
+                .thenReturn(new PaymentService.ChannelRefundResult("BR901-S1", "PROCESSING"));
+        when(paymentService.refundRechargeChannelPartial(eq("RC-2"), eq(200), anyString(), eq("BR901-S2")))
+                .thenThrow(new RuntimeException("channel read timeout"));
+        when(paymentService.probeChannelRefundAccepted("RC-2", "BR901-S2"))
+                .thenReturn(PaymentService.SliceRefundProbe.NOT_FOUND);
+        when(requestMapper.selectByIdForUpdate(901L)).thenReturn(Optional.of(r));
+        when(allocationMapper.findByRequestId(901L)).thenReturn(List.of(inFlight, failed));
+
+        assertThrows(IllegalStateException.class,
+                () -> ReflectionTestUtils.invokeMethod(service, "runChannelSlices",
+                        r, List.of(inFlight, failed), List.of()));
+
+        verify(balanceLedgerService).change(eq(903L), eq(200), eq("BALANCE_REFUND_REVERSAL"),
+                eq("901"), anyString(), anyString());
+        verify(allocationMapper, never()).updateStatus(1L, "FAILED");
+        verify(allocationMapper).updateStatus(2L, "FAILED");
+        assertEquals("PROCESSING", r.getStatus(), "仍有渠道在途切片时申请不得落 FAILED");
+    }
+
+    private BalanceRefundAllocation alloc(long id, String rechargeOrderId, int cents, String outRefundNo) {
+        BalanceRefundAllocation a = new BalanceRefundAllocation();
+        a.setAllocationId(id);
+        a.setRequestId(901L);
+        a.setRechargeOrderId(rechargeOrderId);
+        a.setAmountCents(cents);
+        a.setOutRefundNo(outRefundNo);
+        a.setStatus("PROCESSING");
+        return a;
     }
 }
