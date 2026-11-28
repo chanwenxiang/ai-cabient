@@ -33,7 +33,9 @@ describe('供应商付款幂等键', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('首次响应丢失后重试复用同一稳定键', async () => {
-    vi.mocked(api.request).mockRejectedValueOnce(new Error('response lost')).mockResolvedValueOnce({});
+    vi.mocked(api.request)
+      .mockRejectedValueOnce(new Error('response lost'))
+      .mockResolvedValueOnce({});
     const dialogs = makeDialogs();
     dialogs.openPay({ payableId: 7, balanceCents: 10000 });
 

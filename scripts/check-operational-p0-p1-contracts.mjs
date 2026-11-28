@@ -25,13 +25,17 @@ export const FILES = {
   full: 'infra/docker-compose.full.yml',
   paySupplierRequest:
     'services/common/common-core/src/main/java/com/aicabinet/common/dto/PaySupplierRequest.java',
-  supplierPayable: 'services/trade-service/src/main/java/com/aicabinet/trade/service/SupplierPayableService.java',
+  supplierPayable:
+    'services/trade-service/src/main/java/com/aicabinet/trade/service/SupplierPayableService.java',
   supplierPaymentMapper:
     'services/trade-service/src/main/java/com/aicabinet/trade/mapper/SupplierPaymentMapper.java',
   warehouseDialogs: 'clients/admin-vue/src/composables/warehouse/useWarehouseEntityDialogs.ts',
-  inventoryLot: 'services/trade-service/src/main/java/com/aicabinet/trade/service/InventoryLotService.java',
-  lotMapper: 'services/trade-service/src/main/java/com/aicabinet/trade/mapper/DeviceSkuLotMapper.java',
-  dataConsistency: 'services/trade-service/src/main/java/com/aicabinet/trade/service/DataConsistencyService.java'
+  inventoryLot:
+    'services/trade-service/src/main/java/com/aicabinet/trade/service/InventoryLotService.java',
+  lotMapper:
+    'services/trade-service/src/main/java/com/aicabinet/trade/mapper/DeviceSkuLotMapper.java',
+  dataConsistency:
+    'services/trade-service/src/main/java/com/aicabinet/trade/service/DataConsistencyService.java'
 };
 
 function requireAll(problems, id, source, literals) {

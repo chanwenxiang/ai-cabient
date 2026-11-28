@@ -58,20 +58,21 @@ const cases = [
     'warehouseDialogs',
     (s) => s.replace('idempotencyKey: paymentIdempotencyKey.value', "idempotencyKey: ''")
   ],
-  [
-    'MA-476',
-    'supplierPayable',
-    (s) => s.replaceAll('payable.getPaidAmountCents() > 0', 'false')
-  ],
+  ['MA-476', 'supplierPayable', (s) => s.replaceAll('payable.getPaidAmountCents() > 0', 'false')],
   [
     'MA-478',
     'lotMapper',
-    (s) => s.replace('.gt(DeviceSkuLot::getLotId, afterLotId)', '.gt(DeviceSkuLot::getSkuId, afterLotId)')
+    (s) =>
+      s.replace(
+        '.gt(DeviceSkuLot::getLotId, afterLotId)',
+        '.gt(DeviceSkuLot::getSkuId, afterLotId)'
+      )
   ],
   [
     'MA-480',
     'dataConsistency',
-    (s) => s.replace('currentLotQty != parseRecordCents(consistencyRecord.getActualValue())', 'false')
+    (s) =>
+      s.replace('currentLotQty != parseRecordCents(consistencyRecord.getActualValue())', 'false')
   ]
 ];
 for (const [id, key, mutate] of cases) {
