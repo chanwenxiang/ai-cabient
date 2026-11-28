@@ -3128,10 +3128,11 @@
 > 触发：2026-11-28 MA-475。先列主体：Stripe（支付官方）｜PayPal（支付官方）｜SAP（ERP 官方）。开门柜同行未公开供应商付款实现，不编造。
 
 - **竞品做法 / 官方口径**：
+  - **友宝 UBOX**、**丰e足食**（开门柜同行）：未查到供应商付款幂等实现的公开资料，不编造；只借下方支付/ERP 官方的一手范式。
   - **Stripe**（⭕ 官方）：幂等请求要求同一 key 对应同一请求参数；重试返回首次结果，参数不同会报错，避免重复扣款。
   - **PayPal**（⭕ 官方）：API 幂等键在重试窗口内标识同一业务请求，调用方必须复用键与请求体，响应丢失后可安全重试。
   - **SAP S/4HANA**（⭕ 官方）：供应商发票与付款业务以单据、期间和唯一业务键控制重复过账，强调同一业务只能入账一次。
-- **对照主体**：Stripe｜PayPal｜SAP
+- **对照主体**：友宝 UBOX｜丰e足食｜Stripe｜PayPal｜SAP
 - **证据**：
   - <https://docs.stripe.com/api/idempotent_requests> （⭕ Stripe：同键同参回放、异参报错）
   - <https://developer.paypal.com/reference/guidelines/idempotency/> （⭕ PayPal：幂等键与请求体重试契约）
@@ -3144,10 +3145,11 @@
 > 触发：2026-11-28 MA-476。先列主体：SAP（ERP 官方）｜Shopify（零售官方）｜Stripe（支付官方）。用户已拍板本期采用「已付退货直接拒绝，先走供应商退款/人工处理」。
 
 - **竞品做法 / 官方口径**：
+  - **友宝 UBOX**、**丰e足食**（开门柜同行）：未公开已付款采购退货的资金处理细节，不编造；只借下方零售/支付/ERP 官方范式。
   - **SAP S/4HANA**（⭕ 官方）：退货至供应商是独立业务场景，需按原始采购/收货关系处理数量与后续信贷，不能只改应付余额。
   - **Shopify**（⭕ 官方）：退货与退款是订单上的显式动作，退款会记录退款金额与状态，库存是否重新上架单独选择。
   - **Stripe**（⭕ 官方）：退款不能超过原收款；需要向客户列示贷项时使用独立 credit note，资金与单据留痕可追溯。
-- **对照主体**：SAP｜Shopify｜Stripe
+- **对照主体**：友宝 UBOX｜丰e足食｜SAP｜Shopify｜Stripe
 - **证据**：
   - <https://learning.sap.com/courses/establishing-core-supply-chain-processes-in-sap-s-4hana-cloud-public-edition-zh/%E4%BA%86%E8%A7%A3%E9%80%80%E8%B4%A7%E8%87%B3%E4%BE%9B%E5%BA%94%E5%95%86-bmk-%E5%9C%BA%E6%99%AF_c73e0390-45fc-4929-95d1-8af0a467f0a9_zh-CN> （⭕ SAP：退货至供应商）
   - <https://help.shopify.com/en/manual/orders/returns-refunds> （⭕ Shopify：退货、退款与重新上架）
@@ -3160,10 +3162,11 @@
 > 触发：2026-11-28 MA-478/480。先列主体：PostgreSQL（数据库官方）｜MySQL（数据库官方）｜Microsoft Dynamics 365（ERP 官方）。
 
 - **竞品做法 / 官方口径**：
+  - **友宝 UBOX**、**丰e足食**（开门柜同行）：未公开内部效期扫描游标与库存修复锁实现，不编造；只借下方数据库/ERP 官方并发范式。
   - **PostgreSQL**（⭕ 官方）：事务隔离级别决定并发读写可见性；需要避免并发覆盖时，必须用锁或明确的条件更新，不能依赖旧快照。
   - **MySQL**（⭕ 官方）：InnoDB locking reads 在事务内读取并锁定当前最新行，适合「读后修改」的并发控制。
   - **Microsoft Dynamics 365**（⭕ 官方）：库存调整向导按当前库存执行受控调整并保留记录，修复动作必须基于当前账实。
-- **对照主体**：PostgreSQL｜MySQL｜Microsoft Dynamics 365
+- **对照主体**：友宝 UBOX｜丰e足食｜PostgreSQL｜MySQL｜Microsoft Dynamics 365
 - **证据**：
   - <https://www.postgresql.org/docs/current/transaction-iso.html> （⭕ PostgreSQL：事务隔离）
   - <https://dev.mysql.com/doc/refman/8.4/en/innodb-locking-reads.html> （⭕ MySQL：锁定读）

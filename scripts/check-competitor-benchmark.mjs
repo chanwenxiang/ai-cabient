@@ -150,6 +150,10 @@ const SUBJECT_ALIASES = [
   { re: /通联|allinpay/i, id: '通联支付', kind: 'official' },
   { re: /支付宝/i, id: '支付宝', kind: 'official' },
   { re: /微信支付/i, id: '微信支付', kind: 'official' },
+  { re: /Stripe/i, id: 'Stripe', kind: 'official' },
+  { re: /PayPal/i, id: 'PayPal', kind: 'official' },
+  { re: /PostgreSQL/i, id: 'PostgreSQL', kind: 'official' },
+  { re: /MySQL/i, id: 'MySQL', kind: 'official' },
   // 跨行业范式（cross）—— 借合规边界/做法形态，**不可顶替同行**
   { re: /哈啰|哈罗|hellobike|hello\b/i, id: '哈啰出行', kind: 'cross' },
   { re: /充电宝|街电|怪兽充电|美团充电/i, id: '共享充电宝', kind: 'cross' },
@@ -175,6 +179,8 @@ const SUBJECT_ALIASES = [
   { re: /Snow\s*Peak|雪诺必克/i, id: 'SnowPeak雪诺必克', kind: 'cross' },
   { re: /农业银行|农行/i, id: '中国农业银行', kind: 'cross' },
   { re: /Dynamics/i, id: 'MicrosoftDynamics', kind: 'cross' },
+  { re: /SAP/i, id: 'SAP', kind: 'cross' },
+  { re: /Shopify/i, id: 'Shopify', kind: 'cross' },
   // 行业研究机构（research）：给统计口径，不是自述主体
   { re: /中研普华|chinairn/i, id: '中研普华', kind: 'research' },
   { re: /沙利文|frost\s*sullivan|弗若斯特/i, id: '弗若斯特沙利文', kind: 'research' },
