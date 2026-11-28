@@ -3365,6 +3365,64 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "f6e41263",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 4,
+      "items": [
+        {
+          "id": "MA-475 供应商付款幂等键必填并并发只入账一次",
+          "files": [
+            "clients/admin-vue/src/composables/warehouse/useWarehouseEntityDialogs.ts",
+            "services/common/common-core/src/main/java/com/aicabinet/common/dto/PaySupplierRequest.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/SupplierPaymentMapper.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SupplierPayableService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SupplierPayableConcurrencyTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SupplierPayableServiceTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SupplierFundingSafetySqlIT.java",
+            "packages/shared-types/src/generated/openapi.ts",
+            "scripts/check-operational-p0-p1-contracts.mjs",
+            "scripts/check-operational-p0-p1-contracts.test.mjs",
+            "docs/COMPETITOR_BENCHMARK.md"
+          ]
+        },
+        {
+          "id": "MA-476 已付款采购退货直接拒绝并整事务回滚",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SupplierPayableService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SupplierPayableServiceTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SupplierFundingSafetySqlIT.java",
+            "scripts/check-operational-p0-p1-contracts.mjs",
+            "scripts/check-operational-p0-p1-contracts.test.mjs",
+            "docs/COMPETITOR_BENCHMARK.md"
+          ]
+        },
+        {
+          "id": "MA-478 临期扫描用稳定游标连续追平",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/DeviceSkuLotMapper.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/InventoryLotService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/InventoryLotExpiryScanR18Test.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/integration/InventoryConsistencyR18IT.java",
+            "scripts/check-operational-p0-p1-contracts.mjs",
+            "scripts/check-operational-p0-p1-contracts.test.mjs",
+            "docs/COMPETITOR_BENCHMARK.md"
+          ]
+        },
+        {
+          "id": "MA-480 旧巡检快照在设备锁内重读并拒绝过期修复",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/DataConsistencyService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/integration/InventoryConsistencyR18IT.java",
+            "scripts/check-operational-p0-p1-contracts.mjs",
+            "scripts/check-operational-p0-p1-contracts.test.mjs",
+            "docs/COMPETITOR_BENCHMARK.md"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
