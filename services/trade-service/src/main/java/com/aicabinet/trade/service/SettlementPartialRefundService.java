@@ -82,18 +82,18 @@ public class SettlementPartialRefundService {
             refundCents = self.planPartialRefundCents(order.getOrderId(), refundLines);
         } catch (ResponseStatusException e) {
             // prepare 已把行扣减掉时，重试规划会 400/409；若渠道退款已完成，走本地恢复路径
-            var completed = orderPaymentService.findCompletedRefundByFingerprint(order.getOrderId(), fingerprint);
-            if (completed.isPresent()) {
+            int completedCents = orderPaymentService.findCompletedRefundCentsByFingerprint(
+                    order.getOrderId(), fingerprint);
+            if (completedCents > 0) {
                 return resumeLocalPartialRefund(order.getOrderId(), refundLines, defaultRestore,
-                        completed.get().getAmountCents());
+                        completedCents);
             }
             throw e;
         }
         // 渠道已退的同参重试：先恢复本地收尾，不再调用渠道、也不 409
-        var completedBeforeChannel =
-                orderPaymentService.findCompletedRefundByFingerprint(order.getOrderId(), fingerprint);
-        if (completedBeforeChannel.isPresent()
-                && completedBeforeChannel.get().getAmountCents() == refundCents) {
+        int completedBeforeChannel = orderPaymentService.findCompletedRefundCentsByFingerprint(
+                order.getOrderId(), fingerprint);
+        if (completedBeforeChannel == refundCents) {
             return resumeLocalPartialRefund(order.getOrderId(), refundLines, defaultRestore, refundCents);
         }
         // AU-174：支付层动账前捕获真实「已退累计」，杜绝 finalize 二次累加
@@ -110,8 +110,9 @@ public class SettlementPartialRefundService {
         if (!channelExecuted) {
             // 渠道退款已完成（幂等命中）不能直接 409：第一次可能只完成了渠道/支付流水，
             // 本地行、应付、状态还没收尾。这里按同一指纹恢复本地 prepare/finalize。
-            var completed = orderPaymentService.findCompletedRefundByFingerprint(order.getOrderId(), fingerprint);
-            if (completed.isPresent() && completed.get().getAmountCents() == refundCents) {
+            int completedCents = orderPaymentService.findCompletedRefundCentsByFingerprint(
+                    order.getOrderId(), fingerprint);
+            if (completedCents == refundCents) {
                 return resumeLocalPartialRefund(order.getOrderId(), refundLines, defaultRestore, refundCents);
             }
             throw new ResponseStatusException(HttpStatus.CONFLICT,

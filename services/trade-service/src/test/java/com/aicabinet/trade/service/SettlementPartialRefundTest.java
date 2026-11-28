@@ -3,7 +3,6 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.OrderRefundRequest;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.CabinetOrderLine;
-import com.aicabinet.trade.domain.PaymentOperation;
 import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -415,17 +414,13 @@ class SettlementPartialRefundTest {
         CabinetOrder order = paidOrder();
         order.setRefundedCents(400); // finalizeLiveOrderRefund 已累加本次退款
 
-        PaymentOperation completed = new PaymentOperation();
-        completed.setOrderId("O-R");
-        completed.setAmountCents(400);
-
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(orderRepository.findById("O-R")).thenReturn(Optional.of(order));
         when(orderRepository.findByIdForUpdate("O-R")).thenReturn(Optional.of(order));
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
         doNothing().when(revenueSplitService).adjustSplitAfterPartialRefund(any(), anyBoolean());
-        when(orderPaymentService.findCompletedRefundByFingerprint(eq("O-R"), anyString()))
-                .thenReturn(Optional.of(completed));
+        when(orderPaymentService.findCompletedRefundCentsByFingerprint(eq("O-R"), anyString()))
+                .thenReturn(400);
 
         var result = settlementService.partialRefund(
                 order,

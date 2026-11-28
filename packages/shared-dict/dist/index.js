@@ -641,6 +641,7 @@ export const DICT = {
         BALANCE_INSUFFICIENT: '余额不足',
         SETTLEMENT_FAILED: '结算失败',
         SETTLEMENT_STUCK: '结算滞留',
+        SETTLEMENT_FINALIZE_PENDING: '已扣款结算收尾未完成',
         INVENTORY_MISMATCH: '库存差异',
         // 货道账实差异：批 3b 第十一刀停产者（V445 置 INACTIVE），键**保留**作历史行兜底译名，勿删
         SLOT_DISCREPANCY: '货道账实差异',
