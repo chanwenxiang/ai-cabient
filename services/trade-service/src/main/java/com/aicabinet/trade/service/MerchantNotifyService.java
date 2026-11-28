@@ -94,7 +94,7 @@ public class MerchantNotifyService {
                 .map(p -> p.getId().getAlertType())
                 .sorted()
                 .toList();
-        return new MerchantNotifyPrefDto(user.getWxOpenId() != null && !user.getWxOpenId().isBlank(), enabled);
+        return new MerchantNotifyPrefDto(user.getWxMerchantOpenId() != null && !user.getWxMerchantOpenId().isBlank(), enabled);
     }
 
     /** code2Session 在事务外；落库走短事务。 */
@@ -112,7 +112,8 @@ public class MerchantNotifyService {
         UserInfo user = userInfoRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
                         org.springframework.http.HttpStatus.NOT_FOUND, "用户不存在"));
-        user.setWxOpenId(openId);
+        user.setWxMerchantOpenId(openId);
+        user.setWxMerchantAppId(weChatMiniAppProperties.resolveAppId(MiniAppTarget.MERCHANT));
         userInfoRepository.save(user);
     }
 
@@ -197,7 +198,7 @@ public class MerchantNotifyService {
             return false;
         }
         UserInfo user = userInfoRepository.findById(userId).orElse(null);
-        if (user == null || user.getWxOpenId() == null || user.getWxOpenId().isBlank()) {
+        if (user == null || user.getWxMerchantOpenId() == null || user.getWxMerchantOpenId().isBlank()) {
             return false;
         }
         if (!permissionService.hasPermission(userId, "merchant:alerts:view")) {
@@ -222,7 +223,7 @@ public class MerchantNotifyService {
         }
         String templateId = weChatMiniAppProperties.subscribeTemplateId();
         boolean sent = weChatMiniAppClient.sendSubscribeMessage(
-                user.getWxOpenId(),
+                user.getWxMerchantOpenId(),
                 templateId != null ? templateId : "mock-template",
                 weChatMiniAppProperties.resolveNotifyPage(),
                 Map.of(

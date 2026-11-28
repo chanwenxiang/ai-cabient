@@ -157,14 +157,14 @@ public class MerchantDeviceIncidentNotifyService {
                     continue;
                 }
                 UserInfo user = userInfoRepository.findById(userId).orElse(null);
-                if (user == null || user.getWxOpenId() == null || user.getWxOpenId().isBlank()) {
+                if (user == null || user.getWxMerchantOpenId() == null || user.getWxMerchantOpenId().isBlank()) {
                     continue;
                 }
                 if (notifyLogRepository.findFirstByUserIdAndDigestAndSentAtAfter(userId, digest, since).isPresent()) {
                     continue;
                 }
                 boolean ok = weChatMiniAppClient.sendSubscribeMessage(
-                        user.getWxOpenId(),
+                        user.getWxMerchantOpenId(),
                         templateId != null ? templateId : "mock-template",
                         weChatMiniAppProperties.resolveNotifyPage(),
                         Map.of(

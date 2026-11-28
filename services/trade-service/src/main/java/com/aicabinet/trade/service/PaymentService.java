@@ -481,14 +481,14 @@ public class PaymentService {
             if (refundId == null || refundId.isBlank()) {
                 log.error("wechat refund notify missing refund_id orderId={} status={} —— 缺幂等键，拒绝入账",
                         outTradeNo, refundStatus);
-                opsAlertDispatcher.send("WECHAT_REFUND_SYNC_MISSING_REFUND_ID", "微信退款回调缺 refund_id",
+                opsAlertDispatcher.sendAfterCommit("WECHAT_REFUND_SYNC_MISSING_REFUND_ID", "微信退款回调缺 refund_id",
                         "orderId=" + outTradeNo + " 需人工核对（缺幂等键，未入账）");
                 return;
             }
             if (!STATUS_SUCCESS.equals(refundStatus)) {
                 if ("ABNORMAL".equals(refundStatus)) {
                     log.error("wechat refund notify abnormal confirmed orderId={} refundId={}", outTradeNo, refundId);
-                    opsAlertDispatcher.send("WECHAT_REFUND_ABNORMAL", "微信退款异常（回调确认）",
+                    opsAlertDispatcher.sendAfterCommit("WECHAT_REFUND_ABNORMAL", "微信退款异常（回调确认）",
                             "orderId=" + outTradeNo + " refundId=" + refundId + " 需人工介入");
                 } else {
                     log.info("wechat refund notify ignored refund_status={} orderId={}", refundStatus, outTradeNo);
@@ -1484,7 +1484,7 @@ public class PaymentService {
     /** 复用既有运营告警分发（钉钉/企微/Webhook）；失败仅记日志不影响主流程。 */
     private void sendOpsAlert(String type, String title, String message, RechargeOrder order) {
         try {
-            opsAlertDispatcher.send(type, title, message,
+            opsAlertDispatcher.sendAfterCommit(type, title, message,
                     Map.of(ORDERID, order.getOrderId(), AMOUNT, yuan(order.getAmountCents())));
         } catch (Exception e) {
             log.warn("ops alert failed type={} orderId={}", type, order.getOrderId(), e);
@@ -1508,7 +1508,7 @@ public class PaymentService {
     private void alertSilentCallback(String type, String title, String detail) {
         log.error("payment callback silently ignored type={} detail={}", type, detail);
         try {
-            opsAlertDispatcher.send(type, title, detail, Map.of("detail", detail));
+            opsAlertDispatcher.sendAfterCommit(type, title, detail, Map.of("detail", detail));
         } catch (Exception e) {
             log.warn("ops alert failed type={} detail={}", type, detail, e);
         }

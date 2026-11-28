@@ -1129,6 +1129,21 @@
           "why": "；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
         }
       ]
+    },
+    {
+      "entity": "NotificationDispatchOutbox",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/NotificationDispatchOutbox.java",
+      "terminal": ["SENT"],
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/NotificationDispatchOutboxService.java",
+          "anchor": "dispatchRow",
+          "from": ["PENDING", "FAILED"],
+          "to": "SENT",
+          "threshold": "next_retry_at；失败后 1~360 分钟指数退避"
+        }
+      ],
+      "gaps": []
     }
   ],
   "nonLifecycle": [

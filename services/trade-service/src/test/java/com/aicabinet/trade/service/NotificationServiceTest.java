@@ -1,13 +1,10 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.trade.config.NotificationProperties;
 import com.aicabinet.common.dto.NotificationDispatchMessage;
 import com.aicabinet.trade.domain.NotificationLog;
 import com.aicabinet.trade.domain.NotificationTemplate;
-import com.aicabinet.trade.messaging.NotificationDispatchProducer;
 import com.aicabinet.trade.mapper.NotificationLogMapper;
 import com.aicabinet.trade.mapper.NotificationTemplateMapper;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -40,19 +37,16 @@ class NotificationServiceTest {
     @Mock private NotificationTemplateMapper templateRepository;
     @Mock private NotificationLogMapper logRepository;
     @Mock private ConsumerNotifyPrefService notifyPrefService;
-    @Mock private ExternalNotificationDispatcher externalDispatcher;
-    @Mock private ObjectProvider<NotificationDispatchProducer> producerProvider;
-    @Mock private NotificationDispatchProducer producer;
+    @Mock private NotificationDispatchOutboxService outboxService;
     @Mock private DistributedLockService distributedLockService;
     @Mock private AdminAuditService auditService;
 
-    private NotificationService service(boolean async) {
+    private NotificationService service() {
         when(distributedLockService.tryLock(org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.eq(60L), org.mockito.ArgumentMatchers.eq(5L)))
                 .thenReturn(true);
         NotificationService svc = new NotificationService(templateRepository, logRepository,
-                new NotifyChannelSwitchService(org.mockito.Mockito.mock(SystemConfigService.class), new NotificationProperties(false, false, async)), notifyPrefService,
-                externalDispatcher, producerProvider, distributedLockService, auditService, null);
+                notifyPrefService, outboxService, distributedLockService, auditService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(svc, "self", svc);
         return svc;
     }
@@ -72,20 +66,20 @@ class NotificationServiceTest {
 
     @Test
     void send_shouldPersistInAppOnlyByDefault() {
-        NotificationService service = service(false);
+        NotificationService service = service();
         when(templateRepository.findByCode("order_paid")).thenReturn(Optional.of(template("IN_APP", "ORDER")));
         when(notifyPrefService.isEnabled(100L, "ORDER")).thenReturn(true);
 
         service.notifyConsumer(100L, "order_paid",
                 Map.of("orderId", "O1", "amount", "12"), "ORDER", "O1");
 
-        verify(logRepository).save(any(NotificationLog.class));
-        verify(externalDispatcher, never()).dispatch(any());
+        verify(logRepository).insertIgnore(any(NotificationLog.class));
+        verify(outboxService, never()).enqueue(any());
     }
 
     @Test
-    void send_shouldDispatchExternalSynchronouslyWhenAsyncDisabled() {
-        NotificationService service = service(false);
+    void send_shouldEnqueueAndDispatchExternalImmediatelyWithoutTransaction() {
+        NotificationService service = service();
         when(templateRepository.findByCode("order_paid"))
                 .thenReturn(Optional.of(template("IN_APP,WECHAT_SUBSCRIBE,SMS", "ORDER")));
         when(notifyPrefService.isEnabled(100L, "ORDER")).thenReturn(true);
@@ -93,37 +87,40 @@ class NotificationServiceTest {
         service.notifyConsumer(100L, "order_paid",
                 Map.of("orderId", "O1", "amount", "12"), "ORDER", "O1");
 
-        verify(logRepository).save(any(NotificationLog.class));
+        verify(logRepository).insertIgnore(any(NotificationLog.class));
         ArgumentCaptor<NotificationDispatchMessage> captor =
                 ArgumentCaptor.forClass(NotificationDispatchMessage.class);
-        verify(externalDispatcher).dispatch(captor.capture());
+        verify(outboxService).enqueue(captor.capture());
         assertEquals("order_paid", captor.getValue().templateCode());
         assertEquals(100L, captor.getValue().userId());
-        verify(producer, never()).publish(any());
+        verify(outboxService).dispatchByKey(captor.getValue().clientMsgId());
     }
 
     @Test
-    void send_shouldPublishToQueueWhenAsyncEnabled() {
-        NotificationService service = service(true);
+    void send_shouldUseDeterministicClientMsgId() {
+        NotificationService service = service();
         when(templateRepository.findByCode("order_paid"))
                 .thenReturn(Optional.of(template("IN_APP,WECHAT_SUBSCRIBE", "ORDER")));
         when(notifyPrefService.isEnabled(100L, "ORDER")).thenReturn(true);
-        when(producerProvider.getIfAvailable()).thenReturn(producer);
 
         service.notifyConsumer(100L, "order_paid",
                 Map.of("orderId", "O1", "amount", "12"), "ORDER", "O1");
+        service.notifyConsumer(100L, "order_paid",
+                Map.of("orderId", "O1", "amount", "12"), "ORDER", "O1");
 
-        verify(logRepository).save(any(NotificationLog.class));
         ArgumentCaptor<NotificationDispatchMessage> captor =
                 ArgumentCaptor.forClass(NotificationDispatchMessage.class);
-        verify(producer).publish(captor.capture());
-        assertEquals("order_paid", captor.getValue().templateCode());
-        verify(externalDispatcher, never()).dispatch(any());
+        verify(outboxService, org.mockito.Mockito.times(2)).enqueue(captor.capture());
+        assertEquals(captor.getAllValues().get(0).clientMsgId(), captor.getAllValues().get(1).clientMsgId());
+        ArgumentCaptor<NotificationLog> inApp = ArgumentCaptor.forClass(NotificationLog.class);
+        verify(logRepository, org.mockito.Mockito.times(2)).insertIgnore(inApp.capture());
+        assertEquals("inapp:" + captor.getValue().clientMsgId(), inApp.getValue().getClientMsgId());
+        assertEquals(inApp.getAllValues().get(0).getClientMsgId(), inApp.getAllValues().get(1).getClientMsgId());
     }
 
     @Test
     void send_externalDispatch_waitsForCommit() {
-        NotificationService service = service(false);
+        NotificationService service = service();
         when(templateRepository.findByCode("order_paid"))
                 .thenReturn(Optional.of(template("IN_APP,WECHAT_SUBSCRIBE,SMS", "ORDER")));
         when(notifyPrefService.isEnabled(100L, "ORDER")).thenReturn(true);
@@ -131,38 +128,56 @@ class NotificationServiceTest {
         try {
             service.notifyConsumer(100L, "order_paid",
                     Map.of("orderId", "O1", "amount", "12"), "ORDER", "O1");
-            verify(externalDispatcher, never()).dispatch(any());
+            ArgumentCaptor<NotificationDispatchMessage> captor =
+                    ArgumentCaptor.forClass(NotificationDispatchMessage.class);
+            verify(outboxService).enqueue(captor.capture());
+            verify(outboxService, never()).dispatchByKey(any());
             TransactionSynchronizationManager.getSynchronizations()
                     .forEach(TransactionSynchronization::afterCommit);
-            verify(externalDispatcher).dispatch(any());
+            verify(outboxService).dispatchByKey(captor.getValue().clientMsgId());
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }
     }
 
     @Test
-    void send_asyncPublish_waitsForCommit() {
-        NotificationService service = service(true);
+    void send_afterCommitFailure_isIsolatedFromCommittedBusiness() {
+        NotificationService service = service();
         when(templateRepository.findByCode("order_paid"))
                 .thenReturn(Optional.of(template("IN_APP,WECHAT_SUBSCRIBE", "ORDER")));
         when(notifyPrefService.isEnabled(100L, "ORDER")).thenReturn(true);
-        when(producerProvider.getIfAvailable()).thenReturn(producer);
+        org.mockito.Mockito.doThrow(new IllegalStateException("broker down"))
+                .when(outboxService).dispatchByKey(any());
         TransactionSynchronizationManager.initSynchronization();
         try {
             service.notifyConsumer(100L, "order_paid",
                     Map.of("orderId", "O1", "amount", "12"), "ORDER", "O1");
-            verify(producer, never()).publish(any());
-            TransactionSynchronizationManager.getSynchronizations()
-                    .forEach(TransactionSynchronization::afterCommit);
-            verify(producer).publish(any());
+            org.junit.jupiter.api.Assertions.assertDoesNotThrow(() ->
+                    TransactionSynchronizationManager.getSynchronizations()
+                            .forEach(TransactionSynchronization::afterCommit));
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }
     }
 
     @Test
+    void send_outboxEnqueueFailure_fallsBackToDirectDispatch() {
+        NotificationService service = service();
+        when(templateRepository.findByCode("order_paid"))
+                .thenReturn(Optional.of(template("IN_APP,WECHAT_SUBSCRIBE", "ORDER")));
+        when(notifyPrefService.isEnabled(100L, "ORDER")).thenReturn(true);
+        org.mockito.Mockito.doThrow(new IllegalStateException("outbox down"))
+                .when(outboxService).enqueue(any());
+
+        service.notifyConsumer(100L, "order_paid",
+                Map.of("orderId", "O1", "amount", "12"), "ORDER", "O1");
+
+        verify(outboxService).dispatchDirect(any(NotificationDispatchMessage.class));
+    }
+
+    @Test
     void send_prefDisabled_stillPersistsInAppButSkipsExternal() {
-        NotificationService service = service(false);
+        NotificationService service = service();
         when(templateRepository.findByCode("order_paid"))
                 .thenReturn(Optional.of(template("IN_APP,WECHAT_SUBSCRIBE,SMS", "ORDER")));
         when(notifyPrefService.isEnabled(100L, "ORDER")).thenReturn(false);
@@ -170,13 +185,13 @@ class NotificationServiceTest {
         service.notifyConsumer(100L, "order_paid",
                 Map.of("orderId", "O1", "amount", "12"), "ORDER", "O1");
 
-        verify(logRepository).save(any(NotificationLog.class));
-        verify(externalDispatcher, never()).dispatch(any());
+        verify(logRepository).insertIgnore(any(NotificationLog.class));
+        verify(outboxService, never()).enqueue(any());
     }
 
     @Test
-    void refundNotification_withoutTransaction_sendsImmediately() {
-        NotificationService service = service(false);
+    void refundNotification_withoutTransaction_enqueuesAndDispatches() {
+        NotificationService service = service();
         NotificationTemplate refund = template("IN_APP,WECHAT_SUBSCRIBE", "ORDER");
         refund.setTemplateCode("refund_success");
         refund.setTitleTemplate("退款成功");
@@ -188,14 +203,15 @@ class NotificationServiceTest {
 
         ArgumentCaptor<NotificationDispatchMessage> captor =
                 ArgumentCaptor.forClass(NotificationDispatchMessage.class);
-        verify(externalDispatcher).dispatch(captor.capture());
+        verify(outboxService).enqueue(captor.capture());
         assertEquals("REFUND", captor.getValue().bizType());
         assertEquals("5.50", captor.getValue().smsParams().get("amount"));
+        verify(outboxService).dispatchByKey(captor.getValue().clientMsgId());
     }
 
     @Test
     void refundNotification_insideTransaction_waitsForCommit() {
-        NotificationService service = service(false);
+        NotificationService service = service();
         NotificationTemplate refund = template("IN_APP,WECHAT_SUBSCRIBE", "ORDER");
         refund.setTemplateCode("refund_success");
         refund.setTitleTemplate("退款成功");
@@ -205,10 +221,13 @@ class NotificationServiceTest {
         TransactionSynchronizationManager.initSynchronization();
         try {
             service.notifyRefundAfterCommit(100L, "R1", 550, false);
-            verify(externalDispatcher, never()).dispatch(any());
+            ArgumentCaptor<NotificationDispatchMessage> captor =
+                    ArgumentCaptor.forClass(NotificationDispatchMessage.class);
+            verify(outboxService).enqueue(captor.capture());
+            verify(outboxService, never()).dispatchByKey(any());
             TransactionSynchronizationManager.getSynchronizations()
                     .forEach(org.springframework.transaction.support.TransactionSynchronization::afterCommit);
-            verify(externalDispatcher).dispatch(any());
+            verify(outboxService).dispatchByKey(captor.getValue().clientMsgId());
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }
@@ -216,7 +235,7 @@ class NotificationServiceTest {
 
     @Test
     void updateManual_shouldUpdateTitleAndBody() {
-        NotificationService service = service(false);
+        NotificationService service = service();
         NotificationLog existing = new NotificationLog();
         existing.setId(9L);
         existing.setTitle("旧标题");
@@ -239,7 +258,7 @@ class NotificationServiceTest {
 
     @Test
     void deleteManual_shouldDeleteById() {
-        NotificationService service = service(false);
+        NotificationService service = service();
         NotificationLog existing = new NotificationLog();
         existing.setId(11L);
         when(logRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(existing));
@@ -258,7 +277,7 @@ class NotificationServiceTest {
 
     @Test
     void markConsumerRead_foreignUser_forbiddenAndNotMarked() {
-        NotificationService service = service(false);
+        NotificationService service = service();
         NotificationLog other = new NotificationLog();
         other.setId(77L);
         other.setUserId(2002L);
@@ -275,7 +294,7 @@ class NotificationServiceTest {
     @Test
     void markConsumerRead_owner_marksRead() {
         // 正向对照：本人必须过得去，否则上面那条「403」可能是闸写反了造成的假绿
-        NotificationService service = service(false);
+        NotificationService service = service();
         NotificationLog mine = new NotificationLog();
         mine.setId(78L);
         mine.setUserId(1001L);

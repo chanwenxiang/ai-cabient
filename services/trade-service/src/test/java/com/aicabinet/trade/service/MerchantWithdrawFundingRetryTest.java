@@ -246,6 +246,22 @@ class MerchantWithdrawFundingRetryTest {
         verify(payoutService, never()).payout(any(), any(), any());
     }
 
+    @Test
+    void reviewReject_notifiesMerchantOperators() {
+        MerchantWithdrawRequest request = candidate("PENDING_REVIEW");
+        when(withdrawMapper.findById(1L)).thenReturn(Optional.of(request));
+        when(userMerchantRepository.findActiveByMerchantId("M-1"))
+                .thenReturn(List.of(new OpsUserMerchant(101L, "M-1")));
+
+        service.review(10001L, 1L, false, "资料有误");
+
+        assertEquals("REJECTED", request.getStatus());
+        verify(merchantWalletService).releaseFrozen(eq("M-1"), eq(1_000L),
+                eq("WITHDRAW"), eq("1"), anyString());
+        verify(notificationService).send(eq("MERCHANT"), eq(101L), eq("M-1"),
+                eq("merchant_withdraw_failed"), anyMap(), eq("WITHDRAW_FAILED"), eq("1"));
+    }
+
     private MerchantWithdrawRequest candidate(String status) {
         MerchantWithdrawRequest request = new MerchantWithdrawRequest();
         request.setRequestId(1L);

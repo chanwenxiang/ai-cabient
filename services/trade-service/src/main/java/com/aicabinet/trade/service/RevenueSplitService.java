@@ -727,9 +727,14 @@ public class RevenueSplitService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    profitSharingService.submitSplit(splitRef, merchantRef, wxTxnRef);
-                    log.info("auto submit profit sharing after order increase order={} splitId={} wxTxn={}",
-                            orderIdRef, splitRef.getSplitId(), wxTxnRef);
+                    try {
+                        profitSharingService.submitSplit(splitRef, merchantRef, wxTxnRef);
+                        log.info("auto submit profit sharing after order increase order={} splitId={} wxTxn={}",
+                                orderIdRef, splitRef.getSplitId(), wxTxnRef);
+                    } catch (RuntimeException e) {
+                        log.error("auto submit profit sharing after commit failed order={} splitId={}",
+                                orderIdRef, splitRef.getSplitId(), e);
+                    }
                 }
             });
         } else {

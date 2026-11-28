@@ -55,18 +55,32 @@ function git(args) {
 }
 
 const baseRef = process.env.MIGRATION_BASE_REF || 'origin/dev';
-let diffList = await git([
+const committedDiff = await git([
   'diff',
   '--name-only',
-  '--diff-filter=A',
+  '--diff-filter=AR',
   `${baseRef}...HEAD`,
   '--',
   migrationDir
 ]);
-if (!diffList.ok) {
-  // 无 remote 基线时：相对 HEAD 已暂存/未提交的新增
-  diffList = await git(['diff', '--name-only', '--diff-filter=A', 'HEAD', '--', migrationDir]);
+const workingDiff = await git([
+  'diff',
+  '--name-only',
+  '--diff-filter=AR',
+  baseRef,
+  '--',
+  migrationDir
+]);
+if (!committedDiff.ok || !workingDiff.ok) {
+  fail(
+    '无法枚举新增/重排迁移（git 不可用或被环境阻断）：' +
+      `${committedDiff.spawnError || committedDiff.out || ''}${workingDiff.spawnError || workingDiff.out || ''}`
+  );
 }
+const diffList = {
+  ok: true,
+  out: [committedDiff.out, workingDiff.out].filter(Boolean).join('\n')
+};
 // 刻意**不**加 --exclude-standard：migration 目录里任何未跟踪的 .sql 都是一次真实的新迁移，
 // 被 .gitignore 掉 != 不会被 Flyway 执行（例如 check-migration-safety.test.mjs 写进去的
 // 临时脚本，已由 .gitignore 兜底防误提交）。带 --exclude-standard 会让这类文件对安全门禁**完全隐形** ——
@@ -77,11 +91,9 @@ const untracked = await git(['ls-files', '--others', '--', migrationDir]);
 // 🔴 枚举不到 ≠「没有新迁移」。沙箱/受限宿主下 spawn 会 EBUSY（status=null），git() 返回 ok=false；
 // 若两路都失败而这里默认放行，门禁就在**没看**的情况下报 OK —— 比漏检更糟（信号在骗读者）。
 // 实测 2026-09-23：本机沙箱下不带垫片时，新增的 V285 完全扫不到，却打印「no new Flyway scripts; OK」。
-if (!diffList.ok && !untracked.ok) {
+if (!untracked.ok) {
   fail(
-    '无法枚举新增迁移（git 不可用或被环境阻断：spawn status=null / 非 0）。' +
-      '不要当成「没有新迁移」；本机沙箱下请用 .tmp/tools/nopipe.cjs 垫片重跑：' +
-      'NODE_OPTIONS="--require <repo>/.tmp/tools/nopipe.cjs" node scripts/check-migration-safety.mjs'
+    '无法枚举未跟踪迁移（git 不可用或被环境阻断）：' + (untracked.spawnError || untracked.out || '')
   );
 }
 

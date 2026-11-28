@@ -1,15 +1,12 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.trade.config.NotificationProperties;
 import com.aicabinet.trade.mapper.NotificationLogMapper;
 import com.aicabinet.trade.mapper.NotificationTemplateMapper;
-import com.aicabinet.trade.messaging.NotificationDispatchProducer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -24,8 +21,7 @@ class NotificationConcurrencyTest {
     @Mock private NotificationTemplateMapper templateRepository;
     @Mock private NotificationLogMapper logRepository;
     @Mock private ConsumerNotifyPrefService notifyPrefService;
-    @Mock private ExternalNotificationDispatcher externalDispatcher;
-    @Mock private ObjectProvider<NotificationDispatchProducer> producerProvider;
+    @Mock private NotificationDispatchOutboxService outboxService;
     @Mock private DistributedLockService distributedLockService;
     @Mock private AdminAuditService auditService;
 
@@ -34,8 +30,7 @@ class NotificationConcurrencyTest {
     @BeforeEach
     void setUp() {
         service = new NotificationService(templateRepository, logRepository,
-                new NotifyChannelSwitchService(org.mockito.Mockito.mock(SystemConfigService.class), new NotificationProperties(false, false, false)), notifyPrefService,
-                externalDispatcher, producerProvider, distributedLockService, auditService, null);
+                notifyPrefService, outboxService, distributedLockService, auditService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

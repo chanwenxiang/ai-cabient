@@ -308,8 +308,9 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ---
 
-| 2026-11-28 | **第二批资金/库存 P1 修复（MA-475/476/478/480）**：供应商付款前后端稳定幂等键 + 行锁内回放 + `ON CONFLICT DO NOTHING`；已付款采购退货按用户拍板直接 409 并整事务回滚；临期扫描改 `(expiry_date, lot_id)` keyset 游标连续追平；库存一致性修复持设备锁并重读批次合计，旧快照变化即拒绝。真库验证付款顺序/并发重试只入账一次、已付退货库存/分配/单据/应付流水全回滚、501 条扫描不饥饿、巡检后销售再修旧记录保持新库存。源码 `f6e41263`，竞品 CB-089～091，门禁 `check-operational-p0-p1-contracts` 扩 4 条契约与负向夹具。 | `SupplierPayableService`、`SupplierPaymentMapper`、`InventoryLotService`、`DataConsistencyService`、`SupplierFundingSafetySqlIT`、`InventoryConsistencyR18IT`、`docs/module-audit/ISSUES.md` |
-| 2026-11-26 | **对账零交易日误判失败修复（MA-466）**：11-25 全天零交易，微信 tradebill 返回 400 `NO_STATEMENT_EXIST`，`WeChatPlatformBillProvider` 用 `get()` 把一切非 2xx 当故障 ⇒ 10:30/14:30/手动补跑三次 FAILED、MA-431 告警持续 firing。修复对齐 `WeChatFundBillService` 既有口径：改 `getWithStatus()`，NO_STATEMENT_EXIST/404 返回空列表（doReconcile 按既有 EMPTY/MISMATCH 语义兜底），其它错误码 fail-closed 且消息带微信 code/message；`PlatformBillProviderContractTest` 增契约④⑤共 7 用例全过，对账相关 46 例全绿。部署后补跑 11-25 应得 EMPTY 0/0。 | `WeChatPlatformBillProvider`、`PlatformBillProviderContractTest`、`docs/module-audit/ISSUES.md` MA-466 |
+| 2026-11-28 | **第二批资金/库存 P1 修复（MA-475/476/478/480）**：供应商付款前后端稳定幂等键 + 行锁内回放 + `ON CONFLICT DO NOTHING`；已付款采购退货按用户拍板直接 409 并整事务回滚；临期扫描改 `(expiry_date, lot_id)` keyset 游标连续追平；库存一致性修复持设备锁并重读批次合计，旧快照变化即拒绝。真库验证付款顺序/并发重试只入账一次、已付退货库存/分配/单据/应付流水全回滚、501 条扫描不饥饿、巡检后销售再修旧记录保持新库存；trade 全量单测 3579/3579、定向真库 IT 9/9、admin 155/155，Playwright 真浏览器验证重试复用同一付款幂等键。源码 `f6e41263`，竞品 CB-089～091，门禁 `check-operational-p0-p1-contracts` 扩 4 条契约与负向夹具。 | `SupplierPayableService`、`SupplierPaymentMapper`、`InventoryLotService`、`DataConsistencyService`、`SupplierFundingSafetySqlIT`、`InventoryConsistencyR18IT`、`docs/module-audit/ISSUES.md` |
+| 2026-11-27 | **通知可靠性 P1/P2 收口（MA-489–494）**：首批 P1/P2（MA-489–492）已提交 `45971670`，Kafka 两条 P1 已提交 `f224a72c`：运营告警提交后外呼、站内信 128 位语义键与 V521 partial unique、outbox 锁内重读、按 channel 防重复发送、阿里云模糊失败不换通道、日报开关与失败可见性；Kafka 生产端等待 Broker ACK（默认 5s），消费端改 owner + PROCESSING/DONE + TTL Lua 状态机。因服务器已应用另一会话 V516，本批尚未应用迁移顺延为 V519–V521，并原样补回服务器 V516；可靠性门禁扩到 22 项断言。后端全量通过；冲突修复提交后待 CI/部署。 | `OpsAlertDispatcher`、`NotificationService`、`NotificationDispatchOutboxService`、`ExternalNotificationDispatcher`、`AliyunSmsSender`、`MerchantDailyReportNotifier`、`NotificationDispatchProducer`、`NotificationDispatchListener`、V519–V521、`docs/module-audit/ISSUES.md` MA-489–494 |
+| 2026-11-26 | **对账零交易日误判失败修复（MA-466）**：11-25 全天零交易，微信 tradebill 返回 400 `NO_STATEMENT_EXIST`，`WeChatPlatformBillProvider` 用 `get()` 把一切非 2xx 当故障 ⇒ 10:30/14:30/手动补跑三次 FAILED、MA-431 告警持续 firing。修复对齐 `WeChatFundBillService` 既有口径：改 `getWithStatus()`，仅微信明确返回 `NO_STATEMENT_EXIST` 时返回空列表（doReconcile 按既有 EMPTY/MISMATCH 语义兜底），任意 HTTP 404 仍 fail-closed，其它错误码带 code/message 抛出；`PlatformBillProviderContractTest` 增契约④⑤共 7 用例全过，对账相关 46 例全绿。部署后补跑 11-25 应得 EMPTY 0/0。 | `WeChatPlatformBillProvider`、`PlatformBillProviderContractTest`、`docs/module-audit/ISSUES.md` MA-466 |
 | 2026-11-26 | **双端服务号通知完整版（6 模板）**：新服务号「前海易购售卖机」最终采用经典模板消息（`template/send`），不依赖老服务号、不走订阅通知。已核实并配置消费成功、账单结算、退款成功、提现成功、提现失败、售后处理 6 套模板；消费者按订单/充值/退款/售后深链，商户日报/提现跳商户端。服务号 openid 支持消费者与运营账号绑定；未绑定回落原订阅，已绑定发送失败不串渠道。退款/提现/售后通知均在事务提交后发；提现 NOT_ENOUGH 自动重试中不发失败通知。V514/R__seed_service_account_notification_templates、compose/env、266 项定向回归与日报门禁 40 断言完成；服务器配置已落但 `ENABLED=false`，待部署真机真发。 | `WeChatOfficialAccountClient`、`ExternalNotificationDispatcher`、`MerchantDailyReportNotifier`、`MerchantWithdrawService`、`NotificationService`、双端 `official-account-bind` 页面 |
 | 2026-11-26 | **MA-431 自动失败告警运行态验收**：`da6f089b` 双副本部署后实测失败计数、Prometheus 规则 firing、Alertmanager 接收 `reconciliation` critical，邮件通知失败 0。验收中查出并修正 MA-465：trade 单服务名抓取改为 DNS SD，两副本逐 IP 监控；指定副本 `1→2` 后告警真实触发。另登记并修复 MA-464：部署解包替换 bind-mount 文件 inode，Prometheus 仍加载旧规则；部署链现显式重建 prometheus/alertmanager 并等待规则名加载，当前运行态已恢复。当日对账因微信账单接口 500 仍失败，告警口径正确，待渠道恢复后补跑。 | `infra/monitoring/prometheus.compose.yml`、`check-operational-p0-p1-contracts`、`docs/module-audit/ISSUES.md` MA-431/464/465 |
 | 2026-11-25 | **定时任务排期收口**：`growth-log-archive` / `sku-review-daily` 从启动后 `fixedRate=24h` 改为固定 03:00 / 04:00；`points-expiry` / `coupon-expiry-remind` 保持 6 小时频率但固定到 00:05、06:05、12:05、18:05，避免 23 点微信提醒；30 秒/1 分钟高频任务首次执行按 5–58 秒错峰。Spring、XXL cron 与注册表说明同步，日结 XXL 的 01:30 旧排期一并修到 10:30/14:30；`check-scheduled-zone` 增加时刻契约、Spring↔XXL 交叉校验和 4 个负向夹具；trade-service 全量 3441 单测通过。 | `GrowthLogArchiveScheduler`、`SkuReviewScheduler`、`PointsExpiryScheduler`、`CouponExpiryReminderScheduler`、`check-scheduled-zone.mjs` |
@@ -692,6 +693,13 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-27（消费者退款范围选择优化）
+
+- **真机反馈**：“可退 1”旁的数量输入框预填 0，用户误以为必须手填 1；旧实现按 `lines` 是否为空判定全额，按行模式全清 0 会静默走全额退款。
+- **交互修正**：退款弹层默认明确显示“全额退款 / 按行退款”；只有主动切换按行才展示数量框，并自动带入各商品可退数量；按行模式空选择显式提示并拦截，不再回落全额。请求体、金额、回库与通知语义均未改。
+- **验证**：consumer `vue-tsc` 通过；全量 30 文件 / 214 例通过；mp-weixin dev 构建、scoped 哈希、release 前 UI 门禁（热区、a11y、裸色、令牌、color-mix）通过；产物 WXML 含新文案且旧文案为 0，JS 含空选择守卫。
+- **边界**：微信开发者工具 IDE 服务已启动，但自动化端口 9421 未建立，故本轮未声明模拟器/真机点击验收；release 包未重烤、未上传。
+
 ### 2026-11-27（服务号六模板实发验收与不可用字段修复）
 
 - **模板验收**：6 类服务号模板均已在微信后台审核通过且生产配置齐全；消费成功测试消息用户已确认收到，退款、提现成功、提现失败、售后、日报测试消息均获微信 API `errcode=0`。
@@ -706,6 +714,7 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - **字典与种子**：模板类别归位 `ORDER/MERCHANT`，补 `REFUND/BALANCE_REFUND/WITHDRAW_SUCCESS/WITHDRAW_FAILED` 字典；种子冲突时自愈类别与文案，避免后台“未知”和偏好失效。
 - **第二轮复核**：微信账单仅对明确 `NO_STATEMENT_EXIST` 返回空列表，任意 404 仍 fail-closed；商户日报幂等补齐 `merchantId`，同一操作员管理多商户不再互相抑制；外部通知与 Kafka 发布移到业务事务提交后，退款 afterCommit 回调不再嵌套注册；服务号绑定按角色任一相关模板配置即可用；异常中心/商户结案两条售后路径补消费者终态通知。
 - **验收补漏**：真实售后验收发现 `DisputeService` 与 `MerchantWithdrawService` 仍在外层 afterCommit 中调用普通 `NotificationService.send`，导致站内信成功但服务号/短信永不外发；两处改为直接通知，由 NotificationService 单点持有提交后副作用。另将 `fileByConsumer` 的会话读取改为 `findByIdForUpdate`，用行锁覆盖查重→置争议→建单，消除并发重复申诉窗口。
+- **P1 同族收口**：结案/异常中心移除包裹渠道 HTTP 的外层事务，改短事务 prepare→事务外资金调用→短事务 finalize；退款通知统一从 `refundOrder` 汇聚，新增持久化 outbox 与每分钟重试；afterCommit 异常独立隔离；消费者/商户小程序 openid 分列；服务号能力状态改为角色模板全配齐且总开关开启才显示可用；提现驳回补失败通知。
 - **验证**：第一轮定向 56 个、第二轮定向 88 个 Java 用例通过；第二轮 trade-service 全量单测 3527/3527 通过；商户日报门禁 43 项断言通过，通知种子、回调端点、事务边界、只读事务写调用门禁通过。两轮修复已合并为 `1db528b2`，CI 5/5 通过并部署双副本；11-25 对账补跑 API 200、`reconId=6` 幂等、`EMPTY 0/0`，微信零账单日志与 MA-431 活跃告警 0 均已核验。最新补漏后全仓后端 3761/3761、前端三端 651/651 与 shared-rbac 测试通过，189 门禁与完整预检通过。
 
 ### 2026-11-26（备份告警邮件实际送达）

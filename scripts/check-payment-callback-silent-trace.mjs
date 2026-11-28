@@ -100,8 +100,8 @@ function evaluate(read) {
       bad(
         'alertSilentCallback 缺本地 log.error：OpsAlertDispatcher.fanout 未配置渠道时静默返回，只发告警仍是零痕迹'
       );
-    if (!/opsAlertDispatcher\.send\s*\(/.test(alertBody))
-      bad('alertSilentCallback 未调用 OpsAlertDispatcher.send（外部告警链路）');
+    if (!/opsAlertDispatcher\.sendAfterCommit\s*\(/.test(alertBody))
+      bad('alertSilentCallback 未调用 OpsAlertDispatcher.sendAfterCommit（外部告警链路）');
     if (!/catch\s*\(\s*Exception\s+\w+\s*\)/.test(alertBody))
       bad('alertSilentCallback 缺 catch(Exception) fail-open：告警链路异常会把回调变成 5xx');
     if (/\bthrow\b/.test(alertBody)) bad('alertSilentCallback 定义体内出现 throw，违反 fail-open');
@@ -214,10 +214,20 @@ function selfTest() {
       P.impl,
       (s) =>
         s.replace(
-          /try \{[ \t]*\r?\n[ \t]*opsAlertDispatcher\.send\(type, title, detail, Map\.of\("detail", detail\)\);[ \t]*\r?\n[ \t]*\} catch \(Exception e\) \{[ \t]*\r?\n[^\r\n]*[ \t]*\r?\n[ \t]*\}/,
-          'opsAlertDispatcher.send(type, title, detail, Map.of("detail", detail));'
+          /try \{[ \t]*\r?\n[ \t]*opsAlertDispatcher\.sendAfterCommit\(type, title, detail, Map\.of\("detail", detail\)\);[ \t]*\r?\n[ \t]*\} catch \(Exception e\) \{[ \t]*\r?\n[^\r\n]*[ \t]*\r?\n[ \t]*\}/,
+          'opsAlertDispatcher.sendAfterCommit(type, title, detail, Map.of("detail", detail));'
         ),
       'catch(Exception)'
+    ],
+    [
+      '告警退回事务内同步 send',
+      P.impl,
+      (s) =>
+        s.replace(
+          'opsAlertDispatcher.sendAfterCommit(type, title, detail,',
+          'opsAlertDispatcher.send(type, title, detail,'
+        ),
+      'sendAfterCommit'
     ],
     [
       'catch 里改成 throw（告警失败拖垮回调）',

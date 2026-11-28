@@ -28,7 +28,15 @@ public class UserInfo {
 
     private boolean verified;
 
+    /** 消费者小程序 OpenID（消费者 appid 签发）。 */
     private String wxOpenId;
+
+    /** 商户小程序 OpenID（商户 appid 签发），不得与消费者 OpenID 共用。 */
+    private String wxMerchantOpenId;
+
+    private String wxConsumerAppId;
+
+    private String wxMerchantAppId;
 
     private String wxOfficialOpenId;
 

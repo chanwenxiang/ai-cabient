@@ -1,26 +1,30 @@
 package com.aicabinet.trade.messaging;
 
-import com.aicabinet.trade.service.ExternalNotificationDispatcher;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.redisson.api.RBucket;
-import org.redisson.api.RedissonClient;
-import org.redisson.client.codec.StringCodec;
-
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** M09(a)：Kafka 通知分发消费端按 payload sha256 幂等去重。 */
+import com.aicabinet.common.dto.NotificationDispatchMessage;
+import com.aicabinet.trade.service.ExternalNotificationDispatcher;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Arrays;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.redisson.api.RScript;
+import org.redisson.api.RedissonClient;
+import org.redisson.client.codec.StringCodec;
+
 @ExtendWith(MockitoExtension.class)
 class NotificationDispatchListenerIdempotencyTest {
 
@@ -29,31 +33,38 @@ class NotificationDispatchListenerIdempotencyTest {
 
     @Mock private ExternalNotificationDispatcher dispatcher;
     @Mock private RedissonClient redisson;
-    @Mock private RBucket<String> dedupeBucket;
+    @Mock private RScript script;
 
     private NotificationDispatchListener listener;
 
     @BeforeEach
     void setUp() {
         listener = new NotificationDispatchListener(dispatcher, new ObjectMapper(), redisson);
-        org.mockito.Mockito.doReturn(dedupeBucket).when(redisson)
-                .getBucket(contains("aicabinet:notify:dispatch:"), eq(StringCodec.INSTANCE));
+        when(redisson.getScript(StringCodec.INSTANCE)).thenReturn(script);
+    }
+
+    private void scriptReturns(Long... results) {
+        when(script.eval(eq(RScript.Mode.READ_WRITE), anyString(), eq(RScript.ReturnType.INTEGER),
+                anyList(), any(Object[].class))).thenReturn(results[0], Arrays.copyOfRange(results, 1, results.length));
     }
 
     @Test
-    @SuppressWarnings("unchecked")
-    void onMessage_firstDelivery_dispatches() {
-        when(dedupeBucket.setIfAbsent(eq("1"), any(java.time.Duration.class))).thenReturn(true);
+    void onMessage_firstDelivery_dispatchesAndMarksDone() {
+        scriptReturns(1L, 1L);
 
         listener.onMessage(PAYLOAD);
 
-        verify(dispatcher).dispatch(any(com.aicabinet.common.dto.NotificationDispatchMessage.class));
+        verify(dispatcher).dispatch(any(NotificationDispatchMessage.class));
+        ArgumentCaptor<String> lua = ArgumentCaptor.forClass(String.class);
+        verify(script, times(2)).eval(eq(RScript.Mode.READ_WRITE), lua.capture(),
+                eq(RScript.ReturnType.INTEGER), anyList(), any(Object[].class));
+        assertTrue(lua.getAllValues().get(0).contains("|PROCESSING"));
+        assertTrue(lua.getAllValues().get(1).contains("|DONE"));
     }
 
     @Test
-    @SuppressWarnings("unchecked")
-    void onMessage_duplicatePayload_skipsDispatch() {
-        when(dedupeBucket.setIfAbsent(eq("1"), any(java.time.Duration.class))).thenReturn(false);
+    void onMessage_donePayload_skipsDispatch() {
+        scriptReturns(0L);
 
         listener.onMessage(PAYLOAD);
 
@@ -61,47 +72,80 @@ class NotificationDispatchListenerIdempotencyTest {
     }
 
     @Test
-    void onMessage_uses24hTtlKey() {
-        when(dedupeBucket.setIfAbsent(anyString(), any(java.time.Duration.class))).thenReturn(false);
+    void onMessage_processingPayload_retriesInsteadOfAck() {
+        scriptReturns(2L);
 
-        listener.onMessage(PAYLOAD);
+        assertThatThrownBy(() -> listener.onMessage(PAYLOAD))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("still processing");
 
-        verify(redisson).getBucket(contains("aicabinet:notify:dispatch:"), eq(StringCodec.INSTANCE));
+        verify(dispatcher, never()).dispatch(any());
     }
 
-    /** B3（2026-10-16 审计）：dispatch 失败必须释放幂等键，且必须重抛让容器重试/入 DLT。 */
     @Test
-    void onMessage_dispatchFails_releasesDedupeKeyAndRethrows() {
-        when(dedupeBucket.setIfAbsent(eq("1"), any(java.time.Duration.class))).thenReturn(true);
+    void onMessage_dispatchFails_releasesOwnedSlotAndRethrows() {
+        scriptReturns(1L, 0L);
         org.mockito.Mockito.doThrow(new RuntimeException("sms gateway down"))
-                .when(dispatcher).dispatch(any(com.aicabinet.common.dto.NotificationDispatchMessage.class));
+                .when(dispatcher).dispatch(any(NotificationDispatchMessage.class));
 
         assertThatThrownBy(() -> listener.onMessage(PAYLOAD))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("sms gateway down");
 
-        verify(dedupeBucket).delete();
+        ArgumentCaptor<String> lua = ArgumentCaptor.forClass(String.class);
+        verify(script, times(2)).eval(eq(RScript.Mode.READ_WRITE), lua.capture(),
+                eq(RScript.ReturnType.INTEGER), anyList(), any(Object[].class));
+        assertTrue(lua.getAllValues().get(1).contains("DEL"));
     }
 
-    /** 报文不可解析也要重抛：正常返回会让偏移提交、消息永久丢；重试耗尽后由 DLT 兜底。 */
     @Test
-    void onMessage_unparseablePayload_releasesDedupeKeyAndRethrows() {
-        when(dedupeBucket.setIfAbsent(eq("1"), any(java.time.Duration.class))).thenReturn(true);
+    void onMessage_unparseablePayload_releasesOwnedSlotAndRethrows() {
+        scriptReturns(1L, 0L);
 
         assertThatThrownBy(() -> listener.onMessage("{not-json"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("notification dispatch failed");
 
-        verify(dedupeBucket).delete();
+        ArgumentCaptor<String> lua = ArgumentCaptor.forClass(String.class);
+        verify(script, times(2)).eval(eq(RScript.Mode.READ_WRITE), lua.capture(),
+                eq(RScript.ReturnType.INTEGER), anyList(), any(Object[].class));
+        assertTrue(lua.getAllValues().get(1).contains("DEL"));
     }
 
-    /** 抢占失败（重复消息）路径不得触碰 delete——键属于上次成功处理者。 */
     @Test
-    void onMessage_duplicatePayload_neverReleasesKey() {
-        when(dedupeBucket.setIfAbsent(eq("1"), any(java.time.Duration.class))).thenReturn(false);
+    void onMessage_releaseFailure_doesNotMaskOriginalDispatchFailure() {
+        org.mockito.Mockito.doThrow(new RuntimeException("sms gateway down"))
+                .when(dispatcher).dispatch(any(NotificationDispatchMessage.class));
+        when(script.eval(eq(RScript.Mode.READ_WRITE), anyString(), eq(RScript.ReturnType.INTEGER),
+                anyList(), any(Object[].class))).thenReturn(1L).thenThrow(new RuntimeException("redis down"));
 
-        listener.onMessage(PAYLOAD);
+        assertThatThrownBy(() -> listener.onMessage(PAYLOAD))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("sms gateway down");
+    }
 
-        verify(dedupeBucket, never()).delete();
+    @Test
+    void onMessage_markDoneFailure_releasesAndRethrows() {
+        scriptReturns(1L, 0L, 0L);
+
+        assertThatThrownBy(() -> listener.onMessage(PAYLOAD))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("lost dedupe ownership");
+
+        verify(dispatcher).dispatch(any(NotificationDispatchMessage.class));
+        verify(script, times(3)).eval(eq(RScript.Mode.READ_WRITE), anyString(),
+                eq(RScript.ReturnType.INTEGER), anyList(), any(Object[].class));
+    }
+
+    @Test
+    void onMessage_claimFailure_doesNotDispatch() {
+        when(script.eval(eq(RScript.Mode.READ_WRITE), anyString(), eq(RScript.ReturnType.INTEGER),
+                anyList(), any(Object[].class))).thenThrow(new RuntimeException("redis down"));
+
+        assertThatThrownBy(() -> listener.onMessage(PAYLOAD))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("claim failed");
+
+        verify(dispatcher, never()).dispatch(any());
     }
 }

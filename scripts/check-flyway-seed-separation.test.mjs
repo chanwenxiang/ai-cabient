@@ -9,7 +9,16 @@
  *   · 收尾复查，**留一个都算失败** —— 残留物是一个假 Flyway 脚本，
  *     一旦被 `git add -A` 带上就是一次静默数据变更。
  */
-import { existsSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+  unlinkSync,
+  writeFileSync
+} from 'node:fs';
+import { runAsync } from './lib/async-spawn.mjs';
 import { execFile } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -249,6 +258,50 @@ expect(
   )
 );
 
+// 15) 暂存区重排的新路径也必须被种类门禁扫描
+const sandbox = join(root, '.tmp', `gate-selftest-seedsep-${process.pid}`);
+const sandboxMig = join(sandbox, 'services/trade-service/src/main/resources/db/migration');
+async function sh(args) {
+  const r = await runAsync('git', args, { cwd: sandbox });
+  if (r.status !== 0) throw new Error(`git ${args.join(' ')} 失败：${r.stderr || r.stdout}`);
+  return r.stdout;
+}
+try {
+  rmSync(sandbox, { recursive: true, force: true });
+  mkdirSync(join(sandbox, 'scripts/lib'), { recursive: true });
+  mkdirSync(sandboxMig, { recursive: true });
+  cpSync(
+    join(root, 'scripts/check-flyway-seed-separation.mjs'),
+    join(sandbox, 'scripts/check-flyway-seed-separation.mjs')
+  );
+  cpSync(join(root, 'scripts/lib/async-spawn.mjs'), join(sandbox, 'scripts/lib/async-spawn.mjs'));
+  writeFileSync(join(sandboxMig, 'V400__base.sql'), '-- baseline\nSELECT 1;\n');
+  await sh(['init', '-q', '-b', 'main']);
+  await sh(['config', 'user.email', 'selftest@example.invalid']);
+  await sh(['config', 'user.name', 'selftest']);
+  await sh(['add', '-A']);
+  await sh(['commit', '-q', '-m', 'baseline']);
+  await sh([
+    'mv',
+    'services/trade-service/src/main/resources/db/migration/V400__base.sql',
+    'services/trade-service/src/main/resources/db/migration/V401__renamed.sql'
+  ]);
+  writeFileSync(
+    join(sandboxMig, 'V401__renamed.sql'),
+    "-- MIGRATION_KIND: schema\nINSERT INTO system_config (k, v) VALUES ('a', 'b');\n"
+  );
+  const renamedResult = await runAsync(
+    process.execPath,
+    [join(sandbox, 'scripts/check-flyway-seed-separation.mjs')],
+    { cwd: sandbox, env: { ...process.env, MIGRATION_BASE_REF: 'HEAD' } }
+  );
+  if (renamedResult.status === 0 || !/V401__renamed\.sql/.test(renamedResult.stderr || '')) {
+    throw new Error(`staged rename new path was not scanned\n${renamedResult.stderr || ''}`);
+  }
+} finally {
+  rmSync(sandbox, { recursive: true, force: true });
+}
+
 // ── 收尾：一个临时文件都不许留 ──────────────────────────────────────────────
 const leftovers = [MIGRATION_DIR, SEED_DIR]
   .filter((d) => existsSync(d))
@@ -268,4 +321,4 @@ if (failures.length) {
   for (const f of failures) console.error(`- ${f}`);
   process.exit(1);
 }
-console.log(`\n${TAG} OK（14 个用例方向全对，且不残留临时文件）`);
+console.log(`\n${TAG} OK（15 个用例方向全对，且不残留临时文件）`);

@@ -857,7 +857,7 @@ public class OrderPaymentService {
                 log.error("session cancel but payscore order already charged, refund required order={} psOrder={}",
                         orderId, psOrder.getPayscoreOrderId());
                 try {
-                    opsAlertDispatcher.send("PAYSCORE_ORDER_REFUND_REQUIRED", "支付分订单取消需退款",
+                    opsAlertDispatcher.sendAfterCommit("PAYSCORE_ORDER_REFUND_REQUIRED", "支付分订单取消需退款",
                             "会话取消但渠道已扣款，需人工退款 orderId=" + orderId
                                     + " payscoreOrder=" + psOrder.getPayscoreOrderId());
                 } catch (Exception e) {
@@ -1161,6 +1161,10 @@ public class OrderPaymentService {
             }
             refreshCallerOrder(order);
             clawbackPointsQuietly(prep.userId(), prep.refundCents(), prep.orderId(), prep.idemKey());
+            if (notificationService != null) {
+                notificationService.notifyRefundAfterCommit(prep.userId(), prep.orderId(),
+                        prep.refundCents(), true);
+            }
             return true;
         } catch (ResponseStatusException e) {
             throw e;
@@ -1508,6 +1512,7 @@ public class OrderPaymentService {
      * 幂等键带 {@code :ABNORMAL} 段，避免与正式退款流水争同一键（那样重试会被 isCompleted 短路）。
      */
     private void recordRefundFailed(CabinetOrder order, OrderRefundPrep prep) {
+        // CONCURRENCY: 调用方 finalizeLiveOrderRefund 已持订单行锁，ABNORMAL 痕迹按稳定 idemKey 查重。
         String key = prep.idemKey() + ":ABNORMAL";
         if (paymentOperationRepository.findByIdempotencyKey(key).isEmpty()) {
             PaymentOperation op = new PaymentOperation();
@@ -1527,7 +1532,7 @@ public class OrderPaymentService {
         log.error("channel refund ABNORMAL, refund NOT recorded order={} channel={} amount={}",
                 prep.orderId(), prep.channel(), prep.channelRefundCents());
         try {
-            opsAlertDispatcher.send("WECHAT_REFUND_ABNORMAL_PENDING",
+            opsAlertDispatcher.sendAfterCommit("WECHAT_REFUND_ABNORMAL_PENDING",
                     "渠道退款异常待人工（订单未记已退）",
                     "orderId=" + order.getOrderId() + " channel=" + prep.channel()
                             + " amount=" + prep.channelRefundCents() + " 分；渠道侧状态 ABNORMAL，"
@@ -1576,7 +1581,7 @@ public class OrderPaymentService {
                 return;
             }
             if (invoiceRequestMapper.findActiveByOrderIdForUpdate(order.getOrderId()).isPresent()) {
-                opsAlertDispatcher.send("INVOICE_FULL_REFUND_RED_INVERSE", "已开票订单全额退款，需人工红冲",
+                opsAlertDispatcher.sendAfterCommit("INVOICE_FULL_REFUND_RED_INVERSE", "已开票订单全额退款，需人工红冲",
                         "orderId=" + order.getOrderId() + " 已开票且退款覆盖全部实付，请人工红冲发票");
                 log.error("invoiced order fully refunded, manual red-inverse required orderId={}", order.getOrderId());
             }
@@ -1841,7 +1846,7 @@ public class OrderPaymentService {
         op.setStatus("REFUND_FAILED");
         op.setUpdatedAt(Instant.now());
         try {
-            opsAlertDispatcher.send("REFUND_RETRY_EXHAUSTED", "渠道退款重试耗尽",
+            opsAlertDispatcher.sendAfterCommit("REFUND_RETRY_EXHAUSTED", "渠道退款重试耗尽",
                     "orderId=" + trace.getOrderId() + " amount=" + trace.getAmountCents()
                             + " outRefundNo=" + trace.getGatewayTradeNo() + " " + cause + " 需人工核对");
         } catch (Exception e) {
@@ -1862,7 +1867,7 @@ public class OrderPaymentService {
                 log.error("wechat refund abnormal order={} outRefundNo={} resp={}",
                         prep.orderId(), outRefundNo, resp);
                 try {
-                    opsAlertDispatcher.send("WECHAT_REFUND_ABNORMAL", "微信退款异常",
+                    opsAlertDispatcher.sendAfterCommit("WECHAT_REFUND_ABNORMAL", "微信退款异常",
                             "orderId=" + prep.orderId() + " outRefundNo=" + outRefundNo + " 需人工介入");
                 } catch (Exception e) {
                     log.warn("ops alert failed wechat refund abnormal order={}", prep.orderId(), e);

@@ -19,14 +19,31 @@ class AliyunSmsSenderTest {
     private final AliyunSmsSender sender = new AliyunSmsSender(authProperties(), new ObjectMapper());
 
     @Test
-    void verifyAliyunAccepted_businessLimitCode_shouldThrow() {
+    void verifyAliyunAccepted_businessLimitCode_isExplicitRejection() {
         String body = "{\"Message\":\"触发分钟级流控\",\"Code\":\"isv.BUSINESS_LIMIT_CONTROL\"}";
 
         IllegalStateException ex = assertThrows(IllegalStateException.class,
                 () -> sender.verifyAliyunAccepted(200, body));
 
+        assertTrue(ex instanceof AliyunSmsSender.RejectedDispatchException);
         assertTrue(ex.getMessage().contains("isv.BUSINESS_LIMIT_CONTROL"));
         assertTrue(ex.getMessage().contains("触发分钟级流控"));
+    }
+
+    @Test
+    void verifyAliyunAccepted_serverError_isAmbiguous() {
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> sender.verifyAliyunAccepted(503, "{\"Code\":\"ServiceUnavailable\"}"));
+
+        assertTrue(ex instanceof AliyunSmsSender.AmbiguousDispatchException);
+    }
+
+    @Test
+    void verifyAliyunAccepted_nonJsonBody_isAmbiguous() {
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> sender.verifyAliyunAccepted(200, "<html>gateway</html>"));
+
+        assertTrue(ex instanceof AliyunSmsSender.AmbiguousDispatchException);
     }
 
     @Test

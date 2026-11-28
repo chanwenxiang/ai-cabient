@@ -674,7 +674,6 @@ public class DisputeService {
         return toDto(ticket);
     }
 
-    @Transactional(noRollbackFor = {com.aicabinet.trade.service.BalanceInsufficientException.class})
     public ResolveDisputeResultDto resolveTicket(Long operatorId, String ticketId, ResolveDisputeRequest request) {
         permissionService.requirePermission(operatorId, PERM_OPS_DISPUTE_RESOLVE);
         return runWithDisputeTicketLock(ticketId, () -> doResolveTicket(operatorId, ticketId, request));
@@ -719,14 +718,35 @@ public class DisputeService {
         });
     }
 
+    record DisputeResolvePlan(
+            Long operatorId, String ticketId, String sessionId, String deviceId, String orderId, Long userId,
+            String resolutionType, ResolveDisputeRequest body, String reason, boolean merchant) {}
+
     private ResolveDisputeResultDto doResolveTicket(Long operatorId, String ticketId, ResolveDisputeRequest request) {
+        DisputeResolvePlan plan = self.prepareResolveTicket(operatorId, ticketId, request);
+        ShoppingSession session = requireSession(plan.sessionId());
+        ResolveDisputeResultDto result = switch (plan.resolutionType()) {
+            case "KEEP" -> executeKeep(plan, session);
+            case WAIVE -> executeWaive(plan, session);
+            case ADJUST, CONFIRM -> executeConfirm(plan, session);
+            default -> throw new IllegalStateException("unexpected resolution: " + plan.resolutionType()); // NOSONAR java:S2583
+        };
+        try {
+            return self.finalizeResolveTicket(plan, result);
+        } catch (RuntimeException e) {
+            reportFinalizeFailure(plan, e);
+            throw e;
+        }
+    }
+
+    @Transactional
+    public DisputeResolvePlan prepareResolveTicket(Long operatorId, String ticketId, ResolveDisputeRequest request) {
         DisputeTicket ticket = disputeRepository.findByIdForUpdate(ticketId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.TICKET_NOT_FOUND));
         if (!DisputeTicketTransitions.canActWhileOpen(ticket.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.TICKET_ALREADY_RESOLVED);
         }
-        ShoppingSession session = sessionRepository.findById(ticket.getSessionId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        ShoppingSession session = requireSession(ticket.getSessionId());
         merchantScopeService.requireDeviceAccess(operatorId, session.getDeviceId());
 
         ResolveDisputeRequest body = requireResolveRequest(request);
@@ -735,30 +755,114 @@ public class DisputeService {
                 && (body.items() == null || body.items().isEmpty())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DISPUTE_ITEMS_REQUIRED);
         }
-        orderRepository.findBySessionId(session.getSessionId()).ifPresent(order -> {
-            if (CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus()) && !WAIVE.equals(resolutionType) && !"KEEP".equals(resolutionType)) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_ALREADY_REFUNDED);
-            }
-        });
-        ResolveDisputeResultDto result = switch (resolutionType) {
-            case "KEEP" -> resolveKeep(operatorId, ticket, session);
-            case WAIVE -> resolveWaive(operatorId, ticket, session, body.restoreInventory());
-            case ADJUST, CONFIRM -> resolveConfirm(operatorId, ticket, session, body, resolutionType);
-            default -> throw new IllegalStateException("unexpected resolution: " + resolutionType); // NOSONAR java:S2583
-        };
-        recordRecognitionVerdict(ticket, resolutionType);
+        CabinetOrder order = orderRepository.findBySessionId(session.getSessionId()).orElse(null);
+        if (order != null && CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus())
+                && !WAIVE.equals(resolutionType) && !"KEEP".equals(resolutionType)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_ALREADY_REFUNDED);
+        }
+        return new DisputeResolvePlan(operatorId, ticketId, session.getSessionId(), session.getDeviceId(),
+                order == null ? null : order.getOrderId(), session.getUserId(), resolutionType, body,
+                ticket.getReason(), false);
+    }
 
-        opsExceptionService.resolveOpenForSession(operatorId, session.getSessionId(),
-                "争议结案(" + resolutionType + ")同步关闭异常");
-
+    @Transactional
+    public ResolveDisputeResultDto finalizeResolveTicket(DisputeResolvePlan plan, ResolveDisputeResultDto result) {
+        DisputeTicket ticket = disputeRepository.findByIdForUpdate(plan.ticketId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.TICKET_NOT_FOUND));
+        ShoppingSession session = requireSession(plan.sessionId());
+        if (plan.merchant()) {
+            requireTicketDeviceAccess(plan.operatorId(), ticket);
+        } else {
+            merchantScopeService.requireDeviceAccess(plan.operatorId(), session.getDeviceId());
+        }
+        ticket.setStatus(STATUS_RESOLVED);
+        ticket.setResolutionItems(resolutionItems(ticket, plan));
+        ticket.setResolvedAt(Instant.now());
+        applyAssignee(ticket, plan.operatorId());
+        disputeRepository.save(ticket);
+        recordRecognitionVerdict(ticket, plan.resolutionType());
+        opsExceptionService.resolveOpenForSession(plan.operatorId(), session.getSessionId(),
+                "争议结案(" + plan.resolutionType() + ")同步关闭异常");
         sessionService.transition(session, SessionState.COMPLETED);
-        // 三端一致：结案后订单不得再挂 DISPUTED
-        // WAIVE → REFUNDED（免单兜底）；KEEP/CONFIRM/ADJUST → PAID
-        final String resolvedType = resolutionType;
         orderRepository.findBySessionId(session.getSessionId()).ifPresent(order ->
-                alignOrderStatusAfterDisputeResolve(order, resolvedType));
-        notifyConsumerResolved(session, ticket.getTicketId(), resolutionType);
+                alignOrderStatusAfterDisputeResolve(order, plan.resolutionType()));
+        appendResolveAudit(plan, result);
+        notifyConsumerResolved(session, ticket.getTicketId(), plan.resolutionType());
         return result;
+    }
+
+    private ResolveDisputeResultDto executeKeep(DisputeResolvePlan plan, ShoppingSession session) {
+        int originalAmount = orderRepository.findBySessionId(session.getSessionId())
+                .filter(order -> !CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus()))
+                .map(CabinetOrder::getTotalAmountCents)
+                .orElse(0);
+        return new ResolveDisputeResultDto(null, "KEEP", originalAmount, originalAmount, 0,
+                "已复核，维持原账单");
+    }
+
+    private ResolveDisputeResultDto executeWaive(DisputeResolvePlan plan, ShoppingSession session) {
+        boolean restore = RefundInventoryPolicy.resolve(plan.body().restoreInventory(), plan.reason(), true);
+        int refunded = settlementService.waiveAndRefund(session, restore);
+        String message = refunded > 0
+                ? "已免单，退还 ¥" + String.format("%.2f", refunded / 100.0)
+                : "已免单，无需扣款";
+        return new ResolveDisputeResultDto(null, WAIVE, refunded, 0, -refunded, message);
+    }
+
+    private ResolveDisputeResultDto executeConfirm(DisputeResolvePlan plan, ShoppingSession session) {
+        List<RecognizedItem> manualItems = plan.body().items().stream()
+                .filter(i -> i != null && i.quantity() > 0)
+                .map(i -> new RecognizedItem(i.skuId(), i.quantity(), 1.0f))
+                .toList();
+        SettlementService.ConfirmDisputeResult settled =
+                settlementService.confirmDisputedItems(session, manualItems);
+        return new ResolveDisputeResultDto(settled.order(), plan.resolutionType(),
+                settled.originalAmountCents(), settled.finalAmountCents(), settled.adjustmentCents(),
+                buildAdjustMessage(settled));
+    }
+
+    private String resolutionItems(DisputeTicket ticket, DisputeResolvePlan plan) {
+        if (WAIVE.equals(plan.resolutionType())) {
+            return "[]";
+        }
+        if ("KEEP".equals(plan.resolutionType())) {
+            return ticket.getItems() != null ? ticket.getItems() : "[]";
+        }
+        return toJson(plan.body().items());
+    }
+
+    private void appendResolveAudit(DisputeResolvePlan plan, ResolveDisputeResultDto result) {
+        if (plan.merchant()) {
+            return;
+        }
+        switch (plan.resolutionType()) {
+            case WAIVE -> auditService.appendLog(plan.operatorId(), "DISPUTE_WAIVE", DISPUTE, plan.ticketId(),
+                    "refund=" + Math.max(0, -result.adjustmentCents()));
+            case "KEEP" -> auditService.appendLog(plan.operatorId(), "DISPUTE_KEEP_BILL", DISPUTE, plan.ticketId(),
+                    SESSION + plan.sessionId() + " amount=" + result.originalAmountCents());
+            case ADJUST, CONFIRM -> auditService.appendLog(plan.operatorId(), "DISPUTE_RESOLVE", DISPUTE, plan.ticketId(),
+                    "type=" + plan.resolutionType() + " order=" + result.order().orderId()
+                            + " delta=" + result.adjustmentCents());
+            default -> throw new IllegalStateException("unexpected resolution: " + plan.resolutionType());
+        }
+    }
+
+    private void reportFinalizeFailure(DisputeResolvePlan plan, RuntimeException failure) {
+        try {
+            opsExceptionService.report("DISPUTE_FINALIZE_FAILED", "HIGH",
+                    new OpsExceptionService.ExceptionReport.ExceptionRefs(
+                            plan.deviceId(), plan.sessionId(), plan.orderId(), plan.userId()),
+                    "争议资金已处理但工单收尾失败",
+                    "ticketId=" + plan.ticketId() + " type=" + plan.resolutionType()
+                            + " error=" + failure.getClass().getSimpleName() + ":" + failure.getMessage());
+        } catch (Exception reportFailure) {
+            log.error("failed to report dispute finalize failure ticket={}", plan.ticketId(), reportFailure);
+        }
+    }
+
+    private ShoppingSession requireSession(String sessionId) {
+        return sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
     }
 
     /** 消费者触达：结案/自动免单发 dispute_resolved 站内信（模板缺字段或未启用由 NotificationService 兜底）。 */
@@ -938,6 +1042,7 @@ public class DisputeService {
 
     private ResolveDisputeResultDto resolveWaive(Long operatorId, DisputeTicket ticket, ShoppingSession session,
                                                  Boolean restoreInventoryFlag) {
+        // CONCURRENCY: autoWaiveTicket 持争议分布式锁，且仅允许无订单零资金路径。
         boolean restore = RefundInventoryPolicy.resolve(restoreInventoryFlag, ticket.getReason(), true);
         int refunded = settlementService.waiveAndRefund(session, restore);
         ticket.setStatus(STATUS_RESOLVED);
@@ -955,59 +1060,6 @@ public class DisputeService {
             message = "已免单，无需扣款";
         }
         return new ResolveDisputeResultDto(null, WAIVE, refunded, 0, -refunded, message);
-    }
-
-    private ResolveDisputeResultDto resolveKeep(Long operatorId, DisputeTicket ticket, ShoppingSession session) {
-        int originalAmount = orderRepository.findBySessionId(session.getSessionId())
-                .filter(order -> !CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus()))
-                .map(CabinetOrder::getTotalAmountCents)
-                .orElse(0);
-        ticket.setStatus(STATUS_RESOLVED);
-        ticket.setResolutionItems(ticket.getItems() != null ? ticket.getItems() : "[]");
-        ticket.setResolvedAt(Instant.now());
-        applyAssignee(ticket, operatorId);
-        disputeRepository.save(ticket);
-        auditService.appendLog(operatorId, "DISPUTE_KEEP_BILL", DISPUTE, ticket.getTicketId(),
-                SESSION + ticket.getSessionId() + " amount=" + originalAmount);
-        return new ResolveDisputeResultDto(
-                null,
-                "KEEP", originalAmount, originalAmount, 0, "已复核，维持原账单");
-    }
-
-    private ResolveDisputeResultDto resolveConfirm(Long operatorId,
-                                                 DisputeTicket ticket,
-                                                 ShoppingSession session,
-                                                 ResolveDisputeRequest request,
-                                                 String resolutionType) {
-        var lines = request.items() == null ? List.<ResolveDisputeRequest.ManualLineItem>of() : request.items();
-        var manualItems = lines.stream()
-                .filter(i -> i != null && i.quantity() > 0)
-                .map(i -> new RecognizedItem(i.skuId(), i.quantity(), 1.0f))
-                .toList();
-        if (manualItems.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DISPUTE_ITEMS_REQUIRED);
-        }
-        SettlementService.ConfirmDisputeResult settled =
-                settlementService.confirmDisputedItems(session, manualItems);
-
-        ticket.setStatus(STATUS_RESOLVED);
-        ticket.setResolutionItems(toJson(manualItems));
-        ticket.setResolvedAt(Instant.now());
-        applyAssignee(ticket, operatorId);
-        disputeRepository.save(ticket);
-
-        session.setOrderId(settled.order().orderId());
-        String message = buildAdjustMessage(settled);
-        auditService.appendLog(operatorId, "DISPUTE_RESOLVE", DISPUTE, ticket.getTicketId(),
-                "type=" + resolutionType + " order=" + settled.order().orderId()
-                        + " delta=" + settled.adjustmentCents());
-        return new ResolveDisputeResultDto(
-                settled.order(),
-                resolutionType,
-                settled.originalAmountCents(),
-                settled.finalAmountCents(),
-                settled.adjustmentCents(),
-                message);
     }
 
     private static String buildAdjustMessage(SettlementService.ConfirmDisputeResult settled) {
@@ -1178,7 +1230,6 @@ public class DisputeService {
     /**
      * 商户有限结案：仅 KEEP / WAIVE / CONFIRM（不可 ADJUST 随意改价）。
      */
-    @Transactional(noRollbackFor = {com.aicabinet.trade.service.BalanceInsufficientException.class})
     public ResolveDisputeResultDto resolveAsMerchant(Long userId, String ticketId, ResolveDisputeRequest request) {
         permissionService.requirePermission(userId, "merchant:disputes:resolve");
         merchantPortalGuard.requireAccess(userId);
@@ -1186,14 +1237,35 @@ public class DisputeService {
     }
 
     private ResolveDisputeResultDto doResolveAsMerchant(Long userId, String ticketId, ResolveDisputeRequest request) {
+        DisputeResolvePlan plan = self.prepareResolveAsMerchant(userId, ticketId, request);
+        ShoppingSession session = requireSession(plan.sessionId());
+        ResolveDisputeResultDto result = switch (plan.resolutionType()) {
+            case "KEEP" -> executeKeep(plan, session);
+            case WAIVE -> executeWaive(plan, session);
+            case CONFIRM -> executeConfirm(plan, session);
+            default -> throw new IllegalStateException("unexpected resolution: " + plan.resolutionType()); // NOSONAR java:S2583
+        };
+        ResolveDisputeResultDto finalized;
+        try {
+            finalized = self.finalizeResolveTicket(plan, result);
+        } catch (RuntimeException e) {
+            reportFinalizeFailure(plan, e);
+            throw e;
+        }
+        auditService.appendLog(userId, "MERCHANT_DISPUTE_RESOLVE", DISPUTE, ticketId,
+                "type=" + plan.resolutionType());
+        return finalized;
+    }
+
+    @Transactional
+    public DisputeResolvePlan prepareResolveAsMerchant(Long userId, String ticketId, ResolveDisputeRequest request) {
         DisputeTicket ticket = disputeRepository.findByIdForUpdate(ticketId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.TICKET_NOT_FOUND));
         requireTicketDeviceAccess(userId, ticket);
         if (!DisputeTicketTransitions.canActWhileOpen(ticket.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.TICKET_ALREADY_RESOLVED);
         }
-        ShoppingSession session = sessionRepository.findById(ticket.getSessionId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        ShoppingSession session = requireSession(ticket.getSessionId());
 
         ResolveDisputeRequest body = requireResolveRequest(request);
         String resolutionType = requireResolutionType(body.effectiveResolutionType());
@@ -1201,7 +1273,6 @@ public class DisputeService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "商户结案仅支持：维持原单 / 免单退款 / 按确认清单");
         }
         if (CONFIRM.equals(resolutionType) && (body.items() == null || body.items().isEmpty())) {
-            // 默认用工单建议行，避免商户端无商品选择器时无法结案
             List<ResolveDisputeRequest.ManualLineItem> suggested = parseItems(ticket.getItems()).stream()
                     .filter(i -> i != null && i.skuId() != null && i.quantity() > 0)
                     .map(i -> new ResolveDisputeRequest.ManualLineItem(i.skuId(), i.quantity()))
@@ -1209,31 +1280,16 @@ public class DisputeService {
             if (suggested.isEmpty()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DISPUTE_ITEMS_REQUIRED);
             }
-            body = new ResolveDisputeRequest(
-                    suggested, CONFIRM, null, body.restoreInventory());
+            body = new ResolveDisputeRequest(suggested, CONFIRM, null, body.restoreInventory());
         }
-        orderRepository.findBySessionId(session.getSessionId()).ifPresent(order -> {
-            if (CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus()) && !WAIVE.equals(resolutionType) && !"KEEP".equals(resolutionType)) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_ALREADY_REFUNDED);
-            }
-        });
-        ResolveDisputeResultDto result = switch (resolutionType) {
-            case "KEEP" -> resolveKeep(userId, ticket, session);
-            case WAIVE -> resolveWaive(userId, ticket, session, body.restoreInventory());
-            case CONFIRM -> resolveConfirm(userId, ticket, session, body, CONFIRM);
-            default -> throw new IllegalStateException("unexpected resolution: " + resolutionType); // NOSONAR java:S2583
-        };
-        recordRecognitionVerdict(ticket, resolutionType);
-        opsExceptionService.resolveOpenForSession(userId, session.getSessionId(),
-                "商户争议结案(" + resolutionType + ")同步关闭异常");
-        sessionService.transition(session, SessionState.COMPLETED);
-        final String resolvedType = resolutionType;
-        orderRepository.findBySessionId(session.getSessionId()).ifPresent(order ->
-                alignOrderStatusAfterDisputeResolve(order, resolvedType));
-        auditService.appendLog(userId, "MERCHANT_DISPUTE_RESOLVE", DISPUTE, ticketId,
-                "type=" + resolutionType);
-        notifyConsumerResolved(session, ticketId, resolutionType);
-        return result;
+        CabinetOrder order = orderRepository.findBySessionId(session.getSessionId()).orElse(null);
+        if (order != null && CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus())
+                && !WAIVE.equals(resolutionType) && !"KEEP".equals(resolutionType)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_ALREADY_REFUNDED);
+        }
+        return new DisputeResolvePlan(userId, ticketId, session.getSessionId(), session.getDeviceId(),
+                order == null ? null : order.getOrderId(), session.getUserId(), resolutionType, body,
+                ticket.getReason(), true);
     }
 
     @Transactional

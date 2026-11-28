@@ -27,6 +27,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -90,6 +91,20 @@ class DisputeTicketSyncTest {
                 .thenReturn(true);
         org.mockito.Mockito.lenient().when(fileAttachmentService.listDisputeEvidence(anyString()))
                 .thenReturn(List.of());
+    }
+
+    @Test
+    void resolveFlows_keepChannelHttpOutsideOuterTransaction() throws Exception {
+        assertNull(DisputeService.class.getMethod("resolveTicket", Long.class, String.class,
+                ResolveDisputeRequest.class).getAnnotation(Transactional.class));
+        assertNull(DisputeService.class.getMethod("resolveAsMerchant", Long.class, String.class,
+                ResolveDisputeRequest.class).getAnnotation(Transactional.class));
+        assertNotNull(DisputeService.class.getMethod("prepareResolveTicket", Long.class, String.class,
+                ResolveDisputeRequest.class).getAnnotation(Transactional.class));
+        assertNotNull(DisputeService.class.getMethod("prepareResolveAsMerchant", Long.class, String.class,
+                ResolveDisputeRequest.class).getAnnotation(Transactional.class));
+        assertNotNull(DisputeService.class.getMethod("finalizeResolveTicket", DisputeService.DisputeResolvePlan.class,
+                com.aicabinet.common.dto.ResolveDisputeResultDto.class).getAnnotation(Transactional.class));
     }
 
     @Test

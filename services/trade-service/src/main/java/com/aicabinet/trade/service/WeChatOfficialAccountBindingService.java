@@ -18,15 +18,18 @@ public class WeChatOfficialAccountBindingService {
     private final WeChatOfficialAccountClient client;
     private final WeChatOfficialBindingTicketStore ticketStore;
     private final AccountService accountService;
+    private final NotifyChannelSwitchService channelSwitch;
 
     public WeChatOfficialAccountBindingService(WeChatOfficialAccountProperties properties,
                                                WeChatOfficialAccountClient client,
                                                WeChatOfficialBindingTicketStore ticketStore,
-                                               AccountService accountService) {
+                                               AccountService accountService,
+                                               NotifyChannelSwitchService channelSwitch) {
         this.properties = properties;
         this.client = client;
         this.ticketStore = ticketStore;
         this.accountService = accountService;
+        this.channelSwitch = channelSwitch;
     }
 
     public WeChatOfficialBindTicketDto createTicket(Long userId) {
@@ -57,16 +60,16 @@ public class WeChatOfficialAccountBindingService {
     }
 
     private boolean isConfigured(MiniAppTarget target) {
-        if (!properties.isBindingConfigured()) {
+        if (!properties.isBindingConfigured() || !channelSwitch.wechatEnabled()) {
             return false;
         }
         return target == MiniAppTarget.MERCHANT
                 ? properties.isMerchantDailyReportConfigured()
-                        || properties.isWithdrawConfigured()
-                        || properties.isWithdrawFailedConfigured()
+                        && properties.isWithdrawConfigured()
+                        && properties.isWithdrawFailedConfigured()
                 : properties.isConfigured()
-                        || properties.isRefundConfigured()
-                        || properties.isDisputeConfigured();
+                        && properties.isRefundConfigured()
+                        && properties.isDisputeConfigured();
     }
 
     public void complete(String code, String state) {

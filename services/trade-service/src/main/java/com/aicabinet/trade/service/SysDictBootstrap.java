@@ -472,6 +472,7 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "TEMP_ABNORMAL", "温度异常", "RESTOCK_SESSION_TIMEOUT", "补货会话超时",
                 "RESTOCK_RECOGNITION_TIMEOUT", "补货识别超时", "RESTOCK_TASK_TIMEOUT", "补货任务超时",
                 "FAILED_SESSION_HOLD_CLEAR", "会话预授权悬挂已清扫", "DISPUTE_ADJUST_MISMATCH", "争议补差账实漂移",
+                "DISPUTE_FINALIZE_FAILED", "争议资金已处理但工单收尾失败",
                 "COUPON_MARKUSED_FAILED", "券核销失败", "CHARGE_PENDING_STALE", "渠道扣款回执超时", "REFUND_SYNC_NOT_ADVANCED", "退款同步未推进单据", "REFUND_SYNC_NOT_ADVANCED", "退款同步未推进单据",
                 "CHARGE_PENDING_UNRESOLVED", "渠道扣款结果未确认", "CHARGE_SETTLED_NOT_BOOKED", "渠道已扣款但本地未记账",
                 "PAYSCORE_ORDER_UNLINKED", "支付分单长期未关联订单", "CHARGE_PENDING_RECONCILE_MANUAL", "渠道扣款成功无法自动收口",

@@ -113,31 +113,39 @@ public class MerchantDailyReportNotifier {
         }
     }
 
+    public record DeliveryResult(int sent, int failed, int skipped) {
+        public static final DeliveryResult EMPTY = new DeliveryResult(0, 0, 0);
+
+        public DeliveryResult plus(DeliveryResult other) {
+            return new DeliveryResult(sent + other.sent(), failed + other.failed(), skipped + other.skipped());
+        }
+    }
+
     /**
      * 给该商户的每个已绑定微信操作员发一条日报。
      *
-     * @return 实际发送成功的**人数**（0 不代表出错：可能未配模板 / 渠道关闭 / 无人绑微信 /
-     *         当日已发过）
+     * @return 成功、失败与跳过人数；关闭/未配模板/无人绑定属于跳过，不计失败
      */
-    public int send(MerchantDailyReport report) {
+    public DeliveryResult send(MerchantDailyReport report) {
         if (report == null || report.merchantId() == null || report.merchantId().isBlank()) {
-            return 0;
+            return DeliveryResult.EMPTY;
         }
         if (!channelSwitch.wechatEnabled()) {
             log.debug("merchant daily report skipped: notify.wechat.enabled=false merchant={}", report.merchantId());
-            return 0;
+            return DeliveryResult.EMPTY;
         }
-        boolean officialReady = officialAccountProperties.isMerchantDailyReportConfigured();
+        boolean officialReady = reportProperties.enabled()
+                && officialAccountProperties.isMerchantDailyReportConfigured();
         boolean miniReady = reportProperties.configured()
                 && weChatMiniAppProperties.isConfigured(MiniAppTarget.MERCHANT);
         if (!officialReady && !miniReady) {
             log.debug("merchant daily report skipped: no usable template merchant={}", report.merchantId());
-            return 0;
+            return DeliveryResult.EMPTY;
         }
         List<OpsUserMerchant> binds = userMerchantRepository.findActiveByMerchantId(report.merchantId());
         if (binds.isEmpty()) {
             log.info("merchant daily report skipped: no bound operator merchant={}", report.merchantId());
-            return 0;
+            return DeliveryResult.EMPTY;
         }
         Map<String, String> fields = buildFields(report);
         Map<String, String> officialFields = buildOfficialFields(report,
@@ -145,6 +153,8 @@ public class MerchantDailyReportNotifier {
         String templateId = reportProperties.resolveTemplateId();
         String page = reportProperties.resolvePage();
         int sent = 0;
+        int failed = 0;
+        int skipped = 0;
         int noOpenId = 0;
         int alreadySent = 0;
         for (OpsUserMerchant bind : binds) {
@@ -168,18 +178,20 @@ public class MerchantDailyReportNotifier {
                         MiniAppTarget.MERCHANT, reportProperties.resolvePage());
                 channel = OFFICIAL_CHANNEL;
             } else if (miniReady && user != null
-                    && user.getWxOpenId() != null && !user.getWxOpenId().isBlank()) {
+                    && user.getWxMerchantOpenId() != null && !user.getWxMerchantOpenId().isBlank()) {
                 ok = weChatMiniAppClient.sendSubscribeMessage(
-                        user.getWxOpenId(), templateId, page, fields, MiniAppTarget.MERCHANT);
+                        user.getWxMerchantOpenId(), templateId, page, fields, MiniAppTarget.MERCHANT);
                 channel = CHANNEL;
             } else {
                 noOpenId++;
                 continue;
             }
             if (!ok) {
+                saveLog(userId, report, channel, clientMsgId, "FAILED");
+                failed++;
                 continue;
             }
-            saveLog(userId, report, channel, clientMsgId);
+            saveLog(userId, report, channel, clientMsgId, "SENT");
             sent++;
         }
         if (sent == 0 && noOpenId > 0) {
@@ -190,7 +202,11 @@ public class MerchantDailyReportNotifier {
             log.debug("merchant daily report deduped: {} operator(s) already notified merchant={} bizId={}",
                     alreadySent, report.merchantId(), report.bizId());
         }
-        return sent;
+        if (failed > 0) {
+            log.warn("merchant daily report delivery failed: {} operator(s) merchant={} bizId={}",
+                    failed, report.merchantId(), report.bizId());
+        }
+        return new DeliveryResult(sent, failed, alreadySent + noOpenId);
     }
 
     /**
@@ -255,11 +271,13 @@ public class MerchantDailyReportNotifier {
                 .eq(NotificationLog::getUserId, userId)
                 .eq(NotificationLog::getMerchantId, merchantId)
                 .eq(NotificationLog::getBizType, BIZ_TYPE)
-                .eq(NotificationLog::getBizId, bizId));
+                .eq(NotificationLog::getBizId, bizId)
+                .eq(NotificationLog::getStatus, "SENT"));
         return c != null && c > 0;
     }
 
-    private void saveLog(Long userId, MerchantDailyReport report, String channel, String clientMsgId) {
+    private void saveLog(Long userId, MerchantDailyReport report, String channel, String clientMsgId,
+                         String status) {
         // CONCURRENCY: append-only 通知日志；调用方受日报任务锁与 user×date 查重保护。
         NotificationLog entry = new NotificationLog();
         entry.setTemplateCode(TEMPLATE_CODE);
@@ -273,7 +291,7 @@ public class MerchantDailyReportNotifier {
         entry.setBizType(BIZ_TYPE);
         entry.setBizId(report.bizId());
         entry.setClientMsgId(clientMsgId);
-        entry.setStatus("SENT");
+        entry.setStatus(status);
         entry.setCreatedAt(Instant.now());
         notificationLogRepository.insert(entry);
     }

@@ -87,7 +87,8 @@ public class ScheduledTaskRegistry {
                                  DepositMonthlyRefundJob depositMonthlyRefundJob,
                                  ScheduledTaskStaleMonitor scheduledTaskStaleMonitor,
                                  JiangyiProductStatePollScheduler jiangyiProductStatePollScheduler,
-                                 ChargePendingReconciler chargePendingReconciler) {
+                                 ChargePendingReconciler chargePendingReconciler,
+                                 NotificationDispatchOutboxScheduler notificationDispatchOutboxScheduler) {
         register("device-presence", "设备离线巡检", "DEVICE", V_60, 600,
                 devicePresenceService::markStaleDevicesOffline);
         register("session-opening-expire", "开门超时会话清理", TRADE, V_30, 600,
@@ -142,6 +143,8 @@ public class ScheduledTaskRegistry {
         // 分钟级轻任务，托管后调度中心排期反而放大延迟）
         register("refund-retry", "渠道退款重试闭环", FINANCE, V_60, 600,
                 refundRetryScheduler::run);
+        register("notification-outbox-retry", "通知外发重试队列", SYSTEM, V_60, 300,
+                notificationDispatchOutboxScheduler::retry);
         // B1-B2：CHARGE_PENDING 对账（分钟级，Spring 常驻不进 XXL，同 refund-retry）
         register("charge-pending-reconcile", "扣款回执对账", FINANCE, "每 2 分钟", 300,
                 chargePendingReconciler::run);

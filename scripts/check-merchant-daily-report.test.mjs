@@ -56,7 +56,7 @@ inject({ notifier: tpl }, '注入①复用待办模板', 'subscribeTemplateId');
 
 // ② 目标端改成消费者 —— 商户 openid 用消费者 token 必 40003
 const wrongTarget = real.notifier.replace(
-  'user.getWxOpenId(), templateId, page, fields, MiniAppTarget.MERCHANT)',
+  'user.getWxMerchantOpenId(), templateId, page, fields, MiniAppTarget.MERCHANT)',
   'user.getWxOpenId(), templateId, page, fields, MiniAppTarget.CONSUMER)'
 );
 assert(wrongTarget !== real.notifier, '注入②锚点 MiniAppTarget.MERCHANT 找不到');
@@ -125,8 +125,8 @@ inject({ scheduler: inAppNoMerge }, '注入⑧站内信只发有成交的', '00:
 
 // ⑨ 微信侧摘掉扩集合 —— 站内信有、微信没有，两条通道又对不上
 const wechatNoMerge = real.scheduler.replace(
-  'Map<String, DailySales> salesByMerchant = mergeDeviceMerchants(aggregateSales(splits));\n        if (salesByMerchant.isEmpty()) {\n            return 0;',
-  'Map<String, DailySales> salesByMerchant = aggregateSales(splits);\n        if (salesByMerchant.isEmpty()) {\n            return 0;'
+  'Map<String, DailySales> salesByMerchant = mergeDeviceMerchants(aggregateSales(splits));\n        if (salesByMerchant.isEmpty()) {\n            return MerchantDailyReportNotifier.DeliveryResult.EMPTY;',
+  'Map<String, DailySales> salesByMerchant = aggregateSales(splits);\n        if (salesByMerchant.isEmpty()) {\n            return MerchantDailyReportNotifier.DeliveryResult.EMPTY;'
 );
 assert(wechatNoMerge !== real.scheduler, '注入⑨锚点（07:30 扩集合）找不到');
 inject({ scheduler: wechatNoMerge }, '注入⑨微信只发有成交的', '07:30 微信');
@@ -146,5 +146,31 @@ const emptyMerge = real.scheduler.replace(
 );
 assert(emptyMerge !== real.scheduler, '注入⑪锚点 putIfAbsent 找不到');
 inject({ scheduler: emptyMerge }, '注入⑪扩集合空转', '空转');
+
+// ⑫ 服务号分支绕过业务开关 —— 关停日报后仍弹微信
+const bypassSwitch = real.notifier.replace(
+  'boolean officialReady = reportProperties.enabled()',
+  'boolean officialReady = true'
+);
+assert(bypassSwitch !== real.notifier, '注入⑫锚点 reportProperties.enabled() 找不到');
+inject({ notifier: bypassSwitch }, '注入⑫服务号绕过开关', '业务开关');
+
+// ⑬ 失败不落日志 —— 运营看不到“没发”与“发送失败”的区别
+const noFailureLog = real.notifier.replace(
+  'saveLog(userId, report, channel, clientMsgId, "FAILED");',
+  'failed++;'
+);
+assert(noFailureLog !== real.notifier, '注入⑬锚点 FAILED 日志找不到');
+inject({ notifier: noFailureLog }, '注入⑬失败无日志', 'FAILED 日志');
+
+// ⑭ 调度忽略失败人数 —— 渠道全失败也记 SUCCESS
+const fakeSuccess = real.scheduler.replace('failed ? "FAILED" : "SUCCESS"', '"SUCCESS"');
+assert(fakeSuccess !== real.scheduler, '注入⑭锚点 outcome.failed() 找不到');
+inject({ scheduler: fakeSuccess }, '注入⑭失败假成功', 'FAILED/SUCCESS');
+
+// ⑮ 幂等把 FAILED 也算已发 —— 首次失败后永久不能补发
+const failedBlocksRetry = real.notifier.replace('.eq(NotificationLog::getStatus, "SENT")', '');
+assert(failedBlocksRetry !== real.notifier, '注入⑮锚点 SENT 状态过滤找不到');
+inject({ notifier: failedBlocksRetry }, '注入⑮失败挡重试', 'SENT');
 
 console.log(`${TAG} OK：${checks} 项断言全过（真树绿 / CRLF 绿 / 双渠道注入红 / 注释不误判）`);

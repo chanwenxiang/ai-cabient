@@ -641,6 +641,7 @@ export declare const DICT: {
         readonly RESTOCK_TASK_TIMEOUT: "补货任务超时";
         readonly FAILED_SESSION_HOLD_CLEAR: "会话预授权悬挂已清扫";
         readonly DISPUTE_ADJUST_MISMATCH: "争议补差账实漂移";
+        readonly DISPUTE_FINALIZE_FAILED: "争议资金已处理但工单收尾失败";
         readonly COUPON_MARKUSED_FAILED: "券核销失败";
         readonly CHARGE_PENDING_STALE: "渠道扣款回执超时";
         readonly UNPAID_CANCEL_NET_BLOCKED: "待支付净入账阻断取消";

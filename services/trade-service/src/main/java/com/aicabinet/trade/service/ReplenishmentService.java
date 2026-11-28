@@ -1302,7 +1302,11 @@ public class ReplenishmentService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    jiangyiRestockSyncExecutor.submit(push);
+                    try {
+                        jiangyiRestockSyncExecutor.submit(push);
+                    } catch (RuntimeException e) {
+                        log.error("jiangyi restock sync submit after commit failed deviceId={}", deviceId, e);
+                    }
                 }
             });
         } else {

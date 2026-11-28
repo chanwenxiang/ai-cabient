@@ -169,7 +169,7 @@ class PaymentServiceTest {
         assertNotNull(order.getPaidAt());
         verify(balanceLedgerService).change(eq(10001L), eq(500), eq("RECHARGE"), eq("R-REV"),
                 anyString(), anyString());
-        verify(opsAlertDispatcher).send(eq("RECHARGE_PAID_AFTER_CANCEL"), anyString(), anyString(), anyMap());
+        verify(opsAlertDispatcher).sendAfterCommit(eq("RECHARGE_PAID_AFTER_CANCEL"), anyString(), anyString(), anyMap());
         verify(rechargeOrderRepository).save(order);
     }
 
@@ -847,7 +847,7 @@ class PaymentServiceTest {
 
         paymentService.handleWeChatRefundNotify("body", "ts", "nonce", "sig", "serial");
 
-        verify(opsAlertDispatcher).send(eq("WECHAT_REFUND_ABNORMAL"), anyString(), contains("R-AB"));
+        verify(opsAlertDispatcher).sendAfterCommit(eq("WECHAT_REFUND_ABNORMAL"), anyString(), contains("R-AB"));
         verify(balanceLedgerService, never())
                 .changeTracked(any(), anyInt(), anyString(), anyString(), anyString(), anyString());
     }
@@ -866,7 +866,7 @@ class PaymentServiceTest {
         assertDoesNotThrow(() ->
                 paymentService.handleWeChatRefundNotify("body", "ts", "nonce", "sig", "serial"));
 
-        verify(opsAlertDispatcher).send(eq("WECHAT_REFUND_SYNC_INSUFFICIENT_BALANCE"), anyString(),
+        verify(opsAlertDispatcher).sendAfterCommit(eq("WECHAT_REFUND_SYNC_INSUFFICIENT_BALANCE"), anyString(),
                 contains("R-POOR"), anyMap());
         verify(rechargeOrderRepository, never()).findByIdForUpdate(anyString());
     }
@@ -885,7 +885,7 @@ class PaymentServiceTest {
         assertDoesNotThrow(() ->
                 paymentService.handleWeChatRefundNotify("body", "ts", "nonce", "sig", "serial"));
 
-        verify(opsAlertDispatcher).send(eq("WECHAT_REFUND_SYNC_MISSING_REFUND_ID"),
+        verify(opsAlertDispatcher).sendAfterCommit(eq("WECHAT_REFUND_SYNC_MISSING_REFUND_ID"),
                 anyString(), contains("R-NOID"));
         verify(balanceLedgerService, never())
                 .changeTracked(any(), anyInt(), anyString(), anyString(), anyString(), anyString());
@@ -900,7 +900,7 @@ class PaymentServiceTest {
 
         paymentService.handleWeChatRefundNotify("body", "ts", "nonce", "sig", "serial");
 
-        verify(opsAlertDispatcher).send(eq("WECHAT_REFUND_SYNC_MISSING_REFUND_ID"),
+        verify(opsAlertDispatcher).sendAfterCommit(eq("WECHAT_REFUND_SYNC_MISSING_REFUND_ID"),
                 anyString(), contains("R-BLANK"));
         verify(balanceLedgerService, never())
                 .changeTracked(any(), anyInt(), anyString(), anyString(), anyString(), anyString());

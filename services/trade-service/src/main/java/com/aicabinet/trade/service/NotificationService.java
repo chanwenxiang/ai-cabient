@@ -7,13 +7,11 @@ import com.aicabinet.common.dto.NotificationDispatchMessage;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.domain.NotificationLog;
 import com.aicabinet.trade.domain.NotificationTemplate;
-import com.aicabinet.trade.messaging.NotificationDispatchProducer;
 import com.aicabinet.trade.mapper.NotificationLogMapper;
 import com.aicabinet.trade.mapper.NotificationTemplateMapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -26,7 +24,6 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.function.Supplier;
 
 /**
@@ -45,10 +42,8 @@ public class NotificationService {
 
     private final NotificationTemplateMapper templateRepository;
     private final NotificationLogMapper logRepository;
-    private final NotifyChannelSwitchService channelSwitch;
     private final ConsumerNotifyPrefService notifyPrefService;
-    private final ExternalNotificationDispatcher externalDispatcher;
-    private final ObjectProvider<NotificationDispatchProducer> producerProvider;
+    private final NotificationDispatchOutboxService outboxService;
     private final DistributedLockService distributedLockService;
     private final AdminAuditService auditService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
@@ -56,19 +51,15 @@ public class NotificationService {
 
     public NotificationService(NotificationTemplateMapper templateRepository,
                                NotificationLogMapper logRepository,
-                               NotifyChannelSwitchService channelSwitch,
                                ConsumerNotifyPrefService notifyPrefService,
-                               ExternalNotificationDispatcher externalDispatcher,
-                               ObjectProvider<NotificationDispatchProducer> producerProvider,
+                               NotificationDispatchOutboxService outboxService,
                                DistributedLockService distributedLockService,
                                AdminAuditService auditService,
                                @Lazy NotificationService self) {
         this.templateRepository = templateRepository;
         this.logRepository = logRepository;
-        this.channelSwitch = channelSwitch;
         this.notifyPrefService = notifyPrefService;
-        this.externalDispatcher = externalDispatcher;
-        this.producerProvider = producerProvider;
+        this.outboxService = outboxService;
         this.distributedLockService = distributedLockService;
         this.auditService = auditService;
         this.self = self;
@@ -93,7 +84,7 @@ public class NotificationService {
         }
         saveLog(new NotificationLogDraft("OPS_INBOX", IN_APP,
                 new NotificationLogDraft.NotificationTarget("OPS", userId, null),
-                new NotificationLogDraft.NotificationContent(title, body, bizType, bizId)));
+                new NotificationLogDraft.NotificationContent(title, body, bizType, bizId), null));
     }
 
     @Transactional(readOnly = true)
@@ -144,11 +135,14 @@ public class NotificationService {
         }
         String title = render(tpl.getTitleTemplate(), params);
         String body = render(tpl.getBodyTemplate(), params);
+        String clientMsgId = NotificationDispatchOutboxService.idempotencyKey(new NotificationDispatchMessage(
+                tpl.getTemplateCode(), userId, title, body, bizType, bizId, params, "", audience, merchantId));
         List<String> channelList = channels(tpl.getChannels(), tpl.getChannel());
         if (channelList.contains(IN_APP)) {
             self.persistInAppLog(new NotificationLogDraft(tpl.getTemplateCode(), IN_APP,
                     new NotificationLogDraft.NotificationTarget(audience, userId, merchantId),
-                    new NotificationLogDraft.NotificationContent(title, body, bizType, bizId)));
+                    new NotificationLogDraft.NotificationContent(title, body, bizType, bizId),
+                    "inapp:" + clientMsgId));
         }
         // 站内信是业务事实，先于外部渠道落库；偏好只控制微信/短信，不阻断消息中心。
         if (!notifyPrefService.isEnabled(userId, tpl.getCategory())) {
@@ -161,17 +155,21 @@ public class NotificationService {
         // 短信结构化参数随消息下发：阿里云通知短信需要模板变量（title/body 是渲染后文本，落不了变量）
         NotificationDispatchMessage message = new NotificationDispatchMessage(
                 tpl.getTemplateCode(), userId, title, body, bizType, bizId, params,
-                UUID.randomUUID().toString().replace("-", ""), audience, merchantId);
+                clientMsgId, audience, merchantId);
+        boolean enqueued = false;
+        try {
+            outboxService.enqueue(message);
+            enqueued = true;
+        } catch (Exception e) {
+            log.error("notification outbox enqueue failed template={} userId={}", templateCode, userId, e);
+        }
+        final boolean useOutbox = enqueued;
         Runnable external = () -> {
-            if (channelSwitch.asyncEnabled()) {
-                NotificationDispatchProducer producer = producerProvider.getIfAvailable();
-                if (producer != null) {
-                    producer.publish(message);
-                    return;
-                }
-                log.warn("notify async enabled but producer unavailable, fallback sync");
+            if (useOutbox) {
+                outboxService.dispatchByKey(clientMsgId);
+            } else {
+                outboxService.dispatchDirect(message);
             }
-            externalDispatcher.dispatch(message);
         };
         if (deferExternal) {
             dispatchAfterCommit(external);
@@ -190,17 +188,11 @@ public class NotificationService {
         if (userId == null) {
             return;
         }
-        dispatchAfterCommit(() -> {
-            try {
-                sendInternal(CONSUMER, userId, null, "refund_success",
-                        Map.of("orderId", orderOrRequestNo == null ? "" : orderOrRequestNo,
-                                "amount", BigDecimal.valueOf(amountCents, 2).toPlainString(),
-                                "productName", orderRefund ? "订单商品" : "余额退款"),
-                        orderRefund ? "REFUND" : "BALANCE_REFUND", orderOrRequestNo, false);
-            } catch (Exception e) {
-                log.warn("refund notification failed userId={} ref={}", userId, orderOrRequestNo, e);
-            }
-        });
+        sendInternal(CONSUMER, userId, null, "refund_success",
+                Map.of("orderId", orderOrRequestNo == null ? "" : orderOrRequestNo,
+                        "amount", BigDecimal.valueOf(amountCents, 2).toPlainString(),
+                        "productName", orderRefund ? "订单商品" : "余额退款"),
+                orderRefund ? "REFUND" : "BALANCE_REFUND", orderOrRequestNo, true);
     }
 
     /** 站内信随业务事务落库；微信/短信/Kafka 外统一等事务提交后再发，避免回滚后假通知。 */
@@ -209,7 +201,11 @@ public class NotificationService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    action.run();
+                    try {
+                        action.run();
+                    } catch (RuntimeException e) {
+                        log.error("notification afterCommit action failed", e);
+                    }
                 }
             });
         } else {
@@ -223,7 +219,8 @@ public class NotificationService {
     }
 
     private record NotificationLogDraft(
-            String templateCode, String channel, NotificationTarget target, NotificationContent content) {
+            String templateCode, String channel, NotificationTarget target, NotificationContent content,
+            String clientMsgId) {
         private record NotificationTarget(String audience, Long userId, String merchantId) {}
         private record NotificationContent(String title, String body, String bizType, String bizId) {}
     }
@@ -239,9 +236,14 @@ public class NotificationService {
         logEntry.setBody(draft.content().body());
         logEntry.setBizType(draft.content().bizType());
         logEntry.setBizId(draft.content().bizId());
+        logEntry.setClientMsgId(draft.clientMsgId());
         logEntry.setStatus("SENT");
         logEntry.setCreatedAt(Instant.now());
-        logRepository.save(logEntry);
+        if (draft.clientMsgId() != null) {
+            logRepository.insertIgnore(logEntry);
+        } else {
+            logRepository.save(logEntry);
+        }
         log.info("notification sent channel={} template={} audience={} userId={} merchantId={}",
                 draft.channel(), draft.templateCode(), draft.target().audience(),
                 draft.target().userId(), draft.target().merchantId());

@@ -26,6 +26,7 @@ import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Map;
 import com.aicabinet.trade.wechat.MiniAppTarget;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 
 /** 外部渠道通知分发：微信订阅消息 / 短信；同步与异步（Kafka 消费）共用。 */
 @Component
@@ -68,8 +69,13 @@ public class ExternalNotificationDispatcher {
 
     /** 按消息渠道配置分发微信订阅消息与短信；异步消费时渠道失败必须重抛以触发 Kafka 重试。 */
     public void dispatch(NotificationDispatchMessage msg) {
+        dispatchSuccessful(msg);
+    }
+
+    /** @return 所有已启用渠道均成功或无需发送时为 true；任一实际渠道失败为 false。 */
+    public boolean dispatchSuccessful(NotificationDispatchMessage msg) {
         if (msg.userId() == null) {
-            return;
+            return true;
         }
         boolean failed = false;
         Exception firstFailure = null;
@@ -98,6 +104,7 @@ public class ExternalNotificationDispatcher {
         if (failed && channelSwitch.asyncEnabled()) {
             throw new IllegalStateException("notification dispatch failed", firstFailure);
         }
+        return !failed;
     }
 
     /** @return 仅渠道实际发送返回 false 时为 true；未绑定/模板缺失是确定性跳过，重试也不会改变。 */
@@ -109,6 +116,9 @@ public class ExternalNotificationDispatcher {
             OfficialSendSpec spec = resolveOfficialSpec(msg);
             if (spec != null && spec.configured()) {
                 String clientMsgId = resolveClientMsgId(msg);
+                if (alreadySent(msg, "WECHAT_OFFICIAL")) {
+                    return false;
+                }
                 boolean ok = weChatOfficialAccountClient.sendTemplateMessage(
                         user.getWxOfficialOpenId(), spec.templateId(), spec.data(),
                         clientMsgId, spec.target(), spec.pagePath(), true);
@@ -144,6 +154,9 @@ public class ExternalNotificationDispatcher {
             log.warn("wechat notify skipped: consumer template not configured userId={} templateCode={}",
                     msg.userId(), msg.templateCode());
             saveFailedLog(msg, "WECHAT_SUBSCRIBE", "消费者订阅模板未配置");
+            return false;
+        }
+        if (alreadySent(msg, "WECHAT_SUBSCRIBE")) {
             return false;
         }
         boolean ok = weChatMiniAppClient.sendSubscribeMessage(
@@ -338,6 +351,9 @@ public class ExternalNotificationDispatcher {
             log.info("sms skipped: template {} has no SMS channel, userId={}", msg.templateCode(), msg.userId());
             return;
         }
+        if (alreadySent(msg, "SMS")) {
+            return;
+        }
         if (sendViaAliyunTemplate(msg, template, user.getPhoneNumber())) {
             saveLog(msg, "SMS");
             return;
@@ -354,7 +370,7 @@ public class ExternalNotificationDispatcher {
      * 阿里云模板变量是 order_no/amount；发送前做纯键名归一化（orderId→order_no 且不保留原键），
      * 保证「参数个数 = 模板变量个数」（阿里云硬要求，多传/少传都会被拒）。
      * 阿里云未配齐/无参数/未登记 CODE ⇒ 返回 false 回退 webhook
-     * 文本通道；发送失败也回退，催缴不因单通道故障丢失。</p>
+     * 文本通道；仅明确拒收可回退，超时或响应不明确必须重试原渠道，避免双发。</p>
      */
     private boolean sendViaAliyunTemplate(
             NotificationDispatchMessage msg, NotificationTemplate template, String phoneNumber) {
@@ -377,11 +393,23 @@ public class ExternalNotificationDispatcher {
             aliyunSmsSender.sendMessage(phoneNumber, aliyunTemplateCode, params);
             log.info("sms sent via aliyun template={} userId={}", aliyunTemplateCode, msg.userId());
             return true;
-        } catch (Exception e) {
-            log.warn("aliyun template sms failed userId={} template={}: {}",
+        } catch (AliyunSmsSender.RejectedDispatchException e) {
+            log.warn("aliyun template sms rejected userId={} template={}: {}",
                     msg.userId(), aliyunTemplateCode, e.toString());
             return false;
+        } catch (Exception e) {
+            log.warn("aliyun template sms outcome unknown userId={} template={}: {}",
+                    msg.userId(), aliyunTemplateCode, e.toString());
+            throw e;
         }
+    }
+
+    private boolean alreadySent(NotificationDispatchMessage msg, String channel) {
+        Long count = logRepository.selectCount(Wrappers.<NotificationLog>lambdaQuery()
+                .eq(NotificationLog::getClientMsgId, resolveClientMsgId(msg))
+                .eq(NotificationLog::getChannel, channel)
+                .eq(NotificationLog::getStatus, "SENT"));
+        return count != null && count > 0;
     }
 
     private static String blankToNull(String raw) {

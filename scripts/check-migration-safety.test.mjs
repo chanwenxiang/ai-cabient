@@ -15,7 +15,15 @@
  * 因此这里：开跑前 + 跑完后都清扫；删除带重试；删不掉**显式失败**（不再静默）。
  * 兜底还有 .gitignore 里的 `V9999__tmp_migration_reviewed_gate_*.sql`。
  */
-import { readdirSync, unlinkSync, writeFileSync, existsSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+  unlinkSync,
+  writeFileSync
+} from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -131,6 +139,47 @@ if (remaining.length) {
 if (!existsSync(migrationDir)) {
   console.error(`${TAG} FAIL: migration 目录不存在，扫描锚点已失效`);
   process.exit(1);
+}
+
+// 4) 暂存区重排的新路径也必须被扫描（不能只看 base...HEAD 的 A）
+const sandbox = join(root, '.tmp', `gate-selftest-migsafety-${process.pid}`);
+const sandboxMig = join(sandbox, 'services/trade-service/src/main/resources/db/migration');
+async function sh(args) {
+  const r = await runAsync('git', args, { cwd: sandbox });
+  if (r.status !== 0) throw new Error(`git ${args.join(' ')} 失败：${r.stderr || r.stdout}`);
+  return r.stdout;
+}
+try {
+  rmSync(sandbox, { recursive: true, force: true });
+  mkdirSync(join(sandbox, 'scripts/lib'), { recursive: true });
+  mkdirSync(sandboxMig, { recursive: true });
+  cpSync(
+    join(root, 'scripts/check-migration-safety.mjs'),
+    join(sandbox, 'scripts/check-migration-safety.mjs')
+  );
+  cpSync(join(root, 'scripts/lib/async-spawn.mjs'), join(sandbox, 'scripts/lib/async-spawn.mjs'));
+  writeFileSync(join(sandboxMig, 'V400__base.sql'), '-- baseline\nSELECT 1;\n');
+  await sh(['init', '-q', '-b', 'main']);
+  await sh(['config', 'user.email', 'selftest@example.invalid']);
+  await sh(['config', 'user.name', 'selftest']);
+  await sh(['add', '-A']);
+  await sh(['commit', '-q', '-m', 'baseline']);
+  await sh([
+    'mv',
+    'services/trade-service/src/main/resources/db/migration/V400__base.sql',
+    'services/trade-service/src/main/resources/db/migration/V401__renamed.sql'
+  ]);
+  writeFileSync(join(sandboxMig, 'V401__renamed.sql'), bare);
+  const renamedResult = await runAsync(
+    process.execPath,
+    [join(sandbox, 'scripts/check-migration-safety.mjs')],
+    { cwd: sandbox, env: { ...process.env, MIGRATION_BASE_REF: 'HEAD' } }
+  );
+  if (renamedResult.status === 0 || !/V401__renamed\.sql/.test(renamedResult.stderr || '')) {
+    throw new Error(`staged rename new path was not scanned\n${renamedResult.stderr || ''}`);
+  }
+} finally {
+  rmSync(sandbox, { recursive: true, force: true });
 }
 
 console.log(`${TAG} OK（本测试不残留任何临时迁移）`);

@@ -7,7 +7,12 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { evaluateBatch, evaluateRegistry, isCoveredBy } from './check-fix-batch-coverage.mjs';
+import {
+  evaluateBatch,
+  evaluateRegistry,
+  isCoveredBy,
+  resolveCurrentPath
+} from './check-fix-batch-coverage.mjs';
 
 const TAG = '[check-fix-batch-coverage.test]';
 let checks = 0;
@@ -97,6 +102,26 @@ const BATCH = {
     new Set(['services/a/AOldTest.java'])
   );
   assert(p.length === 1 && p[0].includes('A26'), `删除文件不在 diff 仍须红：${p.join('|')}`);
+}
+
+// 3e) 未应用迁移纯重排：历史登记路径按精确例外映射到当前路径，未登记路径不得放行
+{
+  const exceptions = [{ from: 'V516__old.sql', to: 'V519__old.sql' }];
+  assert(
+    resolveCurrentPath('V516__old.sql', exceptions) === 'V519__old.sql',
+    '精确登记的重排路径应映射到新路径'
+  );
+  assert(
+    resolveCurrentPath('V517__other.sql', exceptions) === 'V517__other.sql',
+    '未登记路径必须保持原样'
+  );
+  const batch = { ...BATCH, items: [{ id: 'X-1', files: ['V516__old.sql'] }] };
+  const problems = evaluateBatch(
+    batch,
+    ['V516__old.sql'],
+    (rel) => resolveCurrentPath(rel, exceptions) === 'V519__old.sql'
+  );
+  assert(problems.length === 0, `重排后的历史登记不应误报：${problems.join('|')}`);
 }
 
 // 4) 覆盖对账不平：totalItems 与 items+notAdopted 不等 ⇒ 红

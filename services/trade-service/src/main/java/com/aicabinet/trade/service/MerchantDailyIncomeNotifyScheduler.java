@@ -167,17 +167,17 @@ public class MerchantDailyIncomeNotifyScheduler {
         String summary = "经营日报未执行";
         try {
             LocalDate yesterday = yesterdayOf();
-            int sent = sendWechatReportsOnly(yesterday);
-            summary = "昨日(" + yesterday + ")经营日报微信送达 " + sent + " 人";
+            MerchantDailyReportNotifier.DeliveryResult outcome = sendWechatReportsOnly(yesterday);
+            summary = "昨日(" + yesterday + ")经营日报微信送达 " + outcome.sent() + " 人"
+                    + "，失败 " + outcome.failed() + " 人，跳过 " + outcome.skipped() + " 人";
+            failed = outcome.failed() > 0;
             log.info("scheduled merchant daily report completed: {}", summary);
         } catch (Exception e) {
             failed = true;
-            taskService.finish(REPORT_PROCESS, "FAILED", e.getMessage(), start);
+            summary = e.getMessage();
             log.error("scheduled merchant daily report failed", e);
         } finally {
-            if (!failed) {
-                taskService.finish(REPORT_PROCESS, "SUCCESS", summary, start);
-            }
+            taskService.finish(REPORT_PROCESS, failed ? "FAILED" : "SUCCESS", summary, start);
         }
     }
 
@@ -185,9 +185,9 @@ public class MerchantDailyIncomeNotifyScheduler {
      * 只发微信日报：不扣费、不写站内信（扣费与站内信属 00:20 的日结任务，两件事不能混）。
      * 幂等由 {@link MerchantDailyReportNotifier} 按「操作员 × 日期」保证，重跑只补发未收到的。
      *
-     * @return 送达人数
+     * @return 各商户投递人数汇总；失败人数用于把调度结果标为 FAILED
      */
-    int sendWechatReportsOnly(LocalDate yesterday) {
+    MerchantDailyReportNotifier.DeliveryResult sendWechatReportsOnly(LocalDate yesterday) {
         Instant from = yesterday.atStartOfDay(ScheduleZones.ZONE).toInstant();
         Instant to = yesterday.plusDays(1).atStartOfDay(ScheduleZones.ZONE).toInstant();
         List<OrderRevenueSplit> splits = splitRepository.selectList(Wrappers.<OrderRevenueSplit>lambdaQuery()
@@ -195,16 +195,17 @@ public class MerchantDailyIncomeNotifyScheduler {
                 .lt(OrderRevenueSplit::getCreatedAt, to));
         Map<String, DailySales> salesByMerchant = mergeDeviceMerchants(aggregateSales(splits));
         if (salesByMerchant.isEmpty()) {
-            return 0;
+            return MerchantDailyReportNotifier.DeliveryResult.EMPTY;
         }
         String bizId = yesterday.format(ISO_FMT);
         String period = yesterday.format(PERIOD_FMT);
-        int sent = 0;
+        MerchantDailyReportNotifier.DeliveryResult result = MerchantDailyReportNotifier.DeliveryResult.EMPTY;
         for (Map.Entry<String, DailySales> e : salesByMerchant.entrySet()) {
-            sent += dailyReportNotifier.send(new MerchantDailyReportNotifier.MerchantDailyReport(
-                    e.getKey(), bizId, period, e.getValue().salesCents(), e.getValue().orderCount()));
+            result = result.plus(dailyReportNotifier.send(
+                    new MerchantDailyReportNotifier.MerchantDailyReport(
+                            e.getKey(), bizId, period, e.getValue().salesCents(), e.getValue().orderCount())));
         }
-        return sent;
+        return result;
     }
 
     /**

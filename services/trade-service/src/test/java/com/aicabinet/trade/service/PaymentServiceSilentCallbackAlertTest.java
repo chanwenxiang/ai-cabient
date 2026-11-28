@@ -201,7 +201,7 @@ class PaymentServiceSilentCallbackAlertTest {
         when(rechargeOrderRepository.findById("R-WX-BOOM")).thenReturn(Optional.empty());
         doThrow(new RuntimeException("alert channel down"))
                 .when(opsAlertDispatcher)
-                .send(anyString(), anyString(), anyString(), anyMap());
+                .sendAfterCommit(anyString(), anyString(), anyString(), anyMap());
 
         assertDoesNotThrow(() -> paymentService.handleWeChatNotify("{}", "ts", "n", "sig", "serial"));
 
@@ -211,7 +211,7 @@ class PaymentServiceSilentCallbackAlertTest {
 
     /** 每类分支统一断言：告警类型 + 本地可见的订单/单号 + 绝不入账。 */
     private void verifySilentAlert(String type, String traceToken) {
-        verify(opsAlertDispatcher).send(eq(type), anyString(), contains(traceToken), anyMap());
+        verify(opsAlertDispatcher).sendAfterCommit(eq(type), anyString(), contains(traceToken), anyMap());
         verify(balanceLedgerService, never())
                 .change(anyLong(), anyInt(), anyString(), anyString(), anyString(), anyString());
         verify(paymentOperationRepository, never()).findByIdempotencyKey(anyString());

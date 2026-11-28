@@ -13,10 +13,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -64,6 +67,16 @@ class OpsExceptionManualResolveTest {
                 org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
         org.mockito.Mockito.lenient().when(merchantScopeService.isGlobalScope(org.mockito.ArgumentMatchers.anyLong()))
                 .thenReturn(true);
+    }
+
+    @Test
+    void manualResolve_keepsChannelHttpOutsideOuterTransaction() throws Exception {
+        assertNull(OpsExceptionService.class.getMethod("manualResolve", Long.class, String.class,
+                String.class, List.class, String.class, String.class).getAnnotation(Transactional.class));
+        assertNotNull(OpsExceptionService.class.getMethod("prepareManualResolve", Long.class, String.class,
+                String.class, List.class, String.class, String.class).getAnnotation(Transactional.class));
+        assertNotNull(OpsExceptionService.class.getMethod("finalizeManualResolve",
+                OpsExceptionService.ManualResolvePlan.class, String.class).getAnnotation(Transactional.class));
     }
 
     @Test
